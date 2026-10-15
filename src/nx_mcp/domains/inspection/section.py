@@ -399,7 +399,8 @@ def nx_measure_section(
 ) -> SectionData:
     """Cut bodies with one of plane (+ offset), normal (+ origin) or radial_axis; the model is
     unchanged. Loops: role, area, box, 2D lines/arcs. radial_axis z cuts xz, x or y cut xy:
-    radius spans per axial station (at), from that one cut: for revolved parts."""
+    radius spans per axial station (at), from that one cut: for revolved parts. The axis is
+    parallel to that world axis through origin (default [0,0,0])."""
     common.note_exploded(tx)
     given = [n for n, v in (("plane", plane), ("normal", normal), ("radial_axis", radial_axis))
              if v is not None]  # fmt: skip
@@ -483,4 +484,21 @@ def nx_measure_section(
             _station(material, axial, t)
             for t in _stations(material, axial, at, stations, max(tol, 1e-9))
         ]
+        _note_off_axis(tx, material, axial, radial_axis, frame["origin"], tol)
     return out
+
+
+def _note_off_axis(tx, material, axial, radial_axis, origin, tol) -> None:
+    """``NX_NOTE`` when the cut lies on one side of the axis only: a body revolved about it
+    is cut on both sides, so the spans are positions, not radii."""
+    radial = 1 - axial
+    values = [p[radial] for loop in material for p in _polygon(loop)]
+    if not values or (min(values) < -tol and max(values) > tol):
+        return
+    at = ", ".join(f"{v:g}" for v in origin)
+    tx.warn(
+        "NX_NOTE",
+        f"The section lies on one side of the {radial_axis} axis through [{at}]: the bodies "
+        "are not revolved about it, so spans are distances from that axis, not radii; give "
+        "origin, a point on the bodies' own axis",
+    )

@@ -1,0 +1,32 @@
+{
+ "covers": {
+  "nx_set_camera": [],
+  "nx_get_camera": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_primitive", "setup": true, "save": "blk", "args": {"shape": "block", "length": 100, "width": 50, "height": 20}},
+  {"call": "nx_create_primitive", "setup": true, "save": "small", "args": {"shape": "block", "origin": [200, 0, 0], "length": 10, "width": 10, "height": 10}},
+  {"call": "nx_set_visibility", "setup": true, "args": {"mode": "hide", "objects": ["$small.data.bodies.0.id"]}},
+  {"call": "nx_set_camera", "save": "top", "args": {"orientation": "top", "fit": true},
+   "expect": {"mutation_outcome": "committed", "data.fit.bodies": 1, "data.fit.centre": {"close": [50, 25, 10], "tol": 1e-06},
+              "data.absolute_origin": {"close": [50, 25, 10], "tol": 0.01}}},
+  {"call": "nx_set_camera", "args": {"view_from": [-1, -1, 1]},
+   "intent": "Acceptance: a new direction without fit turns about the view centre (live: the model drifted 35 mm off centre)",
+   "expect": {"mutation_outcome": "committed", "data.view_from": {"close": [-0.5773502691896258, -0.5773502691896258, 0.5773502691896258], "tol": 1e-06},
+              "data.absolute_origin": {"close": [50, 25, 10], "tol": 0.01}, "data.scale": {"close": "$top.data.scale", "tol": 1e-06}}},
+  {"call": "nx_set_camera", "args": {"orientation": "front"},
+   "expect": {"mutation_outcome": "committed", "data.view": "front", "data.absolute_origin": {"close": [50, 25, 10], "tol": 0.01}}},
+  {"call": "nx_set_camera", "args": {"center": [205, 5, 5], "style": "wireframe"},
+   "expect": {"mutation_outcome": "committed", "data.style": "wireframe", "data.absolute_origin.0": {"close": 205, "tol": 0.01}, "data.absolute_origin.2": {"close": 5, "tol": 0.01}}},
+  {"call": "nx_get_camera", "args": {},
+   "intent": "Acceptance: the style set stays after the call",
+   "expect": {"ok": true, "data.style": "wireframe", "data.view": "front"}},
+  {"call": "nx_set_camera", "args": {"orientation": "isometric", "fit": true, "style": "shaded_with_edges"},
+   "expect": {"mutation_outcome": "committed", "data.style": "shaded_with_edges", "data.fit.bodies": 1}},
+  {"call": "nx_set_camera", "args": {"center": [0, 0, 0], "fit": true},
+   "expect": {"ok": false, "error.field": "/center", "mutation_outcome": "not_started"}}
+ ]
+}

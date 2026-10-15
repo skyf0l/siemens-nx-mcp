@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/freeform/curve_project.json",
-  "scenario_sha256": "a8fddfdfa470bd5c276c7dbcee98db96944aa1079a8dc1f961ef7a57b9763c96",
+  "scenario_sha256": "485330474e91728d34058a9e6ba623f990cf1c3d0a0b29444a0af59dff987b93",
   "domain": "freeform",
   "covers": {
     "nx_create_projected_curve": [
@@ -12,11 +12,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_projected_curve": "ec7468c3f3387c408120fdb3fb363ca8c04701a25321c0ebb13a99fe08cbd09e"
+    "nx_create_projected_curve": "c508ecb5d555a3fbb0278c0c8146ad01ec297796b0750cfaf2a248c7f0c6d94e"
   },
-  "recorded": "2026-10-13T06:43:13Z",
+  "recorded": "2026-10-15T10:59:51Z",
   "passed": true,
-  "checks": 22,
+  "checks": 26,
   "failed_checks": 0,
   "steps": [
     {
@@ -84,6 +84,13 @@
     },
     {
       "index": 10,
+      "call": "nx_create_projected_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 11,
       "call": "nx_check_model",
       "setup": false,
       "passed": true,

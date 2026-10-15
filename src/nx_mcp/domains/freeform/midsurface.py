@@ -20,6 +20,7 @@ and ``asymmetry`` the largest side-to-side difference.
 
 from __future__ import annotations
 
+import math
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
@@ -28,10 +29,12 @@ from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import BodyRef, Doc, FaceRef, Items
 from nx_mcp.domains.freeform import common
 from nx_mcp.kit import bodies as kbodies
-from nx_mcp.kit import builders, curve, facts, licenses, readback, select, units
+from nx_mcp.kit import builders, curve, facts, geom, licenses, readback, select, units
 
 LICENSE = "solid_modeling"
 ASYMMETRY = 0.01  # share of the local thickness the mid sheet may lean to one side
+THIN = 0.3  # thickness over mid sheet span above which a body is not thin
+UNEVEN = 0.5  # smallest over largest half thickness below which the thickness varies widely
 
 
 class Range(TypedDict):
@@ -62,8 +65,52 @@ def _side(tx, refs, body, field):
     return faces
 
 
+FACING = 60.0  # degrees: a side-two face whose normal is this far from opposite is refused
+
+
+def _facing(tx, firsts, seconds, refs) -> None:
+    """``NX_WRONG_GEOMETRY`` for a side-two face that does not face side one: no sample
+    pair with roughly opposite normals and the side-two point behind side one (outward
+    normals of a solid). NX builds nothing for such a pair ("NX built no body")."""
+    one = [s for f in firsts for s in facts.interior_samples(tx, f)]
+    if not one:
+        return
+    for i, face in enumerate(seconds):
+        tx.checkpoint()
+        two = facts.interior_samples(tx, face)
+        if not two:
+            continue
+        best = 180.0
+        for p1, n1 in one:
+            for p2, n2 in two:
+                if geom.dot(geom.sub(p2, p1), n1) < 0:
+                    cosine = max(-1.0, min(1.0, -geom.dot(n1, n2)))
+                    best = min(best, math.degrees(math.acos(cosine)))
+        if best > FACING:
+            fail(
+                "NX_WRONG_GEOMETRY",
+                f"{refs[i]} does not face side_one (its normal is {best:.0f} deg from opposite)",
+                field=f"/side_two/{i}",
+                hint="side_two must be the faces opposite side_one across the wall, e.g. the "
+                "bottom face for a top face; method auto pairs them itself",
+                details={"angle": best},
+            )
+
+
 def _nearest(tx, targets, point):
     return min(curve.point_distance(tx, t, point)[0] for t in targets)
+
+
+def _warn_thick(tx, bounds, half, method) -> None:
+    """Warn when the body is not thin: its thickness is a large share of the mid sheet's
+    span, or (auto) the half thickness varies widely (a block, not a plate)."""
+    span = max(h - lo for lo, h in zip(bounds["min"], bounds["max"], strict=True))
+    thick = 2 * half["max"] > THIN * span
+    uneven = method == "auto" and half["min"] < UNEVEN * half["max"]
+    if span > 0 and (thick or uneven):
+        tx.warn("NX_APPROXIMATED", f"The body may not be thin (half_thickness "
+                f"{half['min']:.4g}..{half['max']:.4g} over a {span:.4g} span): a mid sheet "
+                "suits plates, ribs and skins")  # fmt: skip
 
 
 def _measure(tx, bodies, sides):
@@ -129,7 +176,9 @@ def nx_create_midsurface(
 ) -> MidsurfaceData:
     """Create the mid sheet of a thin solid or between two sheets (plate, rib, hull skin
     for shell meshing). auto pairs the solid's faces; face_pairs uses the given opposite
-    faces. Reports half_thickness (mid sheet to the sides) and asymmetry."""
+    faces. Reports half_thickness (mid sheet to the sides; auto: to the nearest face of the
+    solid, side faces included) and asymmetry (face_pairs and two_sheets); warns when the
+    body is not thin."""
     used = {"body": body, "side_one": side_one, "side_two": side_two, "sheets": sheets}
     wanted = {"auto": ("body",), "face_pairs": ("body", "side_one", "side_two"),
               "two_sheets": ("sheets",)}[method]  # fmt: skip
@@ -149,6 +198,7 @@ def nx_create_midsurface(
             seconds = _side(tx, side_two, solid, "/side_two")
             if {int(f.Tag) for f in firsts} & {int(f.Tag) for f in seconds}:
                 fail("NX_INVALID_ARGUMENT", "A face is on both sides", field="/side_two")
+            _facing(tx, firsts, seconds, side_two)
         if method == "two_sheets":
             pair = common.sheets(tx, sheets, "/sheets")
             if int(pair[0].Tag) == int(pair[1].Tag):
@@ -178,6 +228,13 @@ def nx_create_midsurface(
         sides = [[pair[0]], [pair[1]]]
     # NX 2406: the face-pairs feature lists no body; its sheet is the part's new body.
     made = common.feature_bodies(feature) or [x for x in part.Bodies if int(x.Tag) not in before]
+    if not made:
+        fail(
+            "NX_WRONG_GEOMETRY",
+            "NX built no mid sheet for these faces; rolled back",
+            field="/side_two" if method == "face_pairs" else "/" + wanted[0],
+            hint="Give faces that lie opposite each other across a thin wall, or use method auto",
+        )
     out = common.result_of(tx, feature, made)
     readback.expect(out["sheet"], "sheet", "NX built no mid sheet")
     kbodies.expect_sound(tx, made)
@@ -186,5 +243,6 @@ def nx_create_midsurface(
     if lean is not None and lean > limit + ASYMMETRY * 2 * half["max"]:
         tx.warn("NX_APPROXIMATED", f"The mid sheet leans {lean:.4g} towards one side: check "
                 "the face pairs (nx_measure_distance)")  # fmt: skip
+    _warn_thick(tx, out["bounds"], half, method)
     return {**out, "method": method, "half_thickness": half, "asymmetry": lean,
             "samples": count}  # fmt: skip

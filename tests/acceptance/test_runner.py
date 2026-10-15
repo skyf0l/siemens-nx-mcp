@@ -285,7 +285,9 @@ async def test_scenario_runs_through_the_gateways_and_writes_evidence(tmp_path, 
     assert all(s["result_sha256"] for s in details["steps"])
     # Cleanup: the scenario part is closed unsaved by ID. The engineer's part is never
     # displayed again by the run (re-displaying a part can switch NX's application).
-    assert details["cleanup"]["closed"] == [part] and not details["cleanup"]["failed"]
+    # Results show paths inside the workspace relative to it.
+    closed = ["smoke/r1/modeling_fake_r1.prt"]
+    assert details["cleanup"]["closed"] == closed and not details["cleanup"]["failed"]
     assert details["cleanup"]["not_restored"] == "C:/eng/bracket.prt"
     method, params = nx.calls[-1]
     assert method == "nx_close_part" and params["save"] is False

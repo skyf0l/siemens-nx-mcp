@@ -13,6 +13,19 @@ KINDS = {
 }
 
 
+def _sampler(box):
+    """``at(u, v)`` over a flat axis-aligned face box [x0, y0, z0, x1, y1, z1]."""
+    free = [k for k in range(3) if box[k] != box[k + 3]]
+
+    def at(u, v):
+        p = [float(box[k]) for k in range(3)]
+        for k, t in zip(free, (u, v), strict=False):
+            p[k] = box[k] + t * (box[k + 3] - box[k])
+        return p
+
+    return at
+
+
 def mid_nx(z=2.0):
     """A 40 x 20 x 4 plate at y 50; every midsurface commit builds a sheet at ``z``."""
     nx = curves_nx()
@@ -20,6 +33,8 @@ def mid_nx(z=2.0):
     rules = nx.part.ScRuleFactory
     rules.CreateRuleBodyDumb = lambda objs, *_: ("BodyDumb", list(objs))
     plate = nx.block(40, 20, 4, origin=(0, 50, 0))
+    for f in plate.faces:  # interior samples of the plate's faces (the facing pre-check)
+        f.at = _sampler(f.box)
 
     def commit(_b):
         f = face(nx, flat(), area=800.0)
@@ -91,7 +106,7 @@ def test_midsurface_argument_rules(args, field):
     nx, plate = mid_nx()
     body = {} if args.get("method") == "two_sheets" else {"body": nx.ref_of(plate, "body")}
     bad = run(nx, "nx_create_midsurface", **body, **args)
-    assert bad.error["field"] == field, bad
+    assert bad.error["field"].startswith(field), bad  # a stale list ref names its item
     assert not nx.builders
 
 
@@ -107,3 +122,23 @@ def test_midsurface_without_license_refuses_before_the_builder():
     nx.licenses["solid_modeling"] = False
     bad = run(nx, "nx_create_midsurface", body=nx.ref_of(plate, "body"))
     assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and not nx.builders
+
+
+def test_midsurface_face_pairs_must_face_each_other():
+    nx, plate = mid_nx()
+    top, side = plate.face((0, 0, 1)), plate.face((1, 0, 0))
+    bad = run(nx, "nx_create_midsurface", method="face_pairs", body=nx.ref_of(plate, "body"),
+              side_one=[nx.ref_of(top, "face")], side_two=[nx.ref_of(side, "face")])  # fmt: skip
+    assert bad.error["code"] == "NX_WRONG_GEOMETRY" and bad.error["field"] == "/side_two/0"
+    assert bad.error["details"]["angle"] == pytest.approx(90)
+    assert bad.mutation_outcome == "not_started" and not nx.builders
+
+
+def test_midsurface_that_builds_nothing_is_wrong_geometry():
+    nx, plate = mid_nx()
+    nx.on_commit(KINDS["face_pairs"], lambda _b: made(nx, "MIDSURFACE", []))
+    top, bottom = plate.face((0, 0, 1)), plate.face((0, 0, -1))
+    bad = run(nx, "nx_create_midsurface", method="face_pairs", body=nx.ref_of(plate, "body"),
+              side_one=[nx.ref_of(top, "face")], side_two=[nx.ref_of(bottom, "face")])  # fmt: skip
+    assert bad.error["code"] == "NX_WRONG_GEOMETRY" and bad.error["retry"] == "after_fix"
+    assert bad.mutation_outcome == "rolled_back"

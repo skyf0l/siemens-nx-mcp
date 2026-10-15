@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/component_mirror.json",
-  "scenario_sha256": "b1fbb95f5cb1bd7fa53efdd5441409a1d1c9710a2088c85980c7f420dfed24b1",
+  "scenario_sha256": "1d0cc2fa93c7e447fb643f8c581460b93211b666cae933a3a7fb65c1837811fd",
   "domain": "assembly",
   "covers": {
     "nx_create_component_mirror": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_component_mirror": "a2d254404f1f0494fd5320dbead033597038166ce64d2ccd7ee54f5dd51ae0e0"
+    "nx_create_component_mirror": "93ac3f3e1212f4a3a4348930e968fcd974f201e78dfd1ae9abffa5fba578f760"
   },
-  "recorded": "2026-10-11T15:51:28Z",
+  "recorded": "2026-10-15T10:57:21Z",
   "passed": true,
-  "checks": 20,
+  "checks": 26,
   "failed_checks": 0,
   "steps": [
     {
@@ -84,21 +84,21 @@
       "call": "nx_create_component_mirror",
       "setup": false,
       "passed": true,
-      "checks": 7
+      "checks": 9
     },
     {
       "index": 11,
       "call": "nx_list_components",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 3
     },
     {
       "index": 12,
       "call": "nx_create_component_mirror",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 5
     },
     {
       "index": 13,
@@ -112,7 +112,7 @@
       "call": "nx_create_component_mirror",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 5
     },
     {
       "index": 15,

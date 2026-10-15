@@ -240,6 +240,7 @@ def test_create_activate_rename_default_delete(nx):
     assert _names(ok) == ["Arrangement 1", "OPEN"]
     clash = run(nx, "nx_create_arrangement", part="asm", name="open")
     assert clash.error["code"] == "NX_ALREADY_EXISTS" and clash.mutation_outcome == "not_started"
+    assert clash.error["details"]["arrangement"] == "OPEN", clash
     missing = run(nx, "nx_create_arrangement", part="asm", name="X", copy_from="nope")
     assert missing.error["field"] == "/copy_from"
     act = run(nx, "nx_edit_arrangement", part="asm", arrangement="open", action="activate")
@@ -283,8 +284,12 @@ def test_pose_and_suppression_per_arrangement(nx):
     assert hide.ok and hide.data["suppressed"] is True and not nx.base.IsSuppressed, hide
     listed = run(nx, "nx_list_arrangements", part="asm")
     assert listed.ok, listed
-    assert [(a["name"], a["active"], a["suppressed"]) for a in listed.data["items"]] == [
+    assert [(a["name"], a["active"], [s["name"] for s in a["suppressed"]])
+            for a in listed.data["items"]] == [
         ("Arrangement 1", True, []), ("OPEN", False, ["BASE"])]  # fmt: skip
+    assert listed.data["items"][1]["suppressed"][0]["id"] == nx.base.ref
+    varied = {r["name"]: r["varied"] for r in listed.data["components"]}
+    assert varied["LID"] is True, listed
     act = run(nx, "nx_edit_arrangement", part="asm", arrangement="OPEN", action="activate")
     rows = {r["name"]: r for r in act.data["components"]}
     assert rows["LID"]["translation"] == pytest.approx([0, 0, 150])
@@ -320,3 +325,53 @@ def test_a_shared_pose_that_moves_elsewhere_rolls_back(nx):
     assert bad.mutation_outcome == "rolled_back"
     assert nx.lid.t == pytest.approx([0, 0, 100]) and nx.arr.active.Name == "Arrangement 1"
     assert geom.dist(nx.arr.arrangements[1].state[nx.lid][0], [0, 0, 100]) < 1e-9
+
+
+def _pose_in(nx, component, name):
+    a = next(x for x in nx.arr.arrangements if x.Name == name)
+    if a is nx.arr.active:
+        return component.t
+    return a.state[component][0]
+
+
+def test_compensation_sets_an_arrangement_component_back(nx):
+    run(nx, "nx_create_arrangement", part="asm", name="OPEN")
+    moved = run(nx, "nx_set_arrangement_component", part="asm", arrangement="OPEN",
+                component=nx.lid.ref, pose={"translation": [0, 0, 150]}, suppressed=True)  # fmt: skip
+    assert moved.ok, moved
+    undo = run(nx, "nx_undo_operation", part="asm", mode="compensate")
+    assert undo.ok and undo.data["compensated"], undo
+    assert "back to unsuppressed at [0" in undo.data["restored"][0]
+    assert nx.lid not in nx.arr.varied and not nx.arr.suppressed(nx.lid, nx.arr.arrangements[1])
+    assert _pose_in(nx, nx.lid, "OPEN") == pytest.approx([0, 0, 100])
+    assert nx.arr.active.Name == "Arrangement 1"
+
+
+def test_compensation_refuses_an_arrangement_component_changed_since(nx):
+    run(nx, "nx_create_arrangement", part="asm", name="OPEN")
+    first = run(nx, "nx_set_arrangement_component", part="asm", arrangement="OPEN",
+                component=nx.lid.ref, pose={"translation": [0, 0, 150]})  # fmt: skip
+    again = run(nx, "nx_set_arrangement_component", part="asm", arrangement="OPEN",
+                component=nx.lid.ref, pose={"translation": [0, 0, 200]})  # fmt: skip
+    assert first.ok and again.ok
+    later = run(nx, "nx_undo_operation", part="asm", operation=first.operation_id,
+                mode="compensate")  # fmt: skip
+    assert later.error["code"] == "NX_DEPENDENCY_ORDER", later
+    assert _pose_in(nx, nx.lid, "OPEN") == pytest.approx([0, 0, 200])
+
+
+def test_compensation_sets_an_arrangement_rename_activation_and_default_back(nx):
+    run(nx, "nx_create_arrangement", part="asm", name="OPEN")
+    for args, check in (
+        ({"arrangement": "OPEN", "action": "rename", "new_name": "WIDE"},
+         lambda: sorted(a.Name for a in nx.arr.arrangements) == ["Arrangement 1", "OPEN"]),
+        ({"arrangement": "OPEN", "action": "activate"},
+         lambda: nx.arr.active.Name == "Arrangement 1"),
+        ({"arrangement": "OPEN", "action": "set_default"},
+         lambda: nx.arr.default.Name == "Arrangement 1"),
+    ):  # fmt: skip
+        done = run(nx, "nx_edit_arrangement", part="asm", **args)
+        assert done.ok, done
+        undo = run(nx, "nx_undo_operation", part="asm", mode="compensate")
+        assert undo.ok and undo.data["compensated"], (args, undo)
+        assert check(), args

@@ -9,6 +9,7 @@ component carries its own attributes and reports its prototype part's as
 
 from __future__ import annotations
 
+import contextlib
 import datetime as _dt
 import math
 import re
@@ -16,7 +17,7 @@ from dataclasses import dataclass
 from typing import Annotated, Any, Literal, TypedDict
 
 from nx_mcp.core.catalogue import restorer, tool
-from nx_mcp.core.errors import fail, native
+from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.target import file_name
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Json, Ref, Text, forbid_extra
@@ -45,6 +46,10 @@ Title = Annotated[str, Text(50), Doc("Attribute title")]
 Category = Annotated[str, Text(50)]
 BOOLEAN_TEXT = {"true": True, "yes": True, "false": False, "no": False}
 NUMBER_TEXT = re.compile(r"^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$")
+# Kinds NX 2406 refuses user attributes on (580023 "Functionality attempted not possible in
+# the current version of the OM" for an expression).
+NO_ATTRIBUTES = frozenset({"expression"})
+UNSUPPORTED_OBJECT = 580023
 
 
 class AttributeRow(TypedDict, total=False):
@@ -238,7 +243,10 @@ def _adopt(want: _Want, have: str) -> _Want:
         return want
     try:
         value = _convert(have, want.raw)
-    except ValueError:
+    except ValueError as error:
+        if have == "date" and isinstance(want.raw, str) and DATE.match(want.raw.strip()):
+            # A date-shaped text for a date attribute: its own problem, not a type clash.
+            fail("NX_INVALID_ARGUMENT", f"{want.value_field}: {error}", field=want.value_field)
         return want
     return _Want(want.name, have, value, want.category, want.field, want.raw, False)
 
@@ -312,8 +320,20 @@ def _keys(info) -> set[str]:
 
 def _target(tx, ref: str, field: str):
     obj = tx.resolve(ref)
-    if not hasattr(obj, "GetUserAttributes"):
-        fail("NX_WRONG_KIND", f"{ref} cannot carry attributes", field=field)
+    kind = None
+    try:
+        kind = tx.kind_of(obj)
+    except Exception:
+        kind = None
+    if not hasattr(obj, "GetUserAttributes") or kind in NO_ATTRIBUTES:
+        fail(
+            "NX_WRONG_KIND",
+            f"{ref} cannot carry user attributes" + (f" (a {kind})" if kind else ""),
+            field=field,
+            hint="Attributes go on parts, bodies, faces, edges, features and components; an "
+            "expression's value is set with nx_set_expression",
+            details={"kind": kind},
+        )
     return obj
 
 
@@ -479,8 +499,9 @@ def nx_set_attributes(
     now = tx.nx.Update.Option.Now
     items: list[SetRow] = []
     restore: list[dict[str, Any]] = []  # per object: touched titles' rows before/after
-    for (obj, existing, planned), ref in zip(targets, refs, strict=True):
+    for i, ((obj, existing, planned), ref) in enumerate(zip(targets, refs, strict=True)):
         tx.checkpoint()
+        field = f"/objects/{i}" if ref else None
         titles = [w.name for w in planned] + [n for n in delete if n.casefold() not in seen]
         restore.append(
             {"object": ref, "titles": titles, "before": _title_rows(tx, existing, titles)}
@@ -488,9 +509,10 @@ def nx_set_attributes(
         deleted = []
         for name in delete:
             info = _own(existing, name)
-            if info is None:
-                continue  # already absent: deleting is idempotent
-            with native():
+            if info is None:  # already absent: deleting is idempotent, and said
+                tx.warn("NX_NOTE", f"{ref or 'The work part'} has no attribute {name!r} to delete")
+                continue
+            with _native_on(ref, field):
                 obj.DeleteUserAttribute(info.Type, str(info.Title), True, now)
             deleted.append(str(info.Title))
         created = []
@@ -508,7 +530,7 @@ def nx_set_attributes(
                 info.Category = category  # NX clears a category that is not passed again
             setattr(info, FIELD[want.kind],
                     _nx_date(want.value) if want.kind == "date" else want.value)  # fmt: skip
-            with native():
+            with _native_on(ref, field):
                 obj.SetUserAttribute(info, now)
         after = _existing(obj)
         rows = []
@@ -536,6 +558,21 @@ def nx_set_attributes(
         restore[-1]["after"] = _title_rows(tx, after, titles)
     tx.note_restore({"items": restore})
     return {"items": items}
+
+
+@contextlib.contextmanager
+def _native_on(ref, field: str | None):
+    """``native()`` for a write on one object: NX's "not possible on this object" is the
+    object's kind (``NX_WRONG_KIND`` on its field), never an unclassified NX failure."""
+    try:
+        with native(codes={UNSUPPORTED_OBJECT: "NX_WRONG_KIND"}):
+            yield
+    except NXError as error:
+        if error.nx_code == UNSUPPORTED_OBJECT:
+            error.message = f"{ref or 'The work part'} cannot carry user attributes: {error}"
+            error.field = error.field or field
+            error.hint = "Attributes go on parts, bodies, faces, edges, features and components"
+        raise
 
 
 def _title_rows(tx, existing: dict, titles: list[str]) -> dict:

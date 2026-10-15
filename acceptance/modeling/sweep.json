@@ -414,7 +414,47 @@
     "section": "$gf.data.sketch.id",
     "guide": "$sec.data.sketch.id"
    },
-   "intent": "Acceptance: section and guide swapped make a self-intersecting body: refused and rolled back (live: ok with check_model 875316)",
+   "intent": "Acceptance: section and guide swapped leave an open section: refused before NX",
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "error.field": "/section",
+    "error.details.open": 1,
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "big",
+   "args": {
+    "placement": {
+     "principal": "yz",
+     "origin": [
+      -5,
+      10,
+      5
+     ]
+    },
+    "curves": [
+     {
+      "type": "circle",
+      "center": [
+       0,
+       0
+      ],
+      "radius": 8
+     }
+    ],
+    "finish": true
+   }
+  },
+  {
+   "call": "nx_create_sweep",
+   "args": {
+    "section": "$big.data.sketch.id",
+    "guide": "$gf.data.sketch.id"
+   },
+   "intent": "Acceptance: a section wider than the guide's bend radius makes a self-intersecting body: refused and rolled back (live: ok with check_model 875316)",
    "expect": {
     "error.code": "NX_BUILD_FAILED",
     "mutation_outcome": "rolled_back",

@@ -18,6 +18,7 @@ from nx_mcp.core.errors import NXError, classify, fail
 from nx_mcp.core.types import Doc, Point2, Point3, Range, Text, Vec3
 from nx_mcp.core.validate import typeddict_fields, validate
 from nx_mcp.domains.sketch import dof as kdof
+from nx_mcp.kit import curve as kcurve
 from nx_mcp.kit import expr, geom, result
 from nx_mcp.kit import sketch as ksketch
 from nx_mcp.kit.args import choice as choice  # natural option spellings
@@ -88,11 +89,15 @@ class SketchRows(_SketchRowsRequired, total=False):
     feature: result.Row
 
 
-class Status(TypedDict):
+class _Status(TypedDict):
     state: str
     fully_constrained: bool
-    dof: Annotated[int | None, Doc("Remaining degrees of freedom; None: not computable")]
+    dof: Annotated[int | None, Doc("Remaining degrees of freedom; None: see dof_note")]
     free_curves: Annotated[int | None, Doc("Curves not fully constrained (NX)")]
+
+
+class Status(_Status, total=False):
+    dof_note: Annotated[str, Doc("Why dof is None (e.g. a curve kind not modelled)")]
 
 
 def frame_row(f) -> Frame:
@@ -170,8 +175,9 @@ def constraint_row(tx, constraint, curves=None, sketch_tags=None) -> ConstraintR
 
 
 @contextlib.contextmanager
-def rejected_inputs(message, code="NX_INVALID_ARGUMENT"):
-    """A native NX refusal inside the block becomes ``code`` with ``message`` (nx_code kept).
+def rejected_inputs(message, code="NX_INVALID_ARGUMENT", field=None, messages=None):
+    """A native NX refusal inside the block becomes ``code`` on ``field`` with ``message``,
+    or the message ``messages`` gives its nx_code (nx_code and NX's text kept).
 
     Live NX 2406: 674275 "Invalid data for Sketch Project" (an edge normal to the
     plane), 3680011 "No intersection exists between selected faces and sketch plane".
@@ -184,7 +190,8 @@ def rejected_inputs(message, code="NX_INVALID_ARGUMENT"):
         native = classify(error)
         if native.nx_code is None or native.code == "NX_LICENSE_UNAVAILABLE":
             raise native from error
-        fail(code, f"{message}: {error}", nx_code=native.nx_code)
+        text = (messages or {}).get(native.nx_code, message)
+        fail(code, f"{text}: {error}", field=field, nx_code=native.nx_code)
 
 
 def owned_curve(tx, sk, ref, field):
@@ -203,21 +210,35 @@ def natural_items(items, key, options, field, aliases=None):
     return out
 
 
-def fields_hint(name, sub, key="type"):
-    """``"symmetric takes curves, centerline (required); ..."`` for a variant TypedDict."""
+def fields_hint(name, sub, key="type", tool="tool"):
+    """``"symmetric takes curves, centerline (required); ..."`` for a variant TypedDict;
+    ``tool`` names the tool whose variant schema shows it (``nx_create_sketch_curves``)."""
     fields = [k for k in typeddict_fields(sub) if k != key]
     required = [k for k in fields if k in sub.__required_keys__]
     optional = [k for k in fields if k not in sub.__required_keys__]
     text = f"{name} takes " + ", ".join(required or ["no other field"]) + " (required)"
     if optional:
         text += "; optional: " + ", ".join(optional)
-    return text + f". Full schema: nx_get_tool_schemas(tool#{name})"
+    return text + f". Full schema: nx_get_tool_schemas({tool}#{name})"
 
 
-def check_items(items, variants, key, field):
+def _prefixed(details, where):
+    """Validation details with every field pointer moved under the item's ``where``."""
+    out = dict(details or {})
+    errors = out.get("errors")
+    if isinstance(errors, list):
+        out["errors"] = [
+            {**e, "field": where + str(e.get("field") or "")} if isinstance(e, dict) else e
+            for e in errors
+        ]
+    return out
+
+
+def check_items(items, variants, key, field, tool="tool"):
     """Validate every flat item against its variant TypedDict; returns plain dicts.
 
-    A failure names the item's variant and lists the fields that variant takes."""
+    A failure names the item's variant and lists the fields that variant takes (the
+    schema hint names ``tool``); ``details.errors`` keeps every invalid field."""
     out = []
     for i, item in enumerate(items):
         where = f"{field}/{i}"
@@ -235,9 +256,21 @@ def check_items(items, variants, key, field):
                 "NX_INVALID_ARGUMENT",
                 f"{message} ({item[key]})",
                 field=where + inner,
-                hint=fields_hint(item[key], sub, key),
+                hint=fields_hint(item[key], sub, key, tool),
+                details=_prefixed(error.details, where),
             )
     return out
+
+
+def samples(tx, f, obj) -> list:
+    """Sketch-local points of model edge or curve ``obj`` (start, middle, end) projected
+    onto the sketch plane."""
+    return [ksketch.to_local(f, kcurve.point_at(tx, obj, t)) for t in (0.0, 0.5, 1.0)]
+
+
+def on_row(row, points, tol) -> bool:
+    """True when every sketch-local point lies on the line, arc or circle ``row``."""
+    return row["type"] in ("line", "arc", "circle") and all(contains(row, p, tol) for p in points)
 
 
 def contains(row, p, tol):
@@ -263,6 +296,23 @@ def contains(row, p, tol):
     fail("NX_WRONG_GEOMETRY", "Trim and extend support sketch lines, arcs and circles")
 
 
+# ---- solver side effects ---------------------------------------------------------
+
+MOVED_DOC = "Other curves the solve moved to keep their constraints (also changes.modified)"
+
+
+def report_moved(tx, sk, before, named=()) -> list[str]:
+    """Every curve that changed shape since ``before`` (``ksketch.shapes``) goes to
+    ``changes.modified``; returns the ids of those the request did not name (``named``:
+    curve ids), which the solver moved."""
+    out = []
+    for curve in ksketch.moved(tx, sk, before):
+        row = tx.modified(curve, "curve")
+        if row["id"] not in named:
+            out.append(row["id"])
+    return out
+
+
 # ---- solver state ----------------------------------------------------------------
 
 
@@ -271,13 +321,16 @@ def status_row(tx, sk, state, *, dof: bool = True) -> tuple[Status, dict | None]
     (``dof.checked``: per curve and total, None when not computable or not asked)."""
     name = ksketch.snake(state["status"])
     count = state["dof"]  # NX 2406: curves not fully constrained (None unless solved)
-    found = kdof.checked(tx, sk, count) if dof else None
+    why: list[str] = []
+    found = kdof.checked(tx, sk, count, why) if dof else None
     row: Status = {
         "state": name,
         "fully_constrained": name == "well_constrained",
         "dof": found["dof"] if found else None,
         "free_curves": count,
     }
+    if dof and found is None and why:
+        row["dof_note"] = why[0]
     return row, found
 
 
@@ -316,11 +369,13 @@ def explicit_conflicts(tx, sk) -> list[dict]:
     return pairs
 
 
-def require_solved(tx, sk, before=None) -> Status:
+def require_solved(tx, sk, before=None, curves=None, reference=False) -> Status:
     """Fail when the sketch is over/inconsistently constrained or lost a constraint.
 
     ``before`` is the set of constraint tags before the change: the modern solver
-    may delete a persistent constraint instead of failing.
+    may delete a persistent constraint instead of failing. A conflict names the existing
+    constraints (on ``curves``, default all) whose removal alone would solve it
+    (``details.relieving``, found before the rollback).
     """
     if before is not None:
         after = {int(c.Tag) for c in ksketch.constraints(tx, sk)}
@@ -333,13 +388,97 @@ def require_solved(tx, sk, before=None) -> Status:
     state = ksketch.status(tx, sk)
     explicit = explicit_conflicts(tx, sk)
     if state["status"] in BAD_STATES or explicit:
-        fail(
+        error = NXError(
             "NX_SKETCH_OVERCONSTRAINED",
             f"The sketch is {ksketch.snake(state['status'])} after the change; rolled back",
-            hint="Diagnose with nx_check_sketch and remove the conflicting constraint",
             details={"state": ksketch.snake(state["status"]), "explicit_conflicts": explicit},
         )
+        explain_conflict(tx, sk, error, curves, before, reference=reference)
+        raise error
     return status_row(tx, sk, state)[0]
+
+
+# ---- conflicts: which existing constraints relieve them ----------------------------
+
+CONFLICT_TRIALS = 20
+
+
+def trial(tx, sk, constraint) -> dict:
+    """Remove ``constraint`` on trial (invisible mark, always undone) and read the state:
+    ``{"state", "relieves_conflict"}`` or ``{"error"}``."""
+    session, nx = tx.session, tx.nx
+    out: dict = {"relieves_conflict": False}
+    mark = session.SetUndoMark(nx.Session.MarkVisibility.Invisible, "NX MCP conflict trial")
+    try:
+        errors = ksketch._sketch_of(sk).DeleteObjects([constraint])
+        if errors is not None:
+            errors.Dispose()
+        state = status(tx, sk, dof=False)["state"]
+        out["state"] = state
+        out["relieves_conflict"] = state in (
+            "under_constrained",
+            "well_constrained",
+        ) and not explicit_conflicts(tx, sk)
+    except Exception as error:  # a trial failure is reported, not raised
+        out["error"] = str(error)
+    finally:
+        session.UndoToMark(mark, None)
+        session.DeleteUndoMark(mark, None)
+    return out
+
+
+def relieving(tx, sk, curves=None, before=None, limit=CONFLICT_TRIALS) -> list[str]:
+    """Ids of the constraints whose removal alone solves a conflicting sketch, tried on
+    the constraints of ``curves`` (default every one) that existed ``before`` (tags)."""
+    if curves is None:
+        candidates = ksketch.constraints(tx, sk)
+    else:
+        seen: dict = {}
+        for curve in curves:
+            for c in ksketch.attached(tx, sk, curve):
+                seen.setdefault(int(c.Tag), c)
+        candidates = list(seen.values())
+    if before is not None:
+        candidates = [c for c in candidates if int(c.Tag) in before]
+    out = []
+    for constraint in candidates[:limit]:
+        tx.checkpoint()
+        if trial(tx, sk, constraint).get("relieves_conflict"):
+            out.append(tx.ref(constraint, "sketch_constraint")["id"])
+    return out
+
+
+def explain_conflict(tx, sk, error, curves=None, before=None, field=None, reference=False):
+    """Complete a conflict error before the rollback (``NX_SKETCH_OVERCONSTRAINED``, or an
+    unreachable value while the sketch is in conflict): its field, the
+    existing constraints that relieve the conflict (``details.relieving``, while the sketch
+    is still in conflict) and a hint that does not need the rolled-back state."""
+    if error.field is None and field:
+        error.field = field
+    found: list[str] = []
+    try:
+        if ksketch.status(tx, sk)["status"] in BAD_STATES or explicit_conflicts(tx, sk):
+            found = relieving(tx, sk, curves, before)
+    except NXError:
+        raise
+    except Exception:  # the explanation is best effort; the conflict error stands
+        found = []
+    conflict = error.code == "NX_SKETCH_OVERCONSTRAINED"
+    if not found and not conflict:
+        return error  # an unreachable value, not a conflict: the error stands as it is
+    error.details["relieving"] = found
+    other = "add it as reference: true" if reference else "drop this item"
+    if found:
+        error.hint = (
+            f"Delete one of the existing constraints in details.relieving first "
+            f"(nx_edit_sketch_curves {{type: delete, object: {found[0]!r}}}), or {other}"
+        )
+    else:
+        error.hint = (
+            "The curves are already held by their constraints (nx_get_sketch lists them): "
+            f"delete one of those first, or {other}"
+        )
+    return error
 
 
 # ---- fixed geometry guard ----------------------------------------------------------

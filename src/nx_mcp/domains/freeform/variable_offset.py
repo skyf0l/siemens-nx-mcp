@@ -40,6 +40,7 @@ class CornerData(TypedDict):
     point: Point3  # on the face
     distance: float
     gap: float  # point + distance x normal from the result
+    expression: str | None  # the feature's expression of this distance (edit it later)
 
 
 class VariableOffsetData(common.SheetData):
@@ -55,6 +56,30 @@ def _normal(tx, face, point):
         props = modeling.AskFaceProps(face.Tag, [float(v) for v in uv])
     on = [float(v) for v in props[0]]
     return on, geom.unit([float(v) for v in props[5]], "normal")
+
+
+def _crosses(a, b, c, d) -> bool:
+    """Whether 2D segments ab and cd cross at interior points."""
+
+    def side(p, q, r):
+        return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+
+    return side(a, b, c) * side(a, b, d) < 0 and side(c, d, a) * side(c, d, b) < 0
+
+
+def _round(points, normals) -> None:
+    """Refuse four points that do not run round the face in order (a bow-tie: side AB
+    crosses CD or BC crosses DA), seen along the face's mean normal at them."""
+    normal = [sum(n[k] for n in normals) for k in range(3)]
+    if geom.norm(normal) <= 0.5 * len(normals):
+        return  # the face turns too far between the points to see them flat: NX decides
+    x, y, _z = geom.frame_from_normal(geom.unit(normal))
+    flat = [(geom.dot(p, x), geom.dot(p, y)) for p in points]
+    if _crosses(flat[0], flat[1], flat[2], flat[3]) or _crosses(flat[1], flat[2], flat[3], flat[0]):
+        fail("NX_INVALID_ARGUMENT", "The 4 points do not run round the face in order: two "
+             "sides cross (a bow-tie)", field="/points/2",
+             hint="Give the points in order round the face, e.g. its corners anticlockwise; "
+             "swap points 2 and 3")  # fmt: skip
 
 
 @tool(
@@ -95,8 +120,10 @@ def nx_create_variable_offset(
     ] = "linear",
 ) -> VariableOffsetData:
     """Offset one face into a new sheet whose distance varies between four points (laminate
-    zones, tapered skins). Without points the face corners in NX's order are used, reported in
-    points[]; each point + distance x normal lies on the result (gap)."""
+    zones, tapered skins). linear blends bilinearly between the points, which run round the
+    face in order. Without points the face corners in NX's order are used, reported in
+    points[]; each point + distance x normal lies on the result (gap), and expression names
+    the feature expression of its distance."""
     values = [float(d) for d in distances]
     if all(geom.close(v, 0.0, 1e-12) for v in values):
         fail("NX_INVALID_ARGUMENT", "At least one distance must not be zero", field="/distances")
@@ -104,8 +131,10 @@ def nx_create_variable_offset(
         target = select.one(tx, face, "face", field="/face")
         limit = 10 * units.part_tolerance(tx)
         placed: list[list[float]] = []
+        normals: list[list[float]] = []
         for i, p in enumerate(points or []):
-            on, _n = _normal(tx, target, p)
+            on, n = _normal(tx, target, p)
+            normals.append(n)
             gap = curve.point_distance(tx, target, p)[0]
             if gap > limit:
                 fail("NX_INVALID_ARGUMENT", f"Point {i} is {gap:.4g} off the face",
@@ -115,6 +144,8 @@ def nx_create_variable_offset(
                 fail("NX_INVALID_ARGUMENT", f"Point {i} repeats another point",
                      field=f"/points/{i}")  # fmt: skip
             placed.append(on)
+        if placed:
+            _round(placed, normals)
     licenses.require(tx, (LICENSE,), f"This NX seat has no {LICENSE} license for this command",
                      strict=True)  # fmt: skip
     part = tx.part
@@ -130,15 +161,17 @@ def nx_create_variable_offset(
             expr.drive(getattr(b, "OffsetAt" + k), d)
         used = [geom.xyz(getattr(b, "Point" + k).Coordinates) for k in CORNERS]
         feature = b.commit()
+        names = [getattr(getattr(b, "OffsetAt" + k), "Name", None) for k in CORNERS]
     bodies = common.feature_bodies(feature)
     out = common.result_of(tx, feature, bodies)
     kbodies.expect_sound(tx, bodies)
     corners: list[CornerData] = []
-    for p, d in zip(used, values, strict=True):
+    for p, d, name in zip(used, values, names, strict=True):
         on, n = _normal(tx, target, p)
         wanted = geom.add(on, geom.scale(n, d))
         gap = min(curve.point_distance(tx, x, wanted)[0] for x in bodies)
-        corners.append({"point": (on[0], on[1], on[2]), "distance": d, "gap": gap})
+        corners.append({"point": (on[0], on[1], on[2]), "distance": d, "gap": gap,
+                        "expression": name if isinstance(name, str) else None})  # fmt: skip
     worst = max(c["gap"] for c in corners)
     readback.expect(worst <= 2 * tol + limit, "offset", "The sheet misses an offset point",
                     gaps=[c["gap"] for c in corners])  # fmt: skip

@@ -175,7 +175,7 @@ class CurveSpec(_CurveType, total=False):
     corner1: XY
     corner2: XY
     radius: Size
-    diameter: Size
+    diameter: Annotated[Size, Doc("Arc or circle: instead of radius")]
     major_radius: Size
     minor_radius: Size
     width: Annotated[Size, Doc("Along sketch x (slot: overall length, round ends included)")]
@@ -528,10 +528,14 @@ class Loop(TypedDict, total=False):
     branched: bool
 
 
-class CurvesData(TypedDict):
+class _CurvesData(TypedDict):
     sketch: result.Row
     curves: list[CurveRow]
     loops: Annotated[list[Loop], Doc("Connected curve chains of the sketch (construction out)")]
+
+
+class CurvesData(_CurvesData, total=False):
+    connected: Annotated[int, Doc("Coincident constraints joining separate items (connect)")]
 
 
 LOOPS_TEXT = "Each closed loop is a region; a loop inside another makes a hollow profile"
@@ -544,20 +548,77 @@ def curve_type(value, field):
 
 
 def check_curves(curves, field="/curves"):
-    """The plan of every curve item, validated before NX (pure; raises invalid_argument)."""
+    """The plan of every curve item, validated before NX (pure; raises invalid_argument).
+    A request of more curves than a sketch takes is refused here (``plan_size``)."""
     named = []
     for i, item in enumerate(curves):
         if not isinstance(item, dict):
             fail("NX_INVALID_ARGUMENT", "expected an object", field=f"{field}/{i}")
         named.append({**item, "type": curve_type(item.get("type"), f"{field}/{i}/type")})
-    items = common.check_items(named, CURVE_TYPES, "type", field)
-    return [plan(item, f"{field}/{i}") for i, item in enumerate(items)]
+    items = common.check_items(named, CURVE_TYPES, "type", field, "nx_create_sketch_curves")
+    plans = [plan(item, f"{field}/{i}") for i, item in enumerate(items)]
+    ksketch.require_room(None, None, plan_size(plans), field)
+    return plans
 
 
-def add_curves(tx, sketch, plans, construction=False) -> CurvesData:
+def plan_size(plans) -> int:
+    """How many sketch curves the plans create."""
+    return sum(len(prims) for prims, _join in plans)
+
+
+def _free_ends(prims, join):
+    """``[(primitive index, which, local point)]``: the ends of a line, an open arc or an
+    open polyline that another item may join (closed shapes, ellipses and splines none)."""
+    if join == "loop":
+        return []
+    out = []
+    for k, prim in enumerate(prims):
+        if prim[0] == "line":
+            ends = [("start", prim[1]), ("end", prim[2])]
+        elif prim[0] == "arc" and prim[4] - prim[3] < 360.0 - 1e-9:
+            _, c, r, s, e = prim
+            ends = [("start", _arc_end(c, r, s)), ("end", _arc_end(c, r, e))]
+        else:
+            continue
+        if join == "chain":  # an open polyline: its first start and its last end
+            ends = [x for x in ends if (x[0] == "start" and k == 0) or (
+                x[0] == "end" and k == len(prims) - 1)]  # fmt: skip
+        out += [(k, which, p) for which, p in ends]
+    return out
+
+
+def _connect(tx, sk, plans, made) -> int:
+    """Coincident constraints where ends of separate items coincide; returns the count."""
+    clusters: list = []  # [(point, [(item, curve, which)])]
+    for i, ((prims, join), group) in enumerate(zip(plans, made, strict=True)):
+        for k, which, p in _free_ends(prims, join):
+            for q, members in clusters:
+                if geom.dist(p, q) <= geom.tol(p, q) * 10:
+                    members.append((i, group[k], which))
+                    break
+            else:
+                clusters.append((p, [(i, group[k], which)]))
+    count = 0
+    with native(default="NX_BUILD_FAILED"):
+        for _p, members in clusters:
+            first = members[0]
+            for item, curve, which in members[1:]:
+                if item == first[0]:
+                    continue
+                sk.sketch.CreateCoincidentConstraint(
+                    ksketch.constraint_geometry(tx, first[1], first[2]),
+                    ksketch.constraint_geometry(tx, curve, which),
+                )
+                count += 1
+    return count
+
+
+def add_curves(tx, sketch, plans, construction=False, connect=False) -> CurvesData:
     """Create planned curves in ``sketch`` (a ref or live sketch, activated for the call
-    unless already active), join and read them back; ``loops`` covers the whole sketch."""
+    unless already active), join and read them back; ``loops`` covers the whole sketch.
+    ``connect`` also joins coinciding ends of separate items."""
     with ksketch.editing(tx, sketch) as sk:
+        ksketch.require_room(tx, sk, plan_size(plans))
         made = []
         for i, (prims, join) in enumerate(plans):
             tx.checkpoint(done=i, total=len(plans))
@@ -565,6 +626,7 @@ def add_curves(tx, sketch, plans, construction=False) -> CurvesData:
             if join and len(group) > 1:
                 _join(tx, sk, group, join)
             made.append(group)
+        connected = _connect(tx, sk, plans, made) if connect else None
         with native(default="NX_UPDATE_FAILED"):
             sk.sketch.Update()
         flat = [c for group in made for c in group]
@@ -581,11 +643,14 @@ def add_curves(tx, sketch, plans, construction=False) -> CurvesData:
                 if not construction:
                     del row["construction"]  # the default; shown only when true
                 rows.append(row)
-        return {
+        out: CurvesData = {
             "sketch": tx.ref(sk.sketch, "sketch"),
             "curves": rows,
             "loops": sketch_loops(tx, sk.frame, sk),
         }
+        if connected is not None:
+            out["connected"] = connected
+        return out
 
 
 @tool(
@@ -624,16 +689,21 @@ def nx_create_sketch_curves(
         Doc("Fields per type: see the description"),
     ],
     construction: Annotated[bool, Doc("Create construction (reference) curves")] = False,
+    connect: Annotated[
+        bool, Doc("Also join coinciding ends of separate line, arc and polyline items")
+    ] = False,
 ) -> CurvesData:
-    """Add 1-100 curves to a sketch, sketch-local in plain numbers (part units, degrees).
-    Fields: line start, end; polyline points, closed; spline points, closed,
+    """Add 1-100 curves to a sketch (sketch-local; part units, degrees), at most 500 per
+    sketch. Fields: line start, end; polyline points, closed; spline points, closed,
     start/end_tangent; arc center, radius, start_angle, end_angle (CCW); circle center,
     radius; ellipse center, major/minor_radius; rectangle corner1, corner2; polygon center,
     sides, radius; slot center, width, height; rounded_rectangle center, width, height,
-    radius; diameter can replace radius. loops: each chain's closure (nested: hollow)."""
+    radius. Items are not joined to each other unless connect."""
     plans = check_curves(curves)
+    with tx.checks():  # a sketch NX would answer with its blocking large-sketch dialog
+        ksketch.require_room(tx, ksketch.resolve(tx, sketch), plan_size(plans))
     tx.frame = "sketch_local"
-    return add_curves(tx, sketch, plans, construction)
+    return add_curves(tx, sketch, plans, construction, connect=connect)
 
 
 def sketch_loops(tx, f, sk):
@@ -755,10 +825,14 @@ class EditRow(TypedDict, total=False):
     deleted: list[str]
 
 
-class EditData(TypedDict):
+class _EditData(TypedDict):
     sketch: result.Row
     edits: list[EditRow]
     status: common.Status
+
+
+class EditData(_EditData, total=False):
+    moved: Annotated[list[str], Doc(common.MOVED_DOC)]
 
 
 def _alive(sk, obj):
@@ -1019,13 +1093,19 @@ def nx_edit_sketch_curves(
     boundary curves, toggle construction, or delete a curve or constraint; a curve its
     constraints hold fails as solver_failed."""
     named = common.natural_items(edits, "type", list(EDIT_TYPES), "/edits", EDIT_ALIASES)
-    items = common.check_items(named, EDIT_TYPES, "type", "/edits")
+    items = common.check_items(named, EDIT_TYPES, "type", "/edits", "nx_edit_sketch_curves")
     tx.frame = "sketch_local"
     with ksketch.editing(tx, sketch) as sk:
+        shapes = ksketch.shapes(tx, sk)
         rows = []
         for i, item in enumerate(items):
             tx.checkpoint(done=i, total=len(items))
             rows.append(EDITORS[item["type"]](tx, sk, item, f"/edits/{i}"))
         # Trims and deletes legitimately remove constraints: only the state is checked.
         status = common.require_solved(tx, sk)
-        return {"sketch": tx.ref(sk.sketch, "sketch"), "edits": rows, "status": status}
+        data: EditData = {"sketch": tx.ref(sk.sketch, "sketch"), "edits": rows, "status": status}
+        named_refs = {r["curve"]["id"] for row in rows for r in row.get("curves", [])}
+        moved = common.report_moved(tx, sk, shapes, named_refs)
+        if moved:
+            data["moved"] = moved
+        return data

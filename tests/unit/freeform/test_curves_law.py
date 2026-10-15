@@ -121,3 +121,18 @@ def test_conic_license_refusal():
               anchor=[50, 20, 0], rho=0.3)  # fmt: skip
     assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and not nx.builders
     evidence.forget_licenses()
+
+
+def test_equal_ramp_ends_are_a_constant_law():
+    nx = curves_nx()
+    flat = run(nx, "nx_create_law_curve", x=5, y="10 mm", z={"start": 3, "end": 3})
+    assert flat.error["field"] == "/z" and "start equals end" in flat.error["message"]
+    assert flat.mutation_outcome == "not_started" and not nx.builders
+
+
+def test_a_point_built_from_formulas_rolls_back():
+    nx = curves_nx()
+    nx.on_commit(LAW, lambda b: made(nx, "SPLINE_LAW", [[[5, 10, 3], [5, 10, 3]]]))
+    still = run(nx, "nx_create_law_curve", x={"formula": "5"}, y=10)
+    assert still.error["field"] == "/x/formula" and still.error["category"] == "invalid_argument"
+    assert still.mutation_outcome == "rolled_back" and still.error["details"]["length"] == 0

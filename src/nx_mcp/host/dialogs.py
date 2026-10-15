@@ -43,6 +43,11 @@ from dataclasses import dataclass, field, replace
 
 DIALOG_CLASS = "#32770"
 POLL_SECONDS = 0.25
+# The watchdog: a dialog an agent call opened that nobody answered for ALERT_SECONDS is
+# brought to the engineer's attention (the NX MCP panel, NX's taskbar button), again
+# every ALERT_REPEAT_SECONDS while it stays open.
+ALERT_SECONDS = 20.0
+ALERT_REPEAT_SECONDS = 120.0
 GW_OWNER = 4
 GA_ROOTOWNER = 3
 GWL_STYLE, GWL_EXSTYLE = -16, -20
@@ -139,6 +144,59 @@ def blocking(windows: Iterable[Window], pid: int, host_disabled: Iterable[int] =
     return found
 
 
+# Modal dialogs NX MCP knows by title: what each one is and what answers it. The tools
+# avoid them (a large sketch's shaded-region prompt is turned off at host start and
+# before sketch work; update failures undo themselves during a call), so one that still
+# shows is named with its own hint. Matched on the start of the title, any case.
+KNOWN_DIALOGS = (
+    (
+        "Large Sketch Performance",
+        "NX asks whether to keep shading the regions of a sketch with many curves",
+        "Ask the engineer to answer it in NX (turning region shading off keeps the "
+        "sketch); add the curves in calls of at most 50 each",
+    ),
+    (
+        "Error During Update",
+        "an NX model update failed (for example an object that depends on itself)",
+        "Ask the engineer to choose Undo in the NX dialog, then fix the input NX names "
+        "(a body or feature later in the timeline than the object that uses it)",
+    ),
+    (
+        "Sheet Metal",
+        "NX asks before leaving the Sheet Metal application",
+        "Ask the engineer to answer it in NX; then call nx_activate_application",
+    ),
+    (
+        "Heartbeat Failure",
+        "NX lost its connection to the license server",
+        "Ask the engineer to check the network to the license server, close the dialog "
+        "and restart NX if it comes back",
+    ),
+    (
+        "License Not Available",
+        "NX found no license for the command",
+        "Ask the engineer to close the dialog in NX; the tool needs a license this seat "
+        "does not have",
+    ),
+)
+
+
+def known(title: str | None) -> tuple[str, str] | None:
+    """``(what it is, hint)`` of a dialog NX MCP knows by its title, else None."""
+    text = " ".join(str(title or "").split()).casefold()
+    for name, what, hint in KNOWN_DIALOGS:
+        if text.startswith(name.casefold()):
+            return what, hint
+    return None
+
+
+def hint_for(title: str | None, default: str) -> str:
+    """The hint for a blocking dialog: its own when known (:data:`KNOWN_DIALOGS`), else
+    ``default``."""
+    found = known(title)
+    return found[1] if found else default
+
+
 def new_dialogs(before: Iterable[Dialog], after: Iterable[Dialog]) -> list[Dialog]:
     """Dialogs in ``after`` that were not open in ``before`` (by window handle)."""
     known = {d.hwnd for d in before}
@@ -151,6 +209,9 @@ def blocked_message(row: dict, *, outcome: str) -> str:
     title = row.get("title") or "untitled"
     text = " ".join(str(row.get("text") or "").split())
     shown = f"“{title}”" + (f": {text}" if text else "")
+    what = known(row.get("title"))
+    if what is not None and not text:
+        shown += f" ({what[0]})"
     since = row.get("since")
     age = f" {max(0, int(time.time() - since))} s ago" if isinstance(since, (int, float)) else ""
     where = f" in {row['part']}" if row.get("part") else ""
@@ -169,8 +230,10 @@ def blocked_message(row: dict, *, outcome: str) -> str:
 def message(dialogs: list[Dialog], *, still_open: bool) -> str:
     shown = "; ".join(d.describe() for d in dialogs)
     if still_open:
+        hints = [found[1] for found in (known(d.title) for d in dialogs) if found]
+        tail = f" {hints[0]}." if hints else ""
         return ("NX shows a modal dialog; NX and every call wait until someone answers it "
-                f"in NX. Ask the engineer; the agent never clicks it. {shown}")  # fmt: skip
+                f"in NX. Ask the engineer; the agent never clicks it. {shown}{tail}")  # fmt: skip
     return ("NX showed a modal dialog during this call and someone answered it; check "
             f"the result, the answer may have changed what NX did. {shown}")  # fmt: skip
 
@@ -302,33 +365,60 @@ class Watch:
     """Scan from a thread while a call runs; ``on_new`` hears each new dialog once and
     ``on_gone`` each reported dialog that closed again (someone answered it).
 
+    The watchdog: ``on_stuck(dialog, seconds)`` hears a new dialog still open
+    ``alert_after`` seconds after it appeared, then every ``alert_repeat`` seconds while
+    it stays open (the host alerts the engineer). ``clock``: monotonic seconds (tests).
+
     ``stop()`` returns every dialog that appeared during the call (answered or not).
     """
 
-    def __init__(self, before: list[Dialog], *, on_new=None, on_gone=None, scanner=scan,
-                 interval: float = POLL_SECONDS) -> None:  # fmt: skip
+    def __init__(self, before: list[Dialog], *, on_new=None, on_gone=None, on_stuck=None,
+                 scanner=scan, interval: float = POLL_SECONDS,
+                 alert_after: float = ALERT_SECONDS, alert_repeat: float = ALERT_REPEAT_SECONDS,
+                 clock=time.monotonic) -> None:  # fmt: skip
         self.before = list(before)
         self.seen: list[Dialog] = []
         self.gone: list[Dialog] = []
         self.on_new = on_new
         self.on_gone = on_gone
+        self.on_stuck = on_stuck
         self.scanner = scanner
         self.interval = interval
+        self.alert_after = alert_after
+        self.alert_repeat = alert_repeat
+        self.clock = clock
+        self._since: dict[int, float] = {}  # hwnd -> when the dialog appeared
+        self._alerted: dict[int, float] = {}  # hwnd -> when the engineer was last alerted
         self._stop = threading.Event()
         self._notify = threading.Lock()
         self._thread: threading.Thread | None = None
 
     def poll(self, *, notify: bool = True) -> list[Dialog]:
         now = self.scanner()
+        moment = self.clock()
         fresh = new_dialogs(self.before + self.seen, now)
         for dialog in fresh:
             self.seen.append(dialog)
+            self._since[dialog.hwnd] = moment
             self._tell(self.on_new, dialog, notify)
         open_now = {d.hwnd for d in now}
         for dialog in [d for d in self.seen if d.hwnd not in open_now and d not in self.gone]:
             self.gone.append(dialog)
             self._tell(self.on_gone, dialog, notify)
+        for dialog in [d for d in self.seen if d.hwnd in open_now and d not in self.gone]:
+            self._watchdog(dialog, moment, notify)
         return fresh
+
+    def _watchdog(self, dialog: Dialog, moment: float, notify: bool) -> None:
+        """Alert once the dialog has waited ``alert_after`` s, then every ``alert_repeat``."""
+        since = self._since.get(dialog.hwnd, moment)
+        last = self._alerted.get(dialog.hwnd)
+        due = since + self.alert_after if last is None else last + self.alert_repeat
+        if self.on_stuck is None or moment < due:
+            return
+        self._alerted[dialog.hwnd] = moment
+        seconds = moment - since
+        self._tell(lambda d: self.on_stuck(d, seconds), dialog, notify)
 
     def _tell(self, listener, dialog: Dialog, notify: bool) -> None:
         if notify and listener is not None:

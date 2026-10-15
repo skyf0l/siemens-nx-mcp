@@ -270,7 +270,32 @@
    },
    "expect": {
     "error.code": "NX_NOT_FOUND",
-    "mutation_outcome": "not_started"
+    "mutation_outcome": "not_started",
+    "error.message": {
+     "matches": "'Nope'"
+    }
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$sh.data.title_block.id",
+    "kind": "title_block",
+    "cells": [
+     {
+      "label": "drawn by",
+      "text": "ANY CASE"
+     }
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.cells.4": {
+     "contains": {
+      "label": "Drawn By",
+      "value": "ANY CASE"
+     }
+    }
    }
   },
   {
@@ -435,7 +460,8 @@
   {
    "call": "nx_create_drawing_sheet",
    "save": "shin",
-   "args": {"part": "title_block_in",
+   "args": {
+    "part": "title_block_in",
     "name": "SHT1",
     "template": "Drawing-B-Size2D-template",
     "units": "in"
@@ -448,7 +474,8 @@
   {
    "call": "nx_set_attributes",
    "setup": true,
-   "args": {"part": "title_block_in",
+   "args": {
+    "part": "title_block_in",
     "values": [
      {
       "name": "DB_PART_NO",
@@ -513,7 +540,8 @@
   {
    "call": "nx_set_attributes",
    "setup": true,
-   "args": {"part": "title_block_in",
+   "args": {
+    "part": "title_block_in",
     "values": [
      {
       "name": "DB_MATERIAL",
@@ -525,7 +553,9 @@
   },
   {
    "call": "nx_update_annotations",
-   "args": {"part": "title_block_in"},
+   "args": {
+    "part": "title_block_in"
+   },
    "expect": {
     "ok": true
    }

@@ -17,6 +17,7 @@ NX 2406 findings encoded here:
 from __future__ import annotations
 
 import contextlib
+import math
 import re
 from typing import Annotated, Literal, TypedDict
 
@@ -25,8 +26,6 @@ from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
     Doc,
-    DrawingSheetRef,
-    DrawingViewRef,
     Items,
     Name,
     Point3,
@@ -37,6 +36,8 @@ from nx_mcp.core.types import (
     Text,
 )
 from nx_mcp.domains.drawing.common import (
+    SheetArg,
+    ViewArg,
     add_leader,
     annotation_kind,
     associated,
@@ -48,6 +49,7 @@ from nx_mcp.domains.drawing.common import (
     leader_row,
     report_bounds,
     set_origin,
+    sheet_of,
     true_shape,
     update,
     verify_origin,
@@ -115,13 +117,11 @@ def _target_sheet(tx, sheet, view):
     """``(sheet, view or None)`` for a note: view's sheet, the given sheet or the current one."""
     if view is not None:
         obj, owner = drawing.view(tx, view)
-        if sheet is not None and int(
-            select.resolve(tx, sheet, "drawing_sheet", field="/sheet").Tag
-        ) != int(owner.Tag):
+        if sheet is not None and int(sheet_of(tx, sheet, "/sheet").Tag) != int(owner.Tag):
             fail("NX_WRONG_OWNER", "view is not on the given sheet", field="/view")
         return owner, obj
     if sheet is not None:
-        return select.resolve(tx, sheet, "drawing_sheet", field="/sheet", work_part=True), None
+        return sheet_of(tx, sheet, "/sheet"), None
     current = drawing.current(tx.part)
     if current is None:
         fail("NX_WRONG_APPLICATION", "No drawing sheet is open: pass sheet",
@@ -151,8 +151,8 @@ def nx_create_note(
     *,
     text: NoteText,
     origin: SheetPoint,
-    sheet: DrawingSheetRef | None = None,
-    view: DrawingViewRef | None = None,
+    sheet: SheetArg | None = None,
+    view: ViewArg | None = None,
     leader_to: EdgeOrFace | None = None,
 ) -> AnnotationData:
     """Place a drawing note on a sheet (default the open one).
@@ -231,7 +231,7 @@ def nx_create_note(
 def nx_create_centerline(
     tx: Tx,
     *,
-    view: DrawingViewRef,
+    view: ViewArg,
     kind: Literal[
         "center_mark", "axis", "between_edges", "bolt_circle", "symmetrical", "automatic"
     ],
@@ -284,24 +284,35 @@ def _center_marks(tx, view_ref, refs):
                      field=f"/objects/{i}")  # fmt: skip
             true_shape(view, f, f"/objects/{i}")
             arcs.append(f)
+        existing = marks_in_view(tx, view, edges)
     A = tx.nx.Annotations
     part = tx.part
-    _warn_marked(tx, sheet, edges)
+    tags = [int(e.Tag) for e in edges]
+    marks: list = [None] * len(edges)
+    origins: list = [None] * len(edges)
+    new = [e for e in edges if int(e.Tag) not in existing]
     before = {int(c.Tag) for c in part.Annotations.Centerlines}
     with drawing.on_sheet(tx, sheet, part) as sh:
+        for i, tag in enumerate(tags):
+            if tag in existing:
+                marks[i] = tx.ref(existing[tag], "annotation")
+                origins[i] = sh.to_sheet(existing[tag].AnnotationOrigin)
+        if len(new) < len(edges):
+            tx.warn("NX_NO_EFFECT", f"{len(edges) - len(new)} of the edges already had a center "
+                    "mark in this view: the existing mark is returned, no second one is made")  # fmt: skip
+        if not new:
+            return {"annotations": marks, "sheet": tx.ref(sheet, "drawing_sheet"),
+                    "origins": origins}  # fmt: skip
         centers = [drawing.to_sheet(tx, view, f["center"]) for f in arcs]
         factory = part.Annotations.Centerlines.CreateCenterMarkBuilder
         with builders.build(tx, factory, A.CenterMark.Null) as b:
-            b.MultipleCenterMarks = len(edges) > 1
-            for edge in edges:
+            b.MultipleCenterMarks = len(new) > 1
+            for edge in new:
                 b.Locations.Add(edge, view, tx.nx.Point3d(*curve.point_at(tx, edge, 0.5)))
             commit(b, "center mark")
         update(tx)
         created = [c for c in part.Annotations.Centerlines if int(c.Tag) not in before]
-        readback.expect(len(created) == len(edges), "count", created=len(created))
-        tags = [int(e.Tag) for e in edges]
-        marks = [None] * len(edges)
-        origins = [None] * len(edges)
+        readback.expect(len(created) == len(new), "count", created=len(created))
         for obj in created:
             index = next(
                 (tags.index(int(o.Tag)) for o in associated(obj) if int(o.Tag) in tags), None
@@ -398,20 +409,36 @@ def _bolt_circle(tx, view_ref, refs):
         }
 
 
-def _warn_marked(tx, sheet, edges):
-    """Warn when an edge already has a center mark on this sheet (NX adds another)."""
+def marks_in_view(tx, view, edges):
+    """``{edge tag: center mark}`` of the edges that already have a center mark in ``view``
+    (NX would add a second one). Marks NX made with the view are associated with the
+    view's drafting curve of the edge, ours with the edge itself."""
     tags = {int(e.Tag) for e in edges}
-    marked = set()
+    found = {}
     for mark in tx.part.Annotations.Centerlines:
-        on = drawing.sheet_of_annotation(tx, mark)
-        if on is not None and int(on.Tag) == int(sheet.Tag):
-            marked |= {int(o.Tag) for o in associated(mark)} & tags
-    if marked:
-        tx.warn(
-            "NX_UPDATE_WARNING",
-            f"{len(marked)} of the edges already had a center mark on this sheet: NX added "
-            "another (delete the extra one with nx_delete_objects)",
-        )
+        if type(mark).__name__ != "CenterMark":
+            continue
+        for i in range(1, int(getattr(mark, "NumberOfAssociativities", 0) or 0) + 1):
+            with contextlib.suppress(Exception):  # an associativity NX cannot report
+                assoc = mark.GetAssociativity(i)
+                seen = getattr(assoc, "ObjectView", None)
+                if seen is None or int(seen.Tag) != int(view.Tag):
+                    continue
+                for tag in _edge_tags(tx, assoc.FirstObject) & tags:
+                    found.setdefault(tag, mark)
+    return found
+
+
+def _edge_tags(tx, obj):
+    """Model edge tags behind an associated object: an edge, or a drafting curve's parents."""
+    if obj is None:
+        return set()
+    if facts.is_edge(obj):
+        return {int(obj.Tag)}
+    try:
+        return {int(t) for t in tx.uf.Draw.AskDraftingCurveParents(obj.Tag)[1] or []}
+    except Exception:  # not a drafting curve
+        return set()
 
 
 def _projected(tx, view, point, direction):
@@ -621,7 +648,7 @@ def _automatic(tx, view_ref):
 def nx_create_drawing_symbol(
     tx: Tx,
     *,
-    view: DrawingViewRef,
+    view: ViewArg,
     object: EdgeOrFace,  # noqa: A002
     symbol: Literal["surface_finish", "weld"],
     origin: SheetPoint | None = None,
@@ -685,7 +712,7 @@ def _finish(tx, view, sheet, obj, origin, spec):
             b.Finish = getattr(kinds, native)
             b.A2 = text
             anchor = add_leader(tx, b.Leader, obj, view)
-            origin = origin if origin is not None else default_origin(sh, anchor)
+            origin = origin if origin is not None else default_origin(sh, anchor, view)
             set_origin(tx, b.Origin, sh, origin)
             symbol = commit(b, "surface finish symbol")
         update(tx)
@@ -724,7 +751,7 @@ def _weld(tx, view, sheet, obj, origin, spec):
                 data.WeldSymbol = getattr(symbols, WELDS[spec["type"]])
                 data.WeldSize = size
             anchor = add_leader(tx, b.Leader, obj, view)
-            origin = origin if origin is not None else default_origin(sh, anchor)
+            origin = origin if origin is not None else default_origin(sh, anchor, view)
             set_origin(tx, b.Origin, sh, origin)
             weld = commit(b, "weld symbol")
         update(tx)
@@ -820,8 +847,11 @@ def nx_edit_annotation(
             work_part=True,
         )
         if lines is not None and not _is_note(tx, obj):
-            fail("NX_UNSUPPORTED_OPTION", "Only notes take new text; recreate other "
-                 "annotations with their create tool", field="/text")  # fmt: skip
+            dimension = type(obj).__name__.endswith("Dimension")
+            fail("NX_UNSUPPORTED_OPTION", "Only notes take new text", field="/text",
+                 hint="Add text before or after a dimension's value (REF, 2X) with "
+                 "nx_edit_dimension appended" if dimension else
+                 "Recreate the annotation with its create tool")  # fmt: skip
         sheet = drawing.sheet_of_annotation(tx, obj)
         anchor = drawing.anchor_of(tx, obj)
         if position is not None:
@@ -880,7 +910,11 @@ class RefreshData(TypedDict, total=False):
     note: str
 
 
-NOT_MANAGED = "Not managed: notes, dimensions and up-to-date views follow the model on their own"
+NOT_MANAGED = (
+    "Not managed: notes follow the model on their own; dimensions and views of a displayed "
+    "part are up to date already, others refresh with their view"
+)
+DRAWING_KINDS = ("annotation", "dimension", "drawing_table", "drawing_view", "drawing_sheet")
 
 
 @tool(
@@ -908,25 +942,78 @@ def nx_update_annotations(
     objects: Annotated[list[Ref], Items(1, 100)] | None = None,
 ) -> RefreshData:
     """Refresh managed annotations from the model: parts lists, bend tables, title blocks,
-    detail boundaries and callouts. Also updates out-of-date views. Model edits of a displayed
-    part refresh them already; call it after editing a part that was not displayed (a note
-    says the refresh waited). Omit objects to refresh all of them; given objects nothing
-    refreshes come back in skipped."""
+    detail boundaries and callouts. Also updates out-of-date views; dimensions whose value
+    changed are listed as modified. Model edits of a displayed part refresh them already; call
+    it after editing a part that was not displayed. Omit objects to refresh all of them;
+    given objects nothing refreshes come back in skipped with a reason."""
     live = (
         [select.resolve(tx, r, field=f"/objects/{i}") for i, r in enumerate(objects)]
         if objects
         else None
     )
+    measured = _dimension_values(tx)
+    targets = None if live is None else [*live, *_dimension_views(tx, live)]
     refreshed: list[result.Row] = []
     for _kind, refresh in sorted(hooks("refresher").items()):
         tx.checkpoint()
-        refreshed.extend(refresh(tx, live) or [])
-    out: RefreshData = {"refreshed": refreshed}
+        refreshed.extend(refresh(tx, targets) or [])
     done = {row.get("id") for row in refreshed}
-    skipped = [{"id": ref} for ref in objects or [] if ref not in done]
+    given = set(objects or [])
+    for d, value in measured:
+        tx.checkpoint()
+        if not math.isclose(float(d.ComputedSize), value, rel_tol=1e-9, abs_tol=1e-12):
+            row = tx.modified(d, "dimension")
+            if row.get("id") in given and row.get("id") not in done:
+                refreshed.append(row)
+                done.add(row.get("id"))
+    out: RefreshData = {"refreshed": [r for r in refreshed if live is None or r.get("id") in given]}
+    skipped = [
+        {"id": ref, "reason": _why_skipped(tx, obj)}
+        for ref, obj in zip(objects or [], live or [], strict=True)
+        if ref not in done
+    ]
     if skipped:
         out["skipped"] = skipped
         out["note"] = NOT_MANAGED
     elif not refreshed:
         out["note"] = "Nothing needed a refresh. " + NOT_MANAGED
     return out
+
+
+def _dimension_values(tx):
+    """``[(dimension, value)]`` of the work part's dimensions before a refresh."""
+    out = []
+    for d in tx.part.Dimensions:
+        with contextlib.suppress(Exception):  # a dimension NX cannot measure
+            out.append((d, float(d.ComputedSize)))
+    return out
+
+
+def _dimension_views(tx, objects):
+    """The views of the given dimensions (a dimension refreshes with its view)."""
+    dimensions = {int(d.Tag) for d in tx.part.Dimensions}
+    views = []
+    for obj in objects:
+        if int(obj.Tag) not in dimensions:
+            continue
+        for i in range(1, int(getattr(obj, "NumberOfAssociativities", 0) or 0) + 1):
+            with contextlib.suppress(Exception):  # an associativity NX cannot report
+                view = obj.GetAssociativity(i).ObjectView
+                if view is not None and hasattr(view, "Tag"):
+                    views.append(view)
+                    break
+    return views
+
+
+def _why_skipped(tx, obj):
+    try:
+        kind = tx.kind_of(obj)
+    except Exception:  # an object without a reference kind
+        kind = None
+    if kind not in DRAWING_KINDS:
+        return "not a drawing object"
+    return {
+        "dimension": "value unchanged",
+        "drawing_view": "up to date",
+        "annotation": "follows the model on its own",
+    }.get(kind, "nothing to refresh")

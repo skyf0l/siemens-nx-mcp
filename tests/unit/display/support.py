@@ -13,8 +13,8 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace as NS
 
-from tests.kit.objects import NXException, Object, matrix, point
-from tests.unit.display.fakes import STYLES, display_nx
+from tests.kit.objects import Expression, NXException, Object, matrix, point
+from tests.unit.display.fakes import STYLES, View, display_nx
 
 LIBRARY = {
     "Glasses": ["Clear Glass", "Smoked Glass"],
@@ -94,21 +94,50 @@ class Materials:
         return len(found), found
 
 
+class ShadedView(View):
+    """A work view whose style change switches true shading off (NX 2406: any other style
+    does; setting Studio again alone leaves plain Studio)."""
+
+    shed = False
+
+    @property
+    def RenderingStyle(self):
+        return self.__dict__.get("_style", 0)
+
+    @RenderingStyle.setter
+    def RenderingStyle(self, value):
+        if value != STYLES.Studio:
+            self.shed = False
+        self.__dict__["_style"] = value
+
+
 class ShadingBuilder:
+    """NX 2406: opening the builder switches true shading on (Studio style), and Destroy
+    without a commit leaves it on; a commit with the mode off puts the earlier style back."""
+
     def __init__(self, fake):
         self.fake = fake
         for key, value in fake.shading.items():
             setattr(self, key, value)
         self.ShedModeToggle = True  # NX 2406: a new builder has the mode on
         self.destroyed = False
+        view = fake.work_view
+        if not view.shed:
+            fake.style_before_shading = view.RenderingStyle
+            view.RenderingStyle = STYLES.Studio
+            view.shed = True
 
     def Commit(self):
         if self.fake.shading_error is not None:
             raise self.fake.shading_error
         for key in self.fake.shading:
             self.fake.shading[key] = getattr(self, key)
+        view = self.fake.work_view
         if self.ShedModeToggle:
-            self.fake.work_view.RenderingStyle = STYLES.Studio
+            view.RenderingStyle = STYLES.Studio
+            view.shed = True
+        else:
+            view.RenderingStyle = self.fake.style_before_shading
         self.fake.part.IsModified = True
         return None  # NX 2406: no TrueShading object
 
@@ -130,9 +159,16 @@ class StickerBuilder:
         self.FaceOrBody = NS(items=list(state["faces"]))
         self.FaceOrBody.Add = self.FaceOrBody.items.append
         self.FaceOrBody.GetArray = lambda: list(self.FaceOrBody.items)
-        self.Width = NS(RightHandSide=str(state["width"]))
-        self.Height = NS(RightHandSide=str(state["height"]))
-        self.RotationAngle = NS(RightHandSide="0", Value=0.0)
+        # NX 2406: every builder makes its own width, height and rotation expressions
+        # ("pN"), kept in the part after Destroy; the decal stores plain values
+        fake.sticker_expressions = getattr(fake, "sticker_expressions", 500) + 3
+        made = [Expression(f"p{fake.sticker_expressions + i}", "0") for i in range(3)]
+        fake.part.Expressions.extend(made)
+        self.Width, self.Height, self.RotationAngle = made
+        self.Width.RightHandSide = str(state["width"])
+        self.Height.RightHandSide = str(state["height"])
+        for exp in made:
+            exp.Value = None  # read through RightHandSide until committed
         self.Origin = state["origin"]
         self.LockAspectRatio = True
         self.ProjectionType = fake.nx.Display.DecalStickerBuilder.ProjectionTypes.Planar
@@ -153,10 +189,12 @@ class StickerBuilder:
     def Commit(self):
         if self.fake.decal_error is not None:
             raise self.fake.decal_error
-        width = float(self.Width.RightHandSide)
+        width = float(self.fake.formulas.get(self.Width.RightHandSide, self.Width.RightHandSide))
         height = float(self.Height.RightHandSide)
         if self.LockAspectRatio and self.fake.image_aspect:
             height = width / self.fake.image_aspect
+            self.Height.RightHandSide = repr(height)
+        self.Width.Value, self.Height.Value, self.RotationAngle.Value = width, height, 0.0
         decal = self.decal or Material(self.DecalName, kind=1)
         decal.Name = decal.JournalIdentifier = self.DecalName
         materials = self.fake.part.VisualMaterialCollection
@@ -182,14 +220,18 @@ def visual_nx(units="mm"):
         "PlanarReflectionToggle": True, "EnvironmentMapEnum": 0,
     }  # fmt: skip
     nx.shading_error = nx.decal_error = None
-    nx.decals, nx.image_aspect = {}, None
+    nx.decals, nx.image_aspect, nx.formulas = {}, None, {}
     materials = Materials(nx)
     nx.part.VisualMaterialCollection = materials
     nx.uf.Disp.AskMaterial = materials.ask
     nx.uf.Disp.AskGeometryOfMaterial = materials.geometry
+    style = nx.work_view.RenderingStyle
+    nx.work_view.__class__ = ShadedView
+    nx.work_view.RenderingStyle = style
+    nx.style_before_shading = STYLES.ShadedWithEdges
     nx.part.SHEDObjs = NS(
         CreateTrueShadingBuilder=lambda _null: ShadingBuilder(nx),
-        IsTrueShadeEnabled=lambda: nx.work_view.RenderingStyle == STYLES.Studio,
+        IsTrueShadeEnabled=lambda: nx.work_view.shed,
     )
     nx.part.Decals = NS(CreateDecalStickerBuilder=lambda decal: StickerBuilder(nx, decal))
     nx.nx.Display.TrueShading = NS(Null=None)

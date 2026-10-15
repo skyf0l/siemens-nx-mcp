@@ -387,5 +387,104 @@ def test_the_status_read_names_the_blocking_dialog(tmp_path, monkeypatch):
     row = control["blocked_by_dialog"]
     assert row["title"] == "Edit Sketch" and row["tool"] == "nx_create_sketch_constraints"
     assert "hwnd" not in row and row["seconds"] >= 5
+    assert isinstance(row["since"], str) and row["since"].endswith("Z")  # UTC ISO 8601
     (warning,) = envelope["warnings"]
     assert warning["code"] == "NX_MODAL_DIALOG" and "“Edit Sketch”" in warning["message"]
+
+
+@pytest.mark.parametrize(
+    ("title", "words"),
+    [
+        ("Large Sketch Performance", "at most 50"),
+        ("Error During Update", "choose Undo"),
+        ("Sheet Metal", "nx_activate_application"),
+        ("License Not Available", "license"),
+        ("Heartbeat Failure", "restart NX"),
+    ],
+)
+def test_known_dialogs_have_their_own_hint(title, words):
+    what, hint = dialogs.known(title)
+    assert what and words in hint
+    assert dialogs.hint_for(title.upper(), "default") == hint  # any case
+    assert dialogs.hint_for("Some Other Box", "default") == "default"
+    message = dialogs.message([dialogs.Dialog(9, title)], still_open=True)
+    assert hint in message
+
+
+def test_a_known_dialog_without_text_is_explained_in_the_blocked_message():
+    row = {"title": "Large Sketch Performance", "tool": "nx_create_sketch_curves"}
+    text = dialogs.blocked_message(row, outcome="unknown")
+    assert "“Large Sketch Performance” (NX asks whether to keep shading" in text
+
+
+def test_the_watchdog_alerts_after_the_delay_then_repeats():
+    box = dialogs.Dialog(5, "Large Sketch Performance")
+    now = [100.0]
+    open_now = [box]
+    alerts = []
+    watch = dialogs.Watch(
+        [], scanner=lambda: list(open_now), on_stuck=lambda d, s: alerts.append((d.hwnd, s)),
+        alert_after=20, alert_repeat=60, clock=lambda: now[0],
+    )  # fmt: skip
+    watch.poll()  # appears
+    now[0] = 119.0
+    watch.poll()
+    assert alerts == []
+    now[0] = 120.0
+    watch.poll()
+    assert alerts == [(5, 20.0)]
+    now[0] = 150.0
+    watch.poll()
+    assert len(alerts) == 1  # not again before the repeat delay
+    now[0] = 180.0
+    watch.poll()
+    assert alerts[-1] == (5, 80.0)
+    open_now.clear()  # answered
+    now[0] = 400.0
+    watch.poll()
+    assert len(alerts) == 2
+
+
+def test_the_watchdog_never_alerts_for_a_dialog_open_before_the_call():
+    box = dialogs.Dialog(5, "Error During Update")
+    alerts = []
+    now = [0.0]
+    watch = dialogs.Watch([box], scanner=lambda: [box], on_stuck=lambda d, s: alerts.append(d),
+                          alert_after=1, clock=lambda: now[0])  # fmt: skip
+    watch.poll()
+    now[0] = 100.0
+    watch.poll()
+    assert alerts == []
+
+
+def test_a_stuck_dialog_alerts_the_engineer_in_the_panel(tmp_path):
+    stub = host(tmp_path)
+    posted, flashed = [], []
+    stub.panel = NS(alert=lambda: posted.append(True))
+    stub._flash_nx = lambda: flashed.append(True)
+    stub.current_started_at, stub.current_summary, stub.current_intent = time.time(), "Sketch", None
+    box = dialogs.Dialog(5, "Large Sketch Performance")
+    interactive.InteractiveHost._dialog_appeared(stub, box)
+    assert posted  # the panel names the dialog at once
+    stub.blocked_by["since"] = time.time() - 30
+    interactive.InteractiveHost._dialog_stuck(stub, box, 30.0)
+    assert flashed and len(posted) == 2
+    log = (tmp_path / "activity.log").read_text(encoding="utf-8")
+    assert "NX has waited 30 s for your answer" in log and "agent steps are blocked" in log
+    line = stub.dialog_alert()
+    assert line.startswith("⚠") and "“Large Sketch Performance”" in line and "30 s" in line
+    stub.mode, stub.panel_rows = "auto", 8
+    assert stub.panel_text().splitlines()[0].startswith(line[:60])  # clipped to the panel
+    stub._dialog_gone(box)
+    assert stub.dialog_alert() is None and len(posted) == 3
+
+
+def test_reads_fail_fast_in_auto_but_wait_for_the_card_in_ask_me_first(tmp_path):
+    from nx_mcp.bridge import QUEUE_TIMEOUT, READ_QUEUE_TIMEOUT
+
+    stub = host(tmp_path)
+    stub.mode = "auto"
+    assert stub._queue_wait("nx_list_parts") == READ_QUEUE_TIMEOUT
+    assert stub._queue_wait("nx_create_extrude") == QUEUE_TIMEOUT
+    stub.mode = "ask"  # the engineer answers each call on the card: the full time
+    assert stub._queue_wait("nx_list_parts") == QUEUE_TIMEOUT

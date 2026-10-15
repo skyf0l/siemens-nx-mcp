@@ -106,6 +106,7 @@ def test_sheet_metal_features_need_the_sheet_metal_application():
         ("flange", {"edges": "EDGES", "length": 20, "style": "open"}, "/parameters/style"),
         ("flange", {"edges": "EDGES", "length": 20, "angle": 180}, "/parameters/angle"),
         ("hem", {"edges": "EDGES", "length": 5, "style": "fillet"}, "/parameters/style"),
+        ("louver", {"height": 3, "width": 10, "style": "open"}, "/parameters/style"),
         ("break_corner", {"edges": "EDGES", "radius": 0}, "/parameters/radius"),
         (
             "resize_bend_angle",
@@ -125,7 +126,7 @@ def test_parameters_are_checked_per_operation_before_nx(operation, extra, field)
         "FACE": body.faces[0].ref,
     }
     params = {k: names.get(v, v) if isinstance(v, str) else v for k, v in extra.items()}
-    if operation == "tab":
+    if operation in ("tab", "louver"):
         params["section"] = sk.ref
     bad = create(nx, operation, **params)
     assert bad.error["category"] == "invalid_argument", bad
@@ -170,7 +171,9 @@ def test_flange_read_back_mismatch_rolls_back(hook_args, check):
     body = nx.tab()
     nx.on_commit("MultiFlangeBuilder", flanged(nx, body, **hook_args))
     bad = create(nx, "flange", edges=[body.edges[0].ref], length=20, radius=3)
-    assert bad.error["code"] == "NX_VERIFICATION_FAILED", bad
+    # A model NX left unchanged is classified as a failed build (geometry_failed).
+    want = "NX_BUILD_FAILED" if check == "volume" else "NX_VERIFICATION_FAILED"
+    assert bad.error["code"] == want, bad
     assert bad.error["details"]["check"] == check and bad.mutation_outcome == "rolled_back"
 
 
@@ -382,6 +385,28 @@ def test_a_form_finds_its_body_through_the_feature():
     assert ok.ok, ok
     b = nx.last("DimpleFeatureBuilder")
     assert b.DepthType == "DimpleBuilderDepthTypeOptions.SectionReverseNormalSide"
+    assert ok.data["body"]["id"] == body.ref
+
+
+@pytest.mark.parametrize(("style", "end"), [(None, "Formed"), ("lanced", "Lanced")])
+def test_a_louver_sets_its_cut_side_end_shape_and_no_rounding(style, end):
+    nx = sm_nx()
+    body = nx.tab()
+    sk = nx.sketch()
+
+    def louver(b):
+        body.volume += 30
+        return nx.made("SB_LOUVER", body)
+
+    nx.on_commit("LouverFeatureBuilder", louver)
+    extra = {"style": style} if style else {}
+    ok = create(nx, "louver", section=sk.ref, height=3, width=8, **extra)
+    assert ok.ok, ok
+    b = nx.last("LouverFeatureBuilder")
+    assert b.EndType == f"LouverBuilderEndTypeOptions.{end}"
+    assert b.SectionSide == "LouverBuilderSectionSideOptions.Left"
+    assert b.DepthSide == "LouverBuilderDepthSideOptions.SectionNormalSide"
+    assert b.IncludeRounding is False
     assert ok.data["body"]["id"] == body.ref
 
 

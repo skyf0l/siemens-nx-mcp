@@ -24,7 +24,7 @@ from __future__ import annotations
 import math
 from typing import Annotated, Literal, TypedDict
 
-from nx_mcp.core.catalogue import tool
+from nx_mcp.core.catalogue import kind_hint, tool
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
@@ -60,13 +60,32 @@ MAX_INSTANCES = 1000
 
 def _plane(tx, value, field):
     """``(datum plane, origin, unit normal)``: a datum plane ref is used as is (associative);
-    a face, principal or explicit plane becomes a fixed datum plane. A bad plane is refused
+    a face, principal or explicit plane becomes a fixed datum plane. A datum plane feature
+    ref (the f:.. a datum tool returns) stands for its datum plane. A bad plane is refused
     before anything is built (not_started)."""
     with tx.checks():
-        obj, origin, normal = select.plane(tx, value, field)
+        try:
+            obj, origin, normal = select.plane(tx, value, field)
+        except NXError as error:
+            datum = _feature_datum(tx, value, error) if error.code == "NX_WRONG_KIND" else None
+            if datum is None:
+                raise
+            obj, origin, normal = select.plane(tx, tx.ref(datum, kind="datum_plane")["id"], field)
     if obj is not None and hasattr(obj, "Normal"):
         return obj, origin, normal
     return builders.fixed_plane(tx, origin, normal), origin, normal
+
+
+def _feature_datum(tx, value, error):
+    """The datum plane of a datum plane feature ref, else None (``error`` gets a hint)."""
+    try:
+        feature = tx.resolve(value, "feature")
+    except Exception:  # not a feature ref: keep the original error
+        return None
+    datum = getattr(feature, "DatumPlane", None)
+    if datum is None:
+        error.hint = "Pass a datum plane or its feature, a planar face or {principal: 'xy'}"
+    return datum
 
 
 def _seeds(tx, features, field="/features"):
@@ -85,8 +104,11 @@ def _seeds(tx, features, field="/features"):
     return seeds
 
 
+@kind_hint("nx_create_pattern")
+@kind_hint("nx_create_mirror")
 def _body_instead(tx, ref, error, field):
-    """Point a body passed where a feature is expected at the feature that made it."""
+    """Point a body passed where a feature is expected at the feature that made it (also
+    gate 3r's hint for a body in ``features``)."""
     error.field = error.field or field
     try:
         body = tx.resolve(ref, "body")
@@ -218,7 +240,13 @@ def _expression(target, value):
 # Mirror
 
 
-class MirrorData(common.FeatureData, United):
+class _Hidden(TypedDict, total=False):
+    hidden: Annotated[
+        list[result.Row], Doc("keep_original false: the sources, hidden (blanked), not deleted")
+    ]
+
+
+class MirrorData(common.FeatureData, United, _Hidden):
     target: str
     count: int
     new_bodies: Annotated[
@@ -264,11 +292,15 @@ def _mirror_bodies(tx, refs, plane, keep_original):
             and (wanted is None or geom.dist(g["centroid"], wanted) <= near)
         ]
         readback.expect(bool(match), f"mirror[{i}]", "A mirrored body is not the reflection")
+    hidden = {}
     if not keep_original:
+        # NX 2406's Mirror Body has no delete-source option, and the mirror feature
+        # references its sources: they are blanked (still in the model), and reported.
         with native():
             tx.session.DisplayManager.BlankObjects(sources)
+        hidden = {"hidden": [tx.ref(b, kind="body") for b in sources]}
     out = common.result_of(tx, feature)
-    return {**out, "target": "bodies", "count": len(made), "new_bodies": len(made)}
+    return {**out, "target": "bodies", "count": len(made), "new_bodies": len(made), **hidden}
 
 
 def _mirror_features(tx, refs, plane, unite):
@@ -321,7 +353,9 @@ def nx_create_mirror(
     target: Literal["bodies", "features"] = "bodies",
     bodies: BodyList | None = None,
     features: FeatureList | None = None,
-    keep_original: Annotated[bool, Doc("bodies only: false hides the sources")] = True,
+    keep_original: Annotated[
+        bool, Doc("bodies only: false hides (blanks) the sources; they stay in the model")
+    ] = True,
     unite: Annotated[
         bool, Doc("features only: unite separate-body mirrors into the seed's body")
     ] = False,
@@ -331,6 +365,8 @@ def nx_create_mirror(
     a feature that made its own body are new bodies (new_bodies) unless unite merges them
     into the seed's body."""
     plane = common.principal_plane(plane)
+    if target == "bodies" and not bodies and features:
+        target = "features"  # only features given: mirror them (as nx_create_pattern does)
     wanted, other = ("bodies", "features") if target == "bodies" else ("features", "bodies")
     given: dict[str, list[str] | None] = {"bodies": bodies, "features": features}
     if not given[wanted]:
@@ -869,7 +905,7 @@ BodySeeds = Annotated[
         "circular pattern",
         "fill pattern",
         "pattern along curve",
-        "pattern geometry",
+        "bolt circle",
         "pattern bodies",
         "body copies",
     ),

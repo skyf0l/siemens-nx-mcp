@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/optimization/conditions.json",
-  "scenario_sha256": "a156c5b4e38bdb19f00710dbb3a038bed77956b8ceddd3eaaba0be8cb199849c",
+  "scenario_sha256": "e342c6419f86b2dc0b07ed966e13a91badaa2217dc25f187dc5b7dae75b5250e",
   "domain": "optimization",
   "covers": {
     "nx_create_topology_condition": [
@@ -16,11 +16,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_topology_condition": "6731afdb9481651c4a2334ae63883df004c141ba5f85320a18cda665e8939033"
+    "nx_create_topology_condition": "013a72b50e2db830767061a81ebd08a42ea6205dfb8cf1ff386888d87177f5f0"
   },
-  "recorded": "2026-10-13T07:36:31Z",
+  "recorded": "2026-10-15T11:05:21Z",
   "passed": true,
-  "checks": 30,
+  "checks": 35,
   "failed_checks": 0,
   "steps": [
     {
@@ -88,7 +88,7 @@
     },
     {
       "index": 10,
-      "call": "nx_create_topology_condition",
+      "call": "nx_create_topology_study",
       "setup": false,
       "passed": true,
       "checks": 3
@@ -98,14 +98,14 @@
       "call": "nx_create_topology_condition",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 12,
       "call": "nx_create_topology_condition",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 4
     },
     {
       "index": 13,
@@ -126,24 +126,31 @@
       "call": "nx_create_topology_condition",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 2
     },
     {
       "index": 16,
       "call": "nx_create_topology_condition",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 4
     },
     {
       "index": 17,
+      "call": "nx_create_topology_condition",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 18,
       "call": "nx_get_topology_study",
       "setup": false,
       "passed": true,
       "checks": 4
     },
     {
-      "index": 18,
+      "index": 19,
       "call": "nx_check_model",
       "setup": false,
       "passed": true,

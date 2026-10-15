@@ -31,7 +31,7 @@ from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import BodyRef, Doc, FaceRef, Items, Range, RefTo
 from nx_mcp.domains.inspection import common
 from nx_mcp.kit import bodies as kbodies
-from nx_mcp.kit import geom, measure, result, select
+from nx_mcp.kit import geom, massprops, measure, result, select
 from nx_mcp.kit import units as kunits
 
 DISTANCE_KINDS = (
@@ -124,8 +124,9 @@ def nx_measure_distance(
     first: Annotated[str, RefTo(*DISTANCE_KINDS, doc=DISTANCE_DOC)],
     second: Annotated[str, RefTo(*DISTANCE_KINDS, doc=DISTANCE_DOC)],
 ) -> DistanceData:
-    """Measure the minimum distance and the closest points between two objects; features and
-    components measure their bodies. touching is true at distance 0."""
+    """Minimum distance and closest points between two objects (features and components:
+    their bodies). touching is true at distance 0, as for overlapping bodies:
+    nx_check_interference tells a clash from contact."""
     common.note_exploded(tx)
     a = _measurables(tx, first, "/first")
     b = _measurables(tx, second, "/second")
@@ -215,7 +216,8 @@ def nx_measure_angle(
 ) -> AngleData:
     """Measure the angle (0-180) between lines, straight edges, planar faces or datums. Lines and
     edges run start to end; faces use outward normals: perpendicular 90, opposite parallel 180,
-    180 minus the interior angle at a convex edge."""
+    180 minus the interior angle at a convex edge. A line against a face gives the angle to
+    its normal (0: the line is perpendicular to the face; line-to-plane is 90 minus it)."""
     common.note_exploded(tx)
     directions = []
     for ref, field in ((first, "/first"), (second, "/second")):
@@ -237,13 +239,16 @@ def nx_measure_angle(
 class BodyVolume(TypedDict):
     body: result.Row
     volume: float
+    mass: float
+    density: float | None  # kg/m^3 of this body
+    material: str | None  # None: NX's default solid density
 
 
 class MassData(TypedDict):
     volume: float
     area: float | None
     mass: float
-    density: float | None
+    density: float | None  # mean: total mass / total volume
     center_of_gravity: list[float]
     inertia: list[list[float]]
     principal_moments: list[float]
@@ -255,7 +260,16 @@ class MassData(TypedDict):
     effect="read",
     label="Measure mass properties",
     summary=lambda a, say: "Mass of " + _targets_text(a),
-    keywords=("volume", "mass", "weight", "centre of gravity", "inertia", "mass properties"),
+    keywords=(
+        "volume",
+        "mass",
+        "weight",
+        "centre of gravity",
+        "inertia",
+        "mass properties",
+        "density",
+        "inertia tensor",
+    ),
     requires=("work_part",),
     cost="light",
     example={"bodies": ["b:3"]},
@@ -267,8 +281,9 @@ def nx_measure_mass(
     scope: Scope = "auto",
 ) -> MassData:
     """Measure volume, area, mass, centre of gravity and inertia of solid bodies. Mass (kg) uses
-    material densities (density: the kg/m^3 used; set with nx_set_material); inertia is
-    kg*unit^2 about the centre of gravity."""
+    material densities (set with nx_set_material); density is the mean kg/m^3, bodies give
+    each one's. inertia: kg*unit^2 tensor about the centre of gravity in absolute axes,
+    products negated (Ixy = -sum m*x*y); its eigenvalues are principal_moments."""
     common.note_exploded(tx)
     found = kbodies.solids(common.target_bodies(tx, bodies, scope), field="/bodies")
     found, skipped = kbodies.measurable(found, scoped=bodies is None)
@@ -279,24 +294,49 @@ def nx_measure_mass(
     kbodies.require(found, field="/bodies")
     rows: list[BodyVolume] = []
     area = 0.0
+    per_m3 = measure.M_PER[kunits.part_units(tx)] ** 3
     for body in found:
         tx.checkpoint()
         props = measure.solid_props(tx, body)
-        rows.append({"body": tx.ref(body, kind="body"), "volume": props["volume"]})
+        cubic = props["volume"] * per_m3
+        rows.append({
+            "body": tx.ref(body, kind="body"),
+            "volume": props["volume"],
+            "mass": props["mass"],
+            "density": props["mass"] / cubic if cubic > 0 else None,
+            "material": massprops.material_name(body),
+        })  # fmt: skip
         area += props["area"]
+    _note_default_density(tx, rows)
     physics = measure.inertia(tx, found)
     volume = sum(r["volume"] for r in rows)
-    cubic_metres = volume * measure.M_PER[kunits.part_units(tx)] ** 3
+    cubic_metres = volume * per_m3
     return {
         "volume": volume,
         "area": area,
         "mass": physics["mass"],
         "density": physics["mass"] / cubic_metres if cubic_metres > 0 else None,
-        "center_of_gravity": physics["center"],
+        "center_of_gravity": _denoise([physics["center"]])[0],
         "inertia": _denoise(physics["inertia"]),
         "principal_moments": _denoise([physics["principal"]])[0],
         "bodies": rows,
     }
+
+
+def _note_default_density(tx, rows) -> None:
+    """``NX_NOTE`` naming the bodies without a material: NX weighs them with its default
+    solid density (a preference, 7830.64 kg/m^3 out of the box)."""
+    bare = [r for r in rows if r["material"] is None]
+    if not bare:
+        return
+    shown = ", ".join(r["body"]["id"] for r in bare[:5]) + (", ..." if len(bare) > 5 else "")
+    density = bare[0]["density"]
+    used = f" ({density:.6g} kg/m^3)" if density else ""
+    tx.warn(
+        "NX_NOTE",
+        f"{len(bare)} of {len(rows)} bodies have no material ({shown}): NX used its default "
+        f"solid density{used}; assign one with nx_set_material",
+    )
 
 
 def _denoise(rows):
@@ -324,7 +364,16 @@ class BoundsData(TypedDict):
     effect="read",
     label="Measure bounding box",
     summary=lambda a, say: "Bounds of " + _targets_text(a),
-    keywords=("bounding box", "extents", "overall size", "envelope", "min max"),
+    keywords=(
+        "bounding box",
+        "extents",
+        "overall size",
+        "overall dimensions",
+        "size of part",
+        "length width height",
+        "envelope",
+        "min max",
+    ),
     requires=("work_part",),
     cost="light",
     example={"bodies": ["b:3"], "precision": "exact"},
@@ -379,17 +428,19 @@ class ThicknessSample(TypedDict, total=False):
     status: str
 
 
-class FaceThickness(TypedDict):
+class FaceThickness(TypedDict, total=False):
     face: result.Row
     minimum: float | None
     maximum: float | None
     measured: int
+    min_point: list[float]  # where this face's thinnest sample starts
 
 
 class ThicknessData(TypedDict):
     body: result.Row
     minimum: float | None
     maximum: float | None
+    thinnest: ThicknessSample | None  # the thinnest sample (samples are thinnest first)
     measured: int
     unresolved: int
     skipped_outside_trim: int
@@ -428,16 +479,17 @@ def nx_measure_wall_thickness(
         float, Range(gt=0, le=1), Doc("Inward ray start offset, part units")
     ] = 0.001,
 ) -> ThicknessData:
-    """Measure sampled wall thickness of a solid (default: the part's only one). Rays run along
-    inward normals from its faces; not a guaranteed minimum. A plate's side faces give its
-    width: see by_face."""
+    """Measure sampled wall thickness of a solid (default: the body of faces, or the part's only
+    one). Rays run along inward normals from its faces; not a guaranteed minimum. Samples
+    come thinnest first; a plate's side faces give its width: see by_face."""
     common.note_exploded(tx)
-    target = _thickness_body(tx, body)
+    chosen = select.faces(tx, faces) if faces is not None else None
+    target = _thickness_body(tx, body, chosen)
     own = {int(f.Tag): f for f in target.GetFaces()}
-    if faces is None:
+    if chosen is None:
         selected = list(own.values())
     else:
-        selected = select.faces(tx, faces)
+        selected = chosen
         for i, face in enumerate(selected):
             if int(face.Tag) not in own:
                 fail("NX_WRONG_OWNER", "The face is not on this body", field=f"/faces/{i}")
@@ -471,34 +523,56 @@ def nx_measure_wall_thickness(
             if opposite is not None:
                 row["opposite_face"] = tx.ref(opposite, kind="face")
         rows.append(row)
+    by_face = _by_face(rows)
+    rows.sort(key=lambda r: (r.get("thickness") is None, r.get("thickness") or 0.0))
     return {
         "body": tx.ref(target, kind="body"),
         "minimum": min(values) if values else None,
         "maximum": max(values) if values else None,
+        "thinnest": rows[0] if values else None,
         "measured": len(values),
         "unresolved": unresolved,
         "skipped_outside_trim": skipped,
-        "by_face": _by_face(rows),
+        "by_face": by_face,
         "samples": rows,
     }
 
 
-def _thickness_body(tx, ref):
-    """The body to measure: ``ref``, or the work part's only solid body."""
+def _thickness_body(tx, ref, faces=None):
+    """The body to measure: ``ref``, the one body of ``faces``, or the part's only solid."""
     if ref is not None:
         target = select.one(tx, ref, "body", field="/body")
         if not getattr(target, "IsSolidBody", False):
             fail("NX_WRONG_GEOMETRY", "Select a solid body", field="/body")
         return target
+    if faces:
+        owners = {}
+        for face in faces:
+            with native():
+                owner = face.GetBody()
+            owners.setdefault(int(owner.Tag), owner)
+        if len(owners) == 1:
+            target = next(iter(owners.values()))
+            if not getattr(target, "IsSolidBody", False):
+                fail("NX_WRONG_GEOMETRY", "The faces are on a sheet body; select faces of a "
+                     "solid", field="/faces")  # fmt: skip
+            return target
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"The faces lie on {len(owners)} bodies; measure one body per call",
+            field="/faces",
+            hint="Split the faces per body, or name the body in body",
+        )
+    name = common.part_name(tx.part)
     found = [b for b in kbodies.scope(tx, "part") if getattr(b, "IsSolidBody", False)]
     if len(found) == 1:
         return found[0]
     if not found:
-        fail("NX_NOT_FOUND", "The work part has no solid body", field="/body")
+        fail("NX_NOT_FOUND", f"{name} has no solid body", field="/body")
     refs = ", ".join(tx.ref(b, kind="body")["id"] for b in found[:5])
     fail(
         "NX_INVALID_ARGUMENT",
-        f"The work part has {len(found)} solid bodies; name one in body",
+        f"{name} has {len(found)} solid bodies; name one in body or pass its faces",
         field="/body",
         hint=f"body is one of {refs}" + (", ..." if len(found) > 5 else ""),
     )
@@ -514,6 +588,8 @@ def _by_face(rows) -> list[FaceThickness]:
         )
         if "thickness" in row:
             value = row["thickness"]
+            if face["minimum"] is None or value < face["minimum"]:
+                face["min_point"] = row["point"]
             face["minimum"] = value if face["minimum"] is None else min(face["minimum"], value)
             face["maximum"] = value if face["maximum"] is None else max(face["maximum"], value)
             face["measured"] += 1

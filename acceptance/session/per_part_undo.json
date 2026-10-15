@@ -26,7 +26,7 @@
   {"call": "nx_undo_operation", "args": {"part": "ppu_b", "mode": "compensate"}, "intent": "Acceptance: mode compensate reaches over the part's own save", "expect": {"mutation_outcome": "committed", "data.compensated": true, "data.undone": ["$b1.operation_id"]}},
   {"call": "nx_list_objects", "args": {"part": "ppu_b", "kind": "body"}, "expect": {"data.items": {"count": 0}}},
   {"call": "nx_save_part", "args": {"part": "ppu_a"}, "setup": true},
-  {"call": "nx_list_checkpoints", "args": {"part": "ppu_a"}, "intent": "Acceptance: A's own save expires A's checkpoint", "expect": {"data.checkpoints": {"contains": {"label": "ppu a start", "available": false, "expired_reason": "saved_or_closed"}}}},
+  {"call": "nx_list_checkpoints", "args": {"part": "ppu_a", "include_expired": true}, "intent": "Acceptance: A's own save expires A's checkpoint", "expect": {"data.checkpoints": {"contains": {"label": "ppu a start", "available": false, "expired_reason": "saved_or_closed"}}}},
   {"call": "nx_restore_checkpoint", "args": {"checkpoint_id": "$cpa.data.checkpoint_id"}, "expect": {"ok": false, "error.code": "NX_STALE_CHECKPOINT", "mutation_outcome": "not_started"}}
  ]
 }

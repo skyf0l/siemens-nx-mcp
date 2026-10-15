@@ -6,8 +6,10 @@ and displacement results) into the study. The call is ``long``: one native wait 
 cannot be interrupted (about 2 minutes for a 100x60x10 mm bracket at quality 9; NX does
 not answer meanwhile). The optimized bodies live only while the task is open, so the result
 is measured there; afterwards it is the feature's own body. The achieved mass fraction is the optimized body's volume over the
-design space body's volume (same material); every support and load face is checked to
-touch the optimized body (keep-in regions sit on them).
+design space body's volume (same material). Every support and load face is checked against
+the optimized body: ``gap`` is the face-to-body minimum distance (``kept`` when it touches),
+``contact_share`` the share of points on a grid inside the face that the body still reaches
+(a face whose centre was cut away still holds the load path at its rim).
 """
 
 from __future__ import annotations
@@ -16,13 +18,14 @@ import time
 from typing import TypedDict
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail, native
+from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import FeatureRef
 from nx_mcp.domains.optimization import common
 from nx_mcp.kit import curve, facts, measure, readback, result, units
 
 TOUCH_MM = 0.5  # a support or load face counts as kept when the result is this close
+GRID = 4  # contact_share: points on a GRID x GRID grid inside each face
 
 
 class Kept(TypedDict):
@@ -30,6 +33,7 @@ class Kept(TypedDict):
     role: str
     gap: float
     kept: bool
+    contact_share: float | None
 
 
 class RunData(TypedDict):
@@ -43,6 +47,7 @@ class RunData(TypedDict):
     design_mass: float | None
     mass: float | None
     target_mass: float | None
+    target_fraction: float | None
     max_displacement: float | None
     max_stress: float | None
     load_cases: list[common.CasePeaks]
@@ -50,9 +55,33 @@ class RunData(TypedDict):
     all_kept: bool
 
 
+def _near(tx, bodies, point) -> float:
+    return min(curve.point_distance(tx, b, point)[0] for b in bodies)
+
+
+def _gap(tx, face, bodies) -> float:
+    """Minimum distance from the face to the optimized bodies (0: touching); the face's
+    inner point's distance when NX cannot measure face to body."""
+    try:
+        return max(0.0, min(curve.min_distance(tx, face, b)[0] for b in bodies))
+    except NXError:
+        return _near(tx, bodies, facts.face_point(tx, face))
+
+
+def _share(tx, face, bodies, limit) -> float | None:
+    """Share of grid points inside the face within ``limit`` of the optimized bodies."""
+    try:
+        points = [p for p, _normal in facts.interior_samples(tx, face, GRID)]
+    except Exception:
+        return None
+    if not points:
+        return None
+    return sum(_near(tx, bodies, p) <= limit for p in points) / len(points)
+
+
 def _kept(tx, study, bodies) -> list[Kept]:
     """Each support and load face of the design space (not of scenery bodies), and whether
-    the optimized bodies still touch it."""
+    the optimized bodies still touch it (``gap``) and how much of it (``contact_share``)."""
     limit = TOUCH_MM / units.MM_PER[units.part_units(tx)]
     rows: list[Kept] = []
     seen = {int(f.Tag) for b in common.scenery_bodies(study) for f in b.GetFaces()}
@@ -64,14 +93,16 @@ def _kept(tx, study, bodies) -> list[Kept]:
                 if int(face.Tag) in seen:
                     continue
                 seen.add(int(face.Tag))
-                point = facts.face_point(tx, face)
-                gap = min(curve.point_distance(tx, b, point)[0] for b in bodies)
+                tx.checkpoint()
+                gap = _gap(tx, face, bodies)
+                share = _share(tx, face, bodies, limit)
                 rows.append(
                     {
                         "face": tx.ref(face, kind="face"),
                         "role": role,
                         "gap": gap,
                         "kept": gap <= limit,
+                        "contact_share": None if share is None else round(share, 3),
                     }
                 )
     return rows
@@ -100,8 +131,8 @@ def nx_run_topology_study(
     study: FeatureRef,
 ) -> RunData:
     """Solve a topology study with the NX optimizer (minutes) and load its optimized body.
-    Returns the achieved mass fraction and reduction, peak stress (MPa) and displacement (also
-    per load case), and whether every design space support and load face stays in the result."""
+    Returns the achieved vs target mass fraction, reduction, peak stress (MPa) and displacement
+    (also per load case), and whether the result still touches each support and load face."""
     with tx.checks():
         feature = common.feature_of(tx, study)
         common.require_license(tx)
@@ -147,6 +178,7 @@ def nx_run_topology_study(
     shown = common.result_bodies(feature) or [b for b in bodies if _alive(b)]
     fraction = volume / design_volume
     target = common.target_mass(feature)
+    target_fraction = target / design_mass if target and design_mass else None
     return {
         "study": tx.ref(feature, kind="feature"),
         "seconds": round(seconds, 1),
@@ -158,6 +190,7 @@ def nx_run_topology_study(
         "design_mass": design_mass,
         "mass": None if design_mass is None else design_mass * fraction,
         "target_mass": target,
+        "target_fraction": target_fraction,
         "max_displacement": top["max_displacement"],
         "max_stress": top["max_stress"],
         "load_cases": cases,

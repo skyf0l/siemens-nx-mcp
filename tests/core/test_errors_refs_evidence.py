@@ -27,6 +27,11 @@ def test_native_maps_license_listed_and_default_codes():
             raise NativeError(code)
         assert e.value.code == "NX_LICENSE_UNAVAILABLE" and e.value.nx_code == code
         assert e.value.category == "unavailable" and e.value.retry == "never"
+    # A module or token checkout refused under another code is a license refusal too.
+    message = "License Error, The check out of a module failed because not enough tokens"
+    with pytest.raises(NXError) as e, native(default="NX_BUILD_FAILED"):
+        raise NativeError(3520099, message)
+    assert e.value.code == "NX_LICENSE_UNAVAILABLE" and e.value.nx_code == 3520099
     with pytest.raises(NXError) as e, native({670015: "NX_BUILD_FAILED"}):
         raise NativeError(670015, "radius too large")
     assert e.value.code == "NX_BUILD_FAILED" and e.value.message == "radius too large"

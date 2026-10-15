@@ -405,3 +405,47 @@ def test_a_colour_table_in_0_255_is_read_as_0_1():
     table = display.palette(NS(Colors=colors))
     assert table == {1: ("C1", [1.0, 0.0, 0.0]), 2: ("C2", [0.0, 0.0, 1.0])}
     assert display.hex_of(table[2][1]) == "#0000FF"
+
+
+def test_a_new_direction_turns_about_the_view_centre():
+    """NX keeps the view-space origin when only the rotation changes, which moved the model
+    35 mm off centre live: the camera turns about the point at the viewport centre."""
+    nx = display_nx()
+    nx.block(100, 50, 20)
+    top = run(nx, "nx_set_camera", orientation="top", fit=True)
+    centre = top.data["absolute_origin"]
+    turned = run(nx, "nx_set_camera", view_from=[-1, -1, 1])
+    assert turned.ok, turned.error
+    assert turned.data["absolute_origin"] == pytest.approx(centre)
+    assert turned.data["scale"] == top.data["scale"]
+    front = run(nx, "nx_set_camera", orientation="front")
+    assert front.data["absolute_origin"] == pytest.approx(centre)
+    assert flat(front.data["rotation"]) == pytest.approx(
+        flat(display.ORIENTATION_ROTATIONS["front"])
+    )
+
+
+def test_center_puts_a_point_at_the_view_centre_and_style_stays():
+    nx = display_nx()
+    ok = run(nx, "nx_set_camera", center=[10, 20, 30], style="wireframe")
+    assert ok.ok, ok.error
+    assert ok.data["absolute_origin"] == pytest.approx([10, 20, 30])
+    assert ok.data["style"] == "wireframe" and nx.work_view.RenderingStyle == 9
+    turned = run(nx, "nx_set_camera", orientation="right", center=[1, 2, 3])
+    assert turned.data["absolute_origin"] == pytest.approx([1, 2, 3])
+    assert turned.data["view"] == "right"
+
+
+@pytest.mark.parametrize(
+    ("args", "field"),
+    [
+        ({"center": [0, 0, 0], "origin": [0, 0, 0]}, "/center"),
+        ({"center": [0, 0, 0], "fit": True}, "/center"),
+    ],
+)
+def test_center_rules(args, field):
+    nx = display_nx()
+    nx.block(1, 1, 1)
+    bad = run(nx, "nx_set_camera", **args)
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == field
+    assert bad.mutation_outcome == "not_started"

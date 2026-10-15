@@ -55,7 +55,9 @@ def test_undo_reverts_only_latest_operation_and_save_expires_marks(rig, call):
     cp = call("nx_create_checkpoint")
     saved = call("nx_save_part")
     assert saved["saved_files"] == ["test.prt"]
-    assert call("nx_list_checkpoints")["checkpoints"][0]["available"] is False
+    assert call("nx_list_checkpoints")["checkpoints"] == []  # expired: hidden by default
+    listed = call("nx_list_checkpoints", include_expired=True)
+    assert listed["checkpoints"][0]["available"] is False
     with pytest.raises(NXError, match="save") as error:
         call("nx_restore_checkpoint", checkpoint_id=cp["checkpoint_id"])
     assert error.value.code == "NX_STALE_CHECKPOINT"

@@ -69,11 +69,14 @@ class CleanupData(TypedDict):
     scope: Literal["own", "all", "ids"]
     deleted_count: int  # snapshots actually deleted (0 for a preview)
     policy: dict  # {max_age_seconds, max_bytes}
+    # counts and sizes of the snapshots in scope (own, all, or the result_ids found)
     snapshot_count: int
     bytes_before: int
     selected_count: int
     bytes_after_cleanup: int
-    missing: list[str]  # requested result_ids that do not exist
+    workspace_snapshot_count: int  # every agent's snapshots in the workspace, any scope
+    missing: list[str]  # requested result_ids that never existed in this workspace
+    already_deleted: list[str]  # requested result_ids deleted or pruned earlier
 
 
 # Units of max_age_seconds given as text ('7d', '12 hours'), in seconds.
@@ -200,8 +203,9 @@ def nx_get_result(
     detail: Detail = "compact",
 ) -> ResultData:
     """Page or expand a stored result by result_id without repeating the call or reaching NX.
-    field is a JSON pointer from omitted; lists, object keys and text are paged (text: limit
-    x 1000 characters). References inside may be stale after model changes."""
+    field: a JSON pointer from omitted; lists and object keys page by item, text by
+    character (offset in characters, limit x 1000). References inside may be stale after
+    model changes."""
     if field and not field.startswith("/"):
         field = "/" + field
     path = _file(tx.workspace.root, result_id)
@@ -276,10 +280,12 @@ def nx_delete_results(
     | None = None,
     all_agents: Annotated[bool, Doc("Age/size: every agent's snapshots, not only yours")] = False,
 ) -> CleanupData:
-    """Preview (default) or delete stored result snapshots by age, total size or result_id.
-    Defaults: 7 days, 256 MiB, only your own snapshots (all_agents: every agent's on this
-    workspace). Receipts and CAD files are never touched."""
+    """Preview (default) or delete stored result snapshots by age, total size, or exactly
+    result_ids (alone). Defaults: 7 days, 256 MiB, only your own snapshots. Receipts and CAD
+    files are never touched."""
     with tx.checks():
+        if result_ids:
+            _ids_alone(max_age_seconds, max_bytes, all_agents)
         max_age_seconds = _amount(max_age_seconds, DURATIONS, "/max_age_seconds", "'7d'")
         try:
             policy = settings()
@@ -292,6 +298,36 @@ def nx_delete_results(
     return out
 
 
+def _ids_alone(max_age_seconds, max_bytes, all_agents) -> None:
+    """result_ids select exactly those snapshots: an age, size or all_agents next to them
+    would be ignored, so the call is refused instead."""
+    given = [
+        name
+        for name, value in (
+            ("max_age_seconds", max_age_seconds),
+            ("max_bytes", max_bytes),
+            ("all_agents", all_agents or None),
+        )
+        if value is not None
+    ]
+    if given:
+        fail("NX_INVALID_ARGUMENT",
+             f"result_ids selects exactly those snapshots; {', '.join(given)} would be ignored",
+             field="/" + given[0],
+             hint="Pass result_ids alone, or drop result_ids to prune by age or size")  # fmt: skip
+
+
+def _workspace_count(root) -> int:
+    return sum(
+        1 for folder in directories(root) if folder.is_dir() for _ in folder.glob("result_*.json")
+    )
+
+
+def _gone_before(root, result_id: str) -> bool:
+    """Whether a tombstone says the snapshot was deleted or pruned earlier."""
+    return any(tombstone(folder, result_id) is not None for folder in directories(root))
+
+
 def _delete(
     tx: Tx, dry_run, max_age_seconds, max_bytes, result_ids, policy, all_agents
 ) -> CleanupData:
@@ -301,18 +337,8 @@ def _delete(
         found = [(i, _file(root, i)) for i in wanted]
         present = [p for _, p in found if p is not None]
         sizes = {p: p.stat().st_size for p in present}
-        total = sum(
-            p.stat().st_size
-            for folder in directories(root)
-            if folder.is_dir()
-            for p in folder.glob("result_*.json")
-        )
-        count = sum(
-            1
-            for folder in directories(root)
-            if folder.is_dir()
-            for _ in folder.glob("result_*.json")
-        )
+        absent = [i for i, p in found if p is None]
+        count = _workspace_count(root)
         if not dry_run and present:
             tx.touched = True
             with LOCK:
@@ -324,11 +350,13 @@ def _delete(
             "scope": "ids",
             "deleted_count": 0,
             "policy": policy,
-            "snapshot_count": count,
-            "bytes_before": total,
+            "snapshot_count": len(present),
+            "bytes_before": sum(sizes.values()),
             "selected_count": len(present),
-            "bytes_after_cleanup": total - sum(sizes.values()),
-            "missing": [i for i, p in found if p is None],
+            "bytes_after_cleanup": 0,
+            "workspace_snapshot_count": count,
+            "missing": [i for i in absent if not _gone_before(root, i)],
+            "already_deleted": [i for i in absent if _gone_before(root, i)],
         }
     only = None if all_agents else claimed()
     out = {
@@ -340,7 +368,9 @@ def _delete(
         "bytes_before": 0,
         "selected_count": 0,
         "bytes_after_cleanup": 0,
+        "workspace_snapshot_count": 0,
         "missing": [],
+        "already_deleted": [],
     }
     for folder in directories(root):
         limits = {"max_age_seconds": max_age_seconds, "max_bytes": max_bytes, "only": only}
@@ -351,4 +381,5 @@ def _delete(
         out["policy"] = report["policy"]
         for key in ("snapshot_count", "bytes_before", "selected_count", "bytes_after_cleanup"):
             out[key] += report[key]
+    out["workspace_snapshot_count"] = _workspace_count(root)
     return out  # type: ignore[return-value]  # built field by field

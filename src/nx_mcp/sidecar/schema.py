@@ -25,6 +25,7 @@ from __future__ import annotations
 import copy
 import functools
 import json
+import re
 import typing
 from typing import Annotated, Any, Literal, Union
 
@@ -65,9 +66,11 @@ from nx_mcp.core.validate import (
     json_array,
     match_option,
     natural_scalar,
+    option_key,
     options_message,
     ratio_of,
     ratio_value,
+    scalar_ratio,
     typeddict_fields,
     unwrap,
     wraps_scalar,
@@ -83,6 +86,13 @@ OPERATION_ID = {
     "pattern": OPERATION_ID_CHARS,
 }
 INTENT = {"type": "string", "maxLength": 120}
+# The ``part`` call key (core/target.py, gate 3t) as every schema of a tool that takes it
+# lists it: agents trust a strict schema (``additionalProperties: false``) over the
+# instructions, and with ``part`` left out they did not pass it when 2+ parts were loaded.
+PART_KEY = {
+    "type": "string",
+    "description": "Target part's file name when 2+ are loaded",
+}
 # Regular expressions gate 1 checks but listings omit (references, unit strings); a
 # string carrying one of them also loses its ``maxLength`` (gate 1 checks it too).
 LISTING_UNSHOWN_PATTERNS = frozenset({REF_PATTERN, *QUANTITY_PATTERNS.values()})
@@ -218,6 +228,8 @@ class _Converter:
                 StringConstraints(max_length=QUANTITY_MAX),
                 AfterValidator(_quantity_text(dim, markers.get(Range))),
             ]
+            if dim == "scalar" and not self.output:  # a factor's '200%', '2x'
+                meta.append(BeforeValidator(lambda v, n=name, m=markers: scalar_ratio(v, n, m)))
             return _annotated(Union[number, text], meta)  # noqa: UP007
         if base is dict and Json in markers:
             marker = markers[Json]
@@ -640,6 +652,36 @@ def _arguments_schema(spec) -> str:
     return json.dumps(share_definitions(schema))
 
 
+def takes_part_key(spec) -> bool:
+    """A tool that acts on a loaded part and can be called without references: the
+    ``part`` call key picks its part when two or more are loaded (rule G). The proxy pops
+    it as a call key before gate 1; the kernel resolves it (gate 3t)."""
+    if spec.runs != "nx" or spec.target in ("none", "creates", "any"):
+        return False
+    if spec.target.startswith("arg:"):
+        return False
+    return not any(
+        p.required and core_types.RefKind in unwrap(p.hint)[1] for p in spec.params.values()
+    )
+
+
+def with_part_key(spec, schema: dict) -> dict:
+    """``schema`` with the ``part`` call key listed when the tool takes it."""
+    if takes_part_key(spec) and "part" not in spec.params:
+        schema.setdefault("properties", {})["part"] = dict(PART_KEY)
+    return schema
+
+
+def call_fields(spec) -> list[str]:
+    """The call keys a tool's arguments may carry besides its own fields (what an unknown
+    field error offers): ``part`` when it takes it, ``operation_id`` and ``intent`` when it
+    changes something."""
+    keys = ["part"] if takes_part_key(spec) and "part" not in spec.params else []
+    if spec.effect != "read":
+        keys += [k for k in ("operation_id", "intent") if k not in spec.params]
+    return keys
+
+
 def input_schema(spec, *, call_keys: bool = True) -> dict:
     """The tool's input JSON Schema; ``call_keys`` adds ``operation_id``/``intent``."""
     schema = json.loads(_arguments_schema(spec))
@@ -688,8 +730,49 @@ def narrow_variants(schema: dict, spec, allowed) -> dict:
     return schema
 
 
+def variant_claim(description, values) -> set[str] | None:
+    """The variants a field's description names as its own, else None: a description
+    starting ``<variant>: ...`` (``"projected: gap between borders"``), several variants
+    joined by ``/``, ``,``, ``or`` or ``and`` (``"parallel/radial: ..."``), with an optional
+    ``by`` before or ``only`` after (``"by faces: ..."``, ``"bodies only: ..."``). Every
+    name must be a variant value (any case or spacing), so ordinary prose never claims."""
+    head, sep, _ = str(description or "").partition(":")
+    if not sep or not head.strip() or len(head) > 80:
+        return None
+    head = re.sub(r"^by\s+|\s+only$", "", head.strip().casefold())
+    keys = {option_key(v): v for v in values}
+    claimed = set()
+    for name in re.split(r"\s*(?:/|,|\bor\b|\band\b)\s*", head):
+        if not name.strip():
+            continue
+        value = keys.get(option_key(name))
+        if value is None:
+            return None
+        claimed.add(value)
+    return claimed or None
+
+
+def _drop_unused_defs(schema: dict) -> dict:
+    """Remove ``$defs`` entries nothing references any more."""
+    defs = schema.get("$defs")
+    if not isinstance(defs, dict):
+        return schema
+    while True:
+        text = json.dumps({k: v for k, v in schema.items() if k != "$defs"}) + json.dumps(defs)
+        unused = [n for n in defs if f'"#/$defs/{n}"' not in text]
+        if not unused:
+            break
+        for name in unused:
+            del defs[name]
+    if not defs:
+        del schema["$defs"]
+    return schema
+
+
 def variant_schema(spec, variant: str, *, call_keys: bool = True) -> dict:
-    """``nx_tool#variant``: the input schema narrowed to one variant."""
+    """``nx_tool#variant``: the input schema narrowed to one variant: the variant field
+    is that value, the fields it needs (``required_by``) are required, and fields whose
+    description names other variants only (:func:`variant_claim`) are left out."""
     values = spec.variant_values()
     if variant not in values:
         raise KeyError(variant)
@@ -705,6 +788,15 @@ def variant_schema(spec, variant: str, *, call_keys: bool = True) -> dict:
         schema["properties"][spec.variants] = {"const": variant}
         if description:
             schema["properties"][spec.variants]["description"] = description
+        values = spec.variant_values()
+        own = set(spec.required_by.get(variant, ()))
+        for name in [n for n in schema["properties"] if n in spec.params]:
+            if name == spec.variants or name in own:
+                continue
+            claim = variant_claim(schema["properties"][name].get("description"), values)
+            if claim is not None and variant not in claim:
+                del schema["properties"][name]  # another variant's field
+        _drop_unused_defs(schema)
         for name, param in spec.params.items():
             by = unwrap(param.hint)[1].get(core_types.ByVariant)
             if by is not None:  # the variant's own fields replace the free-form object

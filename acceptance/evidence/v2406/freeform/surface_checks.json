@@ -1,0 +1,301 @@
+{
+  "format": 2,
+  "scenario": "acceptance/freeform/surface_checks.json",
+  "scenario_sha256": "1514f12317a27fba37631c55e2a1dc332122587524d703a139e6673810750ea8",
+  "domain": "freeform",
+  "covers": {
+    "nx_create_midsurface": [
+      "auto"
+    ],
+    "nx_create_sheet_extension": [],
+    "nx_create_law_extension": [
+      "faces"
+    ],
+    "nx_create_n_sided_surface": [],
+    "nx_create_ruled": [],
+    "nx_create_variable_offset": [],
+    "nx_create_thicken": [],
+    "nx_create_offset_surface": [],
+    "nx_create_bridge_surface": [
+      "g1"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_midsurface": "6e55799721aca2b550c6d5762d5da03ffe6a0b009aa04fb631b8a65c2869fcd3",
+    "nx_create_sheet_extension": "2de047b2b4a2c4e478c66473c9690d1df0327ae14d0d075cfad834656adcf904",
+    "nx_create_law_extension": "2de047b2b4a2c4e478c66473c9690d1df0327ae14d0d075cfad834656adcf904",
+    "nx_create_n_sided_surface": "d5796c3b1f6360e38591f0274006b278d16fd1acbd3ffee7ae1d253333fedc07",
+    "nx_create_ruled": "d5796c3b1f6360e38591f0274006b278d16fd1acbd3ffee7ae1d253333fedc07",
+    "nx_create_variable_offset": "868c1915b5d7463e2bacc8873a0cf44b77de079afdaecb0d8601b7de7eba5891",
+    "nx_create_thicken": "9d68e13e03859a7db0c0f8ed95f6088a8eff23bc45f04f25a68655c682894192",
+    "nx_create_offset_surface": "6fd58cfdb6a318c9e02eb3ad0d9e19dddc87601cc817f9eec95f6d3a739b9893",
+    "nx_create_bridge_surface": "83e4888a65ff69a1179d6b1abc6706476ea43aecbc6047e30697729f30b40567"
+  },
+  "recorded": "2026-10-15T12:19:12Z",
+  "passed": true,
+  "checks": 41,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_midsurface",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 4,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_bounded_plane",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_create_sheet_extension",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 11,
+      "call": "nx_create_law_extension",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 12,
+      "call": "nx_create_law_extension",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 13,
+      "call": "nx_create_variable_offset",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 14,
+      "call": "nx_create_variable_offset",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 15,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 16,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 17,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 18,
+      "call": "nx_create_n_sided_surface",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 19,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 20,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 21,
+      "call": "nx_create_ruled",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 22,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 23,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 24,
+      "call": "nx_create_bounded_plane",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 25,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 26,
+      "call": "nx_create_thicken",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 27,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 28,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 29,
+      "call": "nx_create_offset_surface",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 30,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 31,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 32,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 33,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 34,
+      "call": "nx_create_bounded_plane",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 35,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 36,
+      "call": "nx_create_bridge_surface",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 37,
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

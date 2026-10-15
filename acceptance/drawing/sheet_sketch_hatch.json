@@ -266,6 +266,11 @@
       95
      ],
      "tol": 0.001
+    },
+    "changes.created": {
+     "count_kind": {
+      "annotation": 1
+     }
     }
    }
   },
@@ -340,6 +345,51 @@
      ],
      "tol": 0.001
     }
+   }
+  },
+  {
+   "call": "nx_create_hatch",
+   "args": {
+    "boundary": [
+     "$sk.data.curves.5.curve.id"
+    ],
+    "type": "area_fill",
+    "material": "concrete",
+    "scale": 2
+   },
+   "intent": "Acceptance: a patterned fill drawn in whole cells, short of the boundary, is kept",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.material": "concrete",
+    "data.scale": {
+     "close": 2,
+     "tol": 1e-09
+    },
+    "data.boundary.region": {
+     "close": [
+      315,
+      135,
+      345,
+      165
+     ],
+     "tol": 0.001
+    }
+   },
+   "save": "pfill"
+  },
+  {
+   "call": "nx_list_objects",
+   "args": {
+    "kind": "annotation",
+    "type": "hatch"
+   },
+   "expect": {
+    "data.items": {
+     "count": 4
+    },
+    "data.items.0.id": "$x1.data.annotation.id",
+    "data.items.2.id": "$fill.data.annotation.id",
+    "data.items.3.id": "$pfill.data.annotation.id"
    }
   },
   {

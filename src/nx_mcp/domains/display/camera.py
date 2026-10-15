@@ -20,6 +20,12 @@ sketches or the datum CSYS at the absolute origin that NX's own fit counts, and 
 bodies' box centre to the viewport centre; the result's ``fit`` gives that ``centre`` and
 the screen-plane ``offset`` left (part units). With no body shown NX's fit is used.
 
+A new direction (orientation, view_from, rotation) turns the view about the point at the
+viewport centre (``kit.display.pivot``), or about ``center`` when given: NX 2406 keeps the
+view-space origin when only the rotation changes, which moved a model 35 mm off centre.
+``center`` pans an absolute point to the viewport centre; ``style`` sets the rendering
+style, which stays after the call (``nx_capture_view`` style=current uses it).
+
 Natural forms: ``orientation`` takes ``iso`` for ``isometric``; ``zoom`` multiplies the
 current (or, with ``fit``, the fitted) scale about the view centre, so ``zoom=2`` shows
 the model twice as large without knowing NX's absolute ``scale``.
@@ -32,7 +38,7 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Range
+from nx_mcp.core.types import Doc, Point3, Range
 from nx_mcp.domains.display.common import camera_row
 from nx_mcp.kit import display, drawing, geom, readback
 from nx_mcp.kit.result import Row
@@ -50,6 +56,7 @@ ViewRotation = Annotated[
 ]
 ViewFrom = Annotated[tuple[float, float, float], Doc("Direction to look from, e.g. [-1,-1,1]")]
 ViewUp = Annotated[tuple[float, float, float], Doc("Screen up for view_from (default +Z)")]
+Style = Literal["shaded", "shaded_with_edges", "wireframe", "studio"]
 
 
 class FitInfo(TypedDict, total=False):
@@ -88,7 +95,15 @@ def _hidden(services, part, args) -> bool:
     effect="read",
     label="Get camera",
     summary="Read the camera",
-    keywords=("view info", "camera", "view orientation", "view matrix", "zoom scale"),
+    keywords=(
+        "view info",
+        "camera",
+        "view orientation",
+        "current view direction",
+        "look direction",
+        "view matrix",
+        "zoom scale",
+    ),
     cost="light",
     example={},
 )
@@ -121,18 +136,30 @@ def _summary(a, say):
         text = "View from (" + ", ".join(f"{float(v):.3g}" for v in a["view_from"]) + ")"
     elif a.get("rotation") is not None:
         text = "Rotate the view"
-    elif any(a.get(k) is not None for k in ("origin", "scale", "zoom")):
+    elif any(a.get(k) is not None for k in ("origin", "center", "scale", "zoom")):
         text = "Pan or zoom the view"
+    elif a.get("style") and not a.get("fit"):
+        return f"View style {a['style']}"
     else:
         text = "Fit the view"
-    return text + (", fit" if a.get("fit") and not text.startswith("Fit") else "")
+    framed = a.get("fit") and not text.startswith("Fit")
+    return text + (", fit" if framed else "") + (f", {a['style']}" if a.get("style") else "")
 
 
 @tool(
     effect="view",
     label="Set camera: orient, zoom, fit view",
     summary=_summary,
-    keywords=("fit view", "isometric", "orient view", "rotate view", "zoom", "pan", "set view"),
+    keywords=(
+        "fit view",
+        "isometric",
+        "orient view",
+        "rotate view",
+        "zoom",
+        "center view on point",
+        "zoom to object",
+        "rendering style",
+    ),
     requires=("work_part",),
     cost="light",
     restorable=True,
@@ -149,19 +176,29 @@ def nx_set_camera(
     scale: Annotated[float, Range(gt=0, le=1e6), Doc("Absolute, as nx_get_camera")] | None = None,
     zoom: Zoom | None = None,
     fit: bool = False,
+    center: Annotated[Point3, Doc("Absolute point to centre")] | None = None,
+    style: Annotated[Style, Doc("Stays set")] | None = None,
 ) -> CameraData:
-    """Orient, pan, zoom or fit the displayed part's model view (it must be the work part);
-    returns restore_id. Direction: one of orientation, view_from (+ up) or rotation. scale
-    is absolute, zoom a factor: not both; fit (shown bodies, centred; not datums) takes
-    zoom, not origin or scale. NX iso looks from (1,-1,1); [-1,-1,1] shows a min-X front."""
+    """Orient, pan, zoom or fit a part's model view (part X: shown, then the display comes
+    back); returns restore_id. Direction: orientation, view_from (+up) or rotation, turned
+    about the view centre. scale is absolute, zoom a factor. fit frames the shown bodies
+    centred; zoom only. NX iso looks from (1,-1,1); [-1,-1,1] shows a min-X
+    front."""
     given = [n for n, v in (("orientation", orientation), ("view_from", view_from),
                             ("rotation", rotation)) if v is not None]  # fmt: skip
-    if not given and origin is None and scale is None and zoom is None and not fit:
+    framing = fit
+    if not given and all(v is None for v in (origin, scale, zoom, center, style)) and not framing:
         fail(
             "NX_INVALID_ARGUMENT",
-            "Nothing to change: give orientation, view_from, rotation, origin, scale, zoom "
-            "or fit=true",
+            "Nothing to change: give orientation, view_from, rotation, origin, center, scale, "
+            "zoom, style or fit=true",
             hint='e.g. {"orientation": "isometric", "fit": true} or {"zoom": 2}',
+        )
+    if center is not None and (origin is not None or framing):
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "center places the view centre; origin and fit place it too: give one",
+            field="/center",
         )
     if len(given) > 1:
         fail(
@@ -175,7 +212,7 @@ def nx_set_camera(
             "up goes with view_from (orientation and rotation fix the screen up)",
             field="/up",
         )
-    if fit and (origin is not None or scale is not None):
+    if framing and (origin is not None or scale is not None):
         fail(
             "NX_INVALID_ARGUMENT",
             "fit sets origin and scale itself; add zoom to scale the fitted view",
@@ -197,19 +234,26 @@ def nx_set_camera(
         view = display.model_view(tx, part)
     tx.frame = "display_part_absolute"
     tx.display.keep_camera()
+    if style is not None:
+        display.set_style(tx, view, style)
     if orientation is not None:
-        display.orient(tx, view, orientation, fit=False)  # the fit below frames the bodies
         wanted = display.ORIENTATION_ROTATIONS[orientation]
-    if (wanted is not None and orientation is None) or origin is not None or scale is not None:
+    if wanted is not None and origin is None and scale is None:
+        # about the view centre (or the given center): NX would keep the view-space origin
+        display.pivot(tx, view, wanted, center)
+    elif wanted is not None or origin is not None or scale is not None or center is not None:
         now = display.camera(tx, view)
-        display.set_camera(
-            tx,
-            view,
-            wanted if wanted is not None else now["rotation"],
-            list(origin) if origin is not None else now["origin"],
-            scale if scale is not None else now["scale"],
-        )
-    fitted = display.fit(tx, view) if fit else None
+        turned = wanted if wanted is not None else now["rotation"]
+        if origin is not None:
+            moved = list(origin)
+        elif center is not None:
+            moved = display.origin_for(turned, center)
+        elif wanted is not None:
+            moved = display.origin_for(turned, now["absolute_origin"])
+        else:
+            moved = now["origin"]
+        display.set_camera(tx, view, turned, moved, scale if scale is not None else now["scale"])
+    fitted = display.fit(tx, view) if framing else None
     if zoom is not None:  # about the view centre: rotation and origin stay
         now = display.camera(tx, view)
         scale = now["scale"] * zoom
@@ -217,6 +261,12 @@ def nx_set_camera(
     got = display.camera(tx, view)
     display.expect_camera(got, wanted, origin, scale)
     readback.expect(got["scale"] > 0, "camera.scale", scale=got["scale"])
+    if center is not None and fitted is None:
+        offset = display.centre_offset(got, center)
+        readback.expect(offset <= geom.tol(center, got["absolute_origin"]), "camera.center",
+                        offset=offset)  # fmt: skip
+    if style is not None:
+        readback.expect(got["style"] == style, "camera.style", style=got["style"])
     out: CameraData = {"part": tx.ref(part, "part"), **camera_row(got)}
     if fitted is not None:
         out["fit"] = fitted  # type: ignore[typeddict-item]

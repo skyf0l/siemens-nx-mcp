@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/optimization/environment.json",
-  "scenario_sha256": "af4ec229be7f789eb9716aa4ad03ce95c4ee3da239314353d661e9fa15cb9585",
+  "scenario_sha256": "71b17ccc6ed6587d16a6bc8e7b22886b64e09df73e7481b9bb067fd5c9617264",
   "domain": "optimization",
   "covers": {
     "nx_create_topology_environment": [
@@ -19,13 +19,13 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_topology_environment": "9aefa43c4c5ac1ad1365fab5d7b77033ac8b232d9128e4b8e0dc1263719d5e00",
-    "nx_create_topology_condition": "6731afdb9481651c4a2334ae63883df004c141ba5f85320a18cda665e8939033",
-    "nx_get_topology_study": "da3b6f2c790e0f0c08a8236db222f0b64a988bbf685dd603071dc0d09443fb57"
+    "nx_create_topology_environment": "d46e73926144d53827daf3df4ee7888e74185d44e78db47b97a4fff26c38ff99",
+    "nx_create_topology_condition": "013a72b50e2db830767061a81ebd08a42ea6205dfb8cf1ff386888d87177f5f0",
+    "nx_get_topology_study": "ff72fdca083977669fc6b7c717f40617320f7546d6d3a24ca17dae3428f6e094"
   },
-  "recorded": "2026-10-13T06:58:37Z",
+  "recorded": "2026-10-15T11:07:02Z",
   "passed": true,
-  "checks": 44,
+  "checks": 45,
   "failed_checks": 0,
   "steps": [
     {
@@ -110,7 +110,7 @@
       "call": "nx_create_topology_environment",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 13,

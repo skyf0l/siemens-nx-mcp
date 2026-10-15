@@ -199,6 +199,24 @@ def test_ruled_solid_between_closed_sections():
     assert ok.data["volume"] == pytest.approx(1000) and ok.data["sheet"] is False
 
 
+@pytest.mark.parametrize(
+    ("flip_high", "reverse", "reversed_"),
+    [(False, False, 0), (True, False, 1), (False, True, 1), (True, True, 0)],
+)
+def test_ruled_closed_sections_run_the_same_way_round(flip_high, reverse, reversed_):
+    nx = freeform_nx()
+    low = square_curves(nx, 0)
+    high = square_curves(nx, 10)
+    if flip_high:  # the same square walked the other way round
+        high = [curve(nx, c.shape.points[1], c.shape.points[0]) for c in high[::-1]]
+    ruled_commit(nx, box=(0, 0, 0, 10, 10, 10), solid=True)
+    ok = run(nx, "nx_create_ruled", first=[c.ref for c in low], second=[c.ref for c in high],
+             solid=True, reverse_second=reverse)  # fmt: skip
+    assert ok.ok, ok.error
+    rb = nx.last("RuledBuilder")
+    assert rb.SecondSection.reversed == reversed_ and rb.FirstSection.reversed == 0
+
+
 def test_ruled_missed_section_and_rejections():
     nx = freeform_nx()
     a = curve(nx, [0, 0, 0], [10, 0, 0])
@@ -235,3 +253,14 @@ def test_n_sided_warns_when_the_patch_bulges_far_outside_its_boundary():
     assert ok.ok, ok
     assert [w["code"] for w in ok.warnings] == ["NX_UPDATE_WARNING"]
     assert "outside its boundary" in ok.warnings[0]["message"]
+
+
+@pytest.mark.parametrize("code", [670982, 670178])
+def test_ruled_crossing_refusal_points_at_reverse_second(code):
+    nx = freeform_nx()
+    a = curve(nx, [0, 0, 0], [10, 0, 0])
+    b = curve(nx, [0, 0, 10], [10, 0, 10])
+    nx.refuse("RuledBuilder", code, "Cannot create B-surface body by ruled method.")
+    bad = run(nx, "nx_create_ruled", first=a.ref, second=b.ref, reverse_second=True)
+    assert bad.error["code"] == "NX_BUILD_FAILED" and "reverse_second" in bad.error["hint"]
+    assert bad.mutation_outcome == "rolled_back"

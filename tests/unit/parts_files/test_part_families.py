@@ -304,6 +304,43 @@ def test_failed_member_removes_written_files(nx, root, fam):
     assert not (root / "fam" / "plate_a.prt").exists()
 
 
+def test_values_with_units_are_converted_to_the_expressions_units(nx, root, fam):
+    """NX takes a family value as a formula, where '10 mm' is a syntax error that leaves a
+    half-made family: unit strings are converted before NX, or refused."""
+    exps = {e.Name: e for e in fam.Expressions}
+    exps["length"].Units = NS(Name="MilliMeter", Abbreviation="mm")
+    exps["width"].Units = NS(Name="Inch", Abbreviation="in")
+    ok = create(nx, directory="fam", members=[{"name": "m1", "values": ["10 mm", "25.4 mm"]},
+                                              {"name": "m2", "values": ["1 in", " 2 in "]}])  # fmt: skip
+    assert ok.ok, ok
+    assert fam.family.rows[0].values["length"] == "10" and fam.family.rows[0].values["width"] == "1"
+    assert (
+        fam.family.rows[1].values["length"] == "25.4" and fam.family.rows[1].values["width"] == "2"
+    )
+
+
+def test_a_unit_the_expression_cannot_take_is_refused_before_nx(nx, root, fam):
+    exps = {e.Name: e for e in fam.Expressions}
+    exps["length"].Units = NS(Name="MilliMeter", Abbreviation="mm")
+    for values, field in ((["10 deg", 1], "/members/0/values/0"),
+                          ([1, "10 mm"], "/members/0/values/1"),  # width is unitless
+                          (["10 cm", 1], "/members/0/values/0")):  # fmt: skip
+        bad = create(nx, directory="fam", members=[{"name": "m1", "values": values}])
+        assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == field, bad
+        assert bad.mutation_outcome == "not_started"
+    assert not nx.managers
+
+
+def test_a_template_left_with_an_unsaved_family_says_how_to_retry(nx, root, fam):
+    nx.member_errors = {"plate_b": 5}
+    bad = create(nx, directory="fam")
+    assert "nx_open_part" in bad.error["details"]["template_note"]
+    again = create(nx, directory="fam2")
+    assert again.error["code"] == "NX_ALREADY_EXISTS", again
+    assert "unsaved" in again.error["message"] and "nx_close_part" in again.error["hint"]
+    assert again.error["details"]["template"]["kind"] == "part"
+
+
 def test_member_values_are_verified(nx, root, fam, monkeypatch):
     real = Manager.SaveFamilyAndCreateMembers
 

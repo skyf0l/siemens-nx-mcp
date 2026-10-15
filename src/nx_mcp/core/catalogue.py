@@ -89,7 +89,7 @@ Domain = Literal[
     "sketch",
 ]
 DOMAINS = frozenset(typing.get_args(Domain))
-HOOKS = ("lister", "deleter", "definition", "refresher", "sheet", "restorer")
+HOOKS = ("lister", "deleter", "definition", "refresher", "sheet", "restorer", "kind_hint")
 TARGETS = ("refs", "assembly", "sheet", "display", "any", "creates", "none", "resolver")
 SWITCHES = ("none", "work", "display")
 _DOMAIN_PACKAGE = "nx_mcp.domains."
@@ -206,6 +206,7 @@ class ToolSpec:
             variant=variant,
             required_by=self.required_by,
             shown={variant: tuple(shown)} if variant and shown else None,
+            tool=self.name,
         )
 
     @property
@@ -837,6 +838,14 @@ def restorer(tool_name: str):
     ``apply`` false it only checks (raises ``NXError`` when the values changed since);
     with ``apply`` true it restores and verifies. Returns what it sets back."""
     return _hook("restorer", tool_name)
+
+
+def kind_hint(tool_name: str):
+    """Explain a reference of the wrong kind in a list field of ``tool_name``, which gate
+    3r refuses before the handler runs (``core/kernel.py``): ``fn(tx, ref, error, field)``
+    may set ``error.hint`` and ``error.details`` (a body where a feature is wanted: the
+    feature that made it). It reads only; any exception it raises is ignored."""
+    return _hook("kind_hint", tool_name)
 
 
 def sheet_locator(kind: str):

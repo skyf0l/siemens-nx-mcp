@@ -1,0 +1,718 @@
+{
+ "covers": {
+  "nx_create_midsurface": [
+   "auto"
+  ],
+  "nx_create_sheet_extension": [],
+  "nx_create_law_extension": [
+   "faces"
+  ],
+  "nx_create_n_sided_surface": [],
+  "nx_create_ruled": [],
+  "nx_create_variable_offset": [],
+  "nx_create_thicken": [],
+  "nx_create_offset_surface": [],
+  "nx_create_bridge_surface": [
+   "g1"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "cube",
+   "args": {
+    "shape": "block",
+    "origin": [
+     300,
+     0,
+     0
+    ],
+    "length": 50,
+    "width": 50,
+    "height": 50
+   }
+  },
+  {
+   "call": "nx_create_midsurface",
+   "intent": "A 50 mm cube is not thin: the mid sheet is built with a warning",
+   "args": {
+    "body": "$cube.data.bodies.0.id"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.half_thickness.max": {
+     "close": 25,
+     "tol": 0.01
+    },
+    "warnings": {
+     "contains": {
+      "code": "NX_APPROXIMATED"
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "s13",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      0,
+      13
+     ]
+    },
+    "finish": true,
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       20,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_create_bounded_plane",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "boundary": [
+     "$s13.data.curves.0.id",
+     "$s13.data.curves.1.id",
+     "$s13.data.curves.2.id",
+     "$s13.data.curves.3.id"
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e20",
+   "args": {
+    "owner": "$sh.data.bodies.0.id",
+    "kind": "edge",
+    "near": [
+     20,
+     5,
+     13
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "shf",
+   "args": {
+    "owner": "$sh.data.bodies.0.id",
+    "kind": "face",
+    "near": [
+     10,
+     5,
+     13
+    ]
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "slab",
+   "args": {
+    "shape": "block",
+    "origin": [
+     -20,
+     -20,
+     0
+    ],
+    "length": 80,
+    "width": 50,
+    "height": 6
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "slabtop",
+   "args": {
+    "owner": "$slab.data.bodies.0.id",
+    "kind": "face",
+    "normal": "+z"
+   }
+  },
+  {
+   "call": "nx_create_sheet_extension",
+   "intent": "until a plane parallel to the sheet (z 6 under a sheet at z 13): never reached, refused",
+   "args": {
+    "edges": [
+     "$e20.data.items.0.id"
+    ],
+    "method": "until",
+    "until": [
+     "$slabtop.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/until/0",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_law_extension",
+   "intent": "A reference vector along the base edge (y): refused before NX",
+   "args": {
+    "base": [
+     "$e20.data.items.0.id"
+    ],
+    "reference": "vector",
+    "direction": [
+     0,
+     1,
+     0
+    ],
+    "length": 10
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/direction",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_law_extension",
+   "intent": "A 5 mm flange at 90 deg: base ends on x 20, the side along the sheet normal",
+   "args": {
+    "base": [
+     "$e20.data.items.0.id"
+    ],
+    "length": 5,
+    "angle": 90
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.area": {
+     "close": 50,
+     "tol": 0.001
+    },
+    "data.side.0": {
+     "close": 0,
+     "tol": 1e-06
+    },
+    "data.side.1": {
+     "close": 0,
+     "tol": 1e-06
+    },
+    "data.base_start.0": {
+     "close": 20,
+     "tol": 0.001
+    },
+    "data.base_end.0": {
+     "close": 20,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_variable_offset",
+   "intent": "Four points that cross over (a bow-tie): refused before NX",
+   "args": {
+    "face": "$shf.data.items.0.id",
+    "distances": [
+     1,
+     1,
+     3,
+     3
+    ],
+    "points": [
+     [
+      2,
+      2,
+      13
+     ],
+     [
+      18,
+      8,
+      13
+     ],
+     [
+      18,
+      2,
+      13
+     ],
+     [
+      2,
+      8,
+      13
+     ]
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/points/2",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_variable_offset",
+   "intent": "Each corner reports the feature expression of its distance",
+   "args": {
+    "face": "$shf.data.items.0.id",
+    "distances": [
+     1,
+     1,
+     2,
+     2
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.points.0.expression": {
+     "matches": "^\\w+$"
+    },
+    "data.points.3.expression": {
+     "matches": "^\\w+$"
+    },
+    "data.points.0.gap": {
+     "close": 0,
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "o1",
+   "args": {
+    "points": [
+     [
+      100,
+      0,
+      0
+     ],
+     [
+      150,
+      0,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "o2",
+   "args": {
+    "points": [
+     [
+      150,
+      0,
+      0
+     ],
+     [
+      150,
+      50,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "o3",
+   "args": {
+    "points": [
+     [
+      150,
+      50,
+      0
+     ],
+     [
+      100,
+      50,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_n_sided_surface",
+   "intent": "Three sides of a square: open, the free ends 50 apart are reported",
+   "args": {
+    "boundary": [
+     "$o1.data.curve.id",
+     "$o2.data.curve.id",
+     "$o3.data.curve.id"
+    ]
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "error.field": "/boundary",
+    "error.details.gap": {
+     "close": 50,
+     "tol": 0.001
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "r1",
+   "args": {
+    "points": [
+     [
+      0,
+      100,
+      0
+     ],
+     [
+      10,
+      100,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "r2",
+   "args": {
+    "points": [
+     [
+      0,
+      100,
+      10
+     ],
+     [
+      10,
+      100,
+      10
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_ruled",
+   "intent": "Coplanar lines with the second reversed: the rulings cross; the hint is the ruled one",
+   "args": {
+    "first": "$r1.data.curve.id",
+    "second": "$r2.data.curve.id",
+    "reverse_second": true
+   },
+   "expect": {
+    "error.code": "NX_BUILD_FAILED",
+    "error.hint": {
+     "contains": "reverse_second"
+    }
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "base",
+   "args": {
+    "shape": "block",
+    "origin": [
+     0,
+     200,
+     -10
+    ],
+    "length": 20,
+    "width": 10,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "s0",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      200,
+      0
+     ]
+    },
+    "finish": true,
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       20,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_create_bounded_plane",
+   "setup": true,
+   "save": "lid",
+   "args": {
+    "boundary": [
+     "$s0.data.curves.0.id",
+     "$s0.data.curves.1.id",
+     "$s0.data.curves.2.id",
+     "$s0.data.curves.3.id"
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "lidf",
+   "args": {
+    "owner": "$lid.data.bodies.0.id",
+    "kind": "face",
+    "near": [
+     10,
+     205,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_create_thicken",
+   "intent": "A 2 mm centred thicken united with the 20 x 10 x 10 block under it: 2000 -> 2200",
+   "args": {
+    "faces": [
+     "$lidf.data.items.0.id"
+    ],
+    "offset1": 1,
+    "offset2": -1,
+    "combine": {
+     "operation": "unite",
+     "targets": [
+      "$base.data.bodies.0.id"
+     ]
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.volume": {
+     "close": 2200,
+     "tol": 0.01
+    },
+    "data.volume_before": {
+     "close": 2000,
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "rod",
+   "args": {
+    "shape": "cylinder",
+    "diameter": 20,
+    "height": 40,
+    "origin": [
+     0,
+     400,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "rods",
+   "args": {
+    "owner": "$rod.data.bodies.0.id",
+    "kind": "face",
+    "near": [
+     10,
+     400,
+     20
+    ]
+   }
+  },
+  {
+   "call": "nx_create_offset_surface",
+   "intent": "An r 10 cylinder face offset 15 inward: refused before NX with the radius",
+   "args": {
+    "faces": [
+     "$rods.data.items.0.id"
+    ],
+    "distance": -15
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/distance",
+    "error.details.radius": {
+     "close": 10,
+     "tol": 0.001
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "post",
+   "args": {
+    "shape": "block",
+    "origin": [
+     0,
+     600,
+     0
+    ],
+    "length": 20,
+    "width": 10,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "pe",
+   "args": {
+    "owner": "$post.data.bodies.0.id",
+    "kind": "edge",
+    "near": [
+     20,
+     605,
+     10
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ptop",
+   "args": {
+    "owner": "$post.data.bodies.0.id",
+    "kind": "face",
+    "normal": "+z"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "s15",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      30,
+      600,
+      15
+     ]
+    },
+    "finish": true,
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       20,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_create_bounded_plane",
+   "setup": true,
+   "save": "far",
+   "args": {
+    "boundary": [
+     "$s15.data.curves.0.id",
+     "$s15.data.curves.1.id",
+     "$s15.data.curves.2.id",
+     "$s15.data.curves.3.id"
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "fe",
+   "args": {
+    "owner": "$far.data.bodies.0.id",
+    "kind": "edge",
+    "near": [
+     30,
+     605,
+     15
+    ]
+   }
+  },
+  {
+   "call": "nx_create_bridge_surface",
+   "intent": "G1 from a solid's top edge, following its top face (first_face), to a sheet edge",
+   "args": {
+    "first": "$pe.data.items.0.id",
+    "second": "$fe.data.items.0.id",
+    "continuity": "g1",
+    "first_face": "$ptop.data.items.0.id"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.construction": "through_curves",
+    "data.continuity.first.gap": {
+     "close": 0,
+     "tol": 0.01
+    },
+    "data.continuity.first.angle": {
+     "close": 0,
+     "tol": 0.1
+    },
+    "data.continuity.second.angle": {
+     "close": 0,
+     "tol": 0.1
+    }
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
+  }
+ ]
+}

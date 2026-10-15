@@ -169,6 +169,7 @@ def test_offset_sets_the_gap_on_one_body_and_reads_it_back():
     moves(nx, "MakeOffsetBuilder", a, side, (25, 10, 5), (1, 0, 0), 5000.0)
     ok = relate(nx, side, "offset", back, distance=25)
     assert ok.ok and ok.data["gap"] == 0.0 and ok.data["angle"] == 0.0, ok
+    assert ok.data["distance"] == 25.0
     builder = nx.last("MakeOffsetBuilder")
     assert builder.MotionFace.Value is side and builder.StationaryFace.Value is back
     assert builder.OffsetValue.RightHandSide == "25.0"
@@ -182,3 +183,11 @@ def test_offset_sets_the_gap_on_one_body_and_reads_it_back():
     assert missing.error["field"] == extra.error["field"] == "/distance"
     negative = relate(nx, side, "offset", back, distance=-5)
     assert negative.error["field"] == "/distance" and negative.mutation_outcome == "not_started"
+
+
+def test_to_of_another_part_says_both_faces_share_a_part():
+    nx, a, b = setup()
+    b.face((0, 0, 1)).OwningPart = object()  # a face of another part
+    bad = relate(nx, a.face((0, 0, 1)), "coplanar", b.face((0, 0, 1)))
+    assert bad.error["code"] == "NX_WRONG_OWNER" and bad.error["field"] == "/to", bad
+    assert "same part" in bad.error["message"] and bad.mutation_outcome == "not_started"

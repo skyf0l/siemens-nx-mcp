@@ -17,7 +17,7 @@ import ntpath
 import re
 from typing import Annotated, Literal, TypedDict
 
-from nx_mcp.core.catalogue import tool
+from nx_mcp.core.catalogue import restorer, tool
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import BodyRef, Doc, Items, Offset, PageLimit, Range, Text, forbid_extra
@@ -98,6 +98,8 @@ DENSITY_INPUT = {
     "g/cc": 1e3,
     "g/ml": 1e3,
     "kg/l": 1e3,
+    "kg/dm3": 1e3,
+    "g/l": 1.0,
     "t/m3": 1e3,
     "g/m3": 1e-3,
     "lb/ft3": 16.0184634,
@@ -244,6 +246,40 @@ def _rank(own: str, key: str, words: list[str]) -> int:
     return 2 if all(w in own for w in words) else 3
 
 
+# Words for stainless steel: library names spell it AISI_SS_304, S/Steel_PH15-5 or Stainless.
+STAINLESS = frozenset({"stainless", "inox", "ss"})
+
+
+def _is_stainless(name: str) -> bool:
+    words = name_words(name)
+    pairs = zip(words, words[1:], strict=False)
+    return bool(STAINLESS & set(words)) or ("s", "steel") in pairs or "stainless" in name_key(name)
+
+
+def word_matches(name: str, words: list[str], category: str | None = None) -> bool:
+    """Every query word is in the name (or its category); a stainless word ('stainless',
+    'SS', 'inox') matches any stainless grade, and then also stands for 'steel'; 'steel'
+    alone takes the stainless grades too."""
+    own, kind = name_key(name), name_key(category or "")
+    stainless = _is_stainless(name)
+    wants_stainless = bool(STAINLESS & set(words))
+    for w in words:
+        if w in STAINLESS:
+            if not stainless:
+                return False
+        elif w == "steel" and (stainless or wants_stainless):
+            continue
+        elif w not in own and w not in kind:
+            return False
+    return True
+
+
+def number_hits(name: str, words: list[str]) -> int:
+    """How many number words of the query ('304', '6061') are whole words of the name."""
+    own = set(name_words(name))
+    return sum(1 for w in words if w.isdigit() and w in own)
+
+
 class LibraryRow(LibraryProperties):
     name: str
     category: str | None
@@ -263,8 +299,8 @@ class LibraryData(TypedDict):
     ),
     keywords=(
         "material library",
-        "materials",
         "steel",
+        "stainless steel",
         "aluminium",
         "young's modulus",
         "poisson",
@@ -284,7 +320,8 @@ def nx_list_materials(
     limit: PageLimit = 20,
 ) -> LibraryData:
     """List NX library materials with category, density, mechanical and thermal data (null
-    when missing). Query words ignore case, '_' and British spelling; best names first.
+    when missing). Query words ignore case, '_' and British spelling ('stainless', 'SS' and
+    'inox' find stainless grades); best names first, number words ('304') counting.
     Units: density kg/m^3, E MPa, expansion 1/K, conductivity W/(m*K), specific heat
     J/(kg*K). Assign with nx_set_material."""
     source = DEFAULT_LIBRARY
@@ -297,13 +334,13 @@ def nx_list_materials(
         category = _library_value(materials, source, name, "Category")
         category = (category.strip() or None) if category else None
         if words:
-            own, kind = name_key(name), name_key(category or "")
-            if not all(w in own or w in kind for w in words):
+            if not word_matches(name, words, category):
                 continue
-            ranked.append((_rank(own, key, words), index, name, category))
+            rank = _rank(name_key(name), key, words)
+            ranked.append((rank, -number_hits(name, words), index, name, category))
         else:
-            ranked.append((0, index, name, category))
-    found = [(name, category) for _, _, name, category in sorted(ranked)]
+            ranked.append((0, 0, index, name, category))
+    found = [(name, category) for *_, name, category in sorted(ranked)]
     if words and not found:
         lookup = {name_key(n): n for n in names}
         close = difflib.get_close_matches(key, list(lookup), 5, 0.5)
@@ -324,6 +361,7 @@ def nx_list_materials(
 
 class MaterialRow(TypedDict):
     body: result.Row
+    solid: Annotated[bool, Doc("False: a sheet body, which has no mass or material")]
     material: str | None
     library: Annotated[str | None, Doc("Library file of a library material, else null")]
     category: str | None
@@ -389,7 +427,8 @@ def describe(material, memo: dict) -> dict:
 
 def _row(tx, body, material, memo, density=None):
     info = describe(material, memo)
-    row = {"body": tx.ref(body, kind="body"), **info}
+    row = {"body": tx.ref(body, kind="body"), "solid": bool(getattr(body, "IsSolidBody", True)),
+           **info}  # fmt: skip
     row["density"] = _density(tx, body) if density is None else density
     return row
 
@@ -467,12 +506,19 @@ def nx_get_material(
         row = _row(tx, prototype, _material_of(prototype), memo)
         row["body"] = tx.ref(body, kind="body")
         items.append(row)
-    bare = sum(row["material"] is None for row in items)
+    solids = [row for row in items if row["solid"]]
+    bare = sum(row["material"] is None for row in solids)
     if bare:
         tx.warn(
             "NX_NOTE",
-            f"{bare} of {len(items)} bodies have no material: their density is NX's default "
-            "solid density, not a material's; assign one with nx_set_material",
+            f"{bare} of {len(solids)} bodies have no material: their density is NX's "
+            "default solid density, not a material's; assign one with nx_set_material",
+        )
+    if len(solids) < len(items):
+        tx.warn(
+            "NX_NOTE",
+            f"{len(items) - len(solids)} sheet bodies (solid: false) carry no mass: their "
+            "density means nothing and nx_set_material takes solids only",
         )
     return {"items": items}
 
@@ -598,6 +644,28 @@ def _update(tx, material, wanted, stored, targets) -> list:
     return others
 
 
+def _not_library(tx, name) -> None:
+    """Refuse a new custom material named like a library material: it would shadow the
+    library one in this part for good (no tool renames or deletes materials)."""
+    try:
+        names = library_names(tx, DEFAULT_LIBRARY)
+    except NXError as error:
+        if error.code == "NX_LICENSE_UNAVAILABLE":
+            raise
+        return  # no library to clash with
+    same = [n for n in names if name_key(n) == name_key(name)]
+    if same:
+        fail(
+            "NX_ALREADY_EXISTS",
+            f"{same[0]} is a library material: a custom material of that name would hide it "
+            "in this part",
+            field="/material/custom/name",
+            hint=f"Assign the library material ({{library: '{same[0]}'}}), or give the custom "
+            f"material another name, e.g. '{name}_custom'",
+            details={"existing": {"material": same[0], "library": DEFAULT_LIBRARY or None}},
+        )
+
+
 def _custom(tx, name, wanted, targets):
     part = tx.part
     materials = part.MaterialManager.PhysicalMaterials
@@ -610,6 +678,8 @@ def _custom(tx, name, wanted, targets):
                 field="/material/custom/name",
                 hint="Give the custom material another name, or assign the library material",
             )
+        if not existing:
+            _not_library(tx, name)
         stored = _stored_density(tx, existing[0]) if existing else None
     others: list = []
     if existing:
@@ -674,7 +744,10 @@ def library_match(names: list[str], text: str) -> tuple[str | None, list[str]]:
     same = [n for n in names if name_key(n) == key]
     if len(same) == 1:
         return same[0], []
-    holding = [n for n in names if words and all(w in name_key(n) for w in words)]
+    holding = sorted(
+        (n for n in names if words and word_matches(n, words)),
+        key=lambda n: -number_hits(n, words),
+    )
     lookup = {name_key(n): n for n in names}
     close = [lookup[k] for k in difflib.get_close_matches(key, list(lookup), 5, 0.4)]
     return None, list(dict.fromkeys(same + holding[:8] + close))[:8]
@@ -706,9 +779,13 @@ def _library(tx, text, field, targets, bare):
     if clash:
         fail(
             "NX_ALREADY_EXISTS",
-            f"The part has a custom material named {clash[0].Name}",
+            f"The part has a custom material named {clash[0].Name}, which hides the library "
+            "material of that name",
             field=field,
-            hint="Assign the custom material with {custom: ...}, or rename it",
+            hint=f"Assign the part's custom one with {{custom: {{name: '{clash[0].Name}', "
+            "density}}, or another library material; the library one cannot be loaded "
+            "beside it in this part",
+            details={"existing": {"material": str(clash[0].Name), "library": None}},
         )
     with native(NATIVE):
         loaded = materials.GetLoadedLibraryMaterial(source, name)  # None until loaded
@@ -773,8 +850,101 @@ def nx_set_material(
             fail("NX_NOT_FOUND", "The work part has no solid bodies", field="/bodies")
     # One AssignObjects call takes every body; the per-body read-back scales the budget.
     tx.scale_budget(len(targets))
+    before = [_name_of(_material_of(b)) for b in targets]
+    edited = _custom_density(tx, text) if density is not None else None
     if density is not None:
         items = _custom(tx, text, density, targets)
     else:
         items = _library(tx, text, field, targets, bare=form == "name")
+    note: dict = {
+        "after": items[0]["material"] if items else text,
+        "bodies": [
+            {"body": row["body"]["id"], "before": was}
+            for row, was in zip(items, before, strict=True)
+        ],
+    }
+    if edited is not None and density is not None and abs(edited - density) > DENSITY_REL * density:
+        note["density"] = {"before": edited, "after": density}
+    tx.note_restore(note)
     return {"items": items}
+
+
+def _name_of(material) -> str | None:
+    return None if material is None else str(material.Name)
+
+
+def _custom_density(tx, name) -> float | None:
+    """The stored density of the part's custom material ``name`` (before an edit), or None."""
+    for m in tx.part.MaterialManager.PhysicalMaterials:
+        if str(m.Name).casefold() == name.casefold() and _library_of(m) is None:
+            return _stored_density(tx, m)
+    return None
+
+
+def _part_material(tx, name):
+    found = [m for m in tx.part.MaterialManager.PhysicalMaterials
+             if str(m.Name).casefold() == name.casefold()]  # fmt: skip
+    if not found:
+        fail("NX_NOT_FOUND", f"Material {name} is no longer in the part", details={"name": name})
+    return found[0]
+
+
+@restorer("nx_set_material")
+def _restore_material(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Give the bodies of an ``nx_set_material`` their materials from before (and an edited
+    custom material its density back): the compensating undo. Refused when a body's
+    material changed since, or when a body had none (NX cannot unassign one here)."""
+    after = str(data["after"])
+    rows = []
+    for row in data["bodies"]:
+        body = tx.resolve(row["body"], "body")
+        now = _name_of(_material_of(body))
+        if (now or "").casefold() != after.casefold():
+            fail(
+                "NX_DEPENDENCY_ORDER",
+                f"{row['body']} changed since: its material is {now!r}, the operation set "
+                f"{after!r}",
+                details={"body": row["body"], "material": now},
+            )
+        rows.append((body, row.get("before")))
+    bare = [tx.ref(b, kind="body")["id"] for b, was in rows if was is None]
+    current = _part_material(tx, after)
+    if bare and not hasattr(current, "UnassignObjects"):
+        fail(
+            "NX_UNSUPPORTED_OPTION",
+            f"{len(bare)} bodies had no material before; NX cannot take one away here",
+            hint="Assign the material they should have with nx_set_material",
+            details={"bodies": bare[:20]},
+        )
+    change = data.get("density")
+    if change is not None:
+        stored = _stored_density(tx, current)
+        if stored is not None and abs(stored - float(change["after"])) > DENSITY_REL * stored:
+            fail(
+                "NX_DEPENDENCY_ORDER",
+                f"Material {after} changed since: density {stored:g}, the operation set "
+                f"{change['after']:g}",
+                details={"material": after, "density": stored},
+            )
+    if apply:
+        if change is not None:
+            _set_density(tx, current, float(change["before"]))
+            users = _users(tx, current, [b for b, _was in rows])
+            if users:
+                with native():
+                    current.AssignObjects(users)
+        groups: dict = {}
+        for body, was in rows:
+            groups.setdefault(was, []).append(body)
+        for was, group in groups.items():
+            with native():
+                if was is None:
+                    current.UnassignObjects(group)
+                else:
+                    _part_material(tx, str(was)).AssignObjects(group)
+        for body, was in rows:
+            got = _name_of(_material_of(body))
+            readback.expect((got or "").casefold() == (was or "").casefold(), "material",
+                            f"the body has {got!r}, not {was!r}", material=got)  # fmt: skip
+    names = sorted({str(was) if was else "no material" for _b, was in rows})
+    return f"the material of {len(rows)} bodies back to {', '.join(names)}"

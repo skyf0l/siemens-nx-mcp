@@ -25,7 +25,7 @@ from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Direction, Doc, Items, Plane, RefTo
 from nx_mcp.domains.freeform import curves_common as cc
-from nx_mcp.kit import args, builders, readback, select, units
+from nx_mcp.kit import args, builders, geom, readback, result, select, units
 
 StringRef = Annotated[str, RefTo("curve", "edge", doc="Curve or edge 'c:7'/'e:21'")]
 Strings = Annotated[list[StringRef], Items(1, 200)]
@@ -35,6 +35,31 @@ SolidRef = Annotated[str, RefTo("body", "face", doc="Body or face 'b:3'/'fc:7'")
 class ProjectedData(cc.CurvesData):
     gap: float  # largest sampled distance of a curve from the target faces or plane
     ray_gap: float | None  # largest distance of a projection ray from the source curves
+    far_curves: list[result.Row]  # vector: curves behind a nearer hit (a closed face's far side)
+
+
+MAX_STACKED = 50  # output curves compared for far-side hits
+
+
+def _far_side(tx, made, direction) -> list:
+    """Output curves lying behind another output curve along ``direction`` (a vector
+    projection onto a closed face also hits its far side)."""
+    limit = cc.gap_tolerance(tx)
+    far: list = []
+    shown = made[:MAX_STACKED]
+    for a in shown:
+        tx.checkpoint()
+        points = cc.samples(tx, a, 5)[1:-1]
+        for b in shown:
+            if b is a or any(b is f for f in far):
+                continue
+            middle = cc.samples(tx, b, 3)[1]
+            for p in points:
+                if cc.line_gap(tx, b, p, direction) <= limit:
+                    if geom.dot(geom.sub(middle, p), direction) > limit:
+                        far.append(b)
+                    break
+    return far
 
 
 def _ray_gap(tx, curves, sources, direction) -> float:
@@ -75,7 +100,9 @@ def nx_create_projected_curve(
     both_sides: Annotated[bool, Doc("vector: also project against direction")] = False,
 ) -> ProjectedData:
     """Project curves or edges onto faces or a plane as an associative curve feature. along:
-    face_normal (onto a plane: its normal) or vector (direction). Into a sketch instead:
+    face_normal (onto a plane: its normal) or vector (direction; every face hit is projected,
+    a closed face's far side too: far_curves). Returns each curve (length, ends), gap to the
+    target and ray_gap (along a direction). Into a sketch instead:
     nx_create_sketch_projection."""
     args.exactly_one(faces=faces, plane=plane)
     if along == "vector":
@@ -120,7 +147,16 @@ def nx_create_projected_curve(
         ray_gap = _ray_gap(tx, made, sources, rays)
         readback.expect(ray_gap <= limit, "direction", "A point is not a projection along the "
                         "direction", gap=ray_gap)  # fmt: skip
-    return {**cc.describe(tx, feature, made), "gap": gap, "ray_gap": ray_gap}
+    far = _far_side(tx, made, ray) if ray is not None and not both_sides else []
+    if far:
+        tx.warn("NX_UPDATE_WARNING", f"{len(far)} projected curve(s) lie behind a nearer hit "
+                "along the direction (the far side of a closed face): see far_curves")  # fmt: skip
+    return {
+        **cc.describe(tx, feature, made),
+        "gap": gap,
+        "ray_gap": ray_gap,
+        "far_curves": [tx.ref(c, kind="curve") for c in far],
+    }
 
 
 # ---------------------------------------------------------------------------

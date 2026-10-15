@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/save_out_of_date.json",
-  "scenario_sha256": "527f1b56efb9cf7a6a4405cfa8f2917068b82f75cacbe595897983d4cf095e61",
+  "scenario_sha256": "f32fca3e1e4de6fca47d92e0dda355218db480e567e358755246c91b9c58fda4",
   "domain": "parts_files",
   "covers": {
     "nx_save_part": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_save_part": "695386257ac06d11cc0cf699d94cf17ff5661803f1056a616d9bab2566c2462e"
+    "nx_save_part": "2ac3280b33b70c05d36d7ba2a7a58adec9d42ab1f4674607af14c8dd4873587c"
   },
-  "recorded": "2026-10-14T13:46:16Z",
+  "recorded": "2026-10-15T11:43:33Z",
   "passed": true,
-  "checks": 11,
+  "checks": 13,
   "failed_checks": 0,
   "steps": [
     {
@@ -56,7 +56,7 @@
       "call": "nx_save_part",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 5
     },
     {
       "index": 7,

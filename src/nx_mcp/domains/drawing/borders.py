@@ -176,8 +176,10 @@ def nx_set_sheet_borders(
     tx: Tx,
     *,
     sheet: SheetArg | None = None,
-    borders: Annotated[bool, Doc("Draw the outer and inner frame")] = True,
-    zones: Annotated[bool, Doc("Draw zone markings and labels (1, 2, ... and A, B, ...)")] = True,
+    borders: Annotated[bool, Doc("Draw the outer and inner frame (new frame: default on)")]
+    | None = None,
+    zones: Annotated[bool, Doc("Draw zone markings and labels (new frame: default on)")]
+    | None = None,
     zone_size: Annotated[
         list[SheetLength],
         Items(2, 2),
@@ -194,8 +196,8 @@ def nx_set_sheet_borders(
     """Add or replace a sheet's border frame, zone markings and margins. Omitted values keep
     NX's defaults (new) or the current ones (replaced). Read back: the outer and inner frame
     and the zone labels NX drew; NX rounds the zone count to an even number, so zones are
-    about zone_size. zone_origin: the corner where labels 1 and A start. Title blocks:
-    nx_create_drawing_table."""
+    about zone_size. zone_origin: the corner where labels 1 and A start. Views or annotations
+    left outside the inner frame are warned. Title blocks: nx_create_drawing_table."""
     with tx.checks():
         target = sheet_of(tx, sheet, "/sheet") if sheet is not None else open_or_only_sheet(tx)
         length, height = drawing.size(target)
@@ -205,6 +207,9 @@ def nx_set_sheet_borders(
     collection = tx.part.Drafting.BordersAndZonesObjects
     with drawing.on_sheet(tx, target) as sh:
         existing = _existing(target)
+        if existing is None:  # a new frame: omitted switches are on
+            borders = True if borders is None else borders
+            zones = True if zones is None else zones
         _lines, labels_before = _shown(tx, sh)
         with builders.build(tx, collection.CreateBordersAndZonesBuilder,
                             existing if existing is not None else D.BordersAndZones.Null) as b:  # fmt: skip
@@ -212,10 +217,12 @@ def nx_set_sheet_borders(
             border = style.SheetBorderSettingsStyle
             zone = style.SheetZoneSettingsStyle
             margin = style.SheetMarginSettingsStyle
-            border.CreateBorders = bool(borders)
-            zone.CreateZones = bool(zones)
-            zone.CreateZoneMarkings = bool(zones)
-            zone.CreateZoneLabels = bool(zones)
+            if borders is not None:  # omitted on a replace: the current setting stays
+                border.CreateBorders = bool(borders)
+            if zones is not None:
+                zone.CreateZones = bool(zones)
+                zone.CreateZoneMarkings = bool(zones)
+                zone.CreateZoneLabels = bool(zones)
             if zone_size is not None:
                 zone.HorizontalSize = float(zone_size[0]) * sh.scale
                 zone.VerticalSize = float(zone_size[1]) * sh.scale
@@ -232,7 +239,9 @@ def nx_set_sheet_borders(
         update(tx)
         with builders.build(tx, collection.CreateBordersAndZonesBuilder, made) as reader:
             got = _read(tx, reader, sh)
-        wanted: dict[str, object] = {"borders": bool(borders), "zones": bool(zones)}
+        wanted: dict[str, object] = {
+            k: bool(v) for k, v in (("borders", borders), ("zones", zones)) if v is not None
+        }
         if zone_origin is not None:
             wanted["zone_origin"] = zone_origin
         readback.expect(all(got[k] == v for k, v in wanted.items()), "settings",
@@ -270,4 +279,40 @@ def nx_set_sheet_borders(
             "rows": rows,
             "replaced": existing is not None,
         }
+        if got["borders"]:
+            _warn_outside(tx, sh, inner, set(labels_after), tol)
         return out
+
+
+def _within(box, frame, tol):
+    return (box[0] >= frame[0] - tol and box[1] >= frame[1] - tol
+            and box[2] <= frame[2] + tol and box[3] <= frame[3] + tol)  # fmt: skip
+
+
+def _warn_outside(tx, sh, inner, labels, tol):
+    """Warn about the views and annotations of the sheet that cross the inner frame (the
+    drawing area); the zone labels NX drew are skipped."""
+    outside = [
+        tx.ref(v, "drawing_view")
+        for v in sh.sheet.GetDraftingViews()
+        if not _within(drawing.borders(tx, v), inner, tol)
+    ]
+    try:
+        shown = list(sh.sheet.View.AskVisibleObjects())
+    except Exception:  # a sheet whose own view NX cannot list
+        shown = []
+    for i, obj in enumerate(shown):
+        tx.checkpoint(done=i, total=len(shown))
+        if not (hasattr(obj, "AnnotationOrigin") or type(obj).__name__ == "TableSection"):
+            continue
+        if int(obj.Tag) in labels:
+            continue
+        bounds, _text = drawing.annotation_box(tx, obj, sh)
+        if bounds is not None and not _within(bounds, inner, tol):
+            with contextlib.suppress(Exception):  # an object without a reference kind
+                outside.append(tx.ref(obj))
+    if outside:
+        names = ", ".join(str(r.get("name") or r.get("id")) for r in outside[:8])
+        tx.warn("NX_VIEW_OVERLAP", f"{len(outside)} object(s) now cross the inner frame "
+                f"{[round(v, 3) for v in inner]} ({names}): move them with "
+                "nx_edit_drawing_view or nx_edit_annotation position, or change margins")  # fmt: skip

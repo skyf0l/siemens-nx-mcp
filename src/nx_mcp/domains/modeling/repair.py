@@ -34,6 +34,7 @@ from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import BodyRef, Doc, EdgeRef, FaceRef, Items, Length
 from nx_mcp.domains.modeling import common
+from nx_mcp.kit import bodies as kbodies
 from nx_mcp.kit import builders, measure, readback, result, select, units
 
 # Relative band for area sums that must match (unsew keeps every face).
@@ -102,7 +103,7 @@ def nx_create_patch_body(
         bool, Doc("Remove the target faces against the sheet normal instead of along it")
     ] = False,
     hole: Annotated[
-        bool, Doc("Hole patch: a closed tube sheet cuts a hole through the body")
+        bool, Doc("Hole patch: an open tube sheet running face to face cuts a hole")
     ] = False,
     tolerance: Annotated[Length, Doc("Largest gap between sheet edges and body")] | None = None,
 ) -> PatchData:
@@ -121,6 +122,17 @@ def nx_create_patch_body(
         tol = units.part_tolerance(tx) if tolerance is None else float(tolerance)
         if tol <= 0:
             fail("NX_INVALID_ARGUMENT", "tolerance must be positive", field="/tolerance")
+        loops = kbodies.open_loops(tool_sheet) if hole else None
+        if loops is not None and loops < 2:
+            fail(
+                "NX_WRONG_GEOMETRY",
+                f"A hole patch needs an open tube sheet (two open boundary loops, one on each "
+                f"face it joins); this sheet has {loops}",
+                field="/sheet",
+                hint="Use a tube such as a cylinder's side face split off with nx_create_unsew, "
+                "running from face to face; omit hole to replace faces with this sheet",
+                details={"open_loops": loops},
+            )
     sheet_target = _sheetlike(target)
     before = _size(tx, target)
     try:
@@ -142,7 +154,17 @@ def nx_create_patch_body(
     readback.expect(bool(made), "bodies", "NX left no patched body")
     common.sound(tx, made)
     after = sum(_size(tx, x) for x in made)
-    common.changed(before, after, "differs", check="area" if sheet_target else "volume")
+    if hole and not sheet_target:
+        readback.expect(
+            after < before * (1 - common.VOLUME_REL) - 1e-9,
+            "volume",
+            f"The hole patch left the volume {before:.6g} -> {after:.6g}: a hole removes "
+            "material; NX kept the inside of the sheet or added material",
+            before=before,
+            after=after,
+        )
+    else:
+        common.changed(before, after, "differs", check="area" if sheet_target else "volume")
     return {
         "feature": tx.ref(feature, kind="feature"),
         "bodies": common.body_rows(tx, made),
@@ -203,12 +225,36 @@ def nx_create_delete_body(
 # Unsew
 
 
+class UnsewSheet(TypedDict):
+    body: result.Row
+    faces: int
+    area: float
+    selected: Annotated[bool | None, Doc("Holds faces given in faces (by edges: null)")]
+
+
 class UnsewData(TypedDict):
     feature: result.Row
     bodies: list[result.Row]  # the sheets NX made or kept (the rest of the source too)
+    sheets: list[UnsewSheet]  # one row per sheet, in bodies order
     count: int
     area: float  # total area of the sheets
     kept_original: bool
+
+
+def _sheet_rows(tx, made, picked, by) -> list[UnsewSheet]:
+    """``{body, faces, area, selected}`` per sheet: which one holds the faces given."""
+    chosen = {int(f.Tag) for f in picked} if by == "faces" else set()
+    rows: list[UnsewSheet] = []
+    for x in made:
+        tx.checkpoint()
+        faces = list(x.GetFaces())
+        rows.append({
+            "body": tx.ref(x, kind="body"),
+            "faces": len(faces),
+            "area": measure.area(tx, faces) if faces else 0.0,
+            "selected": any(int(f.Tag) in chosen for f in faces) if by == "faces" else None,
+        })  # fmt: skip
+    return rows
 
 
 def _one_body(objects, field):
@@ -224,6 +270,8 @@ def _one_body(objects, field):
     summary={"faces": "Unsew {faces}", "edges": "Unsew along {edges}"},
     keywords=(
         "unsew",
+        "unstitch body",
+        "unknit",
         "split into sheets",
         "separate faces",
         "explode body to sheets",
@@ -258,13 +306,21 @@ def nx_create_unsew(
     """Split a solid or sheet into separate sheet bodies (Unsew). by faces: the faces leave
     as sheets and the rest stays one sheet (a block's top face: 2 sheets). by edges: cut
     along edges that close round a region (the 4 edges of a top face). The source body
-    becomes a sheet unless keep_original."""
+    becomes a sheet unless keep_original. sheets: per sheet its faces, area and whether it
+    holds the faces given (selected)."""
     with tx.checks():
         if by == "faces":
             picked = select.faces(tx, faces or [], "/faces")
         else:
             picked = select.edges(tx, edges or [], "/edges")
         source = _one_body(picked, f"/{by}")
+        if by == "faces" and len(picked) >= len(list(source.GetFaces())):
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"faces lists all {len(picked)} faces of the body; NX cannot unsew every face",
+                field="/faces",
+                hint="Leave one face out: with output each_face every face becomes a sheet",
+            )
     before = measure.area(tx, list(source.GetFaces()))
     known = _alive(tx)
     U = tx.nx.Features.UnsewBuilder
@@ -297,6 +353,7 @@ def nx_create_unsew(
     return {
         "feature": tx.ref(feature, kind="feature"),
         "bodies": common.body_rows(tx, made),
+        "sheets": _sheet_rows(tx, made, picked, by),
         "count": len(made),
         "area": area,
         "kept_original": bool(keep_original),

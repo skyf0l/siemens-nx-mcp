@@ -8,7 +8,7 @@ from nx_mcp.domains.drawing import annotations
 from tests.kit import run
 from tests.kit.fake import Node
 from tests.kit.objects import Object, point
-from tests.unit.drawing.fakes import arc_edge, install_eval, line_edge, make_view
+from tests.unit.drawing.fakes import arc_edge, beside, install_eval, line_edge, make_view
 from tests.unit.drawing.test_annotations import notes_nx
 from tests.unit.drawing.test_gdt_views import gdt_nx, view_args
 
@@ -22,12 +22,29 @@ def test_gdt_takes_any_case_letters_unit_tolerances_and_a_default_origin():
     assert datum.ok, datum
     assert datum.data["letter"] == "A"
     anchor = datum.data["leader"]["point"]
-    assert datum.data["origin"] == pytest.approx([anchor[0] + 20, anchor[1] + 20])
+    assert datum.data["origin"] == beside(nx, nx.top, anchor)
     frame = {"characteristic": "flatness", "tolerance": "0.05 mm"}
     ok = run(nx, "nx_create_gdt", kind="view_fcf", frame=frame,
              **view_args(nx, nx.hole, [150, 120]))  # fmt: skip
     assert ok.ok, ok
     assert ok.data["frame"]["tolerance"] == pytest.approx(0.05)
+
+
+def test_gdt_default_origin_keeps_clear_of_a_neighbouring_view():
+    from nx_mcp.kit import drawing
+
+    nx = gdt_nx()
+    first = run(nx, "nx_create_gdt", kind="view_datum_feature", letter="A", view=nx.top.ref,
+                object=nx.front.ref)  # fmt: skip
+    spot = first.data["origin"]
+    # A projected view right where that origin went: the next one goes another way.
+    below = make_view(nx, nx.sheet_obj, name="ORTHO@2", pos=tuple(spot))
+    again = run(nx, "nx_create_gdt", kind="view_datum_feature", letter="B", view=nx.top.ref,
+                object=nx.front.ref)  # fmt: skip
+    assert again.ok, again
+    moved = again.data["origin"]
+    for view in (nx.top, below):
+        assert not drawing.contains(nx.uf.Draw.AskViewBorders(view.Tag), moved), view.Name
 
 
 def test_gdt_default_origin_follows_the_sheet_units():
@@ -37,7 +54,7 @@ def test_gdt_default_origin_follows_the_sheet_units():
     assert ok.ok, ok
     anchor = ok.data["leader"]["point"]
     step = 20 / 25.4
-    assert ok.data["origin"] == pytest.approx([anchor[0] + step, anchor[1] + step])
+    assert ok.data["origin"] == beside(nx, nx.top, anchor, step)
 
 
 def test_gdt_names_the_field_its_kind_needs_with_an_example():
@@ -150,7 +167,7 @@ def test_roughness_takes_units_and_the_origin_defaults_beside_the_leader():
     assert ok.data["symbol"] == {"type": "surface_finish", "roughness_ra": 3.2,
                                  "removal": "prohibited"}  # fmt: skip
     anchor = ok.data["leader"]["point"]
-    assert ok.data["origin"] == pytest.approx([anchor[0] + 20, anchor[1] + 20])
+    assert ok.data["origin"] == beside(nx, nx.top, anchor)
     for text, value in [("Ra 0.8", 0.8), ("12.5", 12.5), (6.3, 6.3), ("1.6 microns", 1.6)]:
         assert annotations.roughness(text) == value
     bad = run(nx, "nx_create_drawing_symbol", view=nx.top.ref, object=edge.ref,
@@ -175,6 +192,10 @@ def test_a_weld_symbol_echoes_its_type_size_and_side():
 # ---- center marks and centerlines -------------------------------------------------------------
 
 
+class CenterMark(Object):
+    pass
+
+
 class Centerlines(list):
     def __init__(self, nx):
         super().__init__()
@@ -191,10 +212,10 @@ def marks_nx():
 
     def commit(b):
         for edge, view, _at in (c[0] for c in b.Locations.Add.calls):
-            mark = Object("CENTER_MARK")
+            mark = CenterMark("CENTER_MARK")
             mark.OwningPart, mark.IsOccurrence = nx.part, False
             mark.NumberOfAssociativities = 1
-            mark.GetAssociativity = lambda i, e=edge: NS(FirstObject=e)
+            mark.GetAssociativity = lambda i, e=edge, v=view: NS(FirstObject=e, ObjectView=v)
             mark.AnnotationOrigin = point(*to_drawing(view.Tag, edge.curve[1]), 0.0)
             nx.dependent[mark.Tag] = (1, "SHT1@0")
             nx.part.Annotations.Centerlines.append(mark)
@@ -213,10 +234,34 @@ def test_center_marks_give_one_origin_each_and_warn_about_a_second_mark():
     assert ok.ok, ok
     assert ok.data["origins"] == [pytest.approx([125, 125]), pytest.approx([175, 125])]
     assert "origin" not in ok.data and not ok.warnings
+    builders = len(nx.builders)
     again = run(nx, "nx_create_centerline", view=nx.top.ref, kind="center_mark",
                 objects=[left.ref])  # fmt: skip
     assert again.ok, again
     assert any("already had a center mark" in w["message"] for w in again.warnings)
+    assert again.data["annotations"] == [ok.data["annotations"][0]]  # the existing mark
+    assert len(nx.builders) == builders and len(nx.part.Annotations.Centerlines) == 2
+
+
+def test_a_mark_nx_made_with_the_view_is_found_through_its_drafting_curve():
+    nx = marks_nx()
+    hole, other = arc_edge(nx, (25, 25, 20), 4), arc_edge(nx, (75, 25, 20), 4)
+    install_eval(nx, [hole, other])
+    mark = CenterMark("CENTER_MARK")  # NX's own mark: associated with the drafting curve
+    mark.OwningPart, mark.IsOccurrence, mark.NumberOfAssociativities = nx.part, False, 1
+    drafted = Object("DRAFTING_CURVE")
+    mark.GetAssociativity = lambda i: NS(FirstObject=drafted, ObjectView=nx.top)
+    mark.AnnotationOrigin = point(125, 125, 0.0)
+    nx.dependent[mark.Tag] = (1, "SHT1@0")
+    nx.part.Annotations.Centerlines.append(mark)
+    nx.uf.Draw.AskDraftingCurveParents = lambda tag: (1, [int(hole.Tag)])
+    ok = run(nx, "nx_create_centerline", view=nx.top.ref, kind="center_mark",
+             objects=[hole.ref, other.ref])  # fmt: skip
+    assert ok.ok, ok
+    assert ok.data["annotations"][0]["id"] == nx.ref_of(mark, "annotation")
+    assert ok.data["origins"][1] == pytest.approx([175, 125])
+    assert [w["code"] for w in ok.warnings] == ["NX_NO_EFFECT"]
+    assert len(nx.part.Annotations.Centerlines) == 2  # one new mark, for the other hole
 
 
 def test_an_axis_out_of_the_view_names_the_views_that_show_it():

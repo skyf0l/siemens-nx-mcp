@@ -162,7 +162,8 @@ def test_the_view_may_be_given_by_name():
     make_view(nx, nx.part.DrawingSheets[0], "Top@3")
     twice = run(nx, "nx_create_drawing_dimension", view="top", kind="linear", first=nx.back.ref)
     assert (
-        twice.error["code"] == "NX_INVALID_ARGUMENT" and "More than one" in twice.error["message"]
+        twice.error["code"] == "NX_AMBIGUOUS_REFERENCE"
+        and "More than one" in twice.error["message"]
     )
     for result in (missing, twice):
         assert result.mutation_outcome == "not_started"

@@ -13,6 +13,8 @@ import math
 from types import SimpleNamespace as NS
 from unittest.mock import Mock
 
+import pytest
+
 from tests.kit import fake_nx
 from tests.kit.fake import DrawingSheet, Factories, Node
 from tests.kit.objects import Object, matrix, point
@@ -289,3 +291,14 @@ def install_eval(nx, edges):
 
 
 __all__ = ["DrawingSheet", "arc_edge", "drawing_nx", "install_eval", "line_edge"]
+
+
+def beside(nx, view, anchor, step=20.0):
+    """Where an omitted symbol origin goes: ``step`` outside ``view``'s border, away from
+    the view's centre through the leader point ``anchor``."""
+    from nx_mcp.kit import drawing
+
+    box = nx.uf.Draw.AskViewBorders(view.Tag)
+    spot = drawing.clear_of(box, anchor, drawing.outward(box, anchor), step)
+    assert not drawing.contains(box, spot)  # never inside the view
+    return pytest.approx(spot)

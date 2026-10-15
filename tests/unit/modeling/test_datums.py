@@ -6,6 +6,7 @@ import pytest
 
 from tests.kit import fake_nx, run
 from tests.kit.objects import Feature
+from tests.unit.modeling.fakes import feature
 
 
 def datum_nx(units="mm"):
@@ -144,6 +145,10 @@ def test_wrong_kind_and_native_refusal():
     edge = body.edges[0]
     bad = run(nx, "nx_create_datum_plane", method="offset", reference=edge.ref, distance=1)
     assert bad.error["code"] == "NX_WRONG_KIND" and nx.builders == []
+    block = feature(nx, "BLOCK", [body])
+    other = run(nx, "nx_create_datum_plane", method="offset", reference=nx.ref_of(block, "feature"),
+                distance=1)  # fmt: skip
+    assert other.error["code"] == "NX_WRONG_KIND" and other.mutation_outcome == "not_started"
     nx.refuse("DatumPlaneBuilder", code=670015, message="Plane cannot be created")
     top = body.face(normal=(0, 0, 1))
     failed = run(nx, "nx_create_datum_plane", method="offset", reference=top.ref, distance=1)

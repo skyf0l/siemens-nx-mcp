@@ -5,6 +5,7 @@ import pytest
 from nx_mcp.core.catalogue import hooks
 from nx_mcp.domains.assembly import exploded
 from tests.kit import run
+from tests.kit.objects import Body
 from tests.unit.assembly.fakes import STATUS, assembly_nx, place
 
 RZ90 = [[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]
@@ -261,7 +262,13 @@ def test_trace_anchors_follow_explosion_edits(nx):
     assert edited.data["trace"]["name"] == "TRACE1"  # NX would rename it
     assert edited.data["start_edge"] == ok.data["start_edge"]
     got = run(nx, "nx_get_explosion", explosion=ex)
-    assert got.data["traces"] == [ok.data["trace"]]
+    (row,) = got.data["traces"]
+    assert row["trace"] == ok.data["trace"] and row["start"] == pytest.approx([20, 0, 50])
+    assert (row["start_percent"], row["end_percent"], row["end_offset"]) == (50, 100, 3)
+    assert row["start_edge"] == ok.data["start_edge"] and row["start_direction"] == [0, 0, 1]
+    view = nx.asm.ModelingViews.WorkView
+    assert got.data["model_views"] == [{**got.data["model_views"][0],
+                                        "id": nx.ref_of(view, "modeling_view")}]  # fmt: skip
 
 
 def test_trace_result_names_its_anchors(nx):
@@ -287,6 +294,28 @@ def test_trace_rules(nx):
     assert hidden.error["field"] == "/end_edge" and hidden.mutation_outcome == "not_started"
     nothing = run(nx, "nx_edit_explosion_trace", part="asm", trace="tl:999")
     assert nothing.error["code"] == "NX_INVALID_ARGUMENT"
+    nx.b.IsSuppressed = False
+    edge = nx.ref_of(nx.a.edge([0, 0, 10], [40, 0, 10]), "edge")
+    same = run(nx, "nx_create_explosion_trace", explosion=ex, start_edge=edge, end_edge=edge)
+    assert same.error["field"] == "/end_edge" and same.mutation_outcome == "not_started", same
+    assert not nx.asm.Tracelines
+
+
+def test_trace_edit_turns_legs_and_refuses_negative_offsets(nx):
+    ex = explosion(nx)
+    ok = trace(nx, ex)
+    line = ok.data["trace"]["id"]
+    turned = run(nx, "nx_edit_explosion_trace", trace=line, start_direction=[0, 0, -2],
+                 end_direction=[1, 0, 0], start_offset="5 mm")  # fmt: skip
+    assert turned.ok, turned
+    assert turned.data["start_direction"] == [0, 0, -1]
+    assert turned.data["end_direction"] == [1, 0, 0]
+    assert turned.data["start_offset"] == 5
+    negative = run(nx, "nx_edit_explosion_trace", trace=line, end_offset=-5)
+    assert negative.error["field"] == "/end_offset" and negative.mutation_outcome == "not_started"
+    zero = run(nx, "nx_edit_explosion_trace", trace=line, end_direction=[0, 0, 0])
+    assert zero.error["field"] == "/end_direction"
+    assert nx.asm.Tracelines[0].EndOffset == 0
 
 
 def test_animation_renders_frames_and_restores_poses(nx, monkeypatch):
@@ -306,8 +335,9 @@ def test_animation_renders_frames_and_restores_poses(nx, monkeypatch):
         return width, height
 
     monkeypatch.setattr(capture, "studio_png", render)
+    _solid(nx, nx.b)
     ok = run(nx, "nx_export_explosion_animation", explosion=ex, path="out/e.html", frames=3,
-             fps=2, width=320, height=240)  # fmt: skip
+             fps=2, width=320, height=240, fit=False)  # fmt: skip
     assert ok.ok, ok
     assert seen == pytest.approx([0, 30, 60])
     assert ok.data["frame_count"] == 3 and ok.data["path"] == "out/e.html"
@@ -318,6 +348,74 @@ def test_animation_renders_frames_and_restores_poses(nx, monkeypatch):
     assert nx.assembly.view_explosion.get(int(view.Tag), 0) == 0
     again = run(nx, "nx_export_explosion_animation", explosion=ex, path="out/e.html")
     assert again.error["code"] == "NX_ALREADY_EXISTS"
+
+
+def _solid(nx, component):
+    """A solid occurrence body of ``component`` (box in assembled coordinates)."""
+    proto = Body("PROTO")
+    component.Prototype.Bodies.append(proto)
+    occ = Body("OCC", [component.t[0], component.t[1], component.t[2],
+                       component.t[0] + 10, component.t[1] + 10, component.t[2] + 10])  # fmt: skip
+    occ.IsOccurrence, occ.OwningComponent = True, component
+    component.occurrences[int(proto.Tag)] = occ
+    return occ
+
+
+def test_animation_refuses_moved_components_without_solids(nx, monkeypatch):
+    from nx_mcp.kit import capture
+
+    ex = explosion(nx, display=False)
+    run(nx, "nx_edit_explosion", explosion=ex, display=False, placements=[
+        {"component": nx.b.ref, "pose": {"translation": [30, 0, 60]}}])  # fmt: skip
+    monkeypatch.setattr(capture, "studio_png", lambda *a, **k: pytest.fail("rendered"))
+    bad = run(nx, "nx_export_explosion_animation", explosion=ex, path="out/n.html", frames=2)
+    assert bad.error["code"] == "NX_WRONG_GEOMETRY" and bad.error["field"] == "/explosion", bad
+    assert "assembly cut" in bad.error["hint"] and bad.mutation_outcome == "not_started"
+
+
+def test_animation_fit_frames_the_assembled_and_exploded_states(nx, monkeypatch):
+    from nx_mcp.domains.assembly import animation
+    from nx_mcp.kit import capture
+
+    ex = explosion(nx, display=False)
+    run(nx, "nx_edit_explosion", explosion=ex, display=False, placements=[
+        {"component": nx.b.ref, "pose": {"translation": [30, 0, 60]}}])  # fmt: skip
+    _solid(nx, nx.b)
+    front = [[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]]  # right x, up z
+    cams = [{"rotation": front, "origin": [0.0, 0.0, 0.0], "scale": 2.0}]
+    calls = []
+
+    def set_camera(tx, view, rotation, origin, scale):
+        cams.append({"rotation": rotation, "origin": origin, "scale": scale})
+        calls.append(scale)
+        return cams[-1]
+
+    def bounds(tx, objects, exact=False):
+        boxes = [o.box for o in objects]
+        return ([min(b[i] for b in boxes) for i in range(3)],
+                [max(b[i + 3] for b in boxes) for i in range(3)])  # fmt: skip
+
+    monkeypatch.setattr(animation.display, "camera", lambda tx, view: cams[-1])
+    monkeypatch.setattr(animation.display, "set_camera", set_camera)
+    monkeypatch.setattr(animation.display, "fit", lambda tx, view: {"bodies": 1})
+    monkeypatch.setattr(animation.display, "shown_bodies",
+                        lambda tx: [nx.b.occurrences[k] for k in nx.b.occurrences])  # fmt: skip
+    monkeypatch.setattr(animation.measure, "bounds", bounds)
+
+    def render(tx, path, width, height, **_kw):
+        path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\0" * 8 + width.to_bytes(4, "big")
+                         + height.to_bytes(4, "big"))  # fmt: skip
+        return width, height
+
+    monkeypatch.setattr(capture, "studio_png", render)
+    ok = run(nx, "nx_export_explosion_animation", explosion=ex, path="out/fit.html", frames=2,
+             hide_datums=False)  # fmt: skip
+    assert ok.ok, ok
+    # The assembled box spans 10 x 10 on screen; with the exploded one 10 x 70 (z 0..70):
+    # the fitted scale 2 shrinks by 10/70 (and the margin), then the camera is put back.
+    assert calls[0] == pytest.approx(2.0 * 10 / 70 * animation.FIT_MARGIN)
+    assert cams[1]["origin"] == pytest.approx([-35.0, 35.0, -5.0])  # box centre [35, 5, 35]
+    assert calls[-1] == 2.0 and cams[-1]["origin"] == [0.0, 0.0, 0.0]
 
 
 def test_animation_failure_leaves_no_file_and_restores_the_view(nx, monkeypatch):
@@ -341,7 +439,8 @@ def test_update_assembly_solves_and_refreshes(nx):
     trace(nx, ex)
     done = run(nx, "nx_update_assembly", part="asm")
     assert done.ok, done
-    assert [c["status"] for c in done.data["constraints"]] == ["Solved"]
+    assert done.data["constraint_counts"] == {"total": 1, "solved": 1, "suppressed": 0}
+    assert done.data["constraints"] == []
     assert len(done.data["traces"]) == 1 and done.data["documentation_complete"]
     nx.assembly.solver_status = STATUS.NotSolved
     bad = run(nx, "nx_update_assembly", part="asm")

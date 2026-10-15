@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/interpart_expressions.json",
-  "scenario_sha256": "e47007a388d09f3a0c60443149a27108c1d39187862cfd8cf1b8b8f44d6ddce4",
+  "scenario_sha256": "e0853b908cb07e6205de6f598aee2362e7a6bdf06aa17835f15afa7a8904b424",
   "domain": "assembly",
   "covers": {
     "nx_create_interpart_link": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_interpart_link": "497e7525efc34ce60467145cb770505d1ebe3c3a6aefdbe528e614c513dc4bb7"
+    "nx_create_interpart_link": "70d6163d5b4dec581187806dc3bb5ea5b473932db655ae1311681782afc7447d"
   },
-  "recorded": "2026-10-13T07:26:00Z",
+  "recorded": "2026-10-15T10:58:21Z",
   "passed": true,
-  "checks": 21,
+  "checks": 24,
   "failed_checks": 0,
   "steps": [
     {
@@ -56,7 +56,7 @@
       "call": "nx_create_interpart_link",
       "setup": false,
       "passed": true,
-      "checks": 9
+      "checks": 10
     },
     {
       "index": 7,
@@ -77,7 +77,7 @@
       "call": "nx_create_interpart_link",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 4
     },
     {
       "index": 10,

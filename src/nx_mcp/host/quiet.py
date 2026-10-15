@@ -14,6 +14,13 @@ Two NX behaviours open windows that wait for a person and block NX for everyone:
 Both settings are the engineer's: the previous ones are restored when the call ends,
 whatever happens (``try/finally``). Every step tolerates a missing API (the fakes,
 batch NX), so the guard never fails a call.
+
+One NX behaviour is pre-empted for the whole session instead: with the sketch preference
+"Display Shaded Regions" on, NX opens its modal "Large Sketch Performance" dialog once an
+active sketch holds many curves, and it may do so while NX is idle after the call that
+added them. :func:`prepare` turns region shading off when the host starts and the guard
+again before every call (``session.Preferences.Sketch.DisplayShadedRegions``); it is not
+turned back on, so no later redraw of a large agent sketch can open the dialog.
 """
 
 from __future__ import annotations
@@ -34,6 +41,21 @@ class Calm:
 
     listing: str = ""
     failure_action: object = None  # the engineer's setting while the call ran
+    regions_turned_off: bool = False  # sketch region shading was on and is now off
+
+
+def prepare(session) -> bool:
+    """Turn the sketch preference "Display Shaded Regions" off for the session (host
+    start and every call): NX then never opens its modal "Large Sketch Performance"
+    dialog for a sketch with many curves. True when it was on; never raises."""
+    preferences: Any = getattr(getattr(session, "Preferences", None), "Sketch", None)
+    try:
+        if preferences is None or not bool(preferences.DisplayShadedRegions):
+            return False
+        preferences.DisplayShadedRegions = False
+        return True
+    except Exception:
+        return False
 
 
 _active = 0  # nesting depth: only the outermost guard changes and restores NX
@@ -56,6 +78,7 @@ def quiet(session, nx, folder, calm: Calm | None = None):
         if not outer:
             yield calm
             return
+        calm.regions_turned_off = prepare(session)
         with contextlib.ExitStack() as stack:
             stack.enter_context(_update_failures(session, nx, calm))
             stack.enter_context(_listing(session, nx, Path(folder), calm))

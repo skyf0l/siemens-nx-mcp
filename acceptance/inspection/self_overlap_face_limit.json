@@ -30,6 +30,6 @@
                 "data.issues.1.message": {"matches": "^self-intersection check skipped: 2,211 faces \\(over 2,000\\); pass clash: true to force"}}},
     {"call": "nx_get_model_summary", "args": {},
      "intent": "Acceptance: the overview has no self-overlap check: healthy, one body",
-     "expect": {"data.health": {"healthy": true, "errors": 0, "warnings": 0}, "data.counts.bodies": 1}}
+     "expect": {"data.health": {"healthy": true, "errors": 0, "warnings": 0, "scope": "part", "parts_checked": 1}, "data.counts.bodies": 1}}
   ]
 }

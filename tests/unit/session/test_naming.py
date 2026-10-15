@@ -105,3 +105,41 @@ def test_a_part_is_refused_up_front_with_the_save_as_tool():
     assert bad.error["field"] == "/object" and bad.mutation_outcome == "not_started"
     assert "nx_save_part" in bad.error["hint"] and "path" in bad.error["hint"]
     assert calls == []
+
+
+def test_expression_names_are_checked_before_nx():
+    """An expression name is an identifier, unique in its part: refused up front with
+    field /name (NX itself fails with 1050011 or 1050017 and no field)."""
+    nx = fake_nx()
+    first, second = nx.expression("p1"), nx.expression("p2")
+    calls = []
+    second.SetName = lambda name: calls.append(name)
+    taken = run(nx, "nx_set_name", object=second.ref, name="p1")
+    assert taken.error["code"] == "NX_NAME_CONFLICT" and taken.error["field"] == "/name"
+    assert taken.error["details"]["existing"]["id"] == first.ref, taken
+    assert taken.mutation_outcome == "not_started" and taken.error["retry"] != "ask_engineer"
+    bad = run(nx, "nx_set_name", object=second.ref, name="2 bad name")
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/name"
+    assert "letter or _" in bad.error["hint"] and bad.mutation_outcome == "not_started"
+    assert calls == []
+    same = run(nx, "nx_set_name", object=first.ref, name="p1")  # its own name: no clash
+    assert same.ok, same
+    renamed = run(nx, "nx_set_name", object=first.ref, name="wall_thickness")
+    assert renamed.ok and first.Name == "wall_thickness", renamed
+
+
+def test_nx_name_errors_get_the_name_field():
+    """A native rename failure NX reports for a name (1050017) is classified with field
+    /name, never an unclassified NX_ERROR."""
+    from tests.kit.objects import NXException
+
+    nx = fake_nx()
+    f = feature(nx, "EXTRUDE(1)")
+
+    def refuse(name):
+        raise NXException(1050017, "The specified expression variable already exists.")
+
+    f.SetName = refuse
+    bad = run(nx, "nx_set_name", object=f.ref, name="Boss")
+    assert bad.error["code"] == "NX_NAME_CONFLICT" and bad.error["field"] == "/name", bad
+    assert bad.error["nx_code"] == 1050017

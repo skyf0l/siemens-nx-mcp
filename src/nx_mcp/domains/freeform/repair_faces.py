@@ -19,7 +19,9 @@ NX 2406 lessons kept here (probed live):
   (a REFIT_SURFACE feature on the same body) within ``RefitControl.Tolerance``; a
   planar face is "Invalid face" (670054). The degree and patch setters of
   ``RefitControl.DegreesAndSegmentsOrPatches`` need an advanced freeform license
-  (even their getters refuse without it), so NX's defaults are kept.
+  (even their getters refuse without it), so NX's defaults are kept. NX 2406's Python
+  UF has no ``AskBsurf`` (only the ``ModlBsurface_Struct`` type), so poles and degrees
+  cannot be read back: the change is measured (sample deviation, area before/after).
 - Not exposed (their type and option setters refuse with 949895 without an advanced
   freeform or Studio license, and NX's defaults alone build nothing useful): Section
   Surface (``CreateSectionSurfaceBuilder``/``Ex``: conic type and spine), Variable
@@ -38,7 +40,7 @@ from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, FaceRef, Items, Length, RefTo
 from nx_mcp.domains.freeform import common, surface_loops
 from nx_mcp.kit import bodies as kbodies
-from nx_mcp.kit import builders, curve, facts, licenses, readback, select, units
+from nx_mcp.kit import builders, curve, facts, licenses, measure, readback, select, units
 
 MODELING = "solid_modeling"
 FREEFORM = "nx_freeform_1"
@@ -162,6 +164,8 @@ class RefitData(common.SheetData):
     tolerance: float
     deviation: float  # largest distance from the original face's sample points to the refit
     samples: int
+    area_before: float  # the original face's area (area: the refit body's faces)
+    changed: bool  # the refit face moved off the original samples or changed its area
 
 
 @tool(
@@ -187,8 +191,9 @@ def nx_create_refit_face(
     tolerance: Annotated[Length, Doc("Largest allowed deviation from the face")] = 0.01,
 ) -> RefitData:
     """Refit a freeform (B-surface) face in place within a tolerance to smooth or simplify
-    it (imported or wavy faces). The face keeps its edges. deviation: largest distance
-    from the original face's sample points to the refit face."""
+    it (imported or wavy faces). NX's default degrees and patches are used (not settable);
+    the face keeps its edges. Returns deviation (original samples to the refit face),
+    area_before and changed."""
     tol = float(tolerance)
     if not tol > 0:
         fail("NX_INVALID_ARGUMENT", "tolerance must be positive", field="/tolerance")
@@ -201,6 +206,7 @@ def nx_create_refit_face(
         points = [p for p, _n in facts.interior_samples(tx, target, steps=5)]
         points += [curve.point_at(tx, e, 0.5) for e in target.GetEdges()]
         body = target.GetBody()
+        area_before = measure.area(tx, [target])
     _license(tx, MODELING)
     with builders.build(tx, tx.part.Features.CreateRefitFaceBuilder, None) as b:
         b.Face.Value = target
@@ -215,4 +221,14 @@ def nx_create_refit_face(
     limit = tol + 10 * units.part_tolerance(tx)
     readback.expect(deviation <= limit, "deviation", "The refit face leaves the tolerance",
                     deviation=deviation)  # fmt: skip
-    return {**out, "tolerance": tol, "deviation": deviation, "samples": len(points)}
+    middle = points[len(points) // 2] if points else None
+    refit = min(faces, key=lambda f: curve.point_distance(tx, f, middle)[0]) if middle else None
+    area_after = measure.area(tx, [refit]) if refit is not None else area_before
+    changed = deviation > units.part_tolerance(tx, 1e-6) or (
+        abs(area_after - area_before) > 1e-6 * max(1.0, area_before)
+    )
+    if not changed:
+        tx.warn("NX_NOTE", "NX kept the face's shape within the tolerance (same points and "
+                "area): Refit Face uses NX's default degrees and patches")  # fmt: skip
+    return {**out, "tolerance": tol, "deviation": deviation, "samples": len(points),
+            "area_before": area_before, "changed": bool(changed)}  # fmt: skip

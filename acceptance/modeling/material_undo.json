@@ -1,0 +1,17 @@
+{
+ "covers": {"nx_set_material": []},
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_primitive", "setup": true, "save": "blk", "args": {"length": 10, "width": 10, "height": 10}},
+  {"call": "nx_set_material", "setup": true, "args": {"bodies": ["$blk.data.bodies.0.id"], "material": "Steel"}},
+  {"call": "nx_set_material", "save": "alu", "args": {"bodies": ["$blk.data.bodies.0.id"], "material": "Aluminum_6061"},
+   "expect": {"data.items.0.material": "Aluminum_6061", "data.items.0.density": {"close": 2711, "tol": 5}}},
+  {"call": "nx_undo_operation", "intent": "Acceptance: a material assignment is undone by setting the old material back",
+   "args": {"operation": "$alu.operation_id", "mode": "compensate"},
+   "expect": {"data.restored.0": {"contains": "back to Steel"}}},
+  {"call": "nx_get_material", "args": {"bodies": ["$blk.data.bodies.0.id"]},
+   "expect": {"data.items.0.material": "Steel", "data.items.0.density": {"close": 7829, "tol": 5}}}
+ ]
+}

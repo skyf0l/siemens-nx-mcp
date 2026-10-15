@@ -23,7 +23,7 @@ import math
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail, native
+from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import BodyRef, Doc, Items, RefTo
 from nx_mcp.domains.modeling.tree import ExpressionName
@@ -32,7 +32,12 @@ from nx_mcp.kit import expr, measure, readback, result, select, units
 Kind = Literal["distance", "length", "body"]
 DISTANCE_KINDS = ("body", "face", "edge", "curve", "point", "datum_plane", "datum_axis")
 Measurable = Annotated[
-    str, RefTo(*DISTANCE_KINDS, doc="distance: body/face/edge/curve/point/datum 'fc:12'")
+    str,
+    RefTo(
+        *DISTANCE_KINDS,
+        "feature",
+        doc="distance: body/face/edge/curve/point/datum 'fc:12', or a one-body feature",
+    ),
 ]
 LengthRef = Annotated[str, RefTo("curve", "edge")]
 # NewMassProperties units per part unit system: area, volume, mass, length, force.
@@ -72,12 +77,44 @@ def _quantity(kind: str, exp) -> str:
     return next((k for k in BODY_KEYS if k in text), "other")
 
 
+def _value(tx, exp) -> float:
+    """The value in the expression's own units: ``Expression.Value`` is in the part's base
+    units (a force in a mm part reads in milli-newtons, 1000x the newtons it shows)."""
+    value = expr.value_or_none(tx, exp)
+    return float(exp.Value) if value is None else float(value)
+
+
+# Weight over mass in the units a body measurement reports them (standard gravity).
+GRAVITY = {("N", "kg"): 9.80665, ("lbf", "lbm"): 1.0}
+WEIGHT_REL = 1e-3
+
+
+def _check_weight(rows) -> None:
+    """A body measurement's weight is its mass times g in the reported units."""
+    by = {r["quantity"]: r for r in rows}
+    weight, mass = by.get("weight"), by.get("mass")
+    if weight is None or mass is None:
+        return
+    g = GRAVITY.get((weight["units"], mass["units"]))
+    if g is None:
+        return
+    want = mass["value"] * g
+    readback.expect(
+        math.isclose(weight["value"], want, rel_tol=WEIGHT_REL, abs_tol=1e-12),
+        "weight",
+        f"The measured weight reads {weight['value']:.6g} {weight['units']}, mass x g is "
+        f"{want:.6g}",
+        weight=weight["value"],
+        expected=want,
+    )
+
+
 def _row(tx, kind, exp) -> MeasuredExpression:
     return {
         "expression": tx.ref(exp, kind="expression"),
         "quantity": _quantity(kind, exp),
         "formula": str(exp.RightHandSide),
-        "value": result.measured(exp.Value),
+        "value": result.measured(_value(tx, exp)),
         "units": expr.units(exp),
     }
 
@@ -97,36 +134,70 @@ def _check(kind, first, second, curves, bodies) -> None:
         fail("NX_INVALID_ARGUMENT", "first and second must differ", field="/second")
 
 
-def _create(tx, kind, first, second, curves, bodies):
+def _measured(tx, ref, field):
+    """One distance object of the work part; a feature ref stands for its one body (as
+    nx_measure_distance takes it). Refs of another part fail as wrong_owner on ``field``."""
+    try:
+        obj = select.resolve(tx, ref, *DISTANCE_KINDS, field=field)
+    except NXError as error:
+        if error.code != "NX_WRONG_KIND":
+            raise
+        try:
+            feature = tx.resolve(ref, "feature")
+        except Exception:  # not a feature either: keep the wrong-kind error
+            raise error from None
+        with native(default="NX_ERROR"):
+            found = list(feature.GetBodies())
+        if len(found) != 1:
+            fail("NX_WRONG_KIND", f"{ref} is a feature with {len(found)} bodies; pass one body",
+                 field=field, hint="Pass a body b:.. or face fc:.. (nx_list_objects kind body)")  # fmt: skip
+        obj = found[0]
+    if not select.owned_by_work_part(tx, obj):
+        fail("NX_WRONG_OWNER", f"{ref} is not in the part the measurement goes in",
+             field=field, hint="first and second must both be in that part (part argument)")  # fmt: skip
+    return obj
+
+
+def _resolve(tx, kind, first, second, curves, bodies):
+    """The measured objects, resolved and checked before anything is built."""
+    if kind == "distance":
+        a, b = _measured(tx, first, "/first"), _measured(tx, second, "/second")
+        if a is b:  # a feature ref and its body name the same object
+            fail("NX_INVALID_ARGUMENT", "first and second are the same object", field="/second")
+        return [a, b]
+    if kind == "length":
+        return [
+            select.one(tx, ref, "curve", "edge", field=f"/curves/{i}")
+            for i, ref in enumerate(curves)
+        ]
+    found = select.bodies(tx, bodies, "/bodies")
+    for i, body in enumerate(found):
+        if not getattr(body, "IsSolidBody", True):
+            fail("NX_WRONG_GEOMETRY", "A body measurement takes solid bodies",
+                 field=f"/bodies/{i}")  # fmt: skip
+    return found
+
+
+def _create(tx, kind, objects):
     """``(measure feature, independent value)`` for the measurement ``kind``."""
     part, system = tx.part, units.part_units(tx)
     manager = part.MeasureManager
     if kind == "distance":
-        a = select.one(tx, first, *DISTANCE_KINDS, field="/first")
-        b = select.one(tx, second, *DISTANCE_KINDS, field="/second")
+        a, b = objects
         with native(default="NX_ERROR"):
             check = float(tx.session.Measurement.GetMinimumDistance(a, b)[0])
             unit = part.UnitCollection.FindObject(LENGTH_UNITS[system])
             made = manager.NewDistance(unit, tx.nx.MeasureManager.MeasureType.Minimum, a, b)
     elif kind == "length":
-        objects = [
-            select.one(tx, ref, "curve", "edge", field=f"/curves/{i}")
-            for i, ref in enumerate(curves)
-        ]
         check = measure.length(tx, objects)
         with native(default="NX_ERROR"):
             unit = part.UnitCollection.FindObject(LENGTH_UNITS[system])
             made = manager.NewLength(unit, objects)
     else:
-        found = select.bodies(tx, bodies, "/bodies")
-        for i, body in enumerate(found):
-            if not getattr(body, "IsSolidBody", True):
-                fail("NX_WRONG_GEOMETRY", "A body measurement takes solid bodies",
-                     field=f"/bodies/{i}")  # fmt: skip
-        check = measure.volume(tx, found)
+        check = measure.volume(tx, objects)
         with native(default="NX_ERROR"):
             found_units = [part.UnitCollection.FindObject(n) for n in BODY_UNITS[system]]
-            made = manager.NewMassProperties(found_units, ACCURACY, found)
+            made = manager.NewMassProperties(found_units, ACCURACY, objects)
     try:
         with native(default="NX_BUILD_FAILED"):
             feature = made.CreateFeature()
@@ -178,15 +249,18 @@ def nx_create_measurement(
     Name the main expression to use it; nx_get_feature reads the values after edits and
     nx_update_model. For a one-off value use nx_measure_distance."""
     _check(kind, first, second, curves, bodies)
-    if name is not None:
-        with tx.checks():
-            if expr.find(tx, name) is not None:
-                fail("NX_NAME_CONFLICT", f"An expression named {name} exists", field="/name",
-                     hint="Pick another name, or omit name to keep NX's")  # fmt: skip
-    feature, check = _create(tx, kind, first, second, curves, bodies)
+    with tx.checks():
+        taken = expr.find(tx, name) if name is not None else None
+        if taken is not None:
+            fail("NX_NAME_CONFLICT", f"An expression named {name} exists", field="/name",
+                 hint="Pick another name, or omit name to keep NX's",
+                 details={"existing": tx.ref(taken, kind="expression")})  # fmt: skip
+        objects = _resolve(tx, kind, first, second, curves, bodies)
+    feature, check = _create(tx, kind, objects)
     expressions = list(feature.GetExpressions())
     rows = [_row(tx, kind, e) for e in expressions]
     readback.expect(bool(rows), "expressions", "The measurement made no expression")
+    _check_weight(rows)
     main_quantity = "volume" if kind == "body" else kind
     index = next((i for i, r in enumerate(rows) if r["quantity"] == main_quantity), 0)
     main = rows[index]

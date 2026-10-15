@@ -33,7 +33,7 @@
   {"call": "nx_get_explosion", "args": {"explosion": "$ex.data.explosion.id", "limit": 50},
    "intent": "Acceptance: the explosion of a background assembly reads the same views, traces and positions as displayed",
    "expect": {"ok": true, "part.file": "mda_asm.prt", "page.total": 2, "data.views": {"count": 1}, "data.views.0.id": "$shown.data.views.0.id",
-              "data.traces": {"count": 1}, "data.traces.0.id": "$tr.data.trace.id",
+              "data.traces": {"count": 1}, "data.traces.0.trace.id": "$tr.data.trace.id",
               "data.components": {"contains": {"component": {"name": "PIN2"}, "translation": [50.0, 0.0, 30.0], "assembled_translation": [50.0, 0.0, 0.0]}}}},
   {"call": "nx_list_parts", "args": {"path_prefix": "$run"},
    "expect": {"data.items": {"contains": {"part": {"id": "$front.data.part.id"}, "display": true, "work": true}}}},

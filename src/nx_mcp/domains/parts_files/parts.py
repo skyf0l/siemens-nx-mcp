@@ -79,10 +79,10 @@ SaveAsPath = Annotated[
     str, Doc("New .prt to save as; omit to save in place"), PathTo("replace", ".prt")
 ]
 REF_HINT = "Use the part's current ref from nx_list_parts; a reopened part gets a new ref"
-TAB_DOC = (
-    "Leave unset unless the engineer asked to see the part (true: its own NX tab). Calls never "
-    "need it"
+WORK_DOC = (
+    "Also make it the work part; NX allows it only when shown or a component of the shown part"
 )
+TAB_DOC = "Only when the engineer asks to see the part (true: its own NX tab); calls never need it"
 
 
 class PartData(TypedDict):
@@ -93,9 +93,19 @@ class PartData(TypedDict):
     display: bool
 
 
+class UnloadedComponent(TypedDict, total=False):
+    component: str
+    file: str | None
+    nx_code: int | None
+    reason: str
+
+
 class OpenData(PartData, total=False):
     already_loaded: bool
     components_loaded: int
+    unloaded_components: Annotated[
+        list[UnloadedComponent], Doc("Components NX did not load: the file and NX's reason")
+    ]
     modified_on_load: bool  # true: NX marked the part modified while loading it
 
 
@@ -117,6 +127,7 @@ class PartsData(TypedDict):
 class SaveData(TypedDict, total=False):
     part: result.Row
     path: str
+    saved: Annotated[bool, Doc("false: no unsaved changes, the file was left as it is")]
     saved_as: bool
     saved_files: list[str]
     changed_files: list[str]
@@ -161,24 +172,42 @@ def _state(tx, part) -> PartData:
     }
 
 
-def _report_units(tx) -> None:
-    """Make the envelope's units block describe the work part this call left (gate 9
-    read the units of the work part before the call)."""
-    work = tx.session.Parts.Work
-    tx.units["length"] = kit_units.part_units(tx, work) if work is not None else None
+def _report_units(tx, part=None) -> None:
+    """Make the envelope's units block describe ``part`` (the part a create, open or
+    activate is about, whether or not it became the work part), else the work part this
+    call left (gate 9 read the units of the work part before the call)."""
+    part = part if part is not None else tx.session.Parts.Work
+    tx.units["length"] = kit_units.part_units(tx, part) if part is not None else None
 
 
 def _loaded_rows(tx, limit: int = 10) -> list[dict]:
+    """Rows of up to ``limit`` loaded parts, the caller's own first (not the engineer's,
+    not another agent's); ``_loaded_details`` adds the count."""
+    loaded = list(tx.session.Parts)
+
+    def foreign(p) -> bool:
+        try:
+            return _foreign(tx, p) is not None
+        except Exception:
+            return True
+
     rows = []
-    for p in list(tx.session.Parts)[:limit]:
+    for p in sorted(loaded, key=foreign)[:limit]:
         with contextlib.suppress(Exception):
             rows.append({**tx.ref(p, "part"), "path": _rel(tx, parts.file_of(p))})
     return rows
 
 
+def _loaded_details(tx, details: dict) -> None:
+    """``loaded_parts`` (at most 10, the caller's first) and ``loaded_count`` (all)."""
+    details.setdefault("loaded_parts", _loaded_rows(tx))
+    details.setdefault("loaded_count", len(list(tx.session.Parts)))
+
+
 def resolve_part(tx, ref: str, field: str = "/part"):
     """The loaded part ``ref`` names. A stale or unknown part ref fails with a hint to
-    nx_list_parts and ``details.loaded_parts`` (the current refs, at most 10)."""
+    nx_list_parts, ``details.loaded_parts`` (the current refs, at most 10, the caller's
+    first) and ``details.loaded_count``."""
     try:
         return tx.resolve(ref, "part")
     except NXError as error:
@@ -186,7 +215,7 @@ def resolve_part(tx, ref: str, field: str = "/part"):
             error.hint = REF_HINT
             error.field = error.field or field
             with contextlib.suppress(Exception):
-                error.details.setdefault("loaded_parts", _loaded_rows(tx))
+                _loaded_details(tx, error.details)
         raise
 
 
@@ -213,12 +242,14 @@ def loaded_part(tx, text: str, field: str = "/part"):
         named = [p for p in tx.session.Parts if Path(parts.file_of(p)).name.casefold() == key]
         part = named[0] if len(named) == 1 else None
     if part is None:
+        details: dict = {"path": text}
+        _loaded_details(tx, details)
         fail(
             "NX_NOT_FOUND",
             f"{field}: no loaded part has the file {text!r}",
             field=field,
             hint="nx_list_parts lists the loaded parts with their refs and paths",
-            details={"path": text, "loaded_parts": _loaded_rows(tx)},
+            details=details,
         )
     return part
 
@@ -342,7 +373,7 @@ def nx_create_part(
     if engineer is not None:
         guarded = parts.Presented(False, False, engineer, True)
         tx.warn("NX_NOTE", parts.shown_note(tx, part, guarded))
-    _report_units(tx)
+    _report_units(tx, part)
     return _state(tx, part)
 
 
@@ -364,8 +395,8 @@ def nx_open_part(
     load_components: Annotated[bool, Doc("Fully load every component prototype")] = False,
 ) -> OpenData:
     """Open a workspace .prt, or reuse it if loaded. Calls reach it by part (its file
-    name) without showing it; it never takes the engineer's active NX tab. A reopened part
-    gets a new ref."""
+    name) without showing it, never taking the engineer's NX tab. A reopened part gets a
+    new ref; components NX cannot load are listed (unloaded_components)."""
     source = Path(path)
     with tx.checks():
         part = parts.loaded(tx, source)
@@ -374,22 +405,34 @@ def nx_open_part(
     already = part is not None
     if already and _foreign(tx, part):
         return _reused_foreign(tx, part)
+    failed: list[dict] = []
     if part is None:
-        with native():
+        with native(), parts.loading_as_saved(tx):  # components: from their saved folders
             part, status = tx.session.Parts.OpenBase(str(source))
+        failed = parts.load_failures(status)
         if status is not None and hasattr(status, "Dispose"):
             with contextlib.suppress(Exception):
                 status.Dispose()
     tx.worked_in = part
     parts.explicit(tx, part)
     shown = parts.present(tx, part, work=work, display=display)
-    loaded_count = parts.load_components(tx, part) if load_components else None
+    loaded_count = None
+    if load_components:
+        loaded_count, failed = parts.load_all(tx, part)
     _check_active(tx, part, work=shown.work, display=shown.active, kept=shown.kept)
     _note_shown(tx, part, shown)
-    _report_units(tx)
+    _report_units(tx, part)
     out: OpenData = {**_state(tx, part), "already_loaded": already}
     if loaded_count is not None:
         out["components_loaded"] = loaded_count
+    if failed:
+        out["unloaded_components"] = failed[:50]  # type: ignore[typeddict-item]
+        tx.warn(
+            "NX_UPDATE_WARNING",
+            f"The part opened, but NX did not load {len(failed)} component part(s) (see "
+            "unloaded_components): NX looked in the folder each was saved in and under "
+            "the assembly's folder. Check the files with nx_list_files",
+        )
     if not already and bool(getattr(part, "IsModified", False)):
         _note_modified_on_load(tx, part, out)
     return out
@@ -413,7 +456,7 @@ def _reused_foreign(tx, part) -> OpenData:
         f"{name} is already loaded as {whose} part: it stays as it is (no tab or work part "
         f'change). Read it with "part": "{name}"; to change it, save a copy of your own',
     )
-    _report_units(tx)
+    _report_units(tx, part)
     return {**_state(tx, part), "already_loaded": True}
 
 
@@ -459,25 +502,58 @@ def nx_activate_part(
     tx: Tx,
     *,
     part: LoadedPart,
-    work: bool = True,
+    work: Annotated[bool, Doc(WORK_DOC)] = True,
     display: Annotated[bool, Doc(TAB_DOC)] | None = None,
     force: Force = False,
 ) -> PartData:
     """Show a loaded part in its own NX tab for the engineer. Not needed to work in it:
-    calls reach parts by refs or the part key. Never takes the engineer's active tab (the
-    reply says so) or part; another agent's part only with force."""
+    calls reach parts by refs or the part key. With other agent parts loaded only display
+    true brings its tab to the front; a call that changes nothing says so (NX_NO_EFFECT).
+    Never takes the engineer's active tab or part; another agent's part only with force."""
     if not work and display is False:
         fail("NX_INVALID_ARGUMENT", "Set work or display (or both)", field="/work")
     with tx.checks():
         target = loaded_part(tx, part)
         busy.refuse_activate(tx.services, target, tx.caller, force=force)
-    if display is None and parts.engineer_tab(tx) is not None:
+    engineer = parts.engineer_tab(tx) is not None
+    if display is None and engineer:
         display = True  # the guard: its own tab behind the engineer's, never active
+    before = _shown_state(tx, target)
     shown = parts.present(tx, target, work=work, display=display)
     _check_active(tx, target, work=shown.work, display=shown.active, kept=shown.kept)
-    _note_shown(tx, target, shown)
-    _report_units(tx)
+    if _shown_state(tx, target) == before and not (shown.active or shown.work):
+        _no_effect(tx, target, shown, work=work, display=display)
+    else:
+        _note_shown(tx, target, shown)
+    _report_units(tx, target)
     return _state(tx, target)
+
+
+def _shown_state(tx, part) -> tuple[bool, bool, bool]:
+    """(display part, work part, has an NX tab) of ``part``."""
+    session_parts = tx.session.Parts
+    return (
+        parts.same_part(session_parts.Display, part),
+        parts.same_part(session_parts.Work, part),
+        parts.has_tab(tx, part),
+    )
+
+
+def _no_effect(tx, part, shown, *, work: bool, display: bool | None) -> None:
+    """nx_activate_part that left NX as it was: ``not_applicable`` and an ``NX_NO_EFFECT``
+    warning saying why and what would change it (an ok, committed reply that changes
+    nothing reads as success)."""
+    if shown.engineer:
+        why = "the engineer's tab stays active, so no agent part is brought to the front"
+    elif display is False:
+        why = (
+            "NX makes a part the work part only when it is displayed or a component of the "
+            "displayed part; pass display true to show it"
+        )
+    else:
+        why = "with two or more agent parts loaded only display true brings its tab to the front"
+    tx.outcome = "not_applicable"
+    tx.warn("NX_NO_EFFECT", f"Nothing changed: {why}. {parts.shown_note(tx, part, shown)}")
 
 
 @tool(
@@ -608,7 +684,8 @@ def nx_save_part(
 ) -> SaveData:
     """Save a loaded part (default the work part) in place, or as a new .prt (path).
     Save-as moves the loaded part and its ref to the new file; the old file stays. Never
-    overwrites; expires NX undo marks; updates out-of-date drawing views first."""
+    overwrites; expires NX undo marks; updates out-of-date drawing views first. A part
+    without unsaved changes is left as it is (saved false)."""
     with tx.checks():
         target = loaded_part(tx, part) if part else tx.part
         field = "/part" if part else None
@@ -619,19 +696,41 @@ def nx_save_part(
         tx.require_owned(target, field=field)
         if path is not None:
             if Path(path).exists():
+                free = parts.shown_path(tx, parts.unique_name(tx, path, ignore=target))
                 fail(
                     "NX_ALREADY_EXISTS",
                     "/path: a file already exists there; save-as never overwrites",
                     field="/path",
-                    hint="Choose a new .prt path, or omit path to save the part in place",
-                    details={"path": str(path)},
+                    hint=f"Choose a new .prt path such as '{free}', or omit path to save the "
+                    "part in place",
+                    details={"path": _rel(tx, path), "suggested_path": free},
                 )
             parts.check_new_name(tx, path, ignore=target)
+    if path is None and parts.unchanged_on_disk(target):
+        tx.outcome = "not_applicable"  # nothing written: the file and undo marks stay
+        tx.warn(
+            "NX_NO_EFFECT",
+            f"{Path(parts.file_of(target)).name} has no unsaved changes: its file was left as "
+            "it is (nothing written; undo marks kept)",
+        )
+        return {
+            "part": _row(tx, target),
+            "path": _rel(tx, parts.file_of(target)),
+            "saved": False,
+            "saved_files": [],
+            "changed_files": [],
+        }
     tx.warn("NX_NOTE", "Saving expires NX undo marks and checkpoints")
     if path is None:
         audit = _saving.verified_save(tx, target)
         undo_marks.own_save(tx.services, tx.services.part_key(target))
-        return {"part": _row(tx, target), "path": _rel(tx, parts.file_of(target)), **audit}
+        saved: SaveData = {
+            "part": _row(tx, target),
+            "path": _rel(tx, parts.file_of(target)),
+            "saved": True,
+            **audit,
+        }
+        return saved
     destination = Path(path)
     updated = _save_as(tx, target, destination)
     undo_marks.own_save(tx.services, tx.services.part_key(target))
@@ -645,6 +744,7 @@ def nx_save_part(
     out: SaveData = {
         "part": _row(tx, target),
         "path": _rel(tx, destination),
+        "saved": True,
         "saved_as": True,
         "saved_files": [_rel(tx, destination)],
     }

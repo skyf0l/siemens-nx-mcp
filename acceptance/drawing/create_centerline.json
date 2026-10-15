@@ -194,16 +194,16 @@
     ]
    },
    "expect": {
-    "mutation_outcome": "committed",
+    "mutation_outcome": "not_applicable",
     "data.annotations": {
      "count": 2
     },
+    "warnings.0.code": "NX_NO_EFFECT",
     "changes.created": {
-     "count_kind": {
-      "annotation": 2
-     }
+     "count": 0
     }
-   }
+   },
+   "intent": "Acceptance: the holes already have the center marks NX made with the view: they are returned, none is added"
   },
   {
    "call": "nx_create_centerline",

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/borders.json",
-  "scenario_sha256": "67dfe833f03fd31728df6954929ade7cc9b72b7350e3dfa80b2c29bafacbb315",
+  "scenario_sha256": "cbc0d3e19461da76e4a1fc02161fdfd96acc764a2b65b693523d1ed4675a5d9d",
   "domain": "drawing",
   "covers": {
     "nx_set_sheet_borders": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_set_sheet_borders": "3f85012154e736811d44e4011be1da025e30bd6b9b86b842ce4da63993a59519"
+    "nx_set_sheet_borders": "9ec11c29dc8a243c456defd99d6507e7920705491dbdc52ab0e45237254734e1"
   },
-  "recorded": "2026-10-14T05:53:47Z",
+  "recorded": "2026-10-15T10:52:17Z",
   "passed": true,
-  "checks": 26,
+  "checks": 36,
   "failed_checks": 0,
   "steps": [
     {
@@ -56,17 +56,45 @@
       "call": "nx_set_sheet_borders",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 4
     },
     {
       "index": 7,
       "call": "nx_set_sheet_borders",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 2
     },
     {
       "index": 8,
+      "call": "nx_set_sheet_borders",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 9,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_set_sheet_borders",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 11,
+      "call": "nx_set_sheet_borders",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 12,
       "call": "nx_close_part",
       "setup": true,
       "passed": true,

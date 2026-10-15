@@ -5,6 +5,7 @@ from types import SimpleNamespace as NS
 
 import pytest
 
+from nx_mcp.core import catalogue
 from tests.kit import NXException, run
 from tests.kit.objects import Object
 from tests.unit.display.fakes import STYLES, display_nx
@@ -255,3 +256,66 @@ def test_presets_replace_the_lights_on():
     default = run(nx, "nx_set_lighting_preset", preset="default")
     assert default.ok and default.data["on"] == SCENE_NAMES[:2]
     assert run(nx, "nx_list_lights").data["preset"] == "lighting_2"
+
+
+def test_list_shows_a_part_that_is_not_displayed():
+    """A part in the background reads no light of its own: the listing shows it for the
+    read (gate 4s, display), as nx_get_camera does."""
+    spec = catalogue.get("nx_list_lights")
+    assert spec.target == "any" and spec.switch_for({}, services=object(), part=None) == "display"
+
+
+def test_a_colour_with_an_intensity_above_one_keeps_the_intensity():
+    """NX 2406: UF EditViewLight refuses an intensity above 1, so the colour goes in at 1
+    and the light builder then sets the real intensity."""
+    nx = lights_nx()
+    edit = nx.uf.View.EditViewLight
+
+    def strict(name, attributes):
+        if attributes.Intensity > 1.0:
+            raise NXException(1105005, "The second parameter passed in was invalid.")
+        edit(name, attributes)
+
+    nx.uf.View.EditViewLight = strict
+    out = run(nx, "nx_set_light", name="Distant 1", on=True, color=[255, 0, 0], intensity=2)
+    assert out.ok, out.error
+    distant = light(nx, "Distant 1")
+    assert distant.color == (255, 0, 0) and distant.Intensity == 2.0
+    again = run(nx, "nx_set_light", name="Distant 1", color=[0, 255, 0])
+    assert again.ok and distant.color == (0, 255, 0) and again.data["light"]["intensity"] == 2.0
+
+
+def test_compensation_sets_a_light_back():
+    nx = lights_nx()
+    done = run(nx, "nx_set_light", name="Point 1", on=True, intensity=3, position=[1, 2, 3])
+    assert done.ok, done.error
+    undo = run(nx, "nx_undo_operation", mode="compensate")
+    assert undo.ok and undo.data["compensated"], undo
+    point = light(nx, "Point 1")
+    assert point.on is False and point.Intensity == 0.75
+    assert undo.data["restored"][0].startswith("light Point 1 back to on=False")
+
+
+def test_compensation_refuses_a_colour_and_a_light_changed_since():
+    nx = lights_nx()
+    coloured = run(nx, "nx_set_light", name="Distant 1", on=True, color=[0, 0, 255])
+    assert coloured.ok
+    refused = run(nx, "nx_undo_operation", mode="compensate")
+    assert refused.error["code"] == "NX_UNSUPPORTED_OPTION", refused
+    assert "colour" in refused.error["message"] and light(nx, "Distant 1").on is True
+    nx2 = lights_nx()
+    first = run(nx2, "nx_set_light", name="Point 1", on=True, intensity=2)
+    assert first.ok and run(nx2, "nx_set_light", name="Point 1", intensity=4).ok
+    later = run(nx2, "nx_undo_operation", operation=first.operation_id, mode="compensate")
+    assert later.error["code"] == "NX_DEPENDENCY_ORDER", later
+    assert light(nx2, "Point 1").Intensity == 4.0
+
+
+def test_compensation_switches_the_previous_lights_back_on():
+    nx = lights_nx()
+    before = run(nx, "nx_list_lights").data["on"]
+    scene = run(nx, "nx_set_lighting_preset", preset="scene")
+    assert scene.ok and scene.data["previous"] == "lighting_1"
+    undo = run(nx, "nx_undo_operation", mode="compensate")
+    assert undo.ok and undo.data["compensated"], undo
+    assert run(nx, "nx_list_lights").data["on"] == before

@@ -64,15 +64,24 @@ class ComponentRow(result.Row, total=False):
     rotation: Mat3
 
 
+def tidy(value):
+    """A read-back number (or nested lists of them) without float noise: rounded to 12
+    decimals, so 50.00000000000001 reads 50.0 and 6.1e-17 reads 0.0."""
+    if isinstance(value, (list, tuple)):
+        return [tidy(v) for v in value]
+    return round(float(value), 12) + 0.0  # + 0.0 turns -0.0 into 0.0
+
+
 def component_row(tx, component, names=None, *, with_pose=True) -> ComponentRow:
-    """``{id, kind, name, part, path}`` (+ pose) of an occurrence."""
+    """``{id, kind, name, part, path}`` (+ pose, without float noise) of an occurrence."""
     row = cast(ComponentRow, tx.ref(component, "component"))  # gains the pose keys below
     if names is None:
         names = structure.paths(tx.part).get(int(component.Tag))
     if names:
         row["path"] = "/".join(names)
     if with_pose:
-        row["translation"], row["rotation"] = structure.pose(component)
+        t, r = structure.pose(component)
+        row["translation"], row["rotation"] = tidy(t), tidy(r)
     return row
 
 

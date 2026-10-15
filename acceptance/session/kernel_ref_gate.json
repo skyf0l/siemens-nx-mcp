@@ -1,0 +1,33 @@
+{
+ "covers": {},
+ "part": null,
+ "fixture": null,
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "save": "p", "args": {"path": "$run/krg/krg_part.prt", "units": "mm"}},
+  {"call": "nx_create_primitive", "save": "blk", "args": {"part": "krg_part", "shape": "block", "length": "4 cm", "width": 20, "height": "0.01 m"},
+   "intent": "Acceptance: lengths take cm and m unit strings (40 x 20 x 10 mm)",
+   "expect": {"mutation_outcome": "committed"}},
+  {"call": "nx_measure_mass", "args": {"bodies": ["$blk.data.bodies.0.id"]},
+   "intent": "Acceptance: the block is 40 x 20 x 10 mm",
+   "expect": {"data.volume": {"close": 8000, "tol": 1e-06}}},
+
+  {"call": "nx_delete_objects", "args": {"objects": ["$blk.data.feature.id", "f:999999999"]},
+   "intent": "Acceptance: an unknown list item is refused before the undo mark, naming its item",
+   "expect": {"ok": false, "error.code": "NX_NOT_FOUND", "error.field": "/objects/1",
+              "mutation_outcome": "not_started"}},
+  {"call": "nx_analyze_faces", "args": {"faces": ["$blk.data.bodies.0.id"], "samples": "none"},
+   "intent": "Acceptance: a list item of the wrong kind is refused with its item, before NX",
+   "expect": {"ok": false, "error.code": "NX_WRONG_KIND", "error.field": "/faces/0"}},
+  {"call": "nx_measure_mass", "args": {"bodies": ["$blk.data.bodies.0.id"]},
+   "intent": "Acceptance: the refused calls left the block as it was",
+   "expect": {"data.volume": {"close": 8000, "tol": 1e-06}}},
+
+  {"call": "nx_find_geometry", "setup": true, "save": "top", "args": {"owner": "$blk.data.bodies.0.id", "kind": "face", "geometry_type": "plane", "order": "highest", "axis": "z", "limit": 1}},
+  {"call": "nx_create_anchor", "save": "anc", "args": {"object": "$top.data.items.0.id"},
+   "intent": "Acceptance: a face anchor is made",
+   "expect": {"data.anchor": {"matches": ":face="}}},
+  {"call": "nx_analyze_faces", "args": {"faces": ["$anc.data.anchor"], "samples": "none"},
+   "intent": "Acceptance: a face anchor works in a face list field like a ref",
+   "expect": {"ok": true, "mutation_outcome": "not_applicable"}}
+ ]
+}

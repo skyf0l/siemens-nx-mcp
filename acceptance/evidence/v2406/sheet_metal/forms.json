@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/sheet_metal/forms.json",
-  "scenario_sha256": "3376901b997ce5a5dd227193af46e4844dc6bc0fd270695c7eb561b4887a2e98",
+  "scenario_sha256": "8065b8742229e8c3b2c4f1657585e6a6477bdeddf509a7fb77070e8cfd82b607",
   "domain": "sheet_metal",
   "covers": {
     "nx_create_sheet_metal_feature": [
@@ -15,9 +15,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_sheet_metal_feature": "0cb86ec2b1b68627b15937d5f5b1ee2110821e242858eae414b284fbcb25da32"
+    "nx_create_sheet_metal_feature": "bf3fd67fcbf3614ac852a3481d8b19132a27603a0e2d699d391486c90c3c3fcf"
   },
-  "recorded": "2026-10-13T07:33:04Z",
+  "recorded": "2026-10-15T11:28:12Z",
   "passed": true,
   "checks": 19,
   "failed_checks": 0,
@@ -125,70 +125,70 @@
       "call": "nx_create_sheet_metal_feature",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 3
     },
     {
       "index": 16,
-      "call": "nx_create_sketch",
-      "setup": true,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
       "passed": true,
-      "checks": 0
+      "checks": 4
     },
     {
       "index": 17,
-      "call": "nx_create_sketch_curves",
+      "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 18,
-      "call": "nx_finish_sketch",
-      "setup": true,
-      "passed": true,
-      "checks": 0
-    },
-    {
-      "index": 19,
-      "call": "nx_create_sheet_metal_feature",
-      "setup": false,
-      "passed": true,
-      "checks": 3
-    },
-    {
-      "index": 20,
-      "call": "nx_create_sketch",
-      "setup": true,
-      "passed": true,
-      "checks": 0
-    },
-    {
-      "index": 21,
       "call": "nx_create_sketch_curves",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 22,
+      "index": 19,
       "call": "nx_finish_sketch",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 23,
+      "index": 20,
       "call": "nx_create_sheet_metal_feature",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
+    },
+    {
+      "index": 21,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 22,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 23,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
     },
     {
       "index": 24,
       "call": "nx_create_sheet_metal_feature",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 2
     },
     {
       "index": 25,

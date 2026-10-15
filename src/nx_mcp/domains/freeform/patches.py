@@ -35,13 +35,14 @@ NX 2406 lessons kept here:
 
 from __future__ import annotations
 
+import contextlib
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, FaceRef, Items, Length, RefTo
-from nx_mcp.domains.freeform import common
+from nx_mcp.domains.freeform import common, surface_loops
 from nx_mcp.kit import bodies as kbodies
 from nx_mcp.kit import (
     builders,
@@ -249,15 +250,11 @@ def nx_create_n_sided_surface(
         tags = [int(o.Tag) for o in objs]
         if len(set(tags)) != len(tags):
             fail("NX_INVALID_ARGUMENT", "A boundary curve is listed twice", field="/boundary")
-        _walk, closed, worst = _chain(tx, objs, _loose(tol))
-        if not closed or worst > _loose(tol):
-            fail(
-                "NX_WRONG_GEOMETRY",
-                "The boundary is not one closed loop",
-                field="/boundary",
-                hint="List every curve or edge around the opening, end to end",
-                details={"largest_gap": worst},
-            )
+        loops = surface_loops.loops_of(tx, objs, _loose(tol))  # open_at, to, gap if open
+        if len(loops) != 1:
+            fail("NX_WRONG_GEOMETRY", f"The boundary forms {len(loops)} closed loops: fill one "
+                 "opening per call", field="/boundary",
+                 hint="List every curve or edge around one opening, end to end")  # fmt: skip
         adjacent = _adjacent(tx, objs, boundary, faces, continuity)
     common.licensed(tx)
     F = tx.nx.Features
@@ -353,6 +350,47 @@ def _start(tx, objs, tol, field):
     return walk, closed
 
 
+RULED_HINT = (
+    "The rulings cross: the sections run in opposite directions or their starts do not line "
+    "up; toggle reverse_second, or check that closed sections run the same way round"
+)
+# NX 2406 "Self-intersecting geometry detected.", crossing rulings between two arcs and
+# "Cannot create B-surface body by ruled method." (two lines, the second reversed).
+CROSSING = frozenset({875316, 670178, 670982})
+
+
+@contextlib.contextmanager
+def _ruled_hint():
+    """A self-intersecting ruled result (refused by NX, or an unsound body) gets the
+    ruled-surface hint instead of a generic one."""
+    try:
+        yield
+    except NXError as error:
+        crossing = error.nx_code in CROSSING or "self-intersect" in error.message.lower()
+        if error.code == "NX_BUILD_FAILED" and (crossing or "faults" in error.details):
+            error.hint = RULED_HINT
+        raise
+
+
+def _turn(section, objs, tx):
+    """The turning sense of a closed section's loop: ``direction x (centre - start)`` at
+    its start, NX's own start and direction (``GetStartAndDirectionOfLoop``)."""
+    start, direction = section.GetStartAndDirectionOfLoop(0)
+    points = [p for c in objs for p in surface_loops.curve_points(tx, c)]
+    centre = [sum(p[k] for p in points) / len(points) for k in range(3)]
+    return geom.cross(geom.xyz(direction), geom.sub(centre, geom.xyz(start)))
+
+
+def _align_loops(tx, first, second, objs, reverse) -> None:
+    """Make two closed sections run the same way round (``reverse``: the opposite way).
+    NX 2406 keeps each loop's own sense: the top and bottom circles of a cylinder ran
+    opposite ways and every ruled sheet or solid between them self-intersected (875316),
+    whatever the start point."""
+    same = geom.dot(_turn(first, objs[0], tx), _turn(second, objs[1], tx)) >= 0
+    if same == bool(reverse):
+        second.ReverseDirectionOfLoop(0)
+
+
 def _second_start(walk, closed, start, reverse):
     """``(seed curve, start point)`` of the second section: its end (open) or vertex
     (closed) nearest ``start``; ``reverse``: the far end of an open section."""
@@ -390,9 +428,9 @@ def nx_create_ruled(
         Literal["parameter", "arc_length"], Doc("How points along the two sections pair up")
     ] = "parameter",
     solid: Annotated[bool, Doc("Closed sections: a solid instead of a sheet")] = False,
-    reverse_second: Annotated[bool, Doc("Open sections: start the second at its other end")] = (
-        False
-    ),
+    reverse_second: Annotated[
+        bool, Doc("Open: start the second at its other end; closed: run it the other way round")
+    ] = False,
     tolerance: Annotated[Length, Doc("Position tolerance")] | None = None,
 ) -> RuledData:
     """Create a ruled sheet or solid of straight lines between two section strings.
@@ -429,6 +467,8 @@ def nx_create_ruled(
     with builders.build(tx, tx.part.Features.CreateRuledBuilder, None) as b:
         builders.curve_section(tx, order[0], start0, into=b.FirstSection)
         builders.curve_section(tx, order[1], start1, into=b.SecondSection)
+        if walks[0][1] and second_closed:
+            _align_loops(tx, b.FirstSection, b.SecondSection, objs, reverse_second)
         b.PositionTolerance = tol
         kinds = G.AlignmentMethodBuilder.Type
         if alignment == "arc_length":
@@ -437,10 +477,12 @@ def nx_create_ruled(
             kinds.ArcLength)  # fmt: skip
         style = G.FeatureOptions.BodyStyle
         b.BodyPreference.BodyType = style.Solid if solid else style.Sheet
-        feature = b.commit()
+        with _ruled_hint():
+            feature = b.commit()
     bodies = common.feature_bodies(feature)
     out = common.result_of(tx, feature, bodies)
-    kbodies.expect_sound(tx, bodies)
+    with _ruled_hint():
+        kbodies.expect_sound(tx, bodies)
     readback.expect(
         all(common.is_sheet(x) != solid for x in bodies),
         "body_type",

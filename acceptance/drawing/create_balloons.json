@@ -212,11 +212,15 @@
     "parts_list": "$pl.data.table.id",
     "view": "$top.data.view.id"
    },
+   "intent": "Acceptance: a balloon reports its item number, parts-list row and component",
    "expect": {
     "mutation_outcome": "committed",
     "data.balloons": {
      "count": 1
-    }
+    },
+    "data.balloons.0.text": "1",
+    "data.balloons.0.row": 0,
+    "data.balloons.0.component.kind": "component"
    }
   },
   {

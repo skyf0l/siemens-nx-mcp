@@ -361,7 +361,8 @@ def test_same_operation_id_replays_and_conflicts(svc):
     assert len(svc.part.Features) == 1
     clash = run(svc, "nx_create_block", operation_id="op_replay_1", size=3)
     assert clash["error"]["code"] == "NX_IDEMPOTENCY_CONFLICT"
-    assert clash["error"]["category"] == "interrupted"
+    assert clash["error"]["category"] == "invalid_argument"
+    assert clash["error"]["retry"] == "after_fix"
     assert clash["mutation_outcome"] == "not_started"
 
 

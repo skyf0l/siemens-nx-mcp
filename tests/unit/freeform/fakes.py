@@ -56,6 +56,31 @@ class Polyline:
         return best  # (distance, t, point)
 
 
+class LoopSection(FakeSection):
+    """A builder's own section that also answers NX's loop start and direction: from the
+    help point, along the seed curve away from its nearer end (``ReverseDirectionOfLoop``
+    flips it and is counted in ``reversed``)."""
+
+    def __init__(self, *tolerances):
+        super().__init__(*tolerances)
+        self.reversed = 0
+
+    def GetStartAndDirectionOfLoop(self, _index):
+        _rules, seed, help_point = self.added[0]
+        here = [float(help_point.X), float(help_point.Y), float(help_point.Z)]
+        pts = seed.shape.points
+        if math.dist(pts[-1], here) < math.dist(pts[0], here):
+            start, step = pts[-1], _sub(pts[-2], pts[-1])
+        else:
+            start, step = pts[0], _sub(pts[1], pts[0])
+        if self.reversed % 2:
+            step = [-v for v in step]
+        return point(*start), point(*step)
+
+    def ReverseDirectionOfLoop(self, _index):
+        self.reversed += 1
+
+
 def box_point(box, p):
     return [min(max(p[i], box[i]), box[i + 3]) for i in range(3)]
 
@@ -199,7 +224,7 @@ def freeform_nx(units="mm"):
             "NSidedSurfaceBuilder": ("OuterLoop",),
         }
         for name in own.get(kind, ()):
-            object.__setattr__(b, name, FakeSection())
+            object.__setattr__(b, name, LoopSection())
         return b
 
     nx.builder = builder

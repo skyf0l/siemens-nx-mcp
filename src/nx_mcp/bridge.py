@@ -88,6 +88,10 @@ CLIENT_TIMEOUT = QUEUE_TIMEOUT + DISPATCHER_TIMEOUT + 15.0
 # of an ``unknown`` outcome at DISPATCHER_TIMEOUT (red team A28). Light calls keep
 # DISPATCHER_TIMEOUT.
 COST_RUN_SECONDS = {"heavy": 330.0, "long": 1830.0}
+# A read (catalogue effect ``read``) that NX has not started within this long fails fast
+# with NX_BUSY (nothing ran; retry), instead of waiting QUEUE_TIMEOUT behind a long step
+# or a blocked NX: it changes nothing, so retrying it later is always safe.
+READ_QUEUE_TIMEOUT = 30.0
 
 
 def _cost(method: str) -> str | None:
@@ -99,6 +103,23 @@ def _cost(method: str) -> str | None:
     except Exception:
         return None
     return getattr(spec, "cost", None)
+
+
+def _effect(method: str) -> str | None:
+    """The catalogue effect of ``method`` (None: not a loaded catalogue tool)."""
+    try:
+        from nx_mcp.core import catalogue
+
+        spec = catalogue.get(method)
+    except Exception:
+        return None
+    return getattr(spec, "effect", None)
+
+
+def queue_timeout(method: str, base: float = QUEUE_TIMEOUT) -> float:
+    """How long ``method`` may wait in NX's queue before it is answered NX_BUSY: a read
+    at most READ_QUEUE_TIMEOUT, any other call ``base``."""
+    return min(base, READ_QUEUE_TIMEOUT) if _effect(method) == "read" else base
 
 
 def run_timeout(method: str, base: float = DISPATCHER_TIMEOUT) -> float:
@@ -457,15 +478,18 @@ class MainThreadDispatcher:
         queue_timeout: float | None = None,
         progress: Event | None = None,
         run_timeout: Callable[[str], float] | None = None,
+        queue_timeout_for: Callable[[str], float] | None = None,
     ) -> None:
         """``timeout`` bounds a call from its start (``run_timeout(method)`` instead when
         given, e.g. :func:`run_timeout` per cost class), ``queue_timeout`` (default:
-        ``timeout``) its wait in the queue. ``progress`` is set whenever a call is
-        queued."""
+        ``timeout``) its wait in the queue, ``queue_timeout_for(method)`` (e.g.
+        :func:`queue_timeout`: reads fail fast) instead when given. ``progress`` is set
+        whenever a call is queued."""
         self._executor = executor
         self._timeout = timeout
         self._run_timeout = run_timeout
         self._queue_timeout = timeout if queue_timeout is None else queue_timeout
+        self._queue_timeout_for = queue_timeout_for
         self._calls: Queue[_PendingBridgeCall] = Queue()
         self._lock = Lock()
         self._count_lock = Lock()
@@ -522,7 +546,8 @@ class MainThreadDispatcher:
     def _wait(self, pending: _PendingBridgeCall) -> None:
         """Wait up to the queue timeout for the call to start, then up to the
         dispatcher timeout from its start for it to finish."""
-        deadline = pending.queued_at + self._queue_timeout
+        waits = self._queue_wait(pending.method)
+        deadline = pending.queued_at + waits
         limit = self._run_timeout(pending.method) if self._run_timeout else self._timeout
         while not pending.complete.wait(max(0.0, deadline - time.monotonic())):
             with self._lock:
@@ -547,13 +572,22 @@ class MainThreadDispatcher:
                 )
             raise NXError(
                 "NX_BUSY",
-                f"The call waited {self._queue_timeout:.0f} s in NX's queue and did not start: "
+                f"The call waited {waits:.0f} s in NX's queue and did not start: "
                 f"{self._busy_with(pending)}. Nothing ran; retry when NX is free.",
                 hint="NX and the bridge are running; nx_get_status shows what NX runs. "
                 "Retry later (the call did not run)",
                 retryable=True,
                 details={"mutation_outcome": "not_started", **self._running_row(pending)},
             )
+
+    def _queue_wait(self, method: str) -> float:
+        """How long ``method`` may wait in the queue (never raises)."""
+        if self._queue_timeout_for is not None:
+            try:
+                return float(self._queue_timeout_for(method))
+            except Exception:
+                pass
+        return self._queue_timeout
 
     def _explain(self, pending: _PendingBridgeCall, started: bool) -> NXError | None:
         """The host's own answer for a call that timed out (``explain``: a modal NX

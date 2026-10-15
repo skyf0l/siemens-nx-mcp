@@ -57,8 +57,11 @@ INSTRUCTIONS_CAP = 1_600
 # cuts (kept: 9% headroom). 880 on 2026-10-10 (798.5), 1,040 since the natural-argument
 # forms of 2026-10-11 (942.1). 1,052.7 over 265 tools after the 2026-10-13 build rounds,
 # whose tools spell out their conditional rules (a failed call costs more): cap about 8%
-# above. Only full-profile clients pay it, so it stays a mean.
-FULL_MEAN_PER_TOOL = 1_140
+# above. Only full-profile clients pay it, so it stays a mean. 2026-10-15: the ``part`` call
+# key is listed on every tool that can be called without references (172 of 266, 97
+# characters each: agents trust the strict schema over the instructions), a new key on most
+# rows: 1,172 measured, cap about 8% above.
+FULL_MEAN_PER_TOOL = 1_265
 
 # -- Per tool fetched --------------------------------------------------------------------
 # A tool's own definition (name + description + input schema, no call keys) as one

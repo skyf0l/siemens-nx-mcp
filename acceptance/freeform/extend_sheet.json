@@ -576,6 +576,32 @@
   },
   {
    "call": "nx_create_sheet_extension",
+   "args": {
+    "edges": [
+     "$e30.data.items.0.id"
+    ],
+    "distance": 0
+   },
+   "expect": {
+    "error.field": "/distance",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_sheet_extension",
+   "args": {
+    "edges": [
+     "$e30.data.items.0.id"
+    ],
+    "method": "until"
+   },
+   "expect": {
+    "error.field": "/until",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_sheet_extension",
    "intent": "Corner: the deck (z 0, to x 30) and a vertical sheet at x 40 (z 5..15) extend to meet at x 40, z 0 and are sewn: 400 + 150",
    "args": {
     "edges": [
@@ -621,32 +647,6 @@
      ],
      "tol": 0.001
     }
-   }
-  },
-  {
-   "call": "nx_create_sheet_extension",
-   "args": {
-    "edges": [
-     "$e30.data.items.0.id"
-    ],
-    "distance": 0
-   },
-   "expect": {
-    "error.field": "/distance",
-    "mutation_outcome": "not_started"
-   }
-  },
-  {
-   "call": "nx_create_sheet_extension",
-   "args": {
-    "edges": [
-     "$e30.data.items.0.id"
-    ],
-    "method": "until"
-   },
-   "expect": {
-    "error.field": "/until",
-    "mutation_outcome": "not_started"
    }
   },
   {

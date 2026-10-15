@@ -210,6 +210,25 @@ def nx():
     blk, asm = nx.blk, nx.asm
     blk.Expressions = Collection()
     asm.Expressions = Collection()
+
+    def scratch(formula, unit):
+        """NX's temporary expression evaluating ``formula`` of the assembly's expressions."""
+        names = set(NAME.findall(formula))
+        values = {e.Name: e.Value for e in asm.Expressions if e.Name in names}
+        if names - set(values):
+            raise NXException(1050007, "The specified expression variable does not exist.")
+        try:
+            value = float(eval(formula, {}, values))  # noqa: S307 - test
+        except Exception:
+            raise NXException(3270008, "The specified string contains a syntax error") from None
+        e = LiveExpr(f"scratch_{len(asm.Expressions)}", repr(value), lambda: asm.Expressions)
+        e.Units = unit
+        asm.Expressions.append(e)
+        return e
+
+    asm.Expressions.CreateSystemExpressionWithUnits = scratch
+    asm.Expressions.Delete = asm.Expressions.remove
+    asm.UnitCollection = NS(FindObject=lambda name: NS(Name=name, Abbreviation=name))
     for name, rhs in (("extension", "100"), ("rod_d", "12")):
         e = LiveExpr(name, rhs, lambda: blk.Expressions)
         e.OwningPart = blk
@@ -286,6 +305,9 @@ def test_define_refusals_change_nothing(nx):
     assert define(nx).ok
     again = define(nx)
     assert again.error["code"] == "NX_ALREADY_EXISTS" and again.mutation_outcome == "not_started"
+    details = again.error["details"]
+    assert details["feature"]["kind"] == "feature"
+    assert details["ranges"] == {"extension": [50.0, 150.0]}
 
 
 def deform(nx, component, *values):
@@ -344,13 +366,33 @@ def test_deform_refusals_change_nothing(nx):
     assert not nx.deform_builders
 
 
-def test_a_formula_outside_the_range_rolls_back(nx):
+def test_a_formula_outside_the_range_is_refused_before_nx_deforms(nx):
     assert define(nx).ok
     nx.asm.Expressions.append(LiveExpr("hatch_ext", "400", lambda: nx.asm.Expressions))
     a = place(nx, nx.blk, "A")
-    bad = deform(nx, a, ("extension", "hatch_ext"))
-    assert bad.error["field"] == "/values/0/value" and bad.mutation_outcome == "rolled_back", bad
+    bad = deform(nx, a, ("extension", "hatch_ext + 10"))
+    assert bad.error["field"] == "/values/0/value" and bad.mutation_outcome == "not_started", bad
+    assert "410" in bad.error["message"] and not nx.deform_builders
     assert not [f for f in nx.asm.Features if f.FeatureType == "FLEXED_PART"]
+
+
+def test_a_bad_formula_is_refused_before_nx_deforms(nx):
+    """A failed deform commit leaves NX's deform manager mid-update, so a formula NX would
+    refuse is evaluated first and nothing is deformed; the next deformation still works."""
+    assert define(nx).ok
+    nx.asm.Expressions.append(LiveExpr("hatch_ext", "90", lambda: nx.asm.Expressions))
+    a = place(nx, nx.blk, "A")
+    names = {e.Name for e in nx.asm.Expressions}
+    for formula, code in (
+        ("hatch_ext +", "NX_INVALID_FORMULA"),
+        ("nope + 1", "NX_INVALID_ARGUMENT"),
+    ):
+        bad = deform(nx, a, ("extension", formula))
+        assert bad.error["code"] == code and bad.error["field"] == "/values/0/value", bad
+        assert bad.mutation_outcome == "not_started" and not nx.deform_builders
+    assert {e.Name for e in nx.asm.Expressions} == names  # the scratch expressions are gone
+    ok = deform(nx, a, ("extension", "hatch_ext + 10"))
+    assert ok.ok and ok.data["values"][0]["value"] == 100.0, ok
 
 
 def test_a_wrong_deformed_value_rolls_back(nx):

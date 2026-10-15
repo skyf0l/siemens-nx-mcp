@@ -34,15 +34,16 @@ from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
     Doc,
-    DrawingSheetRef,
-    DrawingViewRef,
     Items,
+    Range,
     RefTo,
     SheetLength,
     SheetPoint,
     Text,
 )
 from nx_mcp.domains.drawing.common import (
+    SheetArg,
+    ViewArg,
     add_leader,
     check_leader,
     commit,
@@ -52,11 +53,12 @@ from nx_mcp.domains.drawing.common import (
     open_or_only_sheet,
     report_bounds,
     set_origin,
+    sheet_of,
     true_shape,
     update,
     verify_origin,
 )
-from nx_mcp.kit import args, builders, drawing, facts, licenses, readback, result, select
+from nx_mcp.kit import args, builders, drawing, facts, licenses, readback, result
 
 LIBRARY_ENV = "UGII_PMI_SYMBOL_LIBRARY_DIR"
 SUFFIX = ".sym.prt"
@@ -106,13 +108,11 @@ def _sheet(tx, view_ref, sheet_ref):
     """``(sheet, view or None)``: the view's sheet, the given sheet or the open/only one."""
     if view_ref is not None:
         view, owner = drawing.view(tx, view_ref)
-        if sheet_ref is not None and int(
-            select.resolve(tx, sheet_ref, "drawing_sheet", field="/sheet").Tag
-        ) != int(owner.Tag):
+        if sheet_ref is not None and int(sheet_of(tx, sheet_ref, "/sheet").Tag) != int(owner.Tag):
             fail("NX_WRONG_OWNER", "view is not on the given sheet", field="/view")
         return owner, view
     if sheet_ref is not None:
-        return select.resolve(tx, sheet_ref, "drawing_sheet", field="/sheet", work_part=True), None
+        return sheet_of(tx, sheet_ref, "/sheet"), None
     return open_or_only_sheet(tx), None
 
 
@@ -259,7 +259,7 @@ def nx_create_sheet_symbol(
     tx: Tx,
     *,
     symbol: Literal["id", "custom", "target_point", "intersection", "edge_condition"],
-    view: DrawingViewRef | None = None,
+    view: ViewArg | None = None,
     objects: Annotated[
         list[EdgeOrFace],
         Items(1, 2),
@@ -270,12 +270,13 @@ def nx_create_sheet_symbol(
     ]
     | None = None,
     origin: SheetPoint | None = None,
-    sheet: DrawingSheetRef | None = None,
+    sheet: SheetArg | None = None,
     text: Annotated[str, Text(64), Doc("id: the text (upper half of a divided shape)")]
     | None = None,
     lower_text: Annotated[str, Text(64), Doc("id: lower half of a divided shape")] | None = None,
     shape: Shape = "circle",
-    size: Annotated[SheetLength, Doc("id: symbol size; target_point: cross size")] | None = None,
+    size: Annotated[SheetLength, Range(gt=0), Doc("id: symbol size; target_point: cross size")]
+    | None = None,
     name: Annotated[str, Text(64), Doc("custom: NX library symbol, e.g. 'balloon_note'")]
     | None = None,
     condition: Literal["basic", "plus", "minus", "size", "bilateral"] = "basic",
@@ -386,7 +387,7 @@ def _on_geometry(tx, symbol, sh, view, picked, spot, size):
             "objects": [tx.ref(e, "edge") for e in picked],
         },  # fmt: skip
     }
-    return report_bounds(tx, out, obj, sh, "symbol")
+    return report_bounds(tx, out, obj, sh, "symbol", on_views=True)  # it sits on its edges
 
 
 def _with_leader(tx, symbol, sh, view, obj, origin, spec):
@@ -413,7 +414,7 @@ def _with_leader(tx, symbol, sh, view, obj, origin, spec):
         else:
             _configure_edge(tx, b, spec)
         anchor = add_leader(tx, b.Leader, obj, view) if obj is not None else None
-        origin = origin if origin is not None else default_origin(sh, anchor)
+        origin = origin if origin is not None else default_origin(sh, anchor, view)
         set_origin(tx, b.Origin, sh, origin)
         made = commit(b, "symbol")
     update(tx)

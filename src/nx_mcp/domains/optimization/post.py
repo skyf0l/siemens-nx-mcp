@@ -155,11 +155,11 @@ def _limits(tx, manager, what):
     keywords=(
         "stress contour",
         "result plot",
+        "show result",
+        "density result",
         "displacement plot",
-        "safety factor plot",
         "von mises",
         "fringe plot",
-        "post processing",
         "result image",
     ),
     requires=("work_part", "no_active_sketch"),

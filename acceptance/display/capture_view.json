@@ -54,7 +54,11 @@
     "data.marks_part_modified": false,
     "data.image.width": 800,
     "warnings": {
-     "count": 0
+     "count": 1
+    },
+    "warnings.0.code": "NX_NOTE",
+    "warnings.0.message": {
+     "matches": "^NX exports the graphics window at its own [0-9]+x[0-9]+, so Studio rendered the view at 800x500"
     }
    }
   },

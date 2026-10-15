@@ -169,6 +169,17 @@
    }
   },
   {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "fv",
+   "args": {
+    "type": "projected",
+    "parent": "$top.data.view.id",
+    "direction": "bottom",
+    "spacing": 20
+   }
+  },
+  {
    "call": "nx_create_drawing_symbol",
    "args": {
     "view": "$top.data.view.id",
@@ -258,6 +269,54 @@
       250
      ],
      "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_symbol",
+   "args": {
+    "view": "$top.data.view.id",
+    "object": "$ch.data.items.0.id",
+    "symbol": "weld",
+    "weld": "fillet",
+    "size": 5
+   },
+   "intent": "Acceptance: an omitted weld origin lands outside the view, away from its centre",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.leader.point": {
+     "close": [
+      170,
+      220
+     ],
+     "tol": 0.001
+    },
+    "data.origin": {
+     "close": [
+      198.7149,
+      236.4085
+     ],
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_symbol",
+   "args": {
+    "view": "$fv.data.view.id",
+    "object": "$cyl.data.items.0.id",
+    "origin": [
+     60,
+     110
+    ],
+    "symbol": "surface_finish",
+    "roughness_ra": 1.6
+   },
+   "intent": "Acceptance: a leader to a hole bore hidden in the front view is warned",
+   "expect": {
+    "mutation_outcome": "committed",
+    "warnings.0.message": {
+     "contains": "behind material"
     }
    }
   },

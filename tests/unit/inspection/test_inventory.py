@@ -206,7 +206,7 @@ def test_owner_takes_an_anchor_and_explains_names():
     assert stale.error["code"] == "NX_STALE_REFERENCE" and stale.error["field"] == "/owner"
 
 
-def test_compact_rows_give_id_name_and_box_only():
+def test_compact_rows_give_id_name_box_and_hidden_bodies():
     from tests.unit.inspection.fakes import inspection_nx
 
     nx = inspection_nx()
@@ -215,7 +215,7 @@ def test_compact_rows_give_id_name_and_box_only():
     assert ok.ok and ok.page["total"] == 3, ok
     assert ok.data["items"][1] == {
         "id": blocks[1].ref, "name": ok.data["items"][1]["name"],
-        "min": [10, 0, 0], "max": [15, 5, 5],
+        "min": [10, 0, 0], "max": [15, 5, 5], "hidden": False,
     }  # fmt: skip
     faces = run(nx, "nx_list_objects", kind="face", owner=blocks[0].ref, compact=True)
     assert set(faces.data["items"][0]) == {"id", "name", "min", "max"}

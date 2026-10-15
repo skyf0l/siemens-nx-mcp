@@ -267,8 +267,8 @@
       0
      ]
     },
-    "start": 0,
-    "end": 110,
+    "start": "0 deg",
+    "end": "110 deg",
     "steps": 11,
     "pairs": [
      {
@@ -276,7 +276,7 @@
       "b": "$S.data.component.id"
      }
     ],
-    "min_clearance": 5
+    "min_clearance": "5 mm"
    },
    "expect": {
     "ok": true,
@@ -338,8 +338,8 @@
       0
      ]
     },
-    "start": 0,
-    "end": 20,
+    "start": "0 mm",
+    "end": "20 mm",
     "steps": 4,
     "pairs": [
      {
@@ -459,6 +459,36 @@
     "ok": false,
     "error.code": "NX_INVALID_ARGUMENT",
     "error.field": "/end",
+    "mutation_outcome": "not_applicable"
+   }
+  },
+  {
+   "call": "nx_run_motion_sweep",
+   "args": {
+    "part": "$part",
+    "joint": "revolute",
+    "moving": [
+     "$L.data.component.id"
+    ],
+    "axis": {
+     "origin": [
+      0,
+      100,
+      15
+     ],
+     "direction": [
+      -1,
+      0,
+      0
+     ]
+    },
+    "start": "10 mm",
+    "end": 90
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/start",
     "mutation_outcome": "not_applicable"
    }
   },

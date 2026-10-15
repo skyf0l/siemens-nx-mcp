@@ -106,7 +106,8 @@ def test_mass_skips_empty_and_topology_result_bodies():
     scoped = run(nx, "nx_measure_mass")  # the part: its design space, not the result too
     assert [r["body"]["id"] for r in scoped.data["bodies"]] == [design.ref]
     chosen = run(nx, "nx_measure_mass", bodies=[solved.ref])  # a solved result, by ref
-    assert chosen.ok and chosen.data["volume"] == pytest.approx(3000) and not chosen.warnings
+    assert chosen.ok and chosen.data["volume"] == pytest.approx(3000)
+    assert not [w for w in chosen.warnings if "Skipped" in w["message"]]
 
 
 def test_bounds_conservative_exact_and_wcs_refusal():

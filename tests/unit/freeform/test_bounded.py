@@ -95,3 +95,22 @@ def test_bounded_plane_that_misses_the_boundary_rolls_back():
     bad = run(nx, "nx_create_bounded_plane", boundary=[c.ref for c in loop])
     assert bad.error["details"]["check"] == "boundary", bad
     assert bad.mutation_outcome == "rolled_back"
+
+
+def test_bounded_plane_refuses_two_separate_outer_loops():
+    nx = bounded_nx()
+    left = rect_curves(nx)
+    right = [curve(nx, [60 + a[0], a[1], 0], [60 + b[0], b[1], 0])
+             for a, b in zip(RECT, RECT[1:] + RECT[:1], strict=True)]  # fmt: skip
+    bad = run(nx, "nx_create_bounded_plane", boundary=[c.ref for c in left + right])
+    assert bad.error["code"] == "NX_WRONG_GEOMETRY" and "one outer loop" in bad.error["message"]
+    assert [len(loop) for loop in bad.error["details"]["loops"]] == [4, 4]
+    assert bad.mutation_outcome == "not_started" and not nx.builders
+
+
+def test_bounded_plane_says_when_planar_loops_lie_in_different_planes():
+    nx = bounded_nx()
+    low, high = rect_curves(nx, z=0.0), rect_curves(nx, z=50.0)
+    bad = run(nx, "nx_create_bounded_plane", boundary=[c.ref for c in low + high])
+    assert bad.error["code"] == "NX_WRONG_GEOMETRY" and "different planes" in bad.error["message"]
+    assert "n_sided" not in bad.error["hint"] and "one call per loop" in bad.error["hint"]

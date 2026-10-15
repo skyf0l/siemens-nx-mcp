@@ -333,7 +333,7 @@
   },
   {
    "call": "nx_create_joined_curve",
-   "intent": "A and B do not touch: refused",
+   "intent": "A and B are 36 mm apart: refused before NX with the gap",
    "args": {
     "curves": [
      "$A.data.curve.id",
@@ -342,8 +342,13 @@
    },
    "expect": {
     "ok": false,
-    "error.code": "NX_BUILD_FAILED",
-    "mutation_outcome": "rolled_back"
+    "error.code": "NX_WRONG_GEOMETRY",
+    "error.field": "/curves/1",
+    "error.details.gap": {
+     "close": 58.30951895,
+     "tol": 0.0001
+    },
+    "mutation_outcome": "not_started"
    }
   },
   {
@@ -588,7 +593,7 @@
      ],
      [
       70,
-      -45,
+      -50,
       0
      ]
     ]
@@ -667,6 +672,226 @@
     "data.curves.2.length": {
      "close": 62.793814,
      "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_trim_curve",
+   "intent": "A divide point 5 off the line is refused with the nearest curve point",
+   "args": {
+    "curve": "$T.data.curve.id",
+    "method": "divide",
+    "at": [
+     [
+      20,
+      -50,
+      0
+     ],
+     [
+      70,
+      -45,
+      0
+     ]
+    ]
+   },
+   "expect": {
+    "ok": false,
+    "error.field": "/at/1",
+    "error.details.distance": {
+     "close": 5,
+     "tol": 1e-06
+    },
+    "error.details.nearest": {
+     "close": [
+      70,
+      -50,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "D",
+   "args": {
+    "points": [
+     [
+      50,
+      0,
+      0
+     ],
+     [
+      80,
+      -10,
+      0
+     ]
+    ],
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_joined_curve",
+   "intent": "A, C and D meet at (50, 0, 0): a branch, refused before NX",
+   "args": {
+    "curves": [
+     "$A.data.curve.id",
+     "$C.data.curve.id",
+     "$D.data.curve.id"
+    ]
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_WRONG_GEOMETRY",
+    "error.details.branch_at": {
+     "close": [
+      50,
+      0,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_bridge_curve",
+   "intent": "Tangent magnitude 2 at the start, 0.5 at the end: still tangent at both ends",
+   "args": {
+    "start": {
+     "curve": "$A.data.curve.id",
+     "end": "end"
+    },
+    "end": {
+     "curve": "$B.data.curve.id",
+     "end": "start"
+    },
+    "start_magnitude": 2,
+    "end_magnitude": 0.5
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.start_magnitude": 2,
+    "data.end_magnitude": 0.5,
+    "data.start_angle": {
+     "close": 0,
+     "tol": 0.01
+    },
+    "data.end_angle": {
+     "close": 0,
+     "tol": 0.01
+    },
+    "data.start_gap": {
+     "close": 0,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_bridge_curve",
+   "intent": "A magnitude on a G0 end is refused",
+   "args": {
+    "start": {
+     "curve": "$A.data.curve.id",
+     "end": "end"
+    },
+    "end": {
+     "curve": "$B.data.curve.id",
+     "end": "start"
+    },
+    "end_continuity": "G0",
+    "end_magnitude": 2
+   },
+   "expect": {
+    "ok": false,
+    "error.field": "/end_magnitude",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "bar",
+   "args": {
+    "shape": "block",
+    "origin": [
+     300,
+     0,
+     0
+    ],
+    "length": 100,
+    "width": 10,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "rim",
+   "args": {
+    "owner": "$bar.data.bodies.0.id",
+    "kind": "edge",
+    "near": [
+     350,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_create_trim_curve",
+   "intent": "Trim a model edge (x 300..400) at x 330, keeping the start piece",
+   "args": {
+    "curve": "$rim.data.items.0.id",
+    "planes": [
+     {
+      "origin": [
+       330,
+       0,
+       0
+      ],
+      "normal": [
+       1,
+       0,
+       0
+      ]
+     }
+    ],
+    "keep": [
+     310,
+     0,
+     0
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 1,
+    "data.length": {
+     "close": 30,
+     "tol": 1e-06
+    },
+    "data.source_length": {
+     "close": 100,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_trim_curve",
+   "intent": "Divide the same edge into 4 equal pieces",
+   "args": {
+    "curve": "$rim.data.items.0.id",
+    "method": "divide",
+    "segments": 4
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 4,
+    "data.length": {
+     "close": 100,
+     "tol": 1e-06
     }
    }
   }

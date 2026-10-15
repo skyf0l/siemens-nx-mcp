@@ -54,7 +54,12 @@
     {"call": "nx_create_sketch_corner",
      "args": {"sketch": "$la.data.sketch.id", "first": "$c.data.curves.2.curve.id", "second": "$c.data.curves.3.curve.id",
               "kind": "chamfer", "distance": 2},
-     "expect": {"error.code": "NX_WRONG_GEOMETRY", "mutation_outcome": "rolled_back"}},
+     "expect": {"error.code": "NX_WRONG_GEOMETRY", "mutation_outcome": "not_started"}},
+    {"call": "nx_create_sketch_corner",
+     "args": {"sketch": "$la.data.sketch.id", "first": "$c.data.curves.2.curve.id", "second": "$c.data.curves.3.curve.id",
+              "kind": "fillet", "radius": 2},
+     "expect": {"error.code": "NX_WRONG_GEOMETRY", "error.field": "/second", "mutation_outcome": "not_started",
+                "error.details.gap": {"close": 42.4264069, "tol": 1e-6}}},
     {"call": "nx_finish_sketch", "setup": true, "args": {"sketch": "$la.data.sketch.id"}}
   ]
 }

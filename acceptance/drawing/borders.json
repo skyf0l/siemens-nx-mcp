@@ -145,6 +145,34 @@
    "call": "nx_set_sheet_borders",
    "args": {
     "margins": [
+     20,
+     10,
+     12,
+     10
+    ]
+   },
+   "intent": "Acceptance: omitted zones keep the current (off) setting on a replace",
+   "expect": {
+    "data.zones": false,
+    "data.replaced": true,
+    "data.columns": {
+     "count": 0
+    },
+    "data.outer": {
+     "close": [
+      20,
+      10,
+      408,
+      287
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_sheet_borders",
+   "args": {
+    "margins": [
      200,
      10,
      230,
@@ -165,6 +193,64 @@
     "error.code": "NX_NOT_FOUND",
     "error.field": "/sheet",
     "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     150
+    ]
+   }
+  },
+  {
+   "call": "nx_set_sheet_borders",
+   "args": {
+    "margins": [
+     100,
+     10,
+     140,
+     10
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.inner": {
+     "close": [
+      106,
+      16,
+      274,
+      281
+     ],
+     "tol": 1e-06
+    },
+    "warnings.0.code": "NX_VIEW_OVERLAP",
+    "warnings.0.message": {
+     "contains": "cross the inner frame"
+    }
+   }
+  },
+  {
+   "call": "nx_set_sheet_borders",
+   "args": {
+    "margins": [
+     20,
+     10,
+     10,
+     10
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "warnings": {
+     "count": 0
+    }
    }
   },
   {

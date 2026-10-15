@@ -15,11 +15,19 @@ from __future__ import annotations
 from typing import Annotated, Literal
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Direction, Doc, EdgeRef, FaceRef, Items, Length
 from nx_mcp.domains.modeling import common, sync_common, sync_relate
 from nx_mcp.kit import builders, expr, geom, measure, readback, select
+
+# NX 2406, an edge moved or offset beyond its faces (an offset that eats the face):
+# "Operation forbidden on suppressed object".
+TOO_FAR = 630003
+TOO_FAR_HINT = (
+    "The distance is larger than the faces at the edges allow (it would consume a face): "
+    "use a smaller distance"
+)
 
 
 class EditEdgesData(common.FeatureData):
@@ -60,6 +68,23 @@ def _shifts(tx, edges, before) -> list:
 def _on_side(shifts, normal, scale) -> bool:
     """Every straight edge slid within the plane of ``normal`` (the along face)."""
     return all(abs(geom.dot(d, normal)) <= 1e-6 * scale for _, d in shifts)
+
+
+def _edit(tx, action, selected, a, normal, middles, scale):
+    """The committed feature; with ``normal`` (along) NX's side choice is checked and the
+    other face taken when it missed."""
+    if normal is None:
+        return _build(tx, action, selected, a)
+    session = tx.session
+    mark = session.SetUndoMark(tx.nx.Session.MarkVisibility.Invisible, "NX MCP offset edge")
+    try:
+        feature = _build(tx, action, selected, a)
+        if not _on_side(_shifts(tx, selected, middles), normal, scale):
+            session.UndoToMark(mark, None)
+            feature = _build(tx, action, selected, a, reverse=True)
+    finally:
+        session.DeleteUndoMark(mark, None)
+    return feature
 
 
 def _build(tx, action, edges, a, reverse=False):
@@ -112,7 +137,8 @@ def nx_edit_edges(
     if (direction is not None) != (action == "move"):
         verb = "needs" if action == "move" else "does not take"
         fail("NX_INVALID_ARGUMENT", f"{action} {verb} direction", field="/direction",
-             hint="move takes distance and direction; offset takes distance and along")  # fmt: skip
+             hint="move takes distance and direction; offset takes distance and, optionally, "
+             "along")  # fmt: skip
     if along is not None and action != "offset":
         fail("NX_INVALID_ARGUMENT", "along applies to offset", field="/along")
     if float(distance) == 0.0:
@@ -138,20 +164,16 @@ def nx_edit_edges(
     before = measure.volume(tx, body)
     middles = _middles(tx, selected)
     scale = max([1.0, *(abs(c) for m, _ in middles.values() for c in m)])
-    if normal is None:
-        feature = _build(tx, action, selected, a)
-    else:  # NX picks the face: try its choice, take the other face when it missed along
-        session = tx.session
-        mark = session.SetUndoMark(tx.nx.Session.MarkVisibility.Invisible, "NX MCP offset edge")
-        try:
-            feature = _build(tx, action, selected, a)
-            if not _on_side(_shifts(tx, selected, middles), normal, scale):
-                session.UndoToMark(mark, None)
-                feature = _build(tx, action, selected, a, reverse=True)
-        finally:
-            session.DeleteUndoMark(mark, None)
-    sync_common.consistent(tx, body)
-    shifts = _shifts(tx, selected, middles)
+    try:
+        with native({TOO_FAR: "NX_BUILD_FAILED"}):
+            feature = _edit(tx, action, selected, a, normal, middles, scale)
+            sync_common.consistent(tx, body)
+            shifts = _shifts(tx, selected, middles)
+    except NXError as error:
+        if error.nx_code == TOO_FAR:  # the face the edges slide over (or the edge) is gone
+            error.field = error.field or "/distance"
+            error.hint = TOO_FAR_HINT
+        raise
     tol = 1e-6 * scale
     for i, d in shifts:
         if action == "move":

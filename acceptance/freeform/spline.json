@@ -445,6 +445,62 @@
    }
   },
   {
+   "call": "nx_create_spline",
+   "intent": "Periodic with the start point repeated: the repeat is dropped",
+   "args": {
+    "points": [
+     [
+      0,
+      100,
+      60
+     ],
+     [
+      20,
+      100,
+      60
+     ],
+     [
+      20,
+      120,
+      60
+     ],
+     [
+      0,
+      120,
+      60
+     ],
+     [
+      0,
+      100,
+      60
+     ]
+    ],
+    "periodic": true
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.periodic": true,
+    "data.degree": 3,
+    "data.start": {
+     "close": [
+      0,
+      100,
+      60
+     ],
+     "tol": 1e-06
+    },
+    "data.end": {
+     "close": [
+      0,
+      100,
+      60
+     ],
+     "tol": 1e-06
+    },
+    "warnings.0.code": "NX_NOTE"
+   }
+  },
+  {
    "call": "nx_check_model",
    "args": {},
    "expect": {

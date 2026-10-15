@@ -22,6 +22,7 @@ NX 2406 findings kept here:
 
 from __future__ import annotations
 
+import contextlib
 import difflib
 import re
 from typing import Annotated, Literal, TypedDict
@@ -49,7 +50,7 @@ from nx_mcp.core.types import (
 from nx_mcp.domains.sketch import common
 from nx_mcp.domains.sketch import curves as sketch_curves
 from nx_mcp.domains.sketch.common import CurveRow, Frame, Status
-from nx_mcp.kit import builders, curve, geom, readback, result, select
+from nx_mcp.kit import builders, curve, geom, readback, result, select, units
 from nx_mcp.kit import sketch as ksketch
 
 PRINCIPAL = {
@@ -67,7 +68,7 @@ class _Principal(TypedDict):
     principal: Annotated[
         str,
         Text(32),
-        Doc("xy, xz or yz (any case); local x,y = X,Y | X,Z (normal -Y) | Y,Z (normal X)"),
+        Doc("xy|top, xz|front or yz|right; local x,y = X,Y | X,Z (normal -Y) | Y,Z (normal X)"),
     ]
 
 
@@ -226,9 +227,9 @@ def face_frame(origin, normal, x=None):
     return at, x
 
 
-def _on_target(tx, p):
-    """A sketch on a planar face or datum plane, at a predictable frame (``face_frame``):
-    NX's own inferred origin is the face centre on some faces and a vertex on others."""
+def _on_check(tx, p):
+    """``(obj, origin, normal, x)`` of an ``on`` placement: the planar face or datum plane
+    and the sketch x direction, refused before anything is built."""
     obj, origin, normal = select.planar(tx, p["on"], "/placement/on")
     x = None
     if p.get("x_direction") is not None:
@@ -239,6 +240,14 @@ def _on_target(tx, p):
                 "x_direction must lie in the target plane",
                 field="/placement/x_direction",
             )
+    return obj, origin, normal, x
+
+
+def _on_target(tx, checked):
+    """A sketch on a planar face or datum plane (``_on_check``), at a predictable frame
+    (``face_frame``): NX's own inferred origin is the face centre on some faces and a
+    vertex on others."""
+    obj, origin, normal, x = checked
     at, x = face_frame(origin, normal, x)
     part, nx = tx.part, tx.nx
     with builders.build(tx, part.Sketches.CreateSketchInPlaceBuilder2, nx.Sketch.Null) as b:
@@ -261,10 +270,11 @@ def _on_target(tx, p):
     return sketch, at, normal, x
 
 
-def _on_path(tx, p):
-    session, nx = tx.session, tx.nx
-    part = tx.part
-    if not session.IsBatch and session.Parts.Display != part:
+def _path_check(tx, p):
+    """``(edges, orienting face or None)`` of a path placement, refused before anything is
+    built."""
+    session = tx.session
+    if not session.IsBatch and session.Parts.Display != tx.part:
         fail(
             "NX_WRONG_PART_CONTEXT",
             "A path sketch needs the same work and display part",
@@ -274,6 +284,13 @@ def _on_path(tx, p):
     face = None
     if p.get("orienting_face") is not None:
         face = select.one(tx, p["orienting_face"], "face", field="/placement/orienting_face")
+    return edges, face
+
+
+def _on_path(tx, p, checked):
+    session, nx = tx.session, tx.nx
+    part = tx.part
+    edges, face = checked
     along = nx.SketchAlongPathBuilder
     with builders.build(tx, part.Sketches.CreateSketchAlongPathBuilder, None) as b:
         section = b.Section
@@ -358,18 +375,26 @@ def nx_create_sketch(
     finish: Annotated[bool, Doc("Finish the sketch after the curves, ready for modeling")] = False,
 ) -> SketchData:
     """Create a sketch on a principal plane, a planar face or datum plane, or normal to an edge
-    path. It stays open for the sketch tools; curves and finish make a profile in one call
-    (loops reports closure): each closed loop is a region, a loop inside another makes a
-    hollow profile. Finish before modeling."""
+    path. It stays open (parked: deactivated between calls) for the sketch tools; curves and
+    finish make a profile in one call (loops reports closure): each closed loop is a region,
+    a loop inside another makes a hollow profile. Finish before modeling."""
     where = normal_placement(placement)
     plans = sketch_curves.check_curves(curves) if curves else []
     want = _principal_frame(where) if "principal" in where else None
+    with tx.checks():  # refusals before anything is built: not_started
+        if name:
+            _require_new_name(tx, name)
+        checked: tuple | None = None
+        if "on" in where:
+            checked = _on_check(tx, where)
+        elif want is None:
+            checked = _path_check(tx, where)
     if want is not None:
         sketch = _on_principal(tx, want)
     elif "on" in where:
-        sketch, origin, normal, x = _on_target(tx, where)
+        sketch, origin, normal, x = _on_target(tx, checked)
     else:
-        sketch, edges = _on_path(tx, where)
+        sketch, edges = _on_path(tx, where, checked)
     got = common.frame_row(ksketch.frame(sketch))
     if want is not None:
         readback.expect_close(got["origin"], want["origin"], "origin")
@@ -382,7 +407,8 @@ def nx_create_sketch(
     else:
         _verify_path(tx, got, edges)
     if name:
-        result.rename(tx, sketch, name)
+        with native({SKETCH_NAME_EXISTS: "NX_NAME_CONFLICT"}, default="NX_BUILD_FAILED"):
+            result.rename(tx, sketch, name)
     sketch.Activate(tx.nx.Sketch.ViewReorient.FalseValue)
     active = tx.session.ActiveSketch
     readback.expect(active is not None and int(active.Tag) == int(sketch.Tag), "active")
@@ -404,6 +430,24 @@ def nx_create_sketch(
         readback.expect(tx.session.ActiveSketch is None, "parked")
         data["parked"] = True
     return data
+
+
+# NX 2406: "Sketch already exists with specified name" when a sketch is named after another.
+SKETCH_NAME_EXISTS = 1720003
+
+
+def _require_new_name(tx, name):
+    """Refuse a name another sketch of the part has (NX compares without case)."""
+    for other in tx.part.Sketches:
+        if str(getattr(other, "Name", "")).upper() == str(name).upper():
+            fail(
+                "NX_NAME_CONFLICT",
+                f"The part already has a sketch named {other.Name}",
+                field="/name",
+                hint="Choose another name, or omit name (NX numbers sketches SKETCH_000...); "
+                "details.existing is that sketch",
+                details={"existing": tx.ref(other, "sketch")["id"]},
+            )
 
 
 def _deactivate(tx, sk):
@@ -508,7 +552,14 @@ def _reopen_on_undo(tx, sk) -> None:
 class GeometryRow(CurveRow, total=False):
     part: Annotated[dict, Doc("start/end/center in work-part coordinates")]
     constraints: Annotated[int, Doc("Constraints and dimensions on this curve")]
-    dof: Annotated[int, Doc("Remaining degrees of freedom (0: fully constrained)")]
+    projected: Annotated[bool, Doc("Projected or intersection curve (follows the model)")]
+    source: Annotated[str, Doc("projected: the model edge, curve or face it comes from")]
+    dof: Annotated[
+        int,
+        Doc(
+            "Ways it can still move (0: fully fixed); freedom shared by joined curves counts on each"
+        ),
+    ]
 
 
 class SketchInfo(TypedDict, total=False):
@@ -529,6 +580,7 @@ INCLUDE = ("geometry", "constraints", "status")
 def _geometry(tx, sk, f, found):
     """Curve rows with their constraint count and, when known, their remaining DOF."""
     per_curve = found["curves"] if found else {}
+    included = _included_curves(tx, sk, f)
     rows = []
     for c in ksketch.geometry(sk):
         count = len(ksketch.attached(tx, sk, c))
@@ -542,8 +594,128 @@ def _geometry(tx, sk, f, found):
             row["constraints"] = count
         if int(c.Tag) in per_curve:
             row["dof"] = per_curve[int(c.Tag)]
+        row.update(included.get(int(c.Tag)) or _included(tx, sk, c))
         rows.append(row)
     return rows
+
+
+# NX 2406 features that make sketch curves from model geometry; their curves are not
+# "included geometry" (Sketch.IsIncludedGeometry is False for them).
+PROJECTION_FEATURES = ("CPROJ", "Intersection Curve")
+
+
+def _included_curves(tx, sk, f) -> dict[int, dict]:
+    """``{curve tag: {"projected": True, "source": ref}}`` for the curves the sketch's
+    projection (``CPROJ``) and intersection features made. The source is the projected
+    edge or curve (the feature's section), or the intersected face (read from the
+    intersection's builder while the sketch is active, never with another sketch open);
+    it is left out when it cannot be told."""
+    s = sk.sketch if isinstance(sk, ksketch.Editing) else sk
+    curves = {int(c.Tag): c for c in ksketch.geometry(s)}
+    out: dict[int, dict] = {}
+    if not curves:
+        return out
+    pending = []
+    part = getattr(s, "OwningPart", None) or tx.part
+    for feature in part.Features:
+        try:
+            kind = str(feature.FeatureType)
+            if kind not in PROJECTION_FEATURES:
+                continue
+            made = [curves[int(e.Tag)] for e in feature.GetEntities() if int(e.Tag) in curves]
+        except Exception:  # NX cannot describe this feature: not a projection of ours
+            continue
+        for c in made:
+            out[int(c.Tag)] = {"projected": True}
+        if made and kind == "CPROJ":
+            _assign_sources(tx, f, made, _section_sources(feature), out)
+        elif made:
+            pending.append((feature, made))
+    if pending:
+        _intersection_sources(tx, part, s, pending, out)
+    return out
+
+
+def _section_sources(feature) -> list:
+    """The edges and curves of a projection feature's sections, in order."""
+    found: list = []
+    try:
+        for section in feature.GetSections():
+            for data in section.GetSectionData():
+                for element in data.GetSectionElementsData():
+                    obj = element.GetSectionElementData()[0]
+                    if obj is not None and all(int(o.Tag) != int(obj.Tag) for o in found):
+                        found.append(obj)
+    except Exception:  # NX cannot read the section back
+        return []
+    return found
+
+
+def _assign_sources(tx, f, made, sources, out) -> None:
+    """Each curve's source: the only one, else the one whose projection lies on it."""
+    points: list = []
+    tol = 0.0
+    if len(sources) == 1:
+        rows = [(c, None) for c in made]
+    else:
+        tol = units.part_tolerance(tx, 0.01)
+        try:
+            rows = [(c, ksketch.read(tx, f, c)) for c in made]
+            points = [(obj, common.samples(tx, f, obj)) for obj in sources]
+        except Exception:  # geometry NX cannot evaluate: the sources are left out
+            return
+    for c, row in rows:
+        source = (
+            sources[0]
+            if row is None
+            else next((obj for obj, p in points if common.on_row(row, p, tol)), None)
+        )
+        if source is not None:
+            with contextlib.suppress(Exception):  # another part's geometry has no ref here
+                out[int(c.Tag)]["source"] = tx.ref(source)["id"]
+
+
+def _intersection_sources(tx, part, s, pending, out) -> None:
+    """The faces of the intersection features (``pending``: ``(feature, curves)``); NX
+    opens their builders only with the sketch active, so a parked sketch is activated
+    under a scratch mark; with another sketch open the faces are left out."""
+    if _other_active(tx, s):
+        return
+    with tx.scratch(), ksketch.editing(tx, s):
+        factory = part.Sketches.CreateIntersectionCurveBuilder
+        for feature, made in pending:
+            try:
+                b = factory(feature)
+                try:
+                    faces = list(b.FaceCollector.GetObjects())
+                finally:
+                    b.Destroy()
+                source = tx.ref(faces[0])["id"] if len(faces) == 1 else None
+            except Exception:  # the face is a courtesy: the curves stay flagged
+                continue
+            for c in made:
+                if source is not None:
+                    out[int(c.Tag)]["source"] = source
+
+
+def _included(tx, sk, curve) -> dict:
+    """``{"projected": True, "source": ref}`` for a curve NX reports as included geometry
+    (``Sketch.IsIncludedGeometry``), else {}."""
+    s = sk.sketch if isinstance(sk, ksketch.Editing) else sk
+    ask = getattr(s, "IsIncludedGeometry", None)
+    try:
+        if ask is None or not bool(ask(curve)):
+            return {}
+    except Exception:  # NX cannot say for this object
+        return {}
+    out: dict = {"projected": True}
+    try:
+        parent = s.GetParentOfIncludedGeometry(curve)
+        if parent is not None:
+            out["source"] = tx.ref(parent)["id"]
+    except Exception:  # the parent cannot be referenced (another part's geometry)
+        pass
+    return out
 
 
 def _constraints(tx, sk):
@@ -569,8 +741,10 @@ def _solver_status(tx, sk):
     if _other_active(tx, sk):
         fail(
             "NX_SKETCH_ACTIVE",
-            "Another sketch is active; its status can be read, this one's cannot",
-            hint="Finish the active sketch first",
+            "Another sketch of the part is open; its status can be read, this one's cannot",
+            hint="Finish the open sketch (details.open_sketch) first, or ask for geometry and "
+            "constraints only",
+            details=ksketch.open_details(tx, ksketch.open_sketch(tx)),
         )
     with tx.scratch(), ksketch.editing(tx, sk) as editing:
         return common.status_row(tx, editing, ksketch.status(tx, editing))
@@ -618,9 +792,20 @@ def nx_get_sketch(
     if data["active"] and tx.session.ActiveSketch is None:
         data["parked"] = True
     found = None
-    if "status" in wanted:
+    other = _other_active(tx, sk)
+    if other and wanted != {"status"}:  # the solver status needs this sketch activated
+        if "status" in wanted:
+            wanted.discard("status")
+            open_ = ksketch.open_details(tx, ksketch.open_sketch(tx))
+            tx.warn(
+                "NX_NOTE",
+                f"status and per-curve dof left out: another sketch of the part is open "
+                f"({open_.get('open_sketch_name', '')} {open_.get('open_sketch', '')}); "
+                "finish it to read them",
+            )
+    elif "status" in wanted:
         data["status"], found = _solver_status(tx, sk)
-    elif "geometry" in wanted and not _other_active(tx, sk):
+    elif "geometry" in wanted:
         found = _solver_status(tx, sk)[1]  # per-curve DOF needs NX's count to check
     if "geometry" in wanted:
         data["curves"] = _geometry(tx, sk, f, found)
@@ -643,6 +828,11 @@ class Trial(TypedDict, total=False):
     error: str
 
 
+class FreeCurve(TypedDict):
+    curve: str
+    dof: Annotated[int | None, Doc("Ways it can still move; None: not computable")]
+
+
 class ConflictData(TypedDict, total=False):
     sketch: result.Row
     state: str
@@ -653,6 +843,23 @@ class ConflictData(TypedDict, total=False):
     total_constraints: int
     complete: bool
     relieving: list[str]
+    dof: Annotated[int | None, Doc("Under-constrained: remaining degrees of freedom")]
+    free: Annotated[list[FreeCurve], Doc("Under-constrained: the curves that can still move")]
+
+
+def _free_curves(tx, sk, found) -> list[FreeCurve]:
+    """Curves that can still move: by the DOF analysis, else those without constraints."""
+    out: list[FreeCurve] = []
+    for c in ksketch.geometry(sk):
+        if ksketch.curve_kind(tx, c) == "other":
+            continue
+        if found is not None:
+            n = found["curves"].get(int(c.Tag), 0)
+            if n > 0:
+                out.append({"curve": tx.ref(c, "curve")["id"], "dof": n})
+        elif not ksketch.attached(tx, sk, c):
+            out.append({"curve": tx.ref(c, "curve")["id"], "dof": None})
+    return out
 
 
 @tool(
@@ -661,11 +868,12 @@ class ConflictData(TypedDict, total=False):
     summary="Find conflicts in sketch {sketch}",
     keywords=(
         "over constrained",
+        "under constrained",
         "conflicting constraints",
-        "sketch conflict",
         "diagnose sketch",
         "check sketch",
-        "sketch solver",
+        "fully constrained",
+        "free curves",
         "constraint conflict",
     ),
     requires=("work_part",),
@@ -679,44 +887,36 @@ def nx_check_sketch(
     sketch: SketchRef,
     max_checks: Annotated[int, Range(ge=1, le=50), Doc("Constraints to try removing")] = 20,
 ) -> ConflictData:
-    """Find the constraints behind an over- or inconsistently constrained sketch. Each is removed
-    on trial (always undone) and the solver re-run; relieving lists those whose removal alone
-    solves it. Mainly for sketches already in conflict (e.g. imported): the sketch tools refuse
-    conflicts."""
+    """Diagnose a sketch's constraints. Under-constrained: free lists the curves that can still
+    move (dimension or constrain them). Over- or inconsistently constrained (sketches opened
+    from files: the sketch tools refuse conflicts): each constraint is removed on trial (always
+    undone) and relieving lists those whose removal alone solves it."""
     sk = ksketch.resolve(tx, sketch)
     if _other_active(tx, sk):
-        fail("NX_SKETCH_ACTIVE", "Another sketch is active", hint="Finish the active sketch first")
-    session, nx = tx.session, tx.nx
+        fail(
+            "NX_SKETCH_ACTIVE",
+            "Another sketch is active",
+            hint="Finish the active sketch (details.open_sketch) first",
+            details=ksketch.open_details(tx, ksketch.open_sketch(tx)),
+        )
     trials: list[Trial] = []
+    free: list[FreeCurve] | None = None
+    dof = None
     with tx.scratch(), ksketch.editing(tx, sk) as editing:
-        baseline = common.status(tx, editing, dof=False)
+        native = ksketch.status(tx, editing)
+        under = native["status"] == "UnderConstrained"
+        baseline, found = common.status_row(tx, editing, native, dof=under)
         explicit = common.explicit_conflicts(tx, editing)
         constraints = ksketch.constraints(tx, editing)
         bad = baseline["state"] in ("over_constrained", "inconsistently_constrained")
         candidates = constraints if bad or explicit else []
         for i, con in enumerate(candidates[:max_checks]):
             tx.checkpoint(done=i, total=min(len(candidates), max_checks))
-            trial: Trial = {
-                "constraint": tx.ref(con, "sketch_constraint"),
-                "relieves_conflict": False,
-            }
-            mark = session.SetUndoMark(nx.Session.MarkVisibility.Invisible, "NX MCP conflict trial")
-            try:
-                errors = editing.sketch.DeleteObjects([con])
-                if errors is not None:
-                    errors.Dispose()
-                state = common.status(tx, editing, dof=False)["state"]
-                trial["state"] = state
-                trial["relieves_conflict"] = state in (
-                    "under_constrained",
-                    "well_constrained",
-                ) and not common.explicit_conflicts(tx, editing)
-            except Exception as error:  # a trial failure is reported, not raised
-                trial["error"] = str(error)
-            finally:
-                session.UndoToMark(mark, None)
-                session.DeleteUndoMark(mark, None)
+            trial: Trial = {"constraint": tx.ref(con, "sketch_constraint")}
+            trial.update(common.trial(tx, editing, con))  # type: ignore[typeddict-item]
             trials.append(trial)
+        if under and not candidates:
+            free, dof = _free_curves(tx, editing, found), baseline["dof"]
     out: ConflictData = {
         "sketch": tx.ref(sk, "sketch"),
         "state": baseline["state"],
@@ -725,9 +925,17 @@ def nx_check_sketch(
         "checked": len(trials),
         "total_constraints": len(constraints),
         "complete": len(trials) == len(candidates) and not any("error" in t for t in trials),
-        "relieving": [t["constraint"]["id"] for t in trials if t["relieves_conflict"]],
+        "relieving": [t["constraint"]["id"] for t in trials if t.get("relieves_conflict")],
     }
-    if not candidates:
+    if free is not None:
+        out["free"], out["dof"] = free, dof
+        count = baseline["free_curves"] if baseline["free_curves"] is not None else len(free)
+        out["note"] = (
+            f"The sketch is under-constrained (NX counts {count} curves not fully "
+            "constrained): add dimensions or constraints to the curves in free"
+            + ("" if found is not None else " (free lists only those without any constraint)")
+        )
+    elif not candidates:
         out["note"] = (
             f"The sketch is {baseline['state']}, not over-constrained and without conflicts: "
             "nothing to relieve"

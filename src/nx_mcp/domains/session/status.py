@@ -23,7 +23,10 @@ interrupted.
 from __future__ import annotations
 
 import contextlib
+import json
 import time
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core import catalogue, target
@@ -39,6 +42,10 @@ Section = Literal["bridge", "parts", "control", "workspace", "operation"]
 # ("too short: 5 of at least 8 characters") instead of "has an invalid format".
 OperationRef = Annotated[str, Text(160), Doc("operation_id of an earlier changing call")]
 CancelRef = Annotated[str, Text(160), Doc("operation_id of the running call to cancel")]
+# A running call whose receipt shows no progress for this long gets a note (a dialog, the
+# engineer or one long native step may hold NX).
+SILENT_SECONDS = 60.0
+HEARTBEAT = (".nx-mcp", "ui-state.json")  # the interactive host's heartbeat (host/heartbeat.py)
 # Why a receipt is missing: only calls that change something are receipted.
 NO_RECEIPT = (
     "No receipt for this id: it was never used, or it belongs to a read-only call "
@@ -196,12 +203,17 @@ class StatusData(TypedDict, total=False):
 
 class OperationData(TypedDict, total=False):
     operation_id: str
-    state: str  # running, committed, failed, unknown
+    # running, committed, reverted (committed, then an undo or restore reverted it: its
+    # result's refs are stale), failed, unknown
+    state: str
     tool: str | None
     mutation_outcome: str | None
     started_at: str | None
     finished_at: str | None
-    progress: dict | None  # {completed, total, at}
+    progress: dict | None  # {completed, total, at, age_seconds}
+    # a running call NX cannot go on with: {title, seconds, since} of the modal dialog
+    blocked_by_dialog: dict | None
+    note: str | None  # why a running call shows no progress
     cancel_requested: bool
     reverted_by: str | None  # the undo (operation_id) or checkpoint that reverted it
     # the run an undo reverted before this one ran again under the same id (re-run):
@@ -209,8 +221,10 @@ class OperationData(TypedDict, total=False):
     previous: dict | None
     reason: str | None  # why the state is unknown
     error: dict | None
-    result: dict | None  # the committed call's envelope
-    arguments: dict | None  # the request (file contents omitted)
+    result: dict | None  # the committed call's envelope (with full), else None
+    result_stale: bool  # true: reverted, the result's refs are stale
+    arguments: dict | None  # the request, file contents left out (with full)
+    omitted: list[str]  # what full would add: result, arguments
 
 
 class CancelData(TypedDict):
@@ -218,6 +232,7 @@ class CancelData(TypedDict):
     tool: str | None
     state: str
     cancel_requested: bool
+    note: str  # the call stops at its next step; nx_get_operation shows its outcome
 
 
 # ---------------------------------------------------------------------------
@@ -410,8 +425,8 @@ def nx_get_status(
     | None = None,
 ) -> StatusData:
     """NX build, bridge state, panel mode, work/display part, workspace root/rules, running
-    operation. Answers in seconds even when NX is busy, hung or down: bridge.health says
-    what runs, for how long, what to do. Mode auto or ask: only the engineer changes it."""
+    operation. Answers in seconds even when NX is busy, hung or down (bridge.health then says
+    what runs and what to do). Mode auto or ask: only the engineer changes it."""
     services = tx.services
     status = services.control_status()
     session_parts = services.session.Parts
@@ -480,6 +495,67 @@ def _record(tx: Tx, operation: str) -> dict:
     return record
 
 
+def _iso(seconds) -> str | None:
+    if not isinstance(seconds, (int, float)):
+        return None
+    return datetime.fromtimestamp(seconds, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def dialog_row(blocked: dict | None, now: float | None = None) -> dict | None:
+    """A modal dialog that blocks NX as status reads show it: title and text, ``since``
+    as UTC ISO 8601 and ``seconds`` it has waited (the host's window handle and its raw
+    epoch stay inside the host)."""
+    if not isinstance(blocked, dict):
+        return None
+    since = blocked.get("since")
+    now = time.time() if now is None else now
+    row = {k: v for k, v in blocked.items() if k not in ("hwnd", "since")}
+    row["since"] = _iso(since)
+    row["seconds"] = round(now - since) if isinstance(since, (int, float)) else None
+    return row
+
+
+def _heartbeat(root) -> dict | None:
+    """The interactive host's last heartbeat (its status), None when absent or unreadable."""
+    try:
+        data = json.loads(Path(root, *HEARTBEAT).read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _age(at) -> float | None:
+    try:
+        return max(0.0, time.time() - datetime.fromisoformat(str(at)).timestamp())
+    except (TypeError, ValueError):
+        return None
+
+
+def _running(tx: Tx, operation: str, record: dict, out: dict) -> None:
+    """A running call: how old its last progress is, and the modal dialog NX waits on when
+    the host's heartbeat says this call is the one it blocks."""
+    progress = record.get("progress")
+    since = progress.get("at") if isinstance(progress, dict) else record.get("started_at")
+    age = _age(since)
+    if isinstance(progress, dict) and age is not None:
+        out["progress"] = {**progress, "age_seconds": round(age)}
+    beat = None
+    with contextlib.suppress(Exception):
+        beat = _heartbeat(tx.workspace.root)
+    blocked = (beat or {}).get("blocked_by_dialog")
+    if isinstance(blocked, dict) and (beat or {}).get("running_operation_id") == operation:
+        out["blocked_by_dialog"] = dialog_row(blocked)
+        out["note"] = (
+            "NX waits for the engineer to answer a modal dialog; the call goes on (or "
+            "fails) once it is answered. The agent never clicks NX dialogs"
+        )
+    elif age is not None and age > SILENT_SECONDS:
+        out["note"] = (
+            f"No progress for {round(age)} s: one long native step, a modal dialog or the "
+            "engineer may hold NX; nx_get_status says which"
+        )
+
+
 @tool(
     effect="read",
     label="Get operation",
@@ -491,25 +567,32 @@ def _record(tx: Tx, operation: str) -> dict:
         "outcome unknown",
         "batch progress",
         "retry safely",
+        "was it undone",
     ),  # fmt: skip
     cost="light",
     runs="sidecar",
     example={"operation": "op_0123456789abcdef"},
 )
-def nx_get_operation(tx: Tx, *, operation: OperationRef) -> OperationData:
-    """Durable state of an earlier changing call by its operation_id: running (with
-    progress), committed, failed or unknown. Answers while NX is busy or down; unknown
-    never authorizes a blind retry."""
+def nx_get_operation(
+    tx: Tx,
+    *,
+    operation: OperationRef,
+    full: Annotated[bool, Doc("Also return the arguments and result")] = False,
+) -> OperationData:
+    """Durable state of an earlier changing call by its operation_id: running, committed,
+    reverted (undone), failed or unknown. Answers while NX is busy or down; unknown never
+    authorizes a blind retry."""
     operation = operation.strip()
     record = _record(tx, operation)
     state = str(record.get("state") or "unknown")
+    reverted = state == "committed" and bool(record.get("reverted_by"))
     stored = record.get("envelope") if isinstance(record.get("envelope"), dict) else None
     error = record.get("error")
     if isinstance(error, dict):
         error = {k: error[k] for k in ("code", "category", "message", "field") if k in error}
-    return {
+    out: OperationData = {
         "operation_id": operation,
-        "state": state,
+        "state": "reverted" if reverted else state,
         "tool": record.get("tool"),
         "mutation_outcome": record.get("mutation_outcome"),
         "started_at": record.get("started_at"),
@@ -520,23 +603,42 @@ def nx_get_operation(tx: Tx, *, operation: OperationRef) -> OperationData:
         "previous": record.get("previous"),
         "reason": record.get("reason"),
         "error": error if state != "committed" else None,
-        "result": stored if state == "committed" else None,
-        "arguments": record.get("arguments"),
+        "result": None,
+        "arguments": None,
     }
+    if state == "running":
+        _running(tx, operation, record, out)  # type: ignore[arg-type]
+    omitted = []
+    if state == "committed" and stored is not None:
+        if full:
+            out["result"] = stored
+            if reverted:
+                out["result_stale"] = True
+        else:
+            omitted.append("result")
+    if record.get("arguments") is not None:
+        if full:
+            out["arguments"] = record.get("arguments")
+        else:
+            omitted.append("arguments")
+    if omitted:
+        out["omitted"] = omitted
+    return out
 
 
 @tool(
     effect="session",
     label="Cancel operation",
     summary="Cancel operation {operation}",
-    keywords=("cancel", "stop batch", "abort operation", "interrupt", "stop running call"),
+    keywords=("cancel", "stop batch", "abort operation", "interrupt", "stop running change"),
     cost="light",
     runs="sidecar",
     example={"operation": "op_0123456789abcdef"},
 )
 def nx_cancel_operation(tx: Tx, *, operation: CancelRef) -> CancelData:
-    """Ask a running call (nx_run_batch or another multi-step tool) to stop at its next
-    step; it then rolls back. One native NX call is never interrupted; check the
+    """Ask a running changing call (nx_run_batch or another multi-step tool) to stop at its
+    next step; it then rolls back. Only changing calls have receipts: reads (checks,
+    measurements) cannot be cancelled. One native NX call is never interrupted; check the
     outcome with nx_get_operation."""
     store = tx.services.store
     operation = operation.strip()
@@ -545,9 +647,12 @@ def nx_cancel_operation(tx: Tx, *, operation: CancelRef) -> CancelData:
         state = str(record.get("state") or "unknown")
         name = record.get("tool")
         if state == "unknown" and "fingerprint" not in record:
-            fail("NX_NOT_FOUND", f"No receipt for operation {operation}", field="/operation",
+            fail("NX_NOT_FOUND",
+                 f"No receipt for operation {operation}: only changing calls have receipts "
+                 "and can be cancelled; a read (nx_check_model, a measurement) cannot",
+                 field="/operation",
                  hint="Pass the operation_id you gave a changing call that is still running "
-                 "(nx_get_status shows which tool runs); reads are not receipted")  # fmt: skip
+                 "(nx_get_status shows which tool runs)")  # fmt: skip
         if state != "running":
             # Not a blocker that clears (NX_IN_USE): cancelling a finished call never works.
             fail("NX_NOT_RUNNING",
@@ -560,4 +665,12 @@ def nx_cancel_operation(tx: Tx, *, operation: CancelRef) -> CancelData:
                  field="/operation", details={"tool": name})  # fmt: skip
     tx.touched = True
     store.path(operation).with_suffix(".cancel").touch()
-    return {"operation_id": operation, "tool": name, "state": state, "cancel_requested": True}
+    tx.outcome = "not_applicable"  # a request flag: the call itself decides at its next step
+    return {
+        "operation_id": operation,
+        "tool": name,
+        "state": state,
+        "cancel_requested": True,
+        "note": "The call stops at its next step and rolls back; nx_get_operation shows "
+        "its outcome",
+    }

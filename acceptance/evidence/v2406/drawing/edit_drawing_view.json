@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/edit_drawing_view.json",
-  "scenario_sha256": "07972bf02606060f5ee860fc47a7d011b104d9feb959963aecc33a1a18d9167e",
+  "scenario_sha256": "331cd111815425071dbe468c6f553371a73ec2d7f6dccdf26f9d4df0ca5808fe",
   "domain": "drawing",
   "covers": {
     "nx_edit_drawing_view": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_edit_drawing_view": "df13c04b36ef9535b56ff037557731325e8d590f60667f2e8955423afd7887fe"
+    "nx_edit_drawing_view": "1b55bc54cabee50d33c05ab4f908dda0259c9ee2de1fd427ae054632a6f42e9e"
   },
-  "recorded": "2026-10-13T07:29:45Z",
+  "recorded": "2026-10-15T11:55:28Z",
   "passed": true,
-  "checks": 27,
+  "checks": 37,
   "failed_checks": 0,
   "steps": [
     {
@@ -56,7 +56,7 @@
       "call": "nx_edit_drawing_view",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 2
     },
     {
       "index": 7,
@@ -70,7 +70,7 @@
       "call": "nx_edit_drawing_view",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 9,
@@ -137,6 +137,34 @@
     },
     {
       "index": 18,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 19,
+      "call": "nx_edit_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 20,
+      "call": "nx_edit_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 21,
+      "call": "nx_edit_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 22,
       "call": "nx_close_part",
       "setup": true,
       "passed": true,

@@ -1,0 +1,92 @@
+{
+  "format": 2,
+  "scenario": "acceptance/display/presentation_paths.json",
+  "scenario_sha256": "3af593497737d20c08fe51bb0e857a9e7507194128d6fc0edfd58de5e7e29560",
+  "domain": "display",
+  "covers": {
+    "nx_save_presentation": [],
+    "nx_restore_display": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_save_presentation": "2ccfe80448451be39455bb835a7df8c3bf22fee21e13d98f92b28d4e5c83bc41",
+    "nx_restore_display": "2ccfe80448451be39455bb835a7df8c3bf22fee21e13d98f92b28d4e5c83bc41"
+  },
+  "recorded": "2026-10-15T11:45:36Z",
+  "passed": true,
+  "checks": 12,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_set_camera",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_save_presentation",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 5,
+      "call": "nx_save_presentation",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 6,
+      "call": "nx_set_camera",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_save_presentation",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 8,
+      "call": "nx_set_camera",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_restore_display",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 10,
+      "call": "nx_restore_display",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}

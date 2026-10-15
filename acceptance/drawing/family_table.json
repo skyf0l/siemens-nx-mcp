@@ -67,6 +67,21 @@
    "call": "nx_create_part_family_table",
    "args": {
     "origin": [
+     500,
+     500
+    ],
+    "sheet": "$sh.data.sheet.id"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/origin",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_part_family_table",
+   "args": {
+    "origin": [
      30,
      250
     ],
@@ -92,6 +107,18 @@
      "count": 3
     },
     "data.table.kind": "drawing_table"
+   },
+   "save": "ft"
+  },
+  {
+   "call": "nx_get_drawing_table",
+   "args": {
+    "table": "$ft.data.table.id"
+   },
+   "intent": "Acceptance: the returned table ref is the drawing table NX lists",
+   "expect": {
+    "ok": true,
+    "data.table.id": "$ft.data.table.id"
    }
   },
   {

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/motion/hatch_hinge.json",
-  "scenario_sha256": "6d18a73c14ff5a7f97540a9e2c3cc8cca218d9661c9da64623af43f934e016b5",
+  "scenario_sha256": "bebe08a4785dbac8e6f3cb92419c13feff1ba7b3f8bf0af2f8fb4eaddbd2c88b",
   "domain": "motion",
   "covers": {
     "nx_run_motion_sweep": [
@@ -12,11 +12,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_run_motion_sweep": "8fd6674e5f7727cfb92e8066f3b2d6c2c8c107007d48548287930571b80dcf8c"
+    "nx_run_motion_sweep": "b89d65271eece45c6b7b9d281e90cdd9f6d108bb95d948465420d705a9a5290e"
   },
-  "recorded": "2026-10-13T07:26:49Z",
+  "recorded": "2026-10-15T11:03:13Z",
   "passed": true,
-  "checks": 50,
+  "checks": 54,
   "failed_checks": 0,
   "steps": [
     {
@@ -168,6 +168,13 @@
     },
     {
       "index": 22,
+      "call": "nx_run_motion_sweep",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 23,
       "call": "nx_run_motion_sweep",
       "setup": false,
       "passed": true,

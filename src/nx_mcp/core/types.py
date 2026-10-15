@@ -67,10 +67,12 @@ class RefKind:
 
 @dataclass(frozen=True)
 class Quantity:
-    """A length, sheet length or angle that also accepts a unit string, and any of them (or
-    a ``count``) given as an NX expression name or formula (see :class:`Formula`)."""
+    """One shared quantity type: a number in the field's units, a unit string ('10 mm',
+    '2.5 cm', '90 deg', '12 kg'), or (all but ``mass``) an NX expression name or formula
+    (see :class:`Formula`), which the handler keeps driven where NX takes an expression.
+    ``scalar`` is a unitless real (a scale factor), ``count`` a whole number."""
 
-    dim: Literal["length", "sheet_length", "angle", "count"]
+    dim: Literal["length", "sheet_length", "angle", "count", "scalar", "mass"]
 
 
 @dataclass(frozen=True)
@@ -186,10 +188,14 @@ KINDS = frozenset(
 KIND_GROUPS = {"datum": frozenset({"datum_plane", "datum_axis", "datum_csys", "datum_point"})}
 
 # Short refs ("b:41"), object registry handles ("obj_...") and the anchors result rows of
-# features, bodies and sketches carry ("@smoke/a/blk.prt:EXTRUDE(4)#0"): an anchor
-# resolves wherever a ref does (core.references). A handle anchor of nx_create_anchor
-# ("@part:face=<handle>", with '=') is not a ref: nx_resolve_anchor takes it.
-ANCHOR_PATTERN = r"@[^@\r\n]{1,200}:[^:#@=\r\n]{1,100}(#[0-9]{1,6})?"
+# features, bodies, sketches and components carry ("@smoke/a/blk.prt:EXTRUDE(4)#0", an
+# occurrence "@asm.prt:COMPONENT pin 1>EXTRUDE(2)#0"), and nx_create_anchor's body, face,
+# edge and curve anchors ("@part:face=<handle>"): an anchor resolves wherever a ref does
+# (core.references).
+ANCHOR_PATTERN = (
+    r"@[^@\r\n]{1,200}:(?:(?:body|face|edge|curve)=[^@\r\n]{1,120}"
+    r"|[^:#@=\r\n]{1,200}(#[0-9]{1,6})?)"
+)
 REF_PATTERN = r"^([a-z]{1,3}:[1-9][0-9]{0,11}|obj_[A-Za-z0-9_]{8,120}|" + ANCHOR_PATTERN + r")$"
 REF_MAX = 320  # characters: an anchor names its part's workspace path
 # Batch children may refer to an earlier step's result: "$2.data.feature".
@@ -255,6 +261,10 @@ SheetLength = Annotated[float | str, Quantity("sheet_length"), Doc("Sheet units,
 Angle = Annotated[float | str, Quantity("angle"), Doc("Degrees, or '90 deg'")]
 # An integer count that may also be an NX expression name or formula (``"n_holes"``).
 CountValue = Annotated[int | str, Quantity("count")]
+# A unitless real (a scale factor) that may also be an NX expression name or formula.
+ScalarValue = Annotated[float | str, Quantity("scalar"), Doc("Number, or an expression")]
+# A mass in kilograms, or a unit string ('12 kg', '500 g', '26 lb'); no formulas.
+Mass = Annotated[float | str, Quantity("mass"), Doc("kg, or '12 kg'/'26 lb'")]
 # Numbers that also take '50%' (and a factor '2x'); add Range and Doc where used.
 Percent = Annotated[float, Ratio(100.0)]
 Fraction = Annotated[float, Ratio(1.0)]
@@ -313,6 +323,37 @@ class PathTo:
 SHORTHANDS = (RefTo, PathTo)
 
 PathIn = Annotated[str, PathTo("read")]
+
+# Suffixes that name one file kind (a path may end with either): gate 2's suffix rules on
+# both process boundaries (``nx_mcp.workspace`` and ``core.kernel``).
+SAME_KIND = ((".step", ".stp"), (".igs", ".iges"), (".jpg", ".jpeg"), (".tif", ".tiff"))
+
+
+def suffix_kinds(suffixes) -> list[tuple[str, ...]]:
+    """``suffixes`` grouped by file kind (:data:`SAME_KIND`), in order."""
+    out: list[tuple[str, ...]] = []
+    for suffix in suffixes:
+        group = next((g for g in SAME_KIND if suffix in g), (suffix,))
+        mine = tuple(s for s in suffixes if s in group)
+        if mine not in out:
+            out.append(mine)
+    return out
+
+
+def suffix_of(option: str | None, suffixes) -> str | None:
+    """The suffix a format option names (``step`` -> ``.step``, ``step_ap242`` -> ``.step``,
+    ``iges`` -> ``.iges``), else None: the longest suffix the option's letters start with."""
+    if not isinstance(option, str) or not option:
+        return None
+    key = "".join(c for c in option.casefold() if c.isalnum())
+    best = None
+    for suffix in suffixes:
+        bare = "".join(c for c in suffix.casefold() if c.isalnum())
+        if bare and key.startswith(bare) and (best is None or len(bare) > len(best[1])):
+            best = (suffix, bare)
+    return best[0] if best else None
+
+
 # Another tool's arguments (batch and preview children), checked by that tool's schema.
 Arguments = Annotated[dict, Json(of_tool="tool"), Doc("The tool's own arguments")]
 
@@ -339,9 +380,20 @@ class AxisByPoint(TypedDict):
 # A bare principal name stands for its one-field form: 'x', '-Z', '+y', 'z axis' for
 # {"principal": ...} of an axis or direction, 'xy', 'XY plane', 'top' of a plane (gate 1,
 # ``core.validate.bare_object``); a string shaped like a ref ('e:3') stays a ref.
-Plane = Annotated[str, RefTo("datum_plane", "face")] | PrincipalPlane | PlaneByNormal
-Axis = Annotated[str, RefTo("datum_axis", "edge", "face")] | PrincipalAxis | AxisByPoint
-Direction = Vec3 | Annotated[str, RefTo("edge", "datum_axis", "face")] | PrincipalAxis
+# The ref alternative's doc names the bare shorthands the field also takes.
+_PLANE_DOC = "Ref, or 'xy'/'yz'/'xz'"
+_AXIS_DOC = "Ref, or 'x'/'y'/'z'/'-x'/'-y'/'-z'"
+Plane = (
+    Annotated[str, RefTo("datum_plane", "face", "feature", doc=_PLANE_DOC)]
+    | PrincipalPlane
+    | PlaneByNormal
+)
+Axis = (
+    Annotated[str, RefTo("datum_axis", "edge", "face", doc=_AXIS_DOC)] | PrincipalAxis | AxisByPoint
+)
+Direction = (
+    Vec3 | Annotated[str, RefTo("edge", "datum_axis", "face", doc=_AXIS_DOC)] | PrincipalAxis
+)
 AxisName = Literal["x", "y", "z", "-x", "-y", "-z"]
 PRINCIPAL_VECTORS = {
     "x": (1.0, 0.0, 0.0),
@@ -488,13 +540,23 @@ forbid_extra(
 # Unit strings
 
 _NUMBER = r"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?"
-LENGTH_PATTERN = r"^\s*" + _NUMBER + r"\s*(mm|in)\s*$"
-ANGLE_PATTERN = r"^\s*" + _NUMBER + r"\s*(deg|rad)\s*$"
+LENGTH_PATTERN = r"^\s*" + _NUMBER + r"\s*(mm|cm|m|in|inch|inches)\s*$"
+ANGLE_PATTERN = r"^\s*" + _NUMBER + r"\s*(deg|degrees|rad)\s*$"
+MASS_PATTERN = r"^\s*" + _NUMBER + r"\s*(kg|g|lb|lbm)\s*$"
 QUANTITY_PATTERNS = {
     "length": LENGTH_PATTERN,
     "sheet_length": LENGTH_PATTERN,
     "angle": ANGLE_PATTERN,
+    "mass": MASS_PATTERN,
 }
+# Each unit string's unit in the base unit of its dimension (mm, degrees, kg).
+UNIT_FACTORS = {
+    "mm": 1.0, "cm": 10.0, "m": 1000.0, "in": 25.4, "inch": 25.4, "inches": 25.4,
+    "deg": 1.0, "degrees": 1.0, "rad": 180.0 / math.pi,
+    "kg": 1.0, "g": 0.001, "lb": 0.45359237, "lbm": 0.45359237,
+}  # fmt: skip
+# Dimensions an NX expression name or formula may give (NX evaluates it in the part).
+FORMULA_DIMS = frozenset({"length", "sheet_length", "angle", "count", "scalar"})
 # Longest accepted quantity string (a unit string such as "  -1.25e+3 mm ", or an NX
 # expression formula): gate 1 and the listings bound it.
 QUANTITY_MAX = 80
@@ -507,11 +569,14 @@ _TOKEN = re.compile(
     r"\s*(?:(\d+\.?\d*(?:[eE][-+]?\d+)?|\.\d+(?:[eE][-+]?\d+)?)|([A-Za-z_]\w*)|(.))"
 )
 _OPERATORS = "+-*/^"
-UNIT_WORDS = frozenset({"mm", "in", "deg", "rad", "cm", "m", "inch", "inches", "degrees"})
+UNIT_WORDS = frozenset(
+    {"mm", "in", "deg", "rad", "cm", "m", "inch", "inches", "degrees", "kg", "g", "lb", "lbm"}
+)
 _EXAMPLES = {
-    "length": "'10 mm' (mm or in)",
-    "sheet_length": "'10 mm' (mm or in)",
+    "length": "'10 mm' (mm or in, also cm or m)",
+    "sheet_length": "'10 mm' (mm or in, also cm or m)",
     "angle": "'90 deg' (deg or rad)",
+    "mass": "'12 kg' (kg, g or lb)",
 }
 
 
@@ -602,6 +667,10 @@ def formula_problem(text: str) -> str | None:
 def _expected(dim: str) -> str:
     if dim == "count":
         return "expected a whole number, or an NX expression name or formula"
+    if dim == "scalar":
+        return "expected a number, or an NX expression name or formula"
+    if dim == "mass":
+        return f"expected a number in kg or a string like {_EXAMPLES[dim]}"
     return (
         f"expected a number, a string like {_EXAMPLES[dim]}, or an NX expression name or "
         "formula ('thickness', 'thickness/2')"
@@ -638,7 +707,7 @@ def quantity_formula(value, dim: str) -> str | None:
             raise ValueError("must be finite")
         return None
     text = value.strip()
-    if _UNIT_LIKE.match(value) or text.casefold() in UNIT_WORDS:
+    if _UNIT_LIKE.match(value) or text.casefold() in UNIT_WORDS or dim not in FORMULA_DIMS:
         raise ValueError(_expected(dim))
     problem = formula_problem(text)
     if problem is not None:
@@ -671,8 +740,8 @@ def parse_quantity(value, dim: str) -> tuple[float, str | None]:
         or dim not in QUANTITY_PATTERNS
         or not re.match(QUANTITY_PATTERNS[dim], value)
     ):
-        units = "deg or rad" if dim == "angle" else "mm or in"
-        raise ValueError(f"expected a number or a string like '10 {units.split()[0]}' ({units})")
+        example = _EXAMPLES.get(dim, "'10 mm' (mm or in)")
+        raise ValueError(f"expected a number or a string like {example}")
     match = _SPLIT.match(value)
     assert match is not None
     number = float(match.group(1))
@@ -710,15 +779,11 @@ def convert_quantity(value, dim: str, to: str, evaluate=None, field: str | None 
     number, unit = parse_quantity(value, dim)
     if unit is None or unit == to:
         return number
-    if dim == "angle":
-        if to != "deg" or unit != "rad":
-            raise ValueError(f"cannot convert {unit} to {to}")
+    if unit not in UNIT_FACTORS or to not in UNIT_FACTORS:
+        raise ValueError(f"cannot convert {unit} to {to}")
+    if unit == "rad" and to == "deg":
         return math.degrees(number)
-    if (unit, to) == ("mm", "in"):
-        return number / MM_PER_IN
-    if (unit, to) == ("in", "mm"):
-        return number * MM_PER_IN
-    raise ValueError(f"cannot convert {unit} to {to}")
+    return number * UNIT_FACTORS[unit] / UNIT_FACTORS[to]
 
 
 def format_quantity(value: float, unit: str | None) -> str:

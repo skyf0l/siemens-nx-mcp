@@ -37,39 +37,60 @@ def offset_nx(direction=(0, -1, 0), seed=(0, 50, 20), refuse=None):
     return nx, curve(nx, *LOOP)
 
 
+def sided(nx, inward, outward, z=20):
+    """NX offsets to ``inward`` unless ``ReverseDirection`` (then ``outward``)."""
+    nx.on_commit(OFF, lambda b: made(nx, "OFFSET_CURVE",
+                                     _rect(*(outward if b.ReverseDirection else inward), z)))  # fmt: skip
+
+
 def test_distance_toward_a_point_reverses_nx_side_and_reads_back():
-    nx, loop = offset_nx()  # NX offsets inward (-y at the seed): the point asks outward
-    nx.on_commit(OFF, lambda b: made(nx, "OFFSET_CURVE", _rect(-5, -5, 105, 55, 20)))
+    nx, loop = offset_nx()  # NX offsets inward: the point asks outward
+    sided(nx, (5, 5, 95, 45), (-5, -5, 105, 55))
     ok = run(nx, "nx_create_offset_curve", curves=[loop.ref], method="distance", distance=5,
              toward=[50, 200, 20])  # fmt: skip
     assert ok.ok and ok.mutation_outcome == "committed", ok
-    b = nx.last(OFF)
+    trial, b = [x for x in nx.builders if x.kind == OFF]
+    assert trial.ReverseDirection is False and b.ReverseDirection is True
     assert b.Type is nx.nx.Features.OffsetCurveBuilder.Types.Distance
-    assert b.OffsetDistance.RightHandSide == "5.0" and b.ReverseDirection is True
+    assert b.OffsetDistance.RightHandSide == "5.0"
     assert b.CurvesToOffset.AddToSection.calls[0][0][0] == [("CurveDumb", [loop])]
     assert ok.data["expected"] == 5 and ok.data["measured_min"] == pytest.approx(5)
     assert ok.data["length"] == pytest.approx(340) and ok.data["count"] == 4
+    assert nx.live_builders == 0
 
 
 @pytest.mark.parametrize(
     ("toward", "reverse", "box"),
     [([200, 200, 20], True, (-5, -5, 105, 55)), ([50, 25, 20], False, (5, 5, 95, 45))],
 )
-def test_toward_a_far_corner_is_tested_where_it_is_nearest_not_at_the_seed(toward, reverse, box):
-    # four rim curves with mixed directions; NX seeds on the x = 0 edge, inward (+x): the
-    # seed alone would read [200, 200, 20] (dot +200) as inward
+def test_toward_a_far_corner_is_measured_where_the_curves_come_nearest(toward, reverse, box):
+    # four rim curves with mixed directions, listed out of chain order (opposite sides
+    # first): they reach NX in chain order and the side is measured, not predicted
     nx, _loop = offset_nx(direction=(1, 0, 0), seed=(0, 25, 20))
     rim = [
-        curve(nx, [0, 0, 20], [0, 50, 20]),
-        curve(nx, [100, 50, 20], [0, 50, 20]),
         curve(nx, [100, 50, 20], [100, 0, 20]),
+        curve(nx, [0, 0, 20], [0, 50, 20]),
         curve(nx, [0, 0, 20], [100, 0, 20]),
+        curve(nx, [100, 50, 20], [0, 50, 20]),
     ]
-    nx.on_commit(OFF, lambda b: made(nx, "OFFSET_CURVE", _rect(*box, 20)))
+    sided(nx, (5, 5, 95, 45), (-5, -5, 105, 55))
     ok = run(nx, "nx_create_offset_curve", curves=[c.ref for c in rim], distance=5,
              toward=toward)  # fmt: skip
     assert ok.ok, ok.error
-    assert nx.last(OFF).ReverseDirection is reverse
+    real = nx.last(OFF)
+    assert real.ReverseDirection is reverse
+    assert ok.data["curves"][0]["start"] == [box[0], box[3], 20]
+    ((_kind, order),) = real.CurvesToOffset.AddToSection.calls[0][0][0]
+    ends = [{tuple(c.shape.points[0]), tuple(c.shape.points[-1])} for c in order]
+    assert sorted(order, key=id) == sorted(rim, key=id) and order != rim
+    assert all(ends[i] & ends[i + 1] for i in range(3))  # each meets the next
+
+
+def test_offset_on_the_wrong_side_after_the_trial_rolls_back():
+    nx, loop = offset_nx()
+    nx.on_commit(OFF, lambda b: made(nx, "OFFSET_CURVE", _rect(5, 5, 95, 45, 20)))  # ignores it
+    bad = run(nx, "nx_create_offset_curve", curves=[loop.ref], distance=5, toward=[50, 200, 20])
+    assert bad.error["details"]["check"] == "side" and bad.mutation_outcome == "rolled_back"
 
 
 def test_distance_on_nx_side_and_a_wrong_distance_rolls_back():
@@ -85,23 +106,25 @@ def test_distance_on_nx_side_and_a_wrong_distance_rolls_back():
 def test_draft_height_side_comes_from_an_undone_trial_build():
     nx, loop = offset_nx()
 
-    def commit(b):  # NX drafts down unless the height is negated
+    def commit(b):  # NX drafts down and inward unless the height is negated or reversed
         z = 30 if str(b.DraftHeight.RightHandSide).startswith("-(") else 10
-        return made(nx, "OFFSET_CURVE", _rect(-10, -10, 110, 60, z))
+        box = (-10, -10, 110, 60) if b.ReverseDirection else (10, 10, 90, 40)
+        return made(nx, "OFFSET_CURVE", _rect(*box, z))
 
     nx.on_commit(OFF, commit)
     ok = run(nx, "nx_create_offset_curve", curves=[loop.ref], method="draft", height=10, angle=45,
              direction="z", toward=[50, 200, 20])  # fmt: skip
     assert ok.ok, ok.error
-    trial, real = [b for b in nx.builders if b.kind == OFF]
-    assert trial.DraftHeight.RightHandSide == "10.0" and trial.ReverseDirection is True
-    assert real.DraftHeight.RightHandSide == "-(10.0)" and real.ReverseDirection is False
+    height, side, real = [b for b in nx.builders if b.kind == OFF]
+    assert height.DraftHeight.RightHandSide == "10.0" and height.ReverseDirection is False
+    assert side.DraftHeight.RightHandSide == "-(10.0)" and side.ReverseDirection is True
+    assert real.DraftHeight.RightHandSide == "-(10.0)" and real.ReverseDirection is True
     assert real.DraftAngle.RightHandSide == "45.0"
     assert ok.data["expected"] == pytest.approx(14.142136)
     assert ok.data["curves"][0]["start"][2] == 30 and nx.live_builders == 0
     down = run(nx, "nx_create_offset_curve", curves=[loop.ref], method="draft", height=10,
                angle=45, direction="-z")  # fmt: skip
-    assert down.ok and len([b for b in nx.builders if b.kind == OFF]) == 4, down.error
+    assert down.ok and len([b for b in nx.builders if b.kind == OFF]) == 5, down.error
 
 
 def test_axial_3d_moves_along_the_axis_by_the_signed_distance():

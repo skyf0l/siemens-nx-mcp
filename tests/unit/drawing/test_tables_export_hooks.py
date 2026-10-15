@@ -130,6 +130,8 @@ def test_parts_list_column_edits_are_checked_before_nx():
     ]:  # fmt: skip
         bad = run(nx, "nx_edit_drawing_table", table=ref, kind="parts_list", columns=columns)
         assert bad.error["field"] == field and bad.mutation_outcome == "not_started", (columns, bad)
+    rows = run(nx, "nx_edit_drawing_table", table=ref, kind="parts_list", rows=[["1", "X"]])
+    assert rows.error["field"] == "/rows" and "nx_set_attributes" in rows.error["hint"]
 
 
 def test_export_rules_and_a_pdf_published_from_the_staging_area():

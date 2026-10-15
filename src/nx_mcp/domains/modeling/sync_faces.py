@@ -149,6 +149,10 @@ def nx_create_face_paste(
         for i, sheet in enumerate(sheets):
             if int(sheet.Tag) == int(body.Tag):
                 fail("NX_INVALID_ARGUMENT", "target cannot also be a tool", field=f"/tools/{i}")
+            if getattr(sheet, "IsSolidBody", False):
+                fail("NX_WRONG_GEOMETRY", f"tools[{i}] is a solid body; tools must be sheets",
+                     field=f"/tools/{i}", hint="nx_create_face_copy paste false makes the sheets; "
+                     "to merge solids use nx_create_boolean")  # fmt: skip
         sync_relate.require_synchronous(tx, "Paste Face")
     before = measure.mass(tx, [body])
     box = measure.bounds(tx, sheets)

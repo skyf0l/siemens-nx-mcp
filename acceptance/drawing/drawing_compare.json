@@ -137,6 +137,44 @@
    }
   },
   {
+   "call": "nx_create_part",
+   "setup": true,
+   "save": "nodwg",
+   "args": {
+    "path": "$run/compare_nodwg.prt",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_save_part",
+   "setup": true,
+   "args": {
+    "part": "compare_nodwg.prt"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "compare_nodwg.prt",
+    "save": false
+   }
+  },
+  {
+   "call": "nx_check_drawing_changes",
+   "args": {
+    "against": "$run/compare_nodwg.prt",
+    "part": "rev_b.prt"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/against",
+    "error.retry": "after_fix",
+    "error.nx_code": 735029,
+    "mutation_outcome": "not_applicable"
+   }
+  },
+  {
    "call": "nx_close_part",
    "setup": true,
    "args": {

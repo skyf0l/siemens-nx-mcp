@@ -197,7 +197,7 @@ def test_custom_material_reports_no_library_properties():
 
 
 # ---------------------------------------------------------------------------
-# Live tester batch b30: natural material values and clearer refusals
+# Natural material values and clearer refusals
 
 
 def test_bare_and_loose_library_names_resolve():
@@ -236,7 +236,8 @@ def test_material_forms_are_named_when_ambiguous_or_empty():
 @pytest.mark.parametrize(
     ("density", "kg_m3"),
     [("1.24 g/cm3", 1240.0), ("1240 kg/m^3", 1240.0), ("1.24g/cm\xb3", 1240.0),
-     ("1240", 1240.0), ("0.0448 lb/in3", 0.0448 * 27679.9047), (1240, 1240.0)],
+     ("1240", 1240.0), ("0.0448 lb/in3", 0.0448 * 27679.9047), (1240, 1240.0),
+     ("1.24 kg/dm3", 1240.0), ("1.24 kg/dm³", 1240.0), ("1240 g/l", 1240.0)],
 )  # fmt: skip
 def test_custom_density_accepts_unit_strings(density, kg_m3):
     nx = library_nx()

@@ -158,6 +158,7 @@ def test_every_deletable_kind_has_a_deleter():
         "sketch",
         "curve",
         "component",
+        "expression",
         "explosion",
         "traceline",
         "annotation",
@@ -271,3 +272,29 @@ def test_the_display_bound_kinds_of_nx_delete_objects():
     for kind in ("feature", "sketch", "curve", "component", "traceline"):
         assert spec.switch_for({"objects": ["x:1"]}, {kind}) == "work", kind
     assert spec.switch_for({}, {"feature", "explosion"}) == "display"  # mixed kinds
+
+
+def test_a_sketch_listed_with_its_own_feature_is_deleted_once_through_the_feature(nx):
+    sketch = nx.sketch()
+    own = nx._own(sketch.Feature, "feature")
+    own.Suppressed, own.cascade = False, [sketch]
+    nx.part.Features.append(own)
+    ok = run(nx, "nx_delete_objects", objects=[sketch.ref, own.ref])
+    assert ok.ok, ok
+    assert nx.deletes == [[own]]  # once, through the feature: NX takes the sketch with it
+    assert {r["id"] for r in ok.data["deleted"]} == {sketch.ref, own.ref}
+    assert list(nx.part.Sketches) == [] and list(nx.part.Features) == []
+
+
+def test_an_unused_expression_is_deleted_and_a_used_one_is_refused_before_any_change(nx):
+    unused = nx.expression("unused_len", "12")
+    ok = run(nx, "nx_delete_objects", objects=[unused.ref])
+    assert ok.ok and [e.Name for e in nx.part.Expressions] == [], ok
+    used = nx.expression("wall", "2")
+    other = nx.expression("depth", "wall*2")
+    used.dependents = [other]
+    used.GetReferencingExpressions = lambda: [other]
+    refused = run(nx, "nx_delete_objects", objects=[used.ref])
+    assert refused.error["code"] == "NX_DEPENDENCY_ORDER", refused
+    assert refused.error["field"] == "/objects/0" and refused.mutation_outcome == "not_started"
+    assert "depth" in refused.error["message"]

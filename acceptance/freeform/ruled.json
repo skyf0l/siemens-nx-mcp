@@ -331,6 +331,84 @@
    }
   },
   {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "cyl",
+   "args": {
+    "shape": "cylinder",
+    "origin": [
+     300,
+     0,
+     0
+    ],
+    "diameter": 20,
+    "height": 30
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "bottom",
+   "args": {
+    "owner": "$cyl.data.bodies.0.id",
+    "kind": "edge",
+    "near": [
+     310,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$cyl.data.bodies.0.id",
+    "kind": "edge",
+    "near": [
+     310,
+     0,
+     30
+    ]
+   }
+  },
+  {
+   "call": "nx_create_ruled",
+   "intent": "A solid between a cylinder's bottom and top circles (they run opposite ways): aligned, not self-intersecting",
+   "args": {
+    "first": "$bottom.data.items.0.id",
+    "second": "$top.data.items.0.id",
+    "solid": true
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.sheet": false,
+    "data.volume": {
+     "close": 9424.778,
+     "tol": 0.2
+    }
+   }
+  },
+  {
+   "call": "nx_create_ruled",
+   "intent": "The same circles as a sheet: the cylinder's side",
+   "args": {
+    "first": "$bottom.data.items.0.id",
+    "second": [
+     "$top.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.sheet": true,
+    "data.area": {
+     "close": 1884.956,
+     "tol": 0.1
+    }
+   }
+  },
+  {
    "call": "nx_check_model",
    "args": {},
    "expect": {

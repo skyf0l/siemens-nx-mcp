@@ -638,9 +638,25 @@
     "data.applied": true,
     "data.selected_count": 0,
     "data.deleted_count": 0,
-    "data.missing": {
+    "data.missing": [],
+    "data.already_deleted": {
      "count": 1
     }
+   }
+  },
+  {
+   "call": "nx_delete_results",
+   "args": {
+    "result_ids": [
+     "$inv.result_id"
+    ],
+    "max_age_seconds": "1s"
+   },
+   "intent": "Acceptance: result_ids with an age would ignore the age: refused",
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/max_age_seconds",
+    "mutation_outcome": "not_started"
    }
   },
   {

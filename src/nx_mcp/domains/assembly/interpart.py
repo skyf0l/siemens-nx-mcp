@@ -10,6 +10,9 @@ NX findings encoded here:
   formula names the source part and expression; its value follows the source after a
   model update of the work part.
 - WAVE relinking is not used: the link names the source part by its file name.
+- NX keeps the formula as an internal handle (``RightHandSide`` reads ``interpart3``);
+  ``Expression.GetInterpartExpressionNames()`` gives the source part and expression, so
+  results show the formula as ``"part"::name``.
 """
 
 from __future__ import annotations
@@ -47,7 +50,7 @@ class Source(TypedDict):
 
 class LinkRow(TypedDict):
     expression: result.Row
-    formula: str
+    formula: str  # "part"::name (NX stores an internal interpartN handle)
     value: float | None
     units: str
     source: Source
@@ -64,6 +67,15 @@ def _value(tx, exp):
         return None
 
 
+def _formula(exp) -> str:
+    """``"part"::name`` of an interpart expression, else its right-hand side."""
+    try:
+        part, name = exp.GetInterpartExpressionNames()
+    except Exception:  # an NX without the call, or not an interpart expression
+        return str(exp.RightHandSide)
+    return f'"{part}"::{name}' if part and name else str(exp.RightHandSide)
+
+
 def _in_mm_or_deg(value, units):
     """``value`` in mm or degrees when ``units`` is a known length or angle unit."""
     known = {"mm": 1.0, "in": 25.4, "deg": 1.0, "rad": 57.29577951308232}
@@ -78,9 +90,11 @@ def _in_mm_or_deg(value, units):
         "interpart",
         "link between parts",
         "master parameters",
-        "control part",
         "linked parameter",
         "interpart link",
+        "drive expression from another part",
+        "reference expression",
+        "cross-part expression",
     ),  # fmt: skip
     requires=("work_part", "no_active_sketch"),
     cost="light",
@@ -95,13 +109,18 @@ def nx_create_interpart_link(
     expressions: Annotated[list[Link], Items(1, MAX_LINKS)],
 ) -> InterpartData:
     """Create work-part expressions linked to expressions of another loaded part (master
-    parameters): name = "source"::source. Read-only in the work part; edit the source
+    parameters). formula reads "part"::source. Read-only in the work part; edit the source
     (nx_set_expression in source_part), then nx_update_model in the work part updates them."""
     wanted = [(link["source"], link.get("name") or link["source"]) for link in expressions]
+    # The new name's own field: name, or source when name is omitted.
+    name_fields = [
+        f"/expressions/{i}/{'name' if link.get('name') else 'source'}"
+        for i, link in enumerate(expressions)
+    ]
     seen: set[str] = set()
     for i, (_source, name) in enumerate(wanted):
         if name in seen:
-            fail("NX_INVALID_ARGUMENT", f"{name} is named twice", field=f"/expressions/{i}")
+            fail("NX_INVALID_ARGUMENT", f"{name} is named twice", field=name_fields[i])
         seen.add(name)
     with tx.checks():
         part = tx.part
@@ -117,9 +136,11 @@ def nx_create_interpart_link(
                 fail("NX_NOT_FOUND", f"{parts.file_of(source)} has no expression {name!r}",
                      field=f"/expressions/{i}/source",
                      details={"available": sorted(available)[:30]})  # fmt: skip
-            if expr.find(tx, new_name) is not None:
+            clash = expr.find(tx, new_name)
+            if clash is not None:
                 fail("NX_NAME_CONFLICT", f"The work part already has an expression {new_name}",
-                     field=f"/expressions/{i}", hint="Pass another name")  # fmt: skip
+                     field=name_fields[i], hint="Pass another name (expressions[].name)",
+                     details={"existing": tx.ref(clash, kind="expression")})  # fmt: skip
             sources.append(exp)
     names = [new for _src, new in wanted]
     with builders.build(tx, part.Expressions.CreateInterpartExpressionsBuilder) as b:
@@ -145,7 +166,7 @@ def nx_create_interpart_link(
         out.append(
             {
                 "expression": tx.ref(exp, kind="expression"),
-                "formula": str(exp.RightHandSide),
+                "formula": _formula(exp),
                 "value": value,
                 "units": units,
                 "source": {"part": file_name, "expression": src_name, "value": source_value},

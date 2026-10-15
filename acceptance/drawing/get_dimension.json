@@ -261,7 +261,8 @@
     "data.objects.0.kind": "edge",
     "data.tolerance": {
      "count": 2
-    }
+    },
+    "data.view.id": "$top.data.view.id"
    }
   },
   {
@@ -274,6 +275,13 @@
     "data.value": {
      "close": 8,
      "tol": 1e-09
+    },
+    "data.view.id": "$top.data.view.id",
+    "data.display": {
+     "matches": "^R8"
+    },
+    "data.text": {
+     "matches": "^8"
     }
    }
   },

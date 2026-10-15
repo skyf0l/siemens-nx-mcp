@@ -39,7 +39,7 @@ import math
 import re
 
 from nx_mcp.core import parking
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import NXError, fail
 from nx_mcp.kit import geom
 from nx_mcp.kit.result import enum_name
 
@@ -102,12 +102,50 @@ class Editing:
         return self.tx.nx.Point3d(*self.to_part(p2))
 
 
+@contextlib.contextmanager
+def at_field(field):
+    """A classified error raised inside without a field (a stale, unknown or wrong-kind
+    ref) gets ``field``, the JSON pointer of the argument that named it."""
+    try:
+        yield
+    except NXError as error:
+        if error.field is None and field:
+            error.field = field
+        raise
+
+
 def resolve(tx, ref, field="/sketch"):
     """A sketch of the work part (ref or live object)."""
-    sk = tx.resolve(ref, "sketch") if isinstance(ref, str) else ref
+    with at_field(field):
+        sk = tx.resolve(ref, "sketch") if isinstance(ref, str) else ref
     if getattr(sk, "IsOccurrence", False) or getattr(sk, "OwningPart", tx.part) != tx.part:
         fail("NX_WRONG_OWNER", "Select a sketch of the work part", field=field)
     return sk
+
+
+# NX shows the modal "Large Sketch Performance" question ("Shaded Region can be slow for
+# large sketches") once a sketch grows to several hundred curves, and NX then blocks every
+# caller until a person answers it (seen live on NX 2406 at about 800-1000 curves). Tools
+# that add curves keep every sketch at or below this many objects.
+MAX_CURVES = 500
+
+
+def require_room(tx, sk, adding, field="/curves") -> int:
+    """Refuse adding ``adding`` objects to ``sk`` (a sketch or :class:`Editing`) when the
+    sketch would hold more than :data:`MAX_CURVES`; returns the count it holds now."""
+    held = len(geometry(sk)) if sk is not None else 0
+    if held + int(adding) > MAX_CURVES:
+        fail(
+            "NX_TOO_MANY_OBJECTS",
+            f"The sketch would hold {held + int(adding)} curves ({held} now, {int(adding)} "
+            f"new); a sketch takes at most {MAX_CURVES}: NX slows down and opens a blocking "
+            "dialog for larger sketches",
+            field=field,
+            hint="Split the profile over several sketches (one per feature or region), or "
+            "use fewer polygon sides",
+            details={"curves": held, "adding": int(adding), "limit": MAX_CURVES},
+        )
+    return held
 
 
 def _parked(tx):
@@ -120,6 +158,17 @@ def open_sketch(tx):
     """The open sketch of the work part: NX's active sketch, else the parked one."""
     active = tx.session.ActiveSketch
     return active if active is not None else _parked(tx)
+
+
+def open_details(tx, sk) -> dict:
+    """``{"open_sketch": ref id, "open_sketch_name": name}`` of an open sketch, for the
+    details of an ``NX_SKETCH_ACTIVE`` error (best effort: empty when NX cannot say)."""
+    out: dict = {}
+    with contextlib.suppress(Exception):
+        out["open_sketch"] = tx.ref(sk, "sketch")["id"]
+    with contextlib.suppress(Exception):
+        out["open_sketch_name"] = str(sk.Name)
+    return out
 
 
 def release_drafting_sketch(session, nx) -> bool:
@@ -164,7 +213,8 @@ def editing(tx, ref, field="/sketch"):
         fail(
             "NX_SKETCH_ACTIVE",
             "Finish the other active sketch first",
-            hint="Finish the active sketch, then retry",
+            hint="Finish the active sketch (details.open_sketch) with nx_finish_sketch, then retry",
+            details=open_details(tx, other),
         )
     activated = not active
     if activated:
@@ -256,7 +306,8 @@ def solve(tx, sk, expressions=()):
         fail(
             "NX_SKETCH_OVERCONSTRAINED",
             f"The sketch is {state['status']} after the change",
-            hint="Diagnose with nx_check_sketch and remove the conflicting constraint",
+            hint="Delete one of the constraints that already hold these curves (nx_get_sketch "
+            "lists them), or make the new dimension a reference",
             details=state,
         )
     return state
@@ -265,7 +316,8 @@ def solve(tx, sk, expressions=()):
 def owns(tx, sk, curve, field="/curve"):
     """``curve`` (ref or object) when it is geometry of the sketch, else ``wrong_owner``."""
     s = _sketch_of(sk)
-    obj = tx.resolve(curve, "curve") if isinstance(curve, str) else curve
+    with at_field(field):
+        obj = tx.resolve(curve, "curve") if isinstance(curve, str) else curve
     if int(obj.Tag) not in {int(c.Tag) for c in s.GetAllGeometry()}:
         fail("NX_WRONG_OWNER", "The curve is not owned by this sketch", field=field)
     return obj
@@ -458,17 +510,53 @@ def loops(rows):
     """Chains of connected curves from read rows (``start``/``end``, ``closed``), in row
     order: ``[{"closed": bool, "curves": n}]`` plus ``open_ends`` for an open chain and
     ``branched`` where more than two curve ends meet. Pure; points in any one frame."""
-    nodes: list = []
+    out = []
+    for chain in chains([(r["start"], r["end"]) for r in rows]):
+        loop = {"closed": chain["closed"], "curves": len(chain["curves"])}
+        if chain["free_ends"]:
+            loop["open_ends"] = len(chain["free_ends"])
+        if chain["branched"]:
+            loop["branched"] = True
+        out.append(loop)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Chaining: curves joined end to end (shared by every tool that needs a closed loop or
+# a connected path: sketch offsets, sweeps, tubes, joined curves, n-sided patches)
+#
+#     ends = [kcurve.ends(tx, c) for c in curves]       # or sketch-local [(start, end)]
+#     order = ksketch.require_chain(ends, "/curves", closed=True, labels=refs)
+#     ksketch.chains(ends)  # [{"curves", "closed", "branched", "free_ends", "branch_points"}]
+
+
+def _nodes(ends, tol):
+    """``(points, [(start node, end node)])``: curve ends merged within ``tol`` (default
+    ``geom.tol`` of the two points)."""
+    points: list = []
 
     def node(p):
-        for i, q in enumerate(nodes):
-            if geom.dist(p, q) <= geom.tol(p, q):
+        p = [float(v) for v in p]
+        for i, q in enumerate(points):
+            if geom.dist(p, q) <= (geom.tol(p, q) if tol is None else tol):
                 return i
-        nodes.append(p)
-        return len(nodes) - 1
+        points.append(p)
+        return len(points) - 1
 
-    ends = [(node(r["start"]), node(r["end"])) for r in rows]
-    parent = list(range(len(nodes)))
+    return points, [(node(s), node(e)) for s, e in ends]
+
+
+def chains(ends, tol=None) -> list[dict]:
+    """Curves joined end to end. ``ends``: ``[(start, end)]`` per curve, points in any one
+    frame (2D or 3D); a curve whose ends coincide is closed on itself (a circle). Pure.
+
+    One dict per connected chain, in the order of its first curve: ``curves`` (indices,
+    end to end from a free end when the chain is not branched), ``closed`` (every end
+    meets exactly one other), ``branched`` (more than two ends meet somewhere),
+    ``free_ends`` (``[(index, "start"|"end")]`` no other curve meets) and
+    ``branch_points``. ``tol``: join distance (default 1e-6 relative, ``geom.tol``)."""
+    points, nodes = _nodes(ends, tol)
+    parent = list(range(len(points)))
 
     def root(i):
         while parent[i] != i:
@@ -476,27 +564,163 @@ def loops(rows):
             i = parent[i]
         return i
 
-    for a, b in ends:
+    for a, b in nodes:
         parent[root(a)] = root(b)
     groups: dict = {}
-    for k, (a, _b) in enumerate(ends):
+    for k, (a, _b) in enumerate(nodes):
         groups.setdefault(root(a), []).append(k)
     out = []
     for members in groups.values():
-        degree: dict = {}
+        at: dict = {}  # node -> [(curve, which)] of the curves that are not closed on themselves
         for k in members:
-            if rows[k].get("closed"):
+            a, b = nodes[k]
+            if a == b:
                 continue  # a closed curve is its own loop: no free ends
-            for n in ends[k]:
-                degree[n] = degree.get(n, 0) + 1
-        loop = {"closed": all(d == 2 for d in degree.values()), "curves": len(members)}
-        open_ends = sum(1 for d in degree.values() if d == 1)
-        if open_ends:
-            loop["open_ends"] = open_ends
-        if any(d > 2 for d in degree.values()):
-            loop["closed"] = False
-            loop["branched"] = True
-        out.append(loop)
+            at.setdefault(a, []).append((k, "start"))
+            at.setdefault(b, []).append((k, "end"))
+        free = [use for uses in at.values() if len(uses) == 1 for use in uses]
+        branch = [n for n, uses in at.items() if len(uses) > 2]
+        chain = {
+            "curves": members if branch else _walk(members, nodes, at, free),
+            "closed": not free and not branch,
+            "branched": bool(branch),
+            "free_ends": sorted(free),
+            "branch_points": [points[n] for n in branch],
+        }
+        out.append(chain)
+    return out
+
+
+def _walk(members, nodes, at, free):
+    """Members of an unbranched chain in order, end to end from a free end."""
+    open_members = [k for k in members if nodes[k][0] != nodes[k][1]]
+    if not open_members:
+        return members
+    first, which = free[0] if free else (open_members[0], "start")
+    order, used = [], set()
+    curve, here = first, nodes[first][0] if which == "start" else nodes[first][1]
+    while curve is not None and curve not in used:
+        used.add(curve)
+        order.append(curve)
+        a, b = nodes[curve]
+        here = b if here == a else a
+        curve = next((k for k, _w in at.get(here, []) if k not in used), None)
+    return order + [k for k in members if k not in used]
+
+
+def nearest_gap(ends, tol=None) -> dict | None:
+    """The smallest gap between free curve ends that keeps ``ends`` from one closed chain:
+    between two chains, else between the two free ends of one open chain. ``{"gap": d,
+    "ends": [(i, which), (j, which)], "points": [p, q]}``, None when nothing is open."""
+    found = chains(ends, tol)
+    points = {
+        (k, w): [float(v) for v in (ends[k][0] if w == "start" else ends[k][1])]
+        for chain in found
+        for k, w in chain["free_ends"]
+    }
+    owner = {use: n for n, chain in enumerate(found) for use in chain["free_ends"]}
+    uses = list(points)
+    for between_chains in (True, False):  # first a gap between two chains, else within one
+        best = None
+        for i, u in enumerate(uses):
+            for v in uses[i + 1 :]:
+                if between_chains and owner[u] == owner[v]:
+                    continue
+                d = geom.dist(points[u], points[v])
+                if best is None or d < best["gap"]:
+                    best = {"gap": d, "ends": [u, v], "points": [points[u], points[v]]}
+        if best is not None:
+            return best
+    return None
+
+
+def require_chain(ends, field, *, closed=False, labels=None, tol=None, what="curves") -> list:
+    """The order (indices, end to end) of ``ends`` when they form one unbranched chain,
+    closed too when ``closed``; else ``NX_INVALID_ARGUMENT`` on ``field`` naming the gap
+    (``details.gap``, ``details.between``) or the branch point. ``labels``: a name per
+    curve for the message (refs; default ``#i``)."""
+    names = list(labels) if labels is not None else [f"#{i}" for i in range(len(ends))]
+    found = chains(ends, tol)
+    if len(found) == 1 and not found[0]["branched"] and (found[0]["closed"] or not closed):
+        return found[0]["curves"]
+    details: dict = {"chains": len(found)}
+    branched = next((c for c in found if c["branched"]), None)
+    if branched is not None:
+        details["branch_point"] = branched["branch_points"][0]
+        message = f"The {what} branch: more than two ends meet at {_fmt(details['branch_point'])}"
+        hint = f"Pass {what} that join end to end without branches (one path)"
+    elif (gap := nearest_gap(ends, tol)) is None:  # separate closed loops: no free end
+        message = f"The {what} form {len(found)} separate closed loops, not one"
+        hint = f"Pass the {what} of one loop per call"
+    else:
+        between = [
+            {"curve": names[k], "end": w, "at": p}
+            for (k, w), p in zip(gap["ends"], gap["points"], strict=True)
+        ]
+        details.update(gap=gap["gap"], between=between)
+        where = f"{between[0]['curve']} {between[0]['end']} and {between[1]['curve']} " + str(
+            between[1]["end"]
+        )
+        if len(found) > 1:
+            message = (
+                f"The {what} form {len(found)} separate chains, not one {'loop' if closed else 'path'}: "
+                f"gap {gap['gap']:.6g} between {where}"
+            )
+        else:
+            message = f"The {what} do not close: gap {gap['gap']:.6g} between {where}"
+        hint = (
+            f"Close the gap (extend, trim or add a curve), or pass every curve of the "
+            f"{'loop' if closed else 'path'}"
+        )
+    fail("NX_INVALID_ARGUMENT", message, field=field, hint=hint, details=details)
+
+
+def _fmt(p) -> str:
+    return "[" + ", ".join(f"{float(v):.6g}" for v in p) + "]"
+
+
+# ---------------------------------------------------------------------------
+# Shapes before and after a solve: which curves the solver moved
+
+
+def shape(tx, curve) -> list:
+    """Coordinates that change when a curve moves or changes size: a line's ends; an arc's
+    or circle's center, radius and ends; the ends of any other curve."""
+    kind = curve_kind(tx, curve)
+    if kind == "line":
+        return geom.xyz(curve.StartPoint) + geom.xyz(curve.EndPoint)
+    if kind in ("arc", "circle"):
+        values = geom.xyz(curve.CenterPoint) + [float(curve.Radius)]
+        if kind == "arc":
+            values += point(tx, curve, "start") + point(tx, curve, "end")
+        return values
+    if kind in ("ellipse", "spline"):
+        from nx_mcp.kit import curve as kcurve
+
+        with contextlib.suppress(Exception):
+            s, e = kcurve.ends(tx, curve)
+            return list(s) + list(e)
+    return []
+
+
+def shapes(tx, sk) -> dict:
+    """``{tag: (curve, shape)}`` of every sketch curve, read before a change."""
+    return {int(c.Tag): (c, shape(tx, c)) for c in geometry(sk) if curve_kind(tx, c) != "other"}
+
+
+def moved(tx, sk, before, skip=()) -> list:
+    """Curves of ``before`` (:func:`shapes`) that still exist and changed shape, in sketch
+    order; ``skip``: tags of curves the request itself changed."""
+    alive = tags(sk)
+    out = []
+    for tag, (curve, old) in before.items():
+        if tag in skip or tag not in alive or not old:
+            continue
+        new = shape(tx, curve)
+        if len(new) == len(old) and max(abs(a - b) for a, b in zip(new, old, strict=True)) > (
+            geom.tol(old, new) * 10
+        ):
+            out.append(curve)
     return out
 
 
@@ -607,9 +831,9 @@ def require_kept(sk, labels, field=None) -> None:
             "NX_SKETCH_OVERCONSTRAINED",
             f"NX could only solve the change by deleting {len(gone)} sketch curve(s) "
             f"({', '.join(gone)}): the constraints collapse them; rolled back",
-            hint="The new constraint conflicts with the existing ones (nx_check_sketch "
-            "lists them): delete or change the conflicting constraint, or constrain other "
-            "geometry",
+            hint="The new constraint conflicts with the existing ones (nx_get_sketch lists "
+            "the constraints of these curves): delete or change the conflicting one, or "
+            "constrain other geometry",
             field=field,
             details={"deleted_curves": gone},
         )

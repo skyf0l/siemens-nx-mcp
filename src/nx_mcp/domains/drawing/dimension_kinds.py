@@ -28,7 +28,13 @@ import math
 
 from nx_mcp.core.errors import fail
 from nx_mcp.domains.drawing import dimensions as dims
-from nx_mcp.domains.drawing.common import edge_facts, geometry, true_shape, uf_types
+from nx_mcp.domains.drawing.common import (
+    edge_facts,
+    geometry,
+    on_sheet_point,
+    true_shape,
+    uf_types,
+)
 from nx_mcp.kit import builders, drawing, geom, readback, result, units
 
 PARALLEL_TOL_DEG = 1e-3  # Thickness edges must be parallel in the view.
@@ -255,10 +261,13 @@ def _set_assoc(tx, view, edge, xyz, assoc):
     return a
 
 
-def dimension_set(tx, view_ref, kind, objects, object_point, direction, origin, datum=(None, None)):
+def dimension_set(tx, view_ref, kind, objects, object_point, direction, origin,
+                  datum=(None, None), margin=None):  # fmt: skip
     """Several horizontal or vertical dimensions from the first point (baseline) or each
     from the previous one (chain), placed as one NX dimension set. ``datum`` ``(ref,
-    snap)``, when given, is the first point."""
+    snap)``, when given, is the first point. The first dimension line lies ``margin`` (sheet
+    units) above (horizontal) or right of (vertical) the view border; without margin or
+    origin, SET_GAP_MM out and past annotations already there."""
     horizontal = direction == "horizontal"
     with tx.checks():
         view, sheet = drawing.view(tx, view_ref)
@@ -280,12 +289,12 @@ def dimension_set(tx, view_ref, kind, objects, object_point, direction, origin, 
                     "it would give a zero dimension; drop it or use the other direction",
                     field=fields[i],
                 )
+        taken = drawing.sheet_annotation_bounds(tx, sheet)
+        if origin is None:
+            origin = _set_origin(tx, view, sheet, targets, horizontal, margin, taken)
+        else:
+            on_sheet_point(sheet, origin, "/origin")
     with drawing.on_sheet(tx, sheet) as sh:
-        if origin is None:  # above the view (horizontal) or right of it (vertical)
-            bounds = drawing.borders(tx, view)
-            gap = drawing.from_mm(sh.units, SET_GAP_MM)[0]
-            first = drawing.to_sheet(tx, view, targets[0][1])
-            origin = [first[0], bounds[3] + gap] if horizontal else [bounds[2] + gap, first[1]]
         sets = tx.part.Annotations.DimensionSets
         create = getattr(
             sets, f"Create{'Horizontal' if horizontal else 'Vertical'}{kind.title()}Dimension"
@@ -317,9 +326,34 @@ def dimension_set(tx, view_ref, kind, objects, object_point, direction, origin, 
             dims._check_value(actual, value, f"value[{i}]")
             member.RedisplayObject()  # NX draws a new set only at the next display update
             rows.append(dims._row(tx, member, actual, value))
-        return {
+        out = {
             "dimension_set": tx.ref(native, "annotation"),
             "dimensions": rows,
             "origin": [float(v) for v in origin],
             "units": units.part_units(tx),
         }
+        if margin is not None:
+            out["margin"] = float(margin)
+        return dims.set_bounds(tx, sh, out, found, taken, f"{kind} dimensions")
+
+
+def _set_origin(tx, view, sheet, targets, horizontal, margin, taken):
+    """The set's first dimension line: ``margin`` out of the view border (above for
+    horizontal, right for vertical), else SET_GAP_MM out, stepped outward past annotations
+    already there; refused off the sheet."""
+    bounds = drawing.borders(tx, view)
+    k = 1 if horizontal else 0  # the axis the line is placed along
+    gap = drawing.from_mm(units.sheet_units(tx, sheet), SET_GAP_MM)[0]
+    at = (bounds[3] if horizontal else bounds[2]) + (float(margin) if margin is not None else gap)
+    flat = [drawing.to_sheet(tx, view, t[1]) for t in targets]
+    if margin is None:  # clear of earlier sets and dimensions along the line
+        lo, hi = min(p[1 - k] for p in flat), max(p[1 - k] for p in flat)
+        for _ in range(20):
+            band = [lo, at - gap / 4, hi, at + gap / 4]
+            if not horizontal:
+                band = [at - gap / 4, lo, at + gap / 4, hi]
+            if not any(drawing.overlap(band, box) for box in taken):
+                break
+            at += gap
+    dims.on_sheet_line(sheet, at, k, "/margin")
+    return [flat[0][0], at] if horizontal else [at, flat[0][1]]

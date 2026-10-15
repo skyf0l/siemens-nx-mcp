@@ -70,6 +70,9 @@ class Group:
     def RemoveComponent(self, c):
         self.members.remove(c)
 
+    def SetName(self, name):
+        self.Name = name
+
 
 class Groups(list):
     def CreateComponentGroup(self, name):
@@ -96,7 +99,7 @@ def nx():
     def set_undo_mark(*args):
         mark = set_mark(*args)
         saved[mark] = (dict(nx.weight.data), list(nx.asm.ComponentGroups),
-                       {id(g): list(g.members) for g in nx.asm.ComponentGroups})  # fmt: skip
+                       {id(g): (list(g.members), g.Name) for g in nx.asm.ComponentGroups})  # fmt: skip
         return mark
 
     def undo_to_mark(mark, *args):
@@ -105,7 +108,7 @@ def nx():
         nx.weight.data = dict(data)
         nx.asm.ComponentGroups[:] = groups
         for g in groups:
-            g.members[:] = members[id(g)]
+            g.members[:], g.Name = members[id(g)]
 
     session.SetUndoMark, session.UndoToMark = set_undo_mark, undo_to_mark
     nx.engine = place(nx, nx.blk, "engine", translation=(100, 0, 0), rotation=RZ90)
@@ -216,3 +219,85 @@ def test_group_with_children(nx):
              components=[nx.engine.ref], children=True)  # fmt: skip
     assert ok.ok and ok.data["group"]["count"] == 2, ok
     assert child in nx.asm.ComponentGroups[-1].members
+
+
+def test_clear_at_occurrence_level_names_a_part_level_assertion(nx):
+    run(nx, "nx_set_component_mass", part="asm", component=nx.tank.ref, mass=0.25, level="part")
+    ok = run(nx, "nx_set_component_mass", part="asm", component=nx.tank.ref, clear=True)
+    assert ok.ok and ok.data["cleared"] is False, ok
+    (warning,) = ok.warnings
+    assert warning["code"] == "NX_NO_EFFECT" and "level='part'" in warning["message"]
+    assert "0.25 kg" in warning["message"] and nx.weight.data[int(nx.pin.Tag)][0] == 0.25
+
+
+def test_system_groups_left_empty_by_nx_are_derived_or_unknown(nx):
+    nx.asm.ComponentGroups.append(Group("CurrentComponents"))
+    listed = run(nx, "nx_list_component_groups", part="asm", include_system=True,
+                 with_members=False)  # fmt: skip
+    assert listed.ok, listed
+    rows = {g["name"]: g for g in listed.data["items"]}
+    assert rows["AllComponents"]["count"] == 2  # the whole tree
+    assert rows["CurrentComponents"]["count"] is None
+    assert "CurrentComponents" in listed.warnings[0]["message"]
+
+
+def test_rename_and_delete_a_component_group(nx):
+    delete = nx.session.UpdateManager.AddToDeleteList
+
+    def delete_groups(objects):
+        for obj in objects:
+            if obj in nx.asm.ComponentGroups:
+                nx.asm.ComponentGroups.remove(obj)
+        delete([o for o in objects if not isinstance(o, Group)])
+
+    nx.session.UpdateManager.AddToDeleteList = delete_groups
+    run(nx, "nx_create_component_group", part="asm", name="Drive", components=[nx.engine.ref])
+    run(nx, "nx_create_component_group", part="asm", name="Fuel", components=[nx.tank.ref])
+    renamed = run(nx, "nx_edit_component_group", part="asm", name="drive", new_name="Propulsion")
+    assert renamed.ok and renamed.data["previous_name"] == "Drive", renamed
+    assert renamed.data["group"]["name"] == "Propulsion" and renamed.data["group"]["count"] == 1
+    cases = [
+        ({"name": "Propulsion"}, "NX_INVALID_ARGUMENT", "/delete"),
+        ({"name": "Propulsion", "new_name": "X", "delete": True}, "NX_INVALID_ARGUMENT",
+         "/new_name"),
+        ({"name": "AllComponents", "delete": True}, "NX_INVALID_ARGUMENT", "/name"),
+        ({"name": "nope", "delete": True}, "NX_NOT_FOUND", "/name"),
+        ({"name": "Propulsion", "new_name": "fuel"}, "NX_ALREADY_EXISTS", "/new_name"),
+    ]  # fmt: skip
+    for args, code, field in cases:
+        bad = run(nx, "nx_edit_component_group", part="asm", **args)
+        assert bad.error["code"] == code and bad.error["field"] == field, (args, bad)
+        assert bad.mutation_outcome == "not_started"
+    gone = run(nx, "nx_edit_component_group", part="asm", name="FUEL", delete=True)
+    assert gone.ok and gone.data == {"deleted": "Fuel", "remaining": ["Propulsion"]}, gone
+    assert [g.Name for g in nx.asm.ComponentGroups] == ["AllComponents", "Propulsion"]
+
+
+def test_compensation_sets_component_group_changes_back(nx):
+    made = run(nx, "nx_create_component_group", part="asm", name="Drive",
+               components=[nx.engine.ref])  # fmt: skip
+    assert made.ok, made
+    replaced = run(nx, "nx_create_component_group", part="asm", name="drive",
+                   components=[nx.tank.ref], replace=True)  # fmt: skip
+    assert replaced.ok, replaced
+    undo = run(nx, "nx_undo_operation", part="asm", mode="compensate")
+    assert undo.ok and undo.data["compensated"], undo
+    drive = nx.asm.ComponentGroups[-1]
+    assert drive.Name == "Drive" and drive.members == [nx.engine]
+    renamed = run(nx, "nx_edit_component_group", part="asm", name="Drive", new_name="Power")
+    assert renamed.ok, renamed
+    back = run(nx, "nx_undo_operation", part="asm", mode="compensate")
+    assert back.ok and drive.Name == "Drive", back
+    delete = nx.session.UpdateManager.AddToDeleteList
+
+    def delete_groups(objects):
+        for obj in objects:
+            if obj in nx.asm.ComponentGroups:
+                nx.asm.ComponentGroups.remove(obj)
+        delete([o for o in objects if not isinstance(o, Group)])
+
+    nx.session.UpdateManager.AddToDeleteList = delete_groups
+    gone = run(nx, "nx_undo_operation", part="asm", operation=made.operation_id,
+               mode="compensate")  # fmt: skip
+    assert gone.ok, gone
+    assert [g.Name for g in nx.asm.ComponentGroups] == ["AllComponents"]

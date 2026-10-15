@@ -160,7 +160,7 @@ def test_kit_imports_only_stdlib_and_core(path):
 
 
 def test_kit_codes_are_in_the_error_table():
-    from nx_mcp.core.errors import CODES
+    from nx_mcp.core.errors import CODES, WARNING_CODES
 
     for path in sorted(KIT.glob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -168,4 +168,5 @@ def test_kit_codes_are_in_the_error_table():
             if isinstance(node, ast.Constant) and isinstance(node.value, str):
                 text = node.value
                 if text.startswith("NX_") and text.isupper() and " " not in text:
-                    assert text in CODES, f"{path.name}: {text} is not a stable code"
+                    stable = text in CODES or text in WARNING_CODES
+                    assert stable, f"{path.name}: {text} is not a stable code"

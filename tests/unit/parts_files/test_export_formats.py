@@ -107,7 +107,7 @@ def test_parasolid_text_and_binary(nx, root, suffix, encoding):
     assert ps.selected == [part.Bodies[0]]
     assert ps.ExportSelectionBlock.SelectionScope == nx.nx.ObjectSelector.Scope.SelectedObjects
     assert ok.data["encoding"] == encoding and ok.data["schema"] == "SCH_3601233_36001"
-    assert ok.data["bounds"] is None and ok.data["bodies"] == 1
+    assert ok.data["bounds"]["max"] == [40.0, 20.0, 10.0] and ok.data["bodies"] == 1
 
 
 def test_jt_monolithic_from_a_saved_part(nx, root):

@@ -288,3 +288,53 @@ def test_thicken_refuses_an_invalid_body():
     bad = run(nx, "nx_create_thicken", faces=[top.ref], thickness=2)
     assert bad.error["code"] == "NX_BUILD_FAILED" and bad.mutation_outcome == "rolled_back"
     assert bad.error["details"]["faults"][0]["code"] == 875316
+
+
+def test_trim_takes_edges_faces_datum_planes_and_sheets_as_boundaries():
+    nx, target, cut = trim_nx((0, 0, 0, 10, 10, 0))
+    from tests.unit.freeform.fakes import edge
+
+    rim = edge(nx, [10, -1, 0], [10, 11, 0])
+    wall = face(nx, flat(), kind="plane")
+    plane = nx.datum_plane(origin=(10, 0, 0), normal=(1, 0, 0))
+    other = sheet(nx, (10, -5, -5, 10, 15, 5), [face(nx, flat())])
+    refs = [cut.ref, rim.ref, wall.ref, plane.ref, other.ref]
+    ok = run(nx, "nx_create_trim_sheet", body=target.ref, boundaries=refs, region_point=[5, 5, 0])
+    assert ok.ok, ok.error
+    added = [c[0][0] for c in nx.last("TrimsheetBuilder").BoundaryObjects.Add.calls]
+    assert added[0].rules == [("CurveDumb", [cut]), ("EdgeDumb", [rim])]
+    assert added[1].rules == [("FaceDumb", [wall, *other.faces])]
+    assert added[2].rules == [("FaceDatum", [plane])] and len(added) == 3
+    itself = run(nx, "nx_create_trim_sheet", body=target.ref, boundaries=[target.ref],
+                 region_point=[5, 5, 0])  # fmt: skip
+    assert itself.error["field"] == "/boundaries/0" and not nx.live_builders
+
+
+def test_trim_failure_names_the_region_point_or_the_boundary():
+    nx, target, cut = trim_nx((0, 0, 0, 10, 10, 0))
+    nx.refuse("TrimsheetBuilder", 671232, "Invalid retained/discarded regions")
+    far = run(nx, "nx_create_trim_sheet", body=target.ref, boundaries=[cut.ref],
+              region_point=[500, 500, 0])  # fmt: skip
+    assert far.error["field"] == "/region_point"
+    below = curve(nx, [10, -1, -4], [10, 11, -4])
+    off = run(nx, "nx_create_trim_sheet", body=target.ref, boundaries=[cut.ref, below.ref],
+              region_point=[5, 5, 0])  # fmt: skip
+    assert off.error["field"] == "/boundaries/1"
+
+
+def test_sew_reports_free_edges_and_a_closed_sheet():
+    nx = freeform_nx()
+    a, b = two_sheets(nx)
+    sew_commit(nx, a)
+    from tests.unit.freeform.fakes import edge
+
+    a.edges = [edge(nx, [0, 0, 0], [40, 0, 0], [face(nx, flat())])]
+    ok = run(nx, "nx_create_sew", target=a.ref, tools=[b.ref])
+    assert ok.data["free_edges"] == 1 and ok.data["closed"] is False and not ok.warnings, ok
+    nx = freeform_nx()
+    a, b = two_sheets(nx)
+    sew_commit(nx, a)
+    a.edges = []  # every edge shared by two faces: a closed sheet
+    closed = run(nx, "nx_create_sew", target=a.ref, tools=[b.ref])
+    assert closed.data["free_edges"] == 0 and closed.data["closed"] is True
+    assert closed.data["solid"] is False and "solid true" in closed.warnings[0]["message"]

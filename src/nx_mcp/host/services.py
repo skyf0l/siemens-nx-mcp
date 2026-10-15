@@ -64,6 +64,7 @@ _ANNOTATION_GROUPS = (
     "Centerlines",
     "DraftingSurfaceFinishSymbol",
     "Welds",
+    "Hatches",  # crosshatches and area fills
 )
 # Rendering styles a restored camera puts back (display.STYLES names).
 _RESTORED_STYLES = ("shaded", "shaded_with_edges", "wireframe")

@@ -117,16 +117,39 @@ def datums(tx, owner, owner_kind):
     if owner is not None:
         fail("NX_UNSUPPORTED_OPTION", "datums are listed for the whole part", field="/owner")
     out = []
-    # Datum CSYS frames live in CoordinateSystems, not in Datums.
-    found = [*tx.part.Datums, *(getattr(tx.part, "CoordinateSystems", None) or [])]
+    # Datum CSYS frames live in CoordinateSystems, not in Datums. That collection also
+    # holds the hidden frames that features such as Scale and Move Object keep (no datum
+    # CSYS of their own): only the frames of datum CSYS features are listed.
+    frames = _datum_csys_frames(tx.part)
+    found = [*tx.part.Datums, *(c for c in getattr(tx.part, "CoordinateSystems", None) or []
+                                if int(c.Tag) in frames)]  # fmt: skip
     for datum in {int(d.Tag): d for d in found}.values():
         kind = tx.kind_of(datum)
         details = {"blanked": bool(getattr(datum, "IsBlanked", False))}
         if kind == "datum_plane":
             details["origin"] = geom.xyz(datum.Origin)
             details["normal"] = geom.unit(geom.xyz(datum.Normal))
+        elif kind == "datum_axis":
+            details["origin"] = geom.xyz(datum.Origin)
+            details["direction"] = geom.unit(geom.xyz(datum.Direction))
+        elif kind == "datum_csys":
+            details["origin"] = geom.xyz(datum.Origin)
         out.append((datum, kind, {"type": kind.removeprefix("datum_"), "details": details}))
     return out
+
+
+def _datum_csys_frames(part) -> set[int]:
+    """Tags of the coordinate systems that datum CSYS features own."""
+    tags: set[int] = set()
+    for feature in part.Features:
+        if "DATUM_CSYS" not in str(getattr(feature, "FeatureType", "")).upper():
+            continue
+        try:
+            entities = list(feature.GetEntities())
+        except Exception:  # noqa: BLE001 - a feature without entities owns no frame
+            continue
+        tags |= {int(e.Tag) for e in entities if hasattr(e, "Orientation")}
+    return tags
 
 
 def no_active_sketch(tx):

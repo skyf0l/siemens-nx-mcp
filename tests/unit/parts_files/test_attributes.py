@@ -341,3 +341,39 @@ def test_bad_maps_are_refused_before_nx(anx, args, field):
     bad = call(anx, tools.nx_set_attributes, **args)
     assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == field, bad
     assert bad.mutation_outcome == "not_started" and not _store(anx.part)
+
+
+def test_objects_that_cannot_carry_attributes_are_refused_before_nx(anx):
+    exp = anx.expression("p0", "40", 40.0)
+    ref = anx.ref_of(exp, "expression")
+    bad = call(anx, tools.nx_set_attributes, objects=[ref], attributes={"T": "x"})
+    assert bad.error["code"] == "NX_WRONG_KIND" and bad.error["field"] == "/objects/0", bad
+    assert bad.mutation_outcome == "not_started" and "nx_set_expression" in bad.error["hint"]
+
+
+def test_nx_refusing_attributes_on_an_object_names_its_field(anx, monkeypatch):
+    body = anx.block(10, 10, 10)
+    anx.track(body)
+
+    def refused(self, info, _option):
+        raise NXException(580023, "Functionality attempted not possible in the current version")
+
+    monkeypatch.setattr(type(body), "SetUserAttribute", refused, raising=False)
+    bad = call(anx, tools.nx_set_attributes, objects=[anx.ref_of(body, "body")],
+               attributes={"T": "x"})  # fmt: skip
+    assert bad.error["code"] == "NX_WRONG_KIND" and bad.error["field"] == "/objects/0", bad
+    assert bad.error["nx_code"] == 580023 and bad.error["retry"] == "after_fix"
+
+
+def test_an_invalid_date_for_a_date_attribute_says_why(anx):
+    call(anx, tools.nx_set_attributes, values=[{"name": "DUE", "type": "date",
+                                               "value": "2027-01-31"}])  # fmt: skip
+    bad = call(anx, tools.nx_set_attributes, values=[{"name": "DUE", "value": "2026-13-45"}])
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT", bad
+    assert bad.error["field"] == "/values/0/value" and "month" in bad.error["message"]
+
+
+def test_deleting_a_missing_title_is_said(anx):
+    ok = call(anx, tools.nx_set_attributes, delete=["NOPE"])
+    assert ok.ok and ok.data["items"][0]["deleted"] == [], ok
+    assert any("no attribute 'NOPE'" in w["message"] for w in ok.warnings), ok.warnings

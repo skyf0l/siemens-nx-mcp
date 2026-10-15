@@ -114,7 +114,7 @@ def test_export_writes_the_rows_thickness_units_and_sequence_to_csv(tmp_path):
     text = (services(nx).root / "out" / "bends.csv").read_text(encoding="utf-8-sig")
     lines = text.splitlines()
     assert lines[0] == ("index,direction,angle,radius,length,neutral_factor,allowance,"
-                        "deduction,state,face")  # fmt: skip
+                        "deduction,state")  # fmt: skip
     assert lines[1].startswith("1,up,90.0,3.0,100.0,0.33,5.7491") and lines[2].startswith("2,down")
     assert "thickness,2.0" in lines and "sequence_id,sequence_name" in lines
     assert lines[-1] == "1,Bend 1"
@@ -130,3 +130,39 @@ def test_export_refuses_an_existing_file_without_overwrite():
     ok = run(nx, "nx_export_bend_list", path="bends.csv", overwrite=True)
     assert ok.ok and ok.data["overwritten"] is True
     assert target.read_text(encoding="utf-8-sig").startswith("index,")
+
+
+def test_a_hem_has_no_deduction_in_the_list_or_the_csv():
+    nx = sm_nx()
+    body = nx.tab(100, 80, 2.0)
+    nx.bend_edges(nx.add_bend(body), 100.0, 4.71)
+    nx.bend_edges(nx.add_bend(body, radius=0.002, angle=180.00000000000009), 100.0, 3.0)
+    ok = run(nx, "nx_get_bend_list")
+    assert ok.ok, ok
+    flange, hem = ok.data["items"]
+    assert flange["deduction"] == pytest.approx(BD_90) and hem["deduction"] is None
+    assert hem["allowance"] == pytest.approx(math.pi * (0.002 + 0.33 * 2.0))
+    done = run(nx, "nx_export_bend_list", path="hem.csv")
+    assert done.ok, done
+    lines = (services(nx).root / "hem.csv").read_text(encoding="utf-8-sig").splitlines()
+    assert lines[0].endswith(",deduction,state") and "fc:" not in "".join(lines)
+    assert lines[2].split(",")[7] == "" and lines[2].endswith(",bent")
+
+
+def test_a_part_without_sheet_metal_names_the_part_and_how_to_start():
+    nx = sm_nx()
+    nx.block(10, 10, 10)
+    bad = run(nx, "nx_get_bend_list")
+    assert bad.error["code"] == "NX_NOT_FOUND" and bad.error["field"] == "/body"
+    assert "has no sheet-metal body" in bad.error["message"]
+    assert "Give body" not in bad.error["message"]
+    assert "operation=convert" in bad.error["hint"]
+
+
+def test_an_existing_csv_is_named_workspace_relative():
+    nx = sm_nx()
+    bracket(nx)
+    root = services(nx).root
+    (root / "bends.csv").write_text("old")
+    bad = run(nx, "nx_export_bend_list", path="bends.csv")
+    assert bad.error["details"]["path"] == "bends.csv"

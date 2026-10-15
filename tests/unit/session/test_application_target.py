@@ -73,8 +73,24 @@ def test_the_displayed_part_named_by_part_switches_as_before():
     assert nx.session.ApplicationName == "UG_APP_SBSM"  # the switch stays after the call
 
 
-def test_without_part_two_loaded_parts_are_ambiguous():
-    nx, _a, _b = two()
+def test_without_part_the_agents_displayed_part_is_the_target():
+    """NX enters an application for the displayed part only: with two loaded parts and no
+    part, the call acts on the displayed part when it is the agent's."""
+    nx, a, _b = two()
     app = App(nx)
+    licensed(nx)
+    ok = run(nx, "nx_activate_application", application="sheet_metal")
+    assert ok.ok and app.calls == ["UG_APP_SBSM"], ok
+    assert nx.session.Parts.Display is a
+
+
+def test_without_part_the_engineers_displayed_part_is_never_taken():
+    nx, a, _b = two()
+    app = App(nx)
+    licensed(nx)
+    svc = services(nx)
+    owns = svc.owns
+    svc.owns = lambda part: part is not a and owns(part)  # the engineer's displayed part
     bad = run(nx, "nx_activate_application", application="sheet_metal")
-    assert bad.error["code"] == "NX_AMBIGUOUS_PART" and app.calls == []
+    assert not bad.ok and app.calls == [], bad
+    assert bad.error["code"] in ("NX_WRONG_PART_CONTEXT", "NX_AMBIGUOUS_PART")

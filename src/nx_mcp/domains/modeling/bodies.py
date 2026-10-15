@@ -36,6 +36,7 @@ from nx_mcp.core.types import (
     Point3,
     Range,
     RefTo,
+    ScalarValue,
     Vec3,
     convert_quantity,
     forbid_extra,
@@ -195,13 +196,18 @@ def plane_range(low, high, origin, normal):
     return min(d), max(d)
 
 
-def _tool_plane(tx, ref, field="/tool"):
-    """(object, origin, unit normal, is_datum) of a datum plane or planar face."""
-    obj, origin, normal = select.planar(tx, ref, field)
-    return obj, origin, normal, hasattr(obj, "Normal")
+def _tool_plane(tx, value, field="/tool"):
+    """(object, origin, unit normal, is_datum) of a datum plane or planar face, or (None,
+    origin, normal, False) of a plane given inline (``'xy'``, ``{origin, normal}``)."""
+    obj, origin, normal = select.plane(tx, value, field)
+    return obj, origin, normal, obj is not None and hasattr(obj, "Normal")
 
 
-def _set_tool(tx, builder, obj, is_datum, origin, normal):
+def _set_tool(tx, builder, obj, is_datum, origin, normal, front=False):
+    """Fill the trim or split tool; returns the tool builder. ``front`` keeps the side the
+    tool normal points to: a datum plane takes ``ReverseDirection``, but NX 2406 ignores it
+    for a plane coincident with a face (it always kept the back), so a face tool for front
+    becomes a fixed plane through the face with the normal reversed."""
     tool_builder = builder.BooleanTool
     types = tx.nx.GeometricUtilities.BooleanToolBuilder.BooleanToolType
     part = tx.part
@@ -209,15 +215,17 @@ def _set_tool(tx, builder, obj, is_datum, origin, normal):
         tool_builder.ToolOption = types.FaceOrPlane
         rule = part.ScRuleFactory.CreateRuleFaceDatum([obj])
         tool_builder.FacePlaneTool.ToolFaces.FaceCollector.ReplaceRules([rule], False)
+        tool_builder.ReverseDirection = bool(front)
     else:
         tool_builder.ToolOption = types.NewPlane
         plane = part.Planes.CreatePlane(
             tx.nx.Point3d(*origin),
-            tx.nx.Vector3d(*normal),
+            tx.nx.Vector3d(*(geom.scale(normal, -1.0) if front else normal)),
             tx.nx.SmartObject.UpdateOption.WithinModeling,
         )
-        plane.SetMethod(tx.nx.PlaneTypes.MethodType.Coincident)
-        plane.SetGeometry([obj])
+        if not front and obj is not None:  # coincident with the face: follows it
+            plane.SetMethod(tx.nx.PlaneTypes.MethodType.Coincident)
+            plane.SetGeometry([obj])
         plane.Evaluate()
         tool_builder.FacePlaneTool.ToolPlane = plane
     return tool_builder
@@ -228,13 +236,23 @@ class TrimData(TypedDict):
     bodies: list[result.Row]
     volume: float
     volumes: list[float]
+    sides: Annotated[list[str], Doc("Per body: front (along the tool normal) or back")]
 
 
 @tool(
     effect="model",
     label="Trim or split body",
     summary="Trim {body} by {tool}, keep {keep}",
-    keywords=("trim body", "split body", "cut with plane", "slice", "section cut"),
+    keywords=(
+        "trim body",
+        "split body",
+        "cut with plane",
+        "slice",
+        "section cut",
+        "cut in half",
+        "bisect",
+        "halve",
+    ),
     requires=("work_part", "no_active_sketch"),
     variants="keep",
     cost="heavy",
@@ -245,18 +263,19 @@ def nx_create_trim_body(
     tx: Tx,
     *,
     body: BodyRef,
-    tool: Annotated[str, RefTo("datum_plane", "face")],
+    tool: Annotated[Plane, Doc("Datum plane, planar face, or 'xy'/{origin, normal}")],
     keep: Annotated[
         Literal["back", "front", "both"],
         Doc("back: against the tool normal; front: along it; both: split"),
     ] = "back",
 ) -> TrimData:
-    """Cut a solid body with a datum plane or planar face used as an infinite plane. Keep the
-    side behind (default) or in front of the tool normal (Trim Body), or both pieces (Split
-    Body): a plane at z=10 with normal +z keeps z<10 as back, z>10 as front."""
+    """Cut a solid body with a plane: a datum plane, a planar face (made infinite) or one
+    given inline. Keep the side behind (default) or in front of the tool normal (Trim Body),
+    or both pieces (Split Body): a plane at z=10 with normal +z keeps z<10 as back, z>10 as
+    front. sides labels each result body."""
     target = common.solid(tx, body)
     obj, origin, normal, is_datum = _tool_plane(tx, tool)
-    if not is_datum and int(obj.GetBody().Tag) == int(target.Tag):
+    if obj is not None and not is_datum and int(obj.GetBody().Tag) == int(target.Tag):
         fail("NX_INVALID_ARGUMENT", "The tool face must not belong to the body", field="/tool")
     low, high = measure.bounds(tx, target)
     lo, hi = plane_range(low, high, origin, normal)
@@ -277,7 +296,8 @@ def nx_create_trim_body(
             _set_tool(tx, b, obj, is_datum, origin, normal)
             feature = b.commit()
         bodies = common.feature_bodies(feature)
-        volumes = [measure.volume(tx, x) for x in bodies]
+        masses = [measure.mass(tx, [x]) for x in bodies]
+        volumes = [m["volume"] for m in masses]
         readback.expect(
             len(bodies) >= 2 and geom.close(sum(volumes), volume, 1e-5),
             "split",
@@ -288,7 +308,7 @@ def nx_create_trim_body(
     else:
         with builders.build(tx, part.Features.CreateTrimBody2Builder, None) as b:
             b.TargetBodyCollector = builders.collector(tx, [target], "Body")
-            _set_tool(tx, b, obj, is_datum, origin, normal).ReverseDirection = keep == "front"
+            _set_tool(tx, b, obj, is_datum, origin, normal, front=keep == "front")
             feature = b.commit()
         bodies = common.feature_bodies(feature) or [target]
         masses = [measure.mass(tx, [x]) for x in bodies]
@@ -302,14 +322,19 @@ def nx_create_trim_body(
             centroid_offsets=sides,
         )
     out = common.result_of(tx, feature, bodies)
-    return {**out, "volumes": volumes}
+    sides = [
+        "front" if geom.dot(geom.sub(m["centroid"] or origin, origin), normal) > 0 else "back"
+        for m in masses
+    ]
+    return {**out, "volumes": volumes, "sides": sides}
 
 
 # ---------------------------------------------------------------------------
 # Scale and transform
 
 
-ScaleFactor = Annotated[float, Range(gt=0, le=1e6)]
+# A number, or an expression name or formula that keeps driving the SCALE feature.
+ScaleFactor = Annotated[ScalarValue, Range(gt=0, le=1e6)]
 
 
 def _scale_summary(a, say) -> str:
@@ -379,8 +404,11 @@ def nx_create_scale(
         fail("NX_INVALID_ARGUMENT", "A factor of 1 would not change the bodies",
              field="/factor" if factor is not None else "/factors")  # fmt: skip
     if factor is None and csys is None and len(set(f)) == 1:
-        factor = f[0]  # equal factors: a uniform scale
-    targets = common.solids(tx, bodies)
+        factor = (factors or [f[0]])[0]  # equal factors: a uniform scale
+    with tx.checks():  # stale or wrong refs change nothing (not_started)
+        targets = common.solids(tx, bodies)
+        if csys is not None:
+            select.one(tx, csys, "datum_csys", field="/csys")
     before = [measure.mass(tx, [t]) for t in targets]
     types = tx.nx.Features.ScaleBuilder.Types
     with builders.build(tx, tx.part.Features.CreateScaleBuilder, None) as b:
@@ -402,7 +430,9 @@ def nx_create_scale(
             b.Type = types.General
             b.Csys = frame
             for exp, value in zip(
-                (b.ScaleXdirection, b.ScaleYdirection, b.ScaleZdirection), f, strict=True
+                (b.ScaleXdirection, b.ScaleYdirection, b.ScaleZdirection),
+                factors or f,  # a formula keeps driving its axis
+                strict=True,
             ):
                 expr.drive(exp, value)
         feature = b.commit()
@@ -567,7 +597,9 @@ def nx_create_transform(
     if not copy and not _moves(translation, rotation):
         fail("NX_INVALID_ARGUMENT", "This transform would not move the bodies",
              field="/transform", hint="For example " + MOTION_EXAMPLE)  # fmt: skip
-    targets = common.solids(tx, bodies)
+    args.distinct("/bodies", bodies, "bodies")
+    with tx.checks():  # wrong or stale refs change nothing (not_started)
+        targets = common.solids(tx, bodies)
     before = [measure.mass(tx, [t]) for t in targets]
     moving = targets
     if copy:
@@ -810,6 +842,87 @@ def _pattern(tx, b, pattern, vector):
         expr.drive(b.Angle, pattern["angle"])
 
 
+# NX 2406 "No face selected for operation." of Delete Face's blend rule: it does not
+# recognise the faces as a blend chain (a blend resized by resize_blend, or not a blend).
+NO_FACE_SELECTED = 3190049
+DELETE_BLEND_HINT = (
+    "NX's blend recognition does not take these faces (a blend changed by resize_blend, or "
+    "not a blend): use action 'delete', which removes any face and heals the body"
+)
+
+
+def _blend_faces(tx, selected) -> None:
+    """Refuse, before NX, faces NX does not recognise as blends (Resize Blend's
+    ``IsBlendFace`` on a builder never committed); skipped where NX cannot answer."""
+    try:
+        with builders.build(tx, tx.part.Features.CreateResizeBlendBuilder, None) as b:
+            flags = [bool(x) for x in b.IsBlendFace(selected)]
+    except Exception:  # no answer: Delete Face decides
+        return
+    if len(flags) != len(selected):
+        return
+    for i, ok in enumerate(flags):
+        if not ok:
+            fail("NX_WRONG_GEOMETRY", f"faces[{i}] is not a blend NX recognises",
+                 field=f"/faces/{i}", hint=DELETE_BLEND_HINT)  # fmt: skip
+
+
+# Actions read back from the faces' own geometry instead of the volume.
+SHAPE_CHECKED = ("move", "replace")
+
+
+def _shape_moved(tx, action, selected, frames, a, before, after) -> None:
+    """Read back a move (each face shifted by distance along direction, as its geometry
+    shows) or a replace (each face that NX kept lies on the replacement's surface)."""
+    if action == "move":
+        shift = geom.scale(a["vector"], float(a["distance"]))
+        if readback.expect_moved(tx, frames, selected, shift):
+            return
+    else:
+        target = readback.face_frame(tx, a["other"])
+        checked = 0
+        for i, face in enumerate(selected):
+            now = readback.face_frame(tx, face)
+            if now is None or target is None:
+                continue  # NX consumed the face: the volume and consistency stand
+            readback.expect(
+                readback.same_surface(now, target),
+                f"replaced[{i}]",
+                f"faces[{i}] does not lie on the replacement's surface",
+            )
+            checked += 1
+        if checked:
+            return
+    if common.same_volume(before, after) and all(
+        f is not None and readback.face_frame(tx, s) == f
+        for f, s in zip(frames, selected, strict=True)
+    ):
+        tx.warn(
+            "NX_NO_EFFECT",
+            f"The {action} left the faces and the volume as they were (a face slid along its "
+            "own surface); check the direction",
+        )
+
+
+def _outward(tx, face):
+    """Unit outward normal of a face at its UV centre (UF face properties)."""
+    modeling = tx.uf.Modeling
+    u0, u1, v0, v1 = (float(v) for v in modeling.AskFaceUvMinmax(face.Tag))
+    props = modeling.AskFaceProps(face.Tag, [(u0 + u1) / 2, (v0 + v1) / 2])
+    return geom.unit([float(v) for v in props[5]])
+
+
+def _opposed(tx, selected, other) -> bool:
+    """Whether planar faces are replaced by a planar face facing the other way (NX 2406
+    refuses that unless the builder's direction is reversed: "A face does not intersect
+    properly")."""
+    faces = [*selected, other]
+    if any(select.face_data(tx, f)[0] != select.FACE_PLANE for f in faces):
+        return False
+    target = _outward(tx, other)
+    return all(geom.dot(_outward(tx, f), target) < -0.999 for f in selected)
+
+
 def _configure(tx, b, action, selected, a):
     """Fill the action's builder (the faces through one dumb face rule)."""
     part = tx.part
@@ -826,6 +939,8 @@ def _configure(tx, b, action, selected, a):
     elif action == "replace":
         b.ReplaceFaces.ReplaceRules([rule], False)
         builders.fill(tx, b.ReplacementFaces, [a["other"]], "Face")
+        if _opposed(tx, selected, a["other"]):
+            b.ReverseDirection = True  # NX keeps the material side only when told
     elif action in ("delete", "delete_blend"):
         types = tx.nx.Features.DeleteFaceBuilder.SelectTypes
         if action == "delete":
@@ -879,7 +994,7 @@ def _configure(tx, b, action, selected, a):
         "delete face",
         "resize hole",
         "resize blend",
-        "pattern face",
+        "push pull face",
         "imported",
         "synchronous",
     ),
@@ -951,13 +1066,22 @@ def nx_edit_faces(
             a["mirror"] = select.plane(tx, mirror, "/plane")[1:]
         if action == "resize":
             _resize_targets(tx, selected, diameter)
+        if action == "delete_blend":
+            _blend_faces(tx, selected)
         if action not in ("offset", "resize"):  # their builders need Modeling only
             sync_relate.require_synchronous(tx, f"nx_edit_faces {action}", by_argument=True)
     before = measure.volume(tx, body)
     count = len(body.GetFaces())
-    with builders.build(tx, getattr(tx.part.Features, FACTORIES[action]), None) as b:
-        _configure(tx, b, action, selected, a)
-        feature = b.commit(validate=True)
+    frames = [readback.face_frame(tx, f) for f in selected] if action in SHAPE_CHECKED else []
+    try:
+        with builders.build(tx, getattr(tx.part.Features, FACTORIES[action]), None) as b:
+            _configure(tx, b, action, selected, a)
+            feature = b.commit(validate=True)
+    except NXError as error:
+        if action == "delete_blend" and error.nx_code == NO_FACE_SELECTED:
+            fail("NX_WRONG_GEOMETRY", error.message, field="/faces", hint=DELETE_BLEND_HINT,
+                 nx_code=error.nx_code)  # fmt: skip
+        raise
     check = getattr(tx.uf.Modeling, "AskBodyConsistency", None)
     if check is not None:
         faults = check(body.Tag)[0]
@@ -967,7 +1091,10 @@ def nx_edit_faces(
     if action == "resize":
         _resized(tx, selected, diameter, angle)
     out = common.result_of(tx, feature, [body])
-    common.changed(before, out["volume"], "differs")
+    if action in SHAPE_CHECKED:  # a move or replace may keep the volume (a hole slid aside)
+        _shape_moved(tx, action, selected, frames, a, before, out["volume"])
+    else:
+        common.changed(before, out["volume"], "differs")
     after = len(body.GetFaces())
     if action in ("pattern", "mirror"):
         readback.expect(after > count, "faces", "NX added no faces", before=count, after=after)

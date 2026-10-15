@@ -20,8 +20,15 @@ blend), so the ref names the same NX face, which may now have other bounds.
 
 Features, bodies and sketches carry an automatic anchor built from the
 persistent journal identifier (``@smoke/a/blk.prt:EXTRUDE(4)``, plus ``#<i>`` for
-bodies); faces and edges only on request. An anchor resolves wherever a ref
-does (the unique current object it names). A stale ref reports the anchor's
+bodies); faces and edges only on request. An occurrence (a body a component shows)
+is anchored by its component path and its prototype's identifier
+(``@asm.prt:COMPONENT pin 1>EXTRUDE(2)#0``), a component by its path alone
+(``@asm.prt:COMPONENT sub 1>COMPONENT pin 1``); an occurrence NX cannot name that way
+gets no anchor. A body, face or edge anchor of ``nx_create_anchor``
+(``@<part>:face=<handle>``) resolves too. An anchor resolves wherever a ref
+does (the unique current object it names; one that matches several objects is
+``NX_AMBIGUOUS_REFERENCE``, never one of them), and follows its part's new file after a
+save-as. A stale ref reports the anchor's
 unique current match in ``details.current``; nothing is re-resolved silently,
 except after an undo, a rollback or an edit the agent did not make: NX 2406 undo
 restores the same tags (measured for parts, bodies, features, sketches, faces and
@@ -47,6 +54,7 @@ from pathlib import Path
 from typing import NoReturn, TypedDict
 
 from nx_mcp.core.errors import NXError, fail
+from nx_mcp.core.errors import article as article  # re-exported (the grammar helper)
 from nx_mcp.core.types import KIND_GROUPS, expand_kinds
 
 PREFIX = {
@@ -79,6 +87,10 @@ PREFIX = {
     "modeling_view": "mv",
 }
 ANCHORED = frozenset({"feature", "body", "sketch"})
+# Kinds an anchor given as a ref may name: the automatic ones and components.
+RESOLVABLE = ANCHORED | {"component"}
+# Between the components of an occurrence anchor's path (``COMPONENT a 1>EXTRUDE(2)``).
+PATH_SEP = ">"
 # Registry kinds -> exact kinds they may stand for.
 REGISTRY_KINDS = {"datum": KIND_GROUPS["datum"], "section": frozenset({"section_view"})}
 # Exact kind -> kind name in the object registry (its kinds are coarser).
@@ -86,6 +98,8 @@ TO_REGISTRY = {**dict.fromkeys(KIND_GROUPS["datum"], "datum"), "section_view": "
 _SHORT = re.compile(r"^([a-z]{1,3}):([1-9][0-9]{0,11})$")
 _ANCHOR = re.compile(r"^@(?P<part>.+):(?P<jid>[^#]+?)(?:#(?P<index>\d+))?$")
 _INDEX = re.compile(r"#\d+$")  # a body anchor's index among bodies of one identifier
+# nx_create_anchor's anchor of a body, face, edge or curve: ``@<part>:face=<NX handle>``.
+HANDLE_ANCHOR = re.compile(r"^@(?P<part>.+?):(?P<kind>body|face|edge|curve)=(?P<handle>.+)$")
 # NX's generic name of an unnamed object ("ENTITY 26 3 1"): not stable between reads.
 GENERIC_NAME = re.compile(r"^ENTITY \d+ \d+ \d+$")
 BLOCK = 1000
@@ -166,6 +180,7 @@ class Entry:
     tag: str = ""  # the NX tag the ref names (persisted for a host reload)
     jid: str = ""  # its journal identifier when the ref was made
     part_path: str = ""  # its part's workspace path when the ref was made
+    full: str = ""  # its part's FullPath when the anchor was made (a save-as moves it)
 
 
 def _tag(obj) -> str:
@@ -194,9 +209,22 @@ def _gone(ref: str, kind: str | None, name: str | None):
     )
 
 
-def article(word: str) -> str:
-    """``a`` or ``an`` before ``word`` (by its first letter)."""
-    return "an" if word[:1].lower() in ("a", "e", "i", "o", "u") else "a"
+def _full(part) -> str:
+    return str(getattr(part, "FullPath", "") or "")
+
+
+def _prototype(obj):
+    """The object an occurrence shows in its component's part (followed through nested
+    occurrences), else None."""
+    proto = obj
+    for _ in range(32):
+        nxt = getattr(proto, "Prototype", None)
+        if nxt is None or nxt is proto:
+            break
+        proto = nxt
+        if not getattr(proto, "IsOccurrence", False):
+            return proto
+    return None
 
 
 def _raw_name(obj) -> str:
@@ -272,6 +300,7 @@ class References:
             entry.tag, entry.jid = _tag(obj), self._jid(obj)
             with contextlib.suppress(Exception):
                 entry.part_path = str(self.backend.part_path(part))
+            entry.full = _full(part)
             self._entries[ref] = entry
             self._identity[key] = ref
             self.version += 1
@@ -280,7 +309,12 @@ class References:
             # a ref whose earlier wrapper NX invalidated works again after a fresh listing.
             entry.handle = self.backend.register_handle(obj, TO_REGISTRY.get(kind, kind), part)
         entry.name = _label(obj, kind, entry.id, _name(obj))
-        if entry.anchor is not None and self._moved(entry.anchor, obj):
+        full = _full(part)
+        if full != entry.full:  # a save-as: the anchor names the part's new file
+            entry.full, entry.anchor = full, None
+            with contextlib.suppress(Exception):
+                entry.part_path = str(self.backend.part_path(part))
+        if entry.anchor is not None and self._moved(entry.anchor, obj, kind):
             entry.anchor = None  # NX renumbered the object (a feature reorder)
         if entry.anchor is None and (kind in ANCHORED or anchor):
             entry.anchor = self._anchor(obj, kind, part)
@@ -290,6 +324,8 @@ class References:
         return out
 
     def _anchor(self, obj, kind: str, part) -> str | None:
+        if kind != "part" and getattr(obj, "IsOccurrence", False):
+            return self._occurrence_anchor(obj, kind, part)
         jid = str(getattr(obj, "JournalIdentifier", "") or "")
         if not jid:
             return None
@@ -297,6 +333,70 @@ class References:
         if kind == "body":
             anchor += f"#{self._body_index(obj, jid, part)}"
         return anchor
+
+    def _occurrence_anchor(self, obj, kind: str, part) -> str | None:
+        """``@<assembly>:<component path>`` of a component; for a body, feature or sketch a
+        component shows, the path then ``>`` and its prototype's identifier (``#i`` for a
+        body). None when NX cannot name it that way: an occurrence's own journal
+        identifier (``HANDLE R-626``) is the same for every occurrence of one object."""
+        try:
+            if kind == "component":
+                path = self._component_path(obj, part)
+                return f"@{self.backend.part_path(part)}:{PATH_SEP.join(path)}" if path else None
+            if kind not in ANCHORED:
+                return None
+            proto = _prototype(obj)
+            component = getattr(obj, "OwningComponent", None)
+            jid = self._jid(proto) if proto is not None else ""
+            if component is None or not jid or PATH_SEP in jid:
+                return None
+            path = self._component_path(component, part)
+            if not path:
+                return None
+            anchor = f"@{self.backend.part_path(part)}:{PATH_SEP.join([*path, jid])}"
+            if kind == "body":
+                owner = getattr(proto, "OwningPart", None) or getattr(component, "Prototype", None)
+                anchor += f"#{self._body_index(proto, jid, owner)}"
+            return anchor
+        except Exception:
+            return None
+
+    def _component_path(self, component, part) -> list[str] | None:
+        """The journal identifiers of ``component`` and its parents below ``part``'s root
+        component, outermost first; None when one is missing or holds the separator."""
+        root = None
+        with contextlib.suppress(Exception):
+            root = part.ComponentAssembly.RootComponent
+        out: list[str] = []
+        node = component
+        while node is not None and len(out) < 64:
+            if root is not None and _tag(node) == _tag(root):
+                break
+            jid = self._jid(node)
+            if not jid or PATH_SEP in jid:
+                return None
+            out.append(jid)
+            node = getattr(node, "Parent", None)
+        return out[::-1] or None
+
+    def _walk(self, part, jids) -> list:
+        """The components at the end of the path ``jids`` below ``part``'s root component:
+        every match at each level (more than one: the path is ambiguous)."""
+        try:
+            nodes = [part.ComponentAssembly.RootComponent]
+        except Exception:
+            return []
+        for jid in jids:
+            nodes = [
+                child
+                for node in nodes
+                if node is not None
+                for child in list(node.GetChildren() or [])
+                if self._jid(child) == jid
+            ]
+            if not nodes:
+                break
+        return nodes
 
     def _body_index(self, obj, jid: str, part) -> int:
         """``obj``'s position among the bodies of ``part`` with journal id ``jid``. One pass
@@ -331,14 +431,18 @@ class References:
         return found[1] if found is not None and found[0] == jid else 0
 
     @staticmethod
-    def _moved(anchor: str, obj) -> bool:
+    def _moved(anchor: str, obj, kind: str | None = None) -> bool:
         """Whether ``obj``'s journal identifier differs from the one in ``anchor``. A journal
         identifier may hold ':' (a pattern instance body: ``Pattern Feature(3:5A:1A)``), so
-        the anchor is compared by its end, never split at a colon."""
+        the anchor is compared by its end, never split at a colon. An occurrence compares
+        its prototype's identifier, the end of its path."""
+        if kind != "component" and getattr(obj, "IsOccurrence", False):
+            obj = _prototype(obj) or obj
         jid = str(getattr(obj, "JournalIdentifier", "") or "")
         if not jid or not _ANCHOR.match(anchor):
             return False
-        return not _INDEX.sub("", anchor).endswith(":" + jid)
+        text = _INDEX.sub("", anchor)
+        return not (text.endswith(":" + jid) or text.endswith(PATH_SEP + jid))
 
     def reanchor(self, ref: str) -> None:
         """Recompute ``ref``'s name and anchor from its object (after a rename)."""
@@ -480,31 +584,73 @@ class References:
         )
 
     def _resolve_anchor(self, anchor: str, wanted) -> object:
-        """The unique current feature, body or sketch an anchor names
-        (``@<part>:<journal id>[#i]``, as result rows show)."""
+        """The unique current object an anchor names: a feature, body, sketch or component
+        (``@<part>:<journal id or component path>[#i]``, as result rows show), or the body,
+        face or edge of a handle anchor (``@<part>:face=<handle>``, nx_create_anchor)."""
+        handle = HANDLE_ANCHOR.match(anchor)
+        if handle is not None:
+            return self._resolve_handle_anchor(anchor, handle, wanted)
         if not _ANCHOR.match(anchor):
             fail("NX_INVALID_ARGUMENT", f"Not a reference or anchor: {anchor!r}")
-        kinds = sorted(ANCHORED if wanted is None else wanted & ANCHORED)
+        kinds = sorted(RESOLVABLE if wanted is None else wanted & RESOLVABLE)
         if not kinds:
-            self._wrong_kind(anchor, "anchor of a feature, body or sketch", wanted)
-        found = [(k, m) for k in kinds if (m := self._anchor_match(anchor, k)) is not None]
-        if len(found) != 1:
+            self._wrong_kind(anchor, "anchor of a feature, body, sketch or component", wanted)
+        found = [(k, m) for k in kinds for m in self._anchor_candidates(anchor, k)]
+        if len(found) > 1:
+            fail(
+                "NX_AMBIGUOUS_REFERENCE",
+                f"{anchor} matches {len(found)} current objects, so it names none of them",
+                hint="Pass the object's ref instead (nx_list_objects or nx_list_components "
+                "list them)",
+                details={"ref": anchor, "matches": len(found)},
+            )
+        if not found:
             fail(
                 "NX_NOT_FOUND",
-                f"{anchor} names no unique current {'/'.join(kinds)}",
-                hint="Anchors name features, bodies and sketches; list them with "
-                "nx_list_objects for their refs",
-                details={"ref": anchor, "matches": len(found)},
+                f"{anchor} names no current {'/'.join(kinds)}",
+                hint="Anchors name features, bodies, sketches and components; list them "
+                "with nx_list_objects for their refs",
+                details={"ref": anchor, "matches": 0},
             )
         kind, (obj, part) = found[0]
         self.row(obj, kind, part=part)  # a short ref and a live handle from now on
         return obj
 
+    def _resolve_handle_anchor(self, anchor: str, match, wanted) -> object:
+        """The body, face or edge of ``@<part>:<kind>=<handle>`` in a loaded part."""
+        kind = match.group("kind")
+        if wanted is not None and kind not in wanted:
+            self._wrong_kind(anchor, kind, wanted)
+        part = self._loaded_part(match.group("part"))
+        obj = None
+        if part is not None:
+            with contextlib.suppress(Exception):
+                tag = int(self.backend.uf.Tag.AskTagOfHandle(match.group("handle")))
+                obj = self.backend.object_of_tag(tag) if tag else None
+        if obj is None or deleted(obj):
+            fail(
+                "NX_STALE_REFERENCE",
+                f"{anchor}: the anchored {kind} no longer exists"
+                + ("" if part is not None else " in a loaded part"),
+                hint="Select replacement geometry with nx_find_geometry",
+                details={"ref": anchor, "kind": kind, "reason": "anchor_unresolved"},
+            )
+        if self.backend.part_key(self.backend.owning_part(obj)) != self.backend.part_key(part):
+            fail(
+                "NX_STALE_REFERENCE",
+                f"{anchor}: the handle names an object of another part now",
+                hint="Select replacement geometry with nx_find_geometry",
+                details={"ref": anchor, "kind": kind, "reason": "anchor_unresolved"},
+            )
+        self.row(obj, kind, part=part)
+        return obj
+
     @staticmethod
     def _wrong_kind(ref, kind, wanted):
+        expected = "/".join(sorted(wanted))
         raise NXError(
             "NX_WRONG_KIND",
-            f"{ref} is {article(kind)} {kind}; expected {'/'.join(sorted(wanted))}",
+            f"{ref} is {article(kind)} {kind}; expected {expected}",
             details={"ref": ref, "kind": kind, "expected": sorted(wanted)},
         )
 
@@ -520,23 +666,44 @@ class References:
 
     def _anchor_match(self, anchor: str | None, kind: str):
         """``(object, part)`` of the unique current object matching ``anchor``, or None."""
+        found = self._anchor_candidates(anchor, kind)
+        return found[0] if len(found) == 1 else None
+
+    def _anchor_candidates(self, anchor: str | None, kind: str) -> list:
+        """``[(object, part)]`` of every current object of ``kind`` matching ``anchor``: one
+        for a usable anchor, several when it is ambiguous (two components of one name)."""
         try:
             split = self._split_anchor(anchor)
             if split is None:
-                return None
+                return []
             part, jid, index = split
+            if kind == "component":
+                found = [] if index is not None else self._walk(part, jid.split(PATH_SEP))
+                return [(c, part) for c in found if not deleted(c)]
             # Only a body anchor has ``#<i>`` (bodies of one feature share its journal id):
             # an anchor names a body, or a feature or sketch, never both.
             if (index is not None) != (kind == "body"):
-                return None
+                return []
+            if PATH_SEP in jid:  # an occurrence: its component path, then its prototype
+                *path, own = jid.split(PATH_SEP)
+                out = []
+                for component in self._walk(part, path):
+                    protos = [
+                        o
+                        for o in self._collection(getattr(component, "Prototype", None), kind)
+                        if self._jid(o) == own
+                    ]
+                    for proto in protos if index is None else protos[index : index + 1]:
+                        occurrence = component.FindOccurrence(proto)
+                        if occurrence is not None and not deleted(occurrence):
+                            out.append((occurrence, part))
+                return out
             found = [o for o in self._collection(part, kind) if self._jid(o) == jid]
             if index is not None:
                 found = found[index : index + 1]
-            if len(found) != 1 or deleted(found[0]):
-                return None
-            return found[0], part
+            return [(o, part) for o in found if not deleted(o)]
         except Exception:
-            return None
+            return []
 
     def _split_anchor(self, anchor: str | None):
         """``(part, journal id, index or None)`` of an anchor: the loaded part whose path
@@ -611,7 +778,7 @@ class References:
             if obj is None or deleted(obj) or _tag(obj) in gone:
                 entry.anchor = None
                 continue
-            if self._moved(entry.anchor, obj):
+            if self._moved(entry.anchor, obj, entry.kind):
                 was = entry.anchor
                 with contextlib.suppress(Exception):
                     entry.anchor = self._anchor(obj, entry.kind, self.backend.owning_part(obj))

@@ -1,0 +1,86 @@
+{
+ "covers": {
+  "nx_create_unsew": [
+   "faces"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "a",
+   "args": {
+    "shape": "block",
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "length": 40,
+    "width": 30,
+    "height": 20
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "all",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face",
+    "limit": 6
+   }
+  },
+  {
+   "call": "nx_create_unsew",
+   "args": {
+    "faces": [
+     "$all.data.items.0.id",
+     "$all.data.items.1.id",
+     "$all.data.items.2.id",
+     "$all.data.items.3.id",
+     "$all.data.items.4.id",
+     "$all.data.items.5.id"
+    ],
+    "output": "each_face"
+   },
+   "expect": {
+    "error.field": "/faces",
+    "error.hint": {
+     "contains": "Leave one face out"
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_unsew",
+   "args": {
+    "faces": [
+     "$all.data.items.0.id",
+     "$all.data.items.1.id",
+     "$all.data.items.2.id",
+     "$all.data.items.3.id",
+     "$all.data.items.4.id"
+    ],
+    "output": "each_face"
+   },
+   "expect": {
+    "data.count": 6,
+    "data.area": {
+     "close": 5200,
+     "tol": 0.001
+    }
+   }
+  }
+ ]
+}

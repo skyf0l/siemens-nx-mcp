@@ -20,7 +20,7 @@ from types import SimpleNamespace as NS
 
 from nx_mcp.core import catalogue, kernel
 from nx_mcp.core.errors import fail
-from nx_mcp.core.references import ANCHORED, article
+from nx_mcp.core.references import ANCHORED, HANDLE_ANCHOR, article
 from nx_mcp.core.tx import Services
 from nx_mcp.core.types import expand_kinds
 from nx_mcp.kit import drawing, expr, units
@@ -42,6 +42,9 @@ class _Refs:
         self.fake = fake
 
     def resolve(self, ref, kinds=()):
+        handle = HANDLE_ANCHOR.match(ref)
+        if handle is not None:  # nx_create_anchor's body/face/edge anchor, as core resolves it
+            return self._handle_anchor(ref, handle, kinds)
         if ref.startswith("@"):
             for kind in sorted(expand_kinds(kinds) & ANCHORED if kinds else ANCHORED):
                 row = self.find_anchor(ref, kind)
@@ -53,12 +56,35 @@ class _Refs:
             fail("NX_STALE_REFERENCE", f"{ref} is not a live reference", details={"ref": ref})
         obj, kind = entry
         if kinds and kind not in expand_kinds(kinds):
+            wanted = sorted(expand_kinds(kinds))
             fail(
                 "NX_WRONG_KIND",
-                f"{ref} is {article(kind)} {kind}",
-                details={"ref": ref, "kind": kind},
+                f"{ref} is {article(kind)} {kind}; expected {'/'.join(wanted)}",
+                details={"ref": ref, "kind": kind, "expected": wanted},
             )
         return obj
+
+    def _handle_anchor(self, ref, match, kinds):
+        kind = match.group("kind")
+        if kinds and kind not in expand_kinds(kinds):
+            wanted = sorted(expand_kinds(kinds))
+            fail("NX_WRONG_KIND", f"{ref} is {article(kind)} {kind}; expected {'/'.join(wanted)}",
+                 details={"ref": ref, "kind": kind, "expected": wanted})  # fmt: skip
+        found = None
+        with contextlib.suppress(Exception):
+            tag = int(self.fake.uf.Tag.AskTagOfHandle(match.group("handle")))
+            for part in self.fake.session.Parts:
+                pool = list(getattr(part, "Curves", []) or []) if kind == "curve" else []
+                for body in getattr(part, "Bodies", []) or []:
+                    if kind == "body":
+                        pool.append(body)
+                    elif kind in ("face", "edge"):
+                        pool.extend(body.GetFaces() if kind == "face" else body.GetEdges())
+                found = found or next((o for o in pool if int(o.Tag) == tag), None)
+        if found is None:
+            fail("NX_STALE_REFERENCE", f"{ref}: the anchored {kind} no longer exists",
+                 details={"ref": ref, "kind": kind})  # fmt: skip
+        return found
 
     def row(self, obj, kind, *, part=None, anchor=False):
         row = self.fake.row(obj, kind)

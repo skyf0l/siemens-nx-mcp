@@ -39,6 +39,7 @@ and closed by a floor plane facing back into the hole or a narrowing (drill tip)
 
 from __future__ import annotations
 
+import contextlib
 import heapq
 import json
 import math
@@ -70,8 +71,12 @@ from nx_mcp.kit import facts as kfacts
 
 FACE_TYPES = {22: "plane", 16: "cylinder", 17: "cone", 18: "sphere", 19: "torus"}
 FACE_CONE = 17
+FACE_TORUS = 19
 EDGE_TYPES = {"Linear": "line", "Circular": "circle", "Elliptical": "ellipse"}
-FACE_ONLY, EDGE_ONLY = {"plane", "cylinder", "cone"}, {"circle", "line"}
+FACE_ONLY, EDGE_ONLY = {"plane", "cylinder", "cone", "sphere", "torus"}, {"circle", "line"}
+# Face types with a radius (a torus: its major and its minor radius) and the types a
+# radius filter matches on faces of any type.
+ROUND_FACES = ("cylinder", "sphere", "torus")
 PLURAL = {"face": "faces", "edge": "edges", "body": "bodies"}
 MAX_CANDIDATES = 20000
 # Budget seconds added per candidate face or edge: a type and a box read (microseconds),
@@ -81,7 +86,7 @@ PER_CANDIDATE_SECONDS = 0.002
 DEFAULT_TOLERANCE = 0.001
 AXES = "xyz"
 DRAWING_KINDS = ("drawing_view", "drawing_sheet")
-_HANDLE_ANCHOR = re.compile(r"^@(?P<part>.+?):(?P<kind>body|face|edge)=(?P<handle>.+)$")
+_HANDLE_ANCHOR = re.compile(r"^@(?P<part>.+?):(?P<kind>body|face|edge|curve)=(?P<handle>.+)$")
 _JID_ANCHOR = re.compile(r"^@(?P<part>.+):(?P<jid>[^#]+?)(?:#(?P<index>\d+))?$")
 # Axis words accepted for a normal (casefolded, spaces dropped).
 DIRECTION_WORDS = {
@@ -92,7 +97,7 @@ DIRECTION_WORDS = {
 }  # fmt: skip
 
 Tolerance = Annotated[float, Range(gt=0, le=1)]
-GeometryType = Literal["any", "plane", "cylinder", "cone", "circle", "line"]
+GeometryType = Literal["any", "plane", "cylinder", "cone", "sphere", "torus", "circle", "line"]
 Order = Literal["nearest", "highest", "lowest"]
 NORMAL_DOC = Doc("[x,y,z] or +z, -x, top...")
 Normal = Annotated[tuple[float, float, float], NORMAL_DOC] | Annotated[str, Text(8), NORMAL_DOC]
@@ -148,6 +153,8 @@ class GeometryRow(result.Row, total=False):
     point: list[float]
     normal: list[float]
     radius: float
+    minor_radius: float
+    length: float
     axis: list[float]
     axis_point: list[float]
     role: str
@@ -186,7 +193,7 @@ def resolve_owner(tx, owner, kinds, *, field="/owner", work_part=False):
             hint="List the objects with nx_list_objects to get their ids",
         )
     try:
-        return tx.resolve(owner, *kinds, work_part=work_part)
+        return select.resolve(tx, owner, *kinds, field=field, work_part=work_part)
     except NXError as error:
         if error.code != "NX_WRONG_KIND" or error.details.get("kind") not in DRAWING_KINDS:
             raise
@@ -224,15 +231,15 @@ def direction(value, field="/normal"):
 
 def implied_type(kind, geometry_type, normal, radius, role, lined=False):
     """``any`` narrowed by the filters that imply a type: a normal (plane), a role
-    (cylinder), a radius (cylinder on faces, circle on edges) or a line direction
-    (``lined``: ``parallel``, line edges)."""
+    (cylinder), a radius on edges (circle) or a line direction (``lined``: ``parallel``,
+    line edges). A radius on faces of any type matches cylinders, spheres and tori."""
     if geometry_type != "any":
         return geometry_type
     if kind == "edge" and lined:
         return "line"
     if kind == "face" and normal is not None:
         return "plane"
-    if kind == "face" and (role is not None or radius is not None):
+    if kind == "face" and role is not None:
         return "cylinder"
     if kind == "edge" and radius is not None:
         return "circle"
@@ -260,8 +267,12 @@ def _check_rule(kind, geometry_type, normal, radius, near, order, role=None, lin
             hint='Use kind "face" with normal (geometry_type "plane" or "any"); for edges, '
             "filter by geometry_type, radius or near instead",
         )
-    if radius is not None and geometry_type not in ("cylinder", "circle"):
-        fail("NX_INVALID_ARGUMENT", "radius filters cylinders or circles", field="/radius")
+    if radius is not None and geometry_type not in ("any", "circle", *ROUND_FACES):
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "radius filters cylinders, spheres, tori (faces) or circles (edges)",
+            field="/radius",
+        )
     if role is not None and (kind, geometry_type) != ("face", "cylinder"):
         fail("NX_INVALID_ARGUMENT", "role filters cylindrical faces only", field="/role")
     if lined and (kind, geometry_type) != ("edge", "line"):
@@ -303,14 +314,14 @@ def _candidates(tx, kind, owner_obj):
     body in scope;
     for ``body``, the owner's bodies (a component's occurrences) or every body in scope."""
     if kind == "body":
-        return bodies.of(tx, owner_obj) if owner_obj is not None else bodies.scope(tx, "auto")
+        return bodies.of(tx, owner_obj) if owner_obj is not None else _scanned(tx)
     if owner_obj is not None and tx.kind_of(owner_obj) in ("feature", "face"):
         # Feature.GetFaces/GetEdges: the feature's own, not its bodies'; a face's edges.
         found = [owner_obj]
     elif owner_obj is not None:
         found = bodies.of(tx, owner_obj)
     else:
-        found = bodies.scope(tx, "auto")
+        found = _scanned(tx)
     entities: dict[int, Any] = {}
     for source in found:
         tx.checkpoint()
@@ -323,6 +334,20 @@ def _candidates(tx, kind, owner_obj):
                 field="/owner",
             )
     return list(entities.values())
+
+
+INTERNAL_LAYER = 256  # NX user layers are 1-256; NX keeps copies (flat patterns) above
+
+
+def _scanned(tx) -> list:
+    """The bodies an owner-less scan searches: those in scope, without bodies on NX's
+    internal layers (a sheet-metal flat pattern's copy sits on layer 271), with a note."""
+    found = bodies.scope(tx, "auto")
+    kept = [b for b in found if int(getattr(b, "Layer", 1) or 1) <= INTERNAL_LAYER]
+    if len(kept) < len(found):
+        tx.warn("NX_NOTE", f"Skipped {len(found) - len(kept)} bodies on NX internal layers (e.g. "
+                "a flat pattern's copy); give one as owner to search it")  # fmt: skip
+    return kept
 
 
 def _describe(tx, obj, kind):
@@ -343,6 +368,15 @@ def _describe(tx, obj, kind):
             )
         elif code == FACE_CONE:
             facts.update(common.axial_facts(tx, obj, data))
+        elif code == select.FACE_SPHERE:
+            facts.update(radius=float(data[4]), center=common.xyz3(data[1]))
+        elif code == FACE_TORUS:
+            facts.update(
+                radius=float(data[4]),
+                minor_radius=float(data[5]),
+                axis=geom.unit(common.xyz3(direction)),
+                axis_point=common.xyz3(data[1]),
+            )
     else:
         name = result.enum_name(obj.SolidEdgeType, tx.nx.Edge.EdgeType)
         facts["type"] = EDGE_TYPES.get(name, "other")
@@ -443,16 +477,19 @@ def search(
     ranked: list[list[Any]] = []
     found = _candidates(tx, kind, owner_obj)
     tx.scale_budget(len(found), per_item=PER_CANDIDATE_SECONDS)
+    round_only = radius is not None and kind == "face" and geometry_type == "any"
     for obj in found:
         tx.checkpoint()
         if geometry_type != "any" and _quick_type(tx, obj, kind) != geometry_type:
             continue
+        if round_only and _quick_type(tx, obj, kind) not in ROUND_FACES:
+            continue  # a radius on faces of any type: cylinders, spheres and tori only
         facts = _describe(tx, obj, kind) if described else {}
         if want_normal is not None and geom.dot(want_normal, facts["normal"]) < 1 - tolerance:
             continue
         if parallel is not None and not _along(tx, obj, parallel, tolerance):
             continue
-        if radius is not None and abs(facts["radius"] - radius) > tolerance:
+        if radius is not None and not _radius_matches(facts, radius, tolerance):
             continue
         if role is not None and facts.get("role") != role:
             continue
@@ -479,6 +516,13 @@ def search(
         tx.checkpoint()
         item[2] = {**_describe(tx, item[1], kind), **item[2]}
     return [(rank, obj, facts) for rank, obj, facts in out]
+
+
+def _radius_matches(facts, radius, tolerance) -> bool:
+    """A face or edge whose radius (a torus: either radius) is ``radius`` within
+    ``tolerance``."""
+    values = [facts.get("radius"), facts.get("minor_radius")]
+    return any(v is not None and abs(float(v) - radius) <= tolerance for v in values)
 
 
 def _body_facts(tx, body, row):
@@ -531,7 +575,7 @@ def nx_find_geometry(
     kind: Literal["face", "edge", "body"] = "face",
     geometry_type: GeometryType = "any",
     normal: FindNormal | None = None,
-    radius: Annotated[float, Range(gt=0)] | None = None,
+    radius: Annotated[Length, Doc("Cylinder, sphere or torus faces; circle edges")] | None = None,
     role: Literal["bore", "boss"] | None = None,
     near: Point3 | None = None,
     order: Order | None = None,
@@ -545,6 +589,10 @@ def nx_find_geometry(
     else outermost along normal, else lowest along axis. Drawing-view edges:
     nx_list_view_edges."""
     common.note_exploded(tx)
+    if radius is not None:
+        radius = float(radius)  # the kernel converted the quantity to part units
+        if radius <= 0:
+            fail("NX_INVALID_ARGUMENT", "radius must be > 0", field="/radius")
     want = direction(normal) if normal is not None else None
     # Without an axis: the normal's main axis, else z; without an order: nearest to near,
     # else the outermost faces along the normal first, else the lowest.
@@ -584,6 +632,11 @@ def nx_find_geometry(
     if kind == "body":
         for row, (_rank, obj, _facts) in zip(items, selected, strict=True):
             _body_facts(tx, obj, row)
+    if kind == "edge":
+        for row, (_rank, obj, _facts) in zip(items, selected, strict=True):
+            tx.checkpoint()
+            with contextlib.suppress(NXError):  # unmeasurable: the row keeps its other facts
+                row["length"] = measure.length(tx, obj)
     rule: dict[str, Any] = {
         "part": _part_path(tx),
         "kind": kind,
@@ -629,7 +682,18 @@ class HoleEnd(TypedDict):
     open: bool | None
 
 
-class HoleGroup(TypedDict):
+class HoleStep(TypedDict):
+    diameter: float
+    depth: float
+
+
+class HoleThread(TypedDict, total=False):
+    feature: result.Row
+    type: str  # the NX feature type that carries the thread
+    name: str
+
+
+class _HoleGroup(TypedDict):
     group: int
     axis: list[float]
     axis_point: list[float]
@@ -639,7 +703,13 @@ class HoleGroup(TypedDict):
     length: float | None
     through: bool | None
     ends: list[HoleEnd]
+    steps: list[HoleStep]
     faces: list[str]
+
+
+class HoleGroup(_HoleGroup, total=False):
+    feature: result.Row  # the feature that made the bore faces
+    thread: HoleThread  # a threaded hole feature or a thread feature on a bore face
 
 
 class HolesData(TypedDict):
@@ -710,7 +780,7 @@ def _hole_shape(tx, group, tol):
         for edge in face.GetEdges():
             for at in _edge_positions(tx, edge, axis, origin):
                 rings.append((at, found["radius"], edge))
-    shape: dict[str, Any] = {"length": None, "through": None, "ends": []}
+    shape: dict[str, Any] = {"length": None, "through": None, "ends": [], "steps": []}
     ends: list[tuple[dict, bool]] = []  # (end, widening cone beyond it)
     if rings:
         low, high = min(r[0] for r in rings), max(r[0] for r in rings)
@@ -725,6 +795,7 @@ def _hole_shape(tx, group, tol):
         # The entry first: an open end, then the wider one (a counterbore's mouth).
         ends.sort(key=lambda e: (e[0]["open"] is not True, -e[0]["diameter"]))
         shape["ends"] = [end for end, _ in ends]
+        shape["steps"] = _steps(rings, axis, origin, shape["ends"][0]["point"])
         opened = [end["open"] for end in shape["ends"]]
         shape["through"] = False if False in opened else True if opened == [True, True] else None
     radii = sorted(group["radii"], reverse=True)
@@ -737,12 +808,91 @@ def _hole_shape(tx, group, tol):
     return shape
 
 
+def _steps(rings, axis, origin, entry_point) -> list[HoleStep]:
+    """``[{diameter, depth}]`` of each bore radius, entry first: the axial span of its
+    circular edges (a counterbore's depth is its first step)."""
+    entry = geom.dot(geom.sub(entry_point, origin), axis)
+    spans: dict[float, list[float]] = {}
+    for at, radius, _edge in rings:
+        spans.setdefault(radius, []).append(at)
+    rows = sorted(
+        (min(abs(min(v) - entry), abs(max(v) - entry)), 2 * r, max(v) - min(v))
+        for r, v in spans.items()
+    )
+    return [{"diameter": d, "depth": depth} for _near, d, depth in rows]
+
+
+def _face_features(body, cache) -> dict:
+    """``{face tag: [features]}`` of one body, in timeline order (cached per body)."""
+    key = int(body.Tag)
+    if key not in cache:
+        found: dict[int, list] = {}
+        with native():
+            features = list(body.GetFeatures() or [])
+        for feature in features:
+            try:
+                faces = list(feature.GetFaces() or [])
+            except Exception:  # a feature without a face listing
+                continue
+            for face in faces:
+                found.setdefault(int(face.Tag), []).append(feature)
+        cache[key] = found
+    return cache[key]
+
+
+def _feature_type(feature) -> str:
+    return str(getattr(feature, "FeatureType", "") or "")
+
+
+def _feature_name(feature) -> str:
+    try:
+        return str(feature.GetFeatureName())
+    except Exception:
+        return str(getattr(feature, "JournalIdentifier", "") or "")
+
+
+def _is_thread(feature) -> bool:
+    words = (_feature_type(feature) + " " + _feature_name(feature)).upper()
+    return "THREAD" in words
+
+
+def _hole_source(tx, group, cache) -> dict:
+    """``feature`` (the first feature listing a bore face: an NX hole's package before
+    its instance) and ``thread`` (a threaded hole or a thread feature on a bore face)."""
+    out: dict[str, Any] = {}
+    for face, _found in group["members"]:
+        try:
+            with native():
+                body = face.GetBody()
+            listed = _face_features(body, cache).get(int(face.Tag), [])
+        except NXError:
+            continue
+        if listed and "feature" not in out:
+            out["feature"] = tx.ref(listed[0], kind="feature")
+        threaded = next((f for f in listed if _is_thread(f)), None)
+        if threaded is not None and "thread" not in out:
+            out["thread"] = {
+                "feature": tx.ref(threaded, kind="feature"),
+                "type": _feature_type(threaded),
+                "name": _feature_name(threaded),
+            }
+    return out
+
+
 @tool(
     target="assembly",
     effect="read",
     label="Find holes",
     summary=lambda a, say: "Find holes in " + (say("owner") if a.get("owner") else "the part"),
-    keywords=("recognize holes", "bores", "hole recognition", "cylindrical holes", "drilled"),
+    keywords=(
+        "recognize holes",
+        "bores",
+        "hole recognition",
+        "cylindrical holes",
+        "drilled",
+        "threaded holes",
+        "counterbore depth",
+    ),
     requires=("work_part",),
     cost="light",
     example={"diameter": 6, "through": True},
@@ -751,14 +901,15 @@ def nx_find_holes(
     tx: Tx,
     *,
     owner: OwnerRef | None = None,
-    diameter: Length | None = None,
+    diameter: Annotated[Length, Doc("Any bore of the hole, within 0.002 part units")] | None = None,
     through: Annotated[bool, Doc("Only through (true) or blind (false) holes")] | None = None,
     offset: Offset = 0,
     limit: PageLimit = 20,
 ) -> HolesData:
-    """Find holes (bores grouped by axis) with diameters, form, length, through and ends
-    (entry first). No thread inference. offset/limit page the holes (groups; page.total
-    counts holes); items lists the bore faces of the holes on the page."""
+    """Find holes (bores grouped by axis): diameters and steps entry first, form, length, through
+    and ends. feature and thread name the features that made them (bores give the drilled
+    size). offset/limit page the holes (page.total counts holes); items lists the bore faces
+    of the holes on the page."""
     common.note_exploded(tx)
     if diameter is not None and float(diameter) <= 0:
         fail("NX_INVALID_ARGUMENT", "diameter must be > 0", field="/diameter")
@@ -778,7 +929,8 @@ def nx_find_holes(
             found["full"] = abs(abs(u1 - u0) - 2 * math.pi) <= 1e-6
             bores.append((obj, found))
     groups = []
-    for group in _group_holes(tx, bores, tol):
+    found_groups = _group_holes(tx, bores, tol)
+    for group in found_groups:
         if diameter is not None and not any(
             abs(2 * r - float(diameter)) <= 2 * tol for r in group["radii"]
         ):
@@ -787,9 +939,15 @@ def nx_find_holes(
         if through is not None and group["through"] is not through:
             continue
         groups.append(group)
+    if diameter is not None and not groups and found_groups:
+        _note_nearest(tx, found_groups, float(diameter), tol)
     # offset/limit page the holes; items are the bore faces of the holes on this page.
     groups, page = result.page(groups, offset, limit)
     page["faces"] = sum(len(g["members"]) for g in groups)
+    cache: dict = {}
+    for g in groups:
+        tx.checkpoint()
+        g.update(_hole_source(tx, g, cache))
     keys = ("radius", "axis", "axis_point", "full")
     items = [
         cast(
@@ -799,26 +957,42 @@ def nx_find_holes(
         for g in groups
         for face, found in g["members"]
     ]
-    out_groups: list[HoleGroup] = [
-        {
+    out_groups: list[HoleGroup] = []
+    for g in groups:
+        row: HoleGroup = {
             "group": g["group"],
             "axis": g["axis"],
             "axis_point": g["axis_point"],
-            "radii": g["radii"],
+            "radii": sorted(g["radii"], reverse=True),  # as diameters: widest first
             "diameters": sorted((2 * r for r in g["radii"]), reverse=True),
             "form": g["form"],
             "length": g["length"],
             "through": g["through"],
             "ends": g["ends"],
+            "steps": g["steps"],
             "faces": [tx.ref(face, kind="face")["id"] for face, _ in g["members"]],
         }
-        for g in groups
-    ]
+        if "feature" in g:
+            row["feature"] = g["feature"]
+        if "thread" in g:
+            row["thread"] = g["thread"]
+        out_groups.append(row)
     return {"items": items, "groups": out_groups, "page": page}
+
+
+def _note_nearest(tx, groups, diameter, tol) -> None:
+    """``NX_NOTE`` with the nearest bore diameters when a diameter filter matched none."""
+    sizes = sorted({round(2 * r, 6) for g in groups for r in g["radii"]},
+                   key=lambda d: abs(d - diameter))  # fmt: skip
+    shown = ", ".join(f"{d:g}" for d in sizes[:5])
+    tx.warn("NX_NOTE", f"No bore has diameter {diameter:g} (within {2 * tol:g}); nearest: {shown}")
 
 
 # ---------------------------------------------------------------------------
 # Anchors and resolution
+
+
+ANCHOR_KINDS = ("body", "face", "edge", "curve", "feature", "sketch")
 
 
 class AnchorData(TypedDict):
@@ -839,13 +1013,13 @@ class AnchorData(TypedDict):
 def nx_create_anchor(
     tx: Tx,
     *,
-    object: Annotated[str, RefTo("body", "face", "edge", "feature", "sketch")],  # noqa: A002
+    object: Annotated[str, RefTo(*ANCHOR_KINDS)],  # noqa: A002
 ) -> AnchorData:
-    """Make a persistent anchor for a body, face or edge (a feature or sketch: its row
+    """Make a persistent anchor for a body, face, edge or curve (a feature or sketch: its row
     anchor). It survives edits that keep the entity, save and reopen; resolve it with
     nx_resolve_reference."""
-    obj = select.one(tx, object, "body", "face", "edge", "feature", "sketch", field="/object")
-    kind = tx.kind_of(obj)
+    obj = select.one(tx, object, *ANCHOR_KINDS, field="/object")
+    kind = common.kind_of(tx, obj)
     if kind in ("feature", "sketch"):
         row = tx.ref(obj, kind=kind, anchor=True)
         anchor = row.get("anchor")
@@ -865,13 +1039,22 @@ class ResolveData(TypedDict, total=False):
 
 
 def _same_part(tx, path, field):
-    if str(path).casefold() != str(_part_path(tx)).casefold():
+    if str(path).casefold() == str(_part_path(tx)).casefold():
+        return
+    name = PurePath(str(path)).name
+    if targets.part_at_path(tx.services, path) is None:
         fail(
-            "NX_WRONG_OWNER",
-            f"{path} is not the work part",
+            "NX_NOT_FOUND",
+            f"{path} is not loaded",
             field=field,
-            hint=f"Call again with part={PurePath(str(path)).name!r}, the part it was made in",
+            hint=f"Open {name} with nx_open_part first, then call again with part={name!r}",
         )
+    fail(
+        "NX_WRONG_OWNER",
+        f"{path} is not the work part",
+        field=field,
+        hint=f"Call again with part={name!r}, the part it was made in",
+    )
 
 
 def _resolve_handle(tx, match, field="/anchor"):
@@ -884,7 +1067,9 @@ def _resolve_handle(tx, match, field="/anchor"):
     except NXError:
         tag = None
     pool = list(part.Bodies)
-    if kind != "body":
+    if kind == "curve":
+        pool = _curves(part)
+    elif kind != "body":
         pool = [x for b in pool for x in (b.GetFaces() if kind == "face" else b.GetEdges())]
     found = next((o for o in pool if tag is not None and int(o.Tag) == tag), None)
     if found is None:
@@ -895,6 +1080,17 @@ def _resolve_handle(tx, match, field="/anchor"):
             hint="Select replacement geometry with nx_find_geometry",
         )
     return found, kind
+
+
+def _curves(part) -> list:
+    """The part's curves: model curves and the geometry of its sketches."""
+    found = list(getattr(part, "Curves", None) or [])
+    for sketch in getattr(part, "Sketches", None) or []:
+        try:
+            found.extend(sketch.GetAllGeometry())
+        except Exception:  # a sketch NX cannot list
+            continue
+    return found
 
 
 def _resolve_jid(tx, anchor, field="/anchor"):
@@ -1029,7 +1225,7 @@ def nx_resolve_reference(
         # A short ref is checked as is; an anchor (REF_PATTERN takes row anchors too) is
         # re-resolved by its persistent identity.
         if not anchor.startswith("@") and re.match(REF_PATTERN, anchor):
-            obj = tx.resolve(anchor)
+            obj = select.resolve(tx, anchor, field="/anchor")
             return {"object": tx.ref(obj, kind=tx.kind_of(obj)), "via": "reference"}
         match = _HANDLE_ANCHOR.match(anchor)
         obj, kind = _resolve_handle(tx, match) if match else _resolve_jid(tx, anchor)
@@ -1057,12 +1253,19 @@ def nx_resolve_reference(
     )
     if not ranked:
         fail("NX_NOT_FOUND", "No geometry satisfies the selector now", field="/selector")
-    if len(ranked) > 1 and abs(ranked[0][0] - ranked[1][0]) <= tie_tolerance:
+    gap = abs(ranked[0][0] - ranked[1][0]) if len(ranked) > 1 else None
+    if gap is not None and gap <= tie_tolerance:
         candidates = [{**tx.ref(o, kind=parsed["kind"]), "rank": r} for r, o, _ in ranked[:2]]
+        exact = gap <= 1e-9 * max(1.0, abs(ranked[0][0]))
         fail(
             "NX_AMBIGUOUS_REFERENCE",
-            "The best two candidates tie; narrow the selector or lower tie_tolerance",
+            "The best two candidates rank equally"
+            if exact
+            else f"The best two candidates rank within tie_tolerance ({gap:.3g} apart)",
             field="/selector",
+            hint="Run nx_find_geometry again with near or owner, so one candidate ranks first"
+            if exact
+            else "Lower tie_tolerance, or run nx_find_geometry again with near or owner",
             details={"candidates": candidates},
         )
     rank, obj, _facts = ranked[0]

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/wave_links.json",
-  "scenario_sha256": "62f8c93c35c460520608496620e5639a03b92e22d1c5ff5232384d977ad27a8b",
+  "scenario_sha256": "c78fe69aadec950757d24dd53a892c1400cd3fa3c1d189ed700e4c559fbffadd",
   "domain": "assembly",
   "covers": {
     "nx_create_wave_link": [
@@ -10,16 +10,18 @@
       "curve",
       "datum",
       "sketch"
-    ]
+    ],
+    "nx_create_extract": []
   },
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_wave_link": "89e34ff6c53a4e5fb866f92604da3a9ed15ccb265150db33eec5d22ce250dccf"
+    "nx_create_wave_link": "bf89b6ab8ad954f83f7f5df2bed7a1738ea356ba929236656a4f286b652ab9d1",
+    "nx_create_extract": "bf89b6ab8ad954f83f7f5df2bed7a1738ea356ba929236656a4f286b652ab9d1"
   },
-  "recorded": "2026-10-12T07:48:41Z",
+  "recorded": "2026-10-15T10:59:11Z",
   "passed": true,
-  "checks": 73,
+  "checks": 79,
   "failed_checks": 0,
   "steps": [
     {
@@ -153,7 +155,7 @@
       "call": "nx_create_wave_link",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 20,
@@ -251,7 +253,7 @@
       "call": "nx_create_wave_link",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 34,
@@ -343,6 +345,20 @@
       "setup": false,
       "passed": true,
       "checks": 1
+    },
+    {
+      "index": 47,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 48,
+      "call": "nx_create_extract",
+      "setup": false,
+      "passed": true,
+      "checks": 4
     }
   ]
 }

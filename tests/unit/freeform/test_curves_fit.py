@@ -159,7 +159,7 @@ def test_fit_argument_checks_and_a_wrong_shape_rolls_back():
         ({"segments": 2, "tolerance": 0.1}, "/tolerance"),
         ({"shape": "line", "closed": True}, "/closed"),
         ({"shape": "ellipse"}, "/points"),
-        ({"degree": 5}, "/points"),
+        ({"degree": 5}, "/degree"),
     ]
     for extra, field in cases:
         bad = run(nx, "nx_create_fit_curve", points=refs, **extra)
@@ -168,5 +168,47 @@ def test_fit_argument_checks_and_a_wrong_shape_rolls_back():
     path = _write(nx, "x.txt", "1 2 3\n4 5 6\n")
     both = run(nx, "nx_create_fit_curve", points=refs, path=path)
     assert both.error["field"] == "/path" and not nx.builders
+    line = [nx.ref_of(nx.part.Points.add([10.0 * i, 5.0 * i, 0.0]), "point") for i in range(4)]
+    straight = run(nx, "nx_create_fit_curve", shape="circle", points=line)
+    assert straight.error["field"] == "/points" and "line" in straight.error["hint"]
+    assert straight.mutation_outcome == "not_started"
+    rows = _write(nx, "row.txt", "".join(f"{10 * i} 0 0\n" for i in range(5)))
+    flat = run(nx, "nx_create_fit_curve", shape="ellipse", path=rows)
+    assert flat.error["field"] == "/path" and not nx.builders
     wrong = run(nx, "nx_create_fit_curve", shape="circle", points=refs)  # NX made no arc
     assert wrong.error["details"]["check"] == "shape" and wrong.mutation_outcome == "rolled_back"
+
+
+def test_fit_runs_from_the_first_point_to_the_last():
+    nx = fit_nx(lambda b: {"Order": b.Degree + 1, "Periodic": False, "Get3DPoles": lambda: []})
+    base = nx.hooks[FIT]
+    edits = []
+
+    def backwards(b):  # NX fits the points last to first unless the direction is reversed
+        existing = b.args[0] if b.args else None
+        if existing is not None:
+            edits.append(b.HasReversedDirection)
+            c = existing.GetEntities()[0]
+            c.shape = Polyline(c.shape.points[::-1])
+            return existing
+        f = base(b)
+        c = f.GetEntities()[0]
+        c.shape = Polyline(c.shape.points[::-1])
+        return f
+
+    nx.on_commit(FIT, backwards)
+    make = nx.builder
+
+    def builder(kind, *args):
+        b = make(kind, *args)
+        if kind == FIT:
+            b.HasReversedDirection = False  # NX's default
+        return b
+
+    nx.builder = builder
+    pts = [[10.0 * i, math.sin(i), 0.0] for i in range(8)]
+    refs = [nx.ref_of(nx.part.Points.add(p), "point") for p in pts]
+    ok = run(nx, "nx_create_fit_curve", points=refs)
+    assert ok.ok, ok.error
+    assert edits == [True] and ok.data["start"] == pytest.approx(pts[0])
+    assert ok.data["end"] == pytest.approx(pts[-1])

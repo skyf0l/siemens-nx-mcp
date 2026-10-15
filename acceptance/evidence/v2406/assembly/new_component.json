@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/new_component.json",
-  "scenario_sha256": "f51c082a37631dc100378919ab1358a4618dbc03ba934758d38f9ac6beedfa8c",
+  "scenario_sha256": "7086e7bac523305d51c595618d04d214cac2322354f8dc6036debcba7ea9a0fe",
   "domain": "assembly",
   "covers": {
     "nx_create_component": [
@@ -13,12 +13,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_component": "378a94d07c24b033d04aa30c93730d08927a7cf4d2412256c15f5f5f5d19e26c",
-    "nx_edit_component": "378a94d07c24b033d04aa30c93730d08927a7cf4d2412256c15f5f5f5d19e26c"
+    "nx_create_component": "4f96e0b1a7d772e785977e9defdf11fb178ff2e8b84bd33b365428a2de430ce7",
+    "nx_edit_component": "4f96e0b1a7d772e785977e9defdf11fb178ff2e8b84bd33b365428a2de430ce7"
   },
-  "recorded": "2026-10-13T07:26:20Z",
+  "recorded": "2026-10-15T10:58:43Z",
   "passed": true,
-  "checks": 38,
+  "checks": 42,
   "failed_checks": 0,
   "steps": [
     {
@@ -121,28 +121,28 @@
     },
     {
       "index": 15,
-      "call": "nx_create_component",
+      "call": "nx_edit_component",
       "setup": false,
       "passed": true,
       "checks": 4
     },
     {
       "index": 16,
+      "call": "nx_create_component",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 17,
       "call": "nx_find_geometry",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 17,
-      "call": "nx_save_part",
-      "setup": false,
-      "passed": true,
-      "checks": 2
-    },
-    {
       "index": 18,
-      "call": "nx_create_component",
+      "call": "nx_save_part",
       "setup": false,
       "passed": true,
       "checks": 2
@@ -163,34 +163,41 @@
     },
     {
       "index": 21,
+      "call": "nx_create_component",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 22,
       "call": "nx_edit_component",
       "setup": false,
       "passed": true,
       "checks": 4
     },
     {
-      "index": 22,
+      "index": 23,
       "call": "nx_list_components",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 23,
+      "index": 24,
       "call": "nx_list_components",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 24,
+      "index": 25,
       "call": "nx_edit_component",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 25,
+      "index": 26,
       "call": "nx_edit_component",
       "setup": false,
       "passed": true,

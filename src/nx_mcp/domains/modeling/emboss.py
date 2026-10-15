@@ -35,12 +35,81 @@ from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import BodyRef, Doc, FaceRef, Items, Length, Point3, RefTo, SketchRef
 from nx_mcp.domains.modeling import common
-from nx_mcp.kit import args, builders, expr, measure, readback, result, select, units
+from nx_mcp.kit import args, builders, curve, expr, measure, readback, result, select, units
 from nx_mcp.kit import sketch as ksketch
 
 ENDCAPS = {"offset": "OffsetExact", "translate": "Translation"}
 PathRef = Annotated[str, RefTo("curve", "edge")]
 TOLERANCE_MM = 0.01
+
+
+def _check_section(tx, sk, targets) -> None:
+    """Refuse, before NX, a section with no closed loop and one that does not lie over the
+    target faces along the sketch normal (NX's own messages name neither)."""
+    from nx_mcp.domains.modeling import features
+
+    try:
+        profile = features._profile(tx, sk)
+    except Exception:  # noqa: BLE001 - curves UF cannot sample: NX judges the section
+        return
+    if not profile:
+        return
+    section = features._chains(tx, profile)
+    if not section["closed"]:
+        fail(
+            "NX_WRONG_GEOMETRY",
+            f"The section has no closed loop ({section['open'] + section['branched']} open "
+            "chain(s)): an emboss needs a closed section",
+            field="/sketch",
+            hint="Close the loop (nx_get_sketch lists the curve ends), or make leftover curves "
+            "construction",
+            details={k: section[k] for k in ("closed", "open", "branched")},
+        )
+    frame = ksketch.frame(sk)
+    tol = units.part_tolerance(tx)
+    drawn = [ksketch.to_local(frame, p) for _c, points in profile for p in points]
+    try:
+        low, high = measure.bounds(tx, targets)
+    except Exception:  # noqa: BLE001 - faces without a box: NX judges the overlap
+        return
+    corners = [[x, y, z] for x in (low[0], high[0]) for y in (low[1], high[1])
+               for z in (low[2], high[2])]  # fmt: skip
+    seen = [ksketch.to_local(frame, p) for p in corners]
+    apart = any(
+        min(p[k] for p in drawn) > max(p[k] for p in seen) + tol
+        or max(p[k] for p in drawn) < min(p[k] for p in seen) - tol
+        for k in (0, 1)
+    )
+    if apart:
+        fail(
+            "NX_WRONG_GEOMETRY",
+            "The section does not lie over the target faces along the sketch normal",
+            field="/sketch",
+            hint="Sketch the section over the faces (seen along the sketch normal), or pick "
+            "the faces under it",
+        )
+
+
+def _check_path(tx, sheet, curves) -> None:
+    """Refuse, before NX, a path curve that does not lie on the sheet."""
+    tol = max(10 * units.part_tolerance(tx), units.part_tolerance(tx, TOLERANCE_MM))
+    for i, c in enumerate(curves):
+        try:
+            gaps = [
+                curve.point_distance(tx, sheet, curve.point_at(tx, c, t))[0]
+                for t in (0.0, 0.5, 1.0)
+            ]
+        except Exception:  # noqa: BLE001 - no distance: NX judges the path
+            continue
+        if max(gaps) > tol:
+            fail(
+                "NX_WRONG_GEOMETRY",
+                f"path[{i}] lies up to {max(gaps):.6g} off the sheet; the path must lie on it",
+                field=f"/path/{i}",
+                hint="Project the curve onto the sheet first (nx_create_projected_curve) and "
+                "pass the projection",
+                details={"distance": max(gaps)},
+            )
 
 
 class EmbossData(common.FeatureData):
@@ -84,6 +153,7 @@ def nx_create_emboss(
         if not getattr(body, "IsSolidBody", True):
             fail("NX_WRONG_GEOMETRY", "Emboss works on a solid body", field="/faces",
                  hint="For a sheet use nx_create_offset_emboss")  # fmt: skip
+        _check_section(tx, sk, targets)
     before = measure.volume(tx, body)
     F = tx.nx.Features
     distance = expr.rhs(height) if side == "pad" else f"-({expr.rhs(height)})"
@@ -128,15 +198,18 @@ def nx_create_offset_emboss(
     sheet: Annotated[BodyRef, Doc("Sheet body to emboss (all its faces)")],
     path: Annotated[list[PathRef], Items(1, 50), Doc("Connected curves/edges lying on the sheet")],
     height: Annotated[Length, Doc("Offset of the strip from the sheet")],
-    left_width: Annotated[Length, Doc("Strip width left of the path")],
+    left_width: Annotated[Length, Doc("Footprint width left of the path")],
     right_width: Annotated[Length, Doc("Right of the path; default left_width")] | None = None,
-    side_offset: Annotated[Length, Doc("Run of the sloped walls past the strip; 0: steep")] = 0.0,
+    side_offset: Annotated[
+        Length, Doc("How far the sloped walls run in from the footprint edge; 0: vertical")
+    ] = 0.0,
     groove: Annotated[bool, Doc("Press the strip in against the sheet normal")] = False,
 ) -> OffsetEmbossData:
-    """Raise a strip (bead) on a sheet body along curves lying on it, offset height along the
-    sheet normal (groove: into it). The strip spans left_width and right_width either side
-    of the path; side_offset is how far its sloped walls run out. Keeps the sheet. For a
-    solid use nx_create_emboss."""
+    """Raise a strip (bead) on a sheet body along curves lying on it, height along the sheet
+    normal (groove: against it). Its footprint spans left_width and right_width either
+    side of the path; the walls slope in by side_offset, so the top is that much narrower
+    on each side and at the ends (0: vertical walls). Keeps the sheet. For a solid use
+    nx_create_emboss."""
     args.finite(height, "/height", positive=True)
     args.finite(left_width, "/left_width", positive=True)
     right = left_width if right_width is None else right_width
@@ -152,6 +225,7 @@ def nx_create_offset_emboss(
         curves = [
             select.one(tx, ref, "curve", "edge", field=f"/path/{i}") for i, ref in enumerate(path)
         ]
+        _check_path(tx, body, curves)
     faces = list(body.GetFaces())
     area_before = measure.area(tx, faces)
     with builders.build(tx, tx.part.Features.CreateOffsetEmbossBuilder, None) as b:

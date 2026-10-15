@@ -72,12 +72,16 @@ def require_synchronous(tx, what: str, *, by_argument: bool = False) -> None:
     )
 
 
-class RelateData(common.FeatureData):
+class _RelateData(common.FeatureData):
     volume_change: Annotated[float, Doc("Volume after minus before")]
     angle: Annotated[
         float | None, Doc("Degrees between the face's and to's normal or axis lines after, 0-90")
     ]
     gap: Annotated[float | None, Doc("Residual distance the relation reads back (0 when met)")]
+
+
+class RelateData(_RelateData, total=False):
+    distance: Annotated[float, Doc("offset: the distance reached between the two faces")]
 
 
 def _shape(tx, face):
@@ -92,6 +96,14 @@ def _shape(tx, face):
         "dir": geom.unit(direction) if kind in LINEAR else direction,
         "radius": float(data[4]),
     }
+
+
+def _alive_shape(tx, face, before):
+    """:func:`_shape` of a face, or ``before`` when NX deleted it (merged into another)."""
+    try:
+        return _shape(tx, face)
+    except Exception:  # "Solid Object Input Are Not Alive" (875288): the face is gone
+        return before
 
 
 def _line_gap(point, origin, direction) -> float:
@@ -158,6 +170,22 @@ def _through(tx, face, m):
     return geom.add(m["point"], geom.scale(m["dir"], offset))
 
 
+def _wanted_angle(relation, m, s) -> float | None:
+    """Degrees the relation leaves between the two faces' normal or axis lines, None when
+    it fixes none: tangent turns a cylinder's axis square to a plane's normal (90) and
+    keeps two cylinders parallel (0); a cone's half angle leaves it open."""
+    if relation == "perpendicular":
+        return 90.0
+    if relation != "tangent":
+        return 0.0
+    kinds = sorted((m["type"], s["type"]))
+    if kinds == sorted((select.FACE_PLANE, select.FACE_CYLINDER)):
+        return 90.0
+    if kinds == [select.FACE_CYLINDER, select.FACE_CYLINDER]:
+        return 0.0
+    return None
+
+
 def _read_back(relation, m, s, mirror, through, distance=0.0):
     """``(angle, gap)`` after the edit; a relation NX did not meet fails the call."""
     scale = max(1.0, *map(abs, m["point"]), *map(abs, s["point"]))
@@ -187,8 +215,8 @@ def _read_back(relation, m, s, mirror, through, distance=0.0):
     if through is not None and m["type"] == select.FACE_PLANE:
         readback.expect_close(geom.dot(geom.sub(through, m["point"]), m["dir"]), 0.0,
                               "through", tol=tol)  # fmt: skip
-    if angle is not None:
-        wanted = 90.0 if relation == "perpendicular" else 0.0
+    wanted = _wanted_angle(relation, m, s)
+    if angle is not None and wanted is not None:
         readback.expect_close(angle, wanted, "angle", tol=1e-3)
     if gap is not None:
         readback.expect_close(gap, 0.0, "gap", tol=tol)
@@ -207,7 +235,7 @@ def _read_back(relation, m, s, mirror, through, distance=0.0):
         "make tangent",
         "make symmetric",
         "make offset",
-        "synchronous",
+        "make holes concentric",
     ),
     requires=("work_part", "no_active_sketch"),
     variants="relation",
@@ -233,7 +261,7 @@ def nx_edit_face_relation(
 ) -> RelateData:
     """Make a face coplanar, coaxial, parallel, perpendicular, tangent, symmetric or offset to
     another face. Synchronous: imported solids too; to stays put, adjacent faces stretch to
-    follow. coplanar: planes; coaxial: cylinders/cones; parallel and perpendicular turn the face
+    follow. coplanar: planes (flush); coaxial: cylinders/cones (concentric holes); parallel and perpendicular turn the face
     about its centre (or through); symmetric: face becomes to's mirror image about plane;
     offset: parallel plane of the same body at distance. Reads back angle and gap."""
     if (plane is not None) != (relation == "symmetric"):
@@ -255,7 +283,10 @@ def nx_edit_face_relation(
         fail("NX_INVALID_ARGUMENT", "face and to must differ", field="/to")
     with tx.checks():  # lookups and refusals: nothing changed yet (not_started)
         moving = select.one(tx, face, "face", field="/face")
-        fixed = select.one(tx, to, "face", field="/to")
+        fixed = select.resolve(tx, to, "face", field="/to")
+        if not select.owned_by_work_part(tx, fixed):
+            fail("NX_WRONG_OWNER", "face and to must be in the same part", field="/to",
+                 hint="Pick to among the faces of face's part (any body of it)")  # fmt: skip
         if int(moving.Tag) == int(fixed.Tag):
             fail("NX_INVALID_ARGUMENT", "face and to must differ", field="/to")
         body = moving.GetBody()
@@ -304,7 +335,28 @@ def nx_edit_face_relation(
     if check is not None:
         faults = check(body.Tag)[0]
         readback.expect(not faults, "consistency", "The edit left an invalid body", faults=faults)
-    after = _shape(tx, moving), _shape(tx, fixed)
+    # The stationary face stays put; NX may merge it away (coplanar to a face of the same
+    # body keeps the moved face and deletes the other), so a dead one reads as before.
+    still = _alive_shape(tx, fixed, s)
+    moved = _alive_shape(tx, moving, None)
+    if moved is None:  # merged into the stationary face: only coplanar does that
+        readback.expect(relation == "coplanar", "face", "NX deleted the moved face")
+        moved = still
+    after = moved, still
     angle, gap = _read_back(relation, *after, mirror, point, float(distance or 0.0))
     out = common.result_of(tx, feature, [body])
-    return {**out, "volume_change": out["volume"] - before, "angle": angle, "gap": gap}
+    return {
+        **out,
+        "volume_change": out["volume"] - before,
+        "angle": angle,
+        "gap": gap,
+        **_reached(tx, relation, moving, s),
+    }
+
+
+def _reached(tx, relation, moving, s) -> dict:
+    """offset: the distance reached between the moved face and to's plane (to stays put)."""
+    if relation != "offset":
+        return {}
+    here = _shape(tx, moving)
+    return {"distance": abs(geom.dot(geom.sub(here["point"], s["point"]), s["dir"]))}

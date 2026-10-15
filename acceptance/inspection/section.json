@@ -44,6 +44,6 @@
    "expect": {"error.field": "/at"}},
   {"call": "nx_get_model_summary", "args": {},
    "expect": {"data.modified": false, "data.counts": {"equals": {"bodies": 1, "features": 3, "sketches": 1, "expressions": 2, "components": 0}}}},
-  {"call": "nx_check_model", "args": {}, "expect": {"data.errors": 0, "data.features_checked": 4}}
+  {"call": "nx_check_model", "args": {}, "expect": {"data.errors": 0, "data.features_checked": 3}}
  ]
 }

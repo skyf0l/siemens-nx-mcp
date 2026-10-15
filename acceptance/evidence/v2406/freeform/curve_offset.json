@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/freeform/curve_offset.json",
-  "scenario_sha256": "b42ecab5fa6eb578ad379df637170cf1e080935bca51cc93398ffd4208ebd69c",
+  "scenario_sha256": "fbc6562000abe9865a822032cdeedcf6be5f1c38db7547dcb19685182aa6b851",
   "domain": "freeform",
   "covers": {
     "nx_create_offset_curve": [
@@ -13,11 +13,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_offset_curve": "05a4015a073fb6526f47e7bcc437cc4e04d32a67cb94129ca9fdeb2d02edfd3c"
+    "nx_create_offset_curve": "c32e0245afc432b4717616ed01662c9fc4c06d2c0e1e10cd70d126fb4bfd5aaa"
   },
-  "recorded": "2026-10-13T12:50:44Z",
+  "recorded": "2026-10-15T10:59:49Z",
   "passed": true,
-  "checks": 27,
+  "checks": 35,
   "failed_checks": 0,
   "steps": [
     {
@@ -113,6 +113,62 @@
     },
     {
       "index": 14,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 15,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 16,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 17,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 18,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 19,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 20,
+      "call": "nx_create_offset_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 21,
+      "call": "nx_create_offset_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 22,
       "call": "nx_check_model",
       "setup": false,
       "passed": true,

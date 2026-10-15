@@ -287,6 +287,152 @@
    }
   },
   {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "blk2",
+   "args": {
+    "shape": "block",
+    "origin": [
+     200,
+     0,
+     0
+    ],
+    "length": 50,
+    "width": 30,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top2",
+   "args": {
+    "owner": "$blk2.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "highest",
+    "axis": "z"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ex250",
+   "args": {
+    "owner": "$top2.data.items.0.id",
+    "kind": "edge",
+    "near": [
+     250,
+     15,
+     10
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ex200",
+   "args": {
+    "owner": "$top2.data.items.0.id",
+    "kind": "edge",
+    "near": [
+     200,
+     15,
+     10
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ey0",
+   "args": {
+    "owner": "$top2.data.items.0.id",
+    "kind": "edge",
+    "near": [
+     225,
+     0,
+     10
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ey30",
+   "args": {
+    "owner": "$top2.data.items.0.id",
+    "kind": "edge",
+    "near": [
+     225,
+     30,
+     10
+    ]
+   }
+  },
+  {
+   "call": "nx_create_offset_curve",
+   "intent": "Rim listed opposite sides first (x 250, x 200, y 0, y 30), outward: 60 x 40",
+   "args": {
+    "curves": [
+     "$ex250.data.items.0.id",
+     "$ex200.data.items.0.id",
+     "$ey0.data.items.0.id",
+     "$ey30.data.items.0.id"
+    ],
+    "method": "distance",
+    "distance": 5,
+    "toward": [
+     300,
+     15,
+     10
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 4,
+    "data.length": {
+     "close": 200,
+     "tol": 0.0001
+    },
+    "data.measured_min": {
+     "close": 5,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_offset_curve",
+   "intent": "The same rim and order, inward: 40 x 20",
+   "args": {
+    "curves": [
+     "$ex250.data.items.0.id",
+     "$ex200.data.items.0.id",
+     "$ey0.data.items.0.id",
+     "$ey30.data.items.0.id"
+    ],
+    "method": "distance",
+    "distance": 5,
+    "toward": [
+     225,
+     15,
+     10
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 4,
+    "data.length": {
+     "close": 120,
+     "tol": 0.0001
+    },
+    "data.measured_min": {
+     "close": 5,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
    "call": "nx_check_model",
    "args": {},
    "expect": {

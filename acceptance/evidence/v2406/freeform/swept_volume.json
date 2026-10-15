@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/freeform/swept_volume.json",
-  "scenario_sha256": "869b18f94e098bd69317d81cc21ef8727adf3dbcc05a204301c422609f7626d8",
+  "scenario_sha256": "806d11f4ccdfd2c9d43e8355cd8873dbb0b471ffefdfb49be06bbef6f9e34346",
   "domain": "freeform",
   "covers": {
     "nx_create_swept_volume": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_swept_volume": "86943253ca6bf7cceb6eaa3a7a06491bd4f0345a25c2b0b786e75f33d2120e87"
+    "nx_create_swept_volume": "926d817e512a433ef8d44493c13c8854a7e474a99ace542e238094d5282751e0"
   },
-  "recorded": "2026-10-13T07:24:42Z",
+  "recorded": "2026-10-15T11:01:01Z",
   "passed": true,
-  "checks": 22,
+  "checks": 31,
   "failed_checks": 0,
   "steps": [
     {
@@ -109,6 +109,34 @@
     },
     {
       "index": 14,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 15,
+      "call": "nx_create_swept_volume",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 16,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 17,
+      "call": "nx_create_swept_volume",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 18,
       "call": "nx_check_model",
       "setup": false,
       "passed": true,

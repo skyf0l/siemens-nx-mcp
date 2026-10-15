@@ -1,0 +1,135 @@
+{
+  "format": 2,
+  "scenario": "acceptance/freeform/curve_checks.json",
+  "scenario_sha256": "22572e86c6ad83f151780427f1bb67b58c0883cf4ba6f337037eedaf47d75e48",
+  "domain": "freeform",
+  "covers": {
+    "nx_create_mirror_curve": [],
+    "nx_create_general_conic": [],
+    "nx_create_law_curve": [],
+    "nx_create_offset_curve": [],
+    "nx_create_isoparametric_curves": [
+      "uniform"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_mirror_curve": "31e0b20599ebed926f66b2f38ecc40905c53988af12cea67eff27b74e53fe941",
+    "nx_create_general_conic": "8a3be2981f1a5d6094bfb1157a56137f9101f0f1cb10190bab89b1e0d89c780b",
+    "nx_create_law_curve": "8a3be2981f1a5d6094bfb1157a56137f9101f0f1cb10190bab89b1e0d89c780b",
+    "nx_create_offset_curve": "c32e0245afc432b4717616ed01662c9fc4c06d2c0e1e10cd70d126fb4bfd5aaa",
+    "nx_create_isoparametric_curves": "45239e1b92c11f407d17376355e513ca13ca029e61845ac5ddf7e07b987d6415"
+  },
+  "recorded": "2026-10-15T10:59:30Z",
+  "passed": true,
+  "checks": 30,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_mirror_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 5,
+      "call": "nx_create_mirror_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 6,
+      "call": "nx_create_general_conic",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 7,
+      "call": "nx_create_law_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 8,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_create_offset_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 11,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 12,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 13,
+      "call": "nx_create_isoparametric_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 14,
+      "call": "nx_create_isoparametric_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 15,
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

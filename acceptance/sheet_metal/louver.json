@@ -132,7 +132,160 @@
      "close": 2,
      "tol": 1e-09
     },
-    "data.bend_count": 0
+    "data.bend_count": 0,
+    "data.volume": {
+     "close": 16065.032874765995,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$tab.data.body.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      0,
+      0,
+      -2
+     ],
+     "tol": 1e-06
+    },
+    "data.max": {
+     "close": [
+      100,
+      80,
+      3
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   },
+   "save": "l2"
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$l2.data.sketch.id",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       30,
+       15
+      ],
+      "end": [
+       70,
+       15
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$l2.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "louver",
+    "parameters": {
+     "section": "$l2.data.sketch.id",
+     "height": 3,
+     "width": 8,
+     "style": "lanced",
+     "reverse": true
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.thickness": {
+     "close": 2,
+     "tol": 1e-09
+    },
+    "data.bend_count": 0,
+    "data.volume": {
+     "close": 16044.18812780881,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$tab.data.body.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.min": {
+     "close": [
+      0,
+      0,
+      -5
+     ],
+     "tol": 1e-06
+    },
+    "data.max": {
+     "close": [
+      100,
+      80,
+      3
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "louver",
+    "parameters": {
+     "section": "$l2.data.sketch.id",
+     "height": 3,
+     "width": 8,
+     "style": "open"
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/parameters/style",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "louver",
+    "parameters": {
+     "section": "$l2.data.sketch.id",
+     "height": 7,
+     "width": 8
+    }
+   },
+   "expect": {
+    "error.category": "geometry_failed",
+    "error.nx_code": 3675041,
+    "mutation_outcome": "rolled_back"
    }
   }
  ]

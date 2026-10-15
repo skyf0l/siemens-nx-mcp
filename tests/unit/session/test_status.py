@@ -191,8 +191,13 @@ def test_committed_catalogue_operation_carries_its_result(tmp_path, store):
     receipts.finish(record, envelope)
     ok = side(tmp_path, st.nx_get_operation, operation="op_committed1")
     assert ok.data["state"] == "committed" and ok.data["tool"] == "nx_create_sketch"
-    assert ok.data["result"]["data"]["sketch"]["id"] == "sk" and ok.data["error"] is None
+    # A poll stays small: the result and the arguments only on request.
+    assert ok.data["result"] is None and ok.data["arguments"] is None
+    assert ok.data["omitted"] == ["result", "arguments"] and ok.data["error"] is None
     assert ok.data["started_at"] and ok.data["finished_at"]
+    full = side(tmp_path, st.nx_get_operation, operation="op_committed1", full=True).data
+    assert full["result"]["data"]["sketch"]["id"] == "sk" and full["arguments"] == {"name": "A"}
+    assert "omitted" not in full and "result_stale" not in full
 
 
 def test_failed_receipt_reports_its_error_and_no_result(tmp_path, store):
@@ -215,9 +220,12 @@ def test_running_batch_reports_progress_and_can_be_cancelled(tmp_path, store):
     assert running["state"] == "running" and running["progress"]["completed"] == 2
     assert running["progress"]["total"] == 5 and running["cancel_requested"] is False
     ok = side(tmp_path, st.nx_cancel_operation, operation="op_running_2")
-    assert ok.ok and ok.mutation_outcome == "committed"
-    assert ok.data == {"operation_id": "op_running_2", "tool": "nx_run_batch",
-                       "state": "running", "cancel_requested": True}  # fmt: skip
+    # Only a request flag is written: the cancel itself commits nothing.
+    assert ok.ok and ok.mutation_outcome == "not_applicable"
+    assert {k: v for k, v in ok.data.items() if k != "note"} == {
+        "operation_id": "op_running_2", "tool": "nx_run_batch", "state": "running",
+        "cancel_requested": True}  # fmt: skip
+    assert "nx_get_operation" in ok.data["note"]
     assert receipts.cancel_requested("op_running_2")  # what tx.checkpoint reads
     again = side(tmp_path, st.nx_get_operation, operation="op_running_2").data
     assert again["cancel_requested"] is True
@@ -226,6 +234,7 @@ def test_running_batch_reports_progress_and_can_be_cancelled(tmp_path, store):
 def test_cancel_refuses_unknown_finished_and_uncatalogued_operations(tmp_path, store):
     unknown = side(tmp_path, st.nx_cancel_operation, operation="op_never_seen")
     assert unknown.error["code"] == "NX_NOT_FOUND" and unknown.mutation_outcome == "not_started"
+    assert "only changing calls" in unknown.error["message"]
     receipts = Receipts(store, "s")
     record, _ = receipts.begin("nx_create_sketch", {}, "op_done_0001", None)
     receipts.finish(record, {"ok": True, "mutation_outcome": "committed", "data": {}})
@@ -294,3 +303,59 @@ def test_the_running_operation_id_shows_only_to_its_own_caller(tmp_path):
     assert read.data["operation"]["tool"] == "nx_run_batch"
     own = run(nx, "nx_get_status", include=["operation"], operation_id="op_running_7")
     assert own.data["operation"]["operation_id"] == "op_running_7", own
+
+
+def test_an_undone_operation_reports_reverted_and_its_stale_result(tmp_path, store):
+    receipts = Receipts(store, "s")
+    record, _ = receipts.begin("nx_create_block", {"length": 40}, "op_undone_01", "part_1")
+    envelope = {"ok": True, "mutation_outcome": "committed", "data": {"body": {"id": "b:7"}}}
+    receipts.finish(record, envelope)
+    record = store.get("op_undone_01")
+    record["reverted_by"] = "op_the_undo_1"
+    store.put(record)
+    data = side(tmp_path, st.nx_get_operation, operation="op_undone_01").data
+    assert data["state"] == "reverted" and data["reverted_by"] == "op_the_undo_1"
+    assert data["mutation_outcome"] == "committed" and data["result"] is None
+    full = side(tmp_path, st.nx_get_operation, operation="op_undone_01", full=True).data
+    assert full["result_stale"] is True and full["result"]["data"]["body"]["id"] == "b:7"
+
+
+def test_a_running_call_blocked_by_a_dialog_says_so(tmp_path, store):
+    """The host's heartbeat names the dialog NX waits on; a poll of the blocked call shows
+    it (since as ISO 8601, seconds waited) instead of only its stale progress."""
+    import json
+    import time
+
+    receipts = Receipts(store, "s")
+    record, _ = receipts.begin("nx_run_batch", {"operations": []}, "op_blocked_01", None)
+    receipts.progress(record, 8, 22)
+    beat = {"running_method": "nx_run_batch", "running_operation_id": "op_blocked_01",
+            "blocked_by_dialog": {"title": "Large Sketch Performance", "hwnd": 77,
+                                  "since": time.time() - 90}}  # fmt: skip
+    (tmp_path / ".nx-mcp").mkdir(exist_ok=True)
+    (tmp_path / ".nx-mcp" / "ui-state.json").write_text(json.dumps(beat), encoding="utf-8")
+    data = side(tmp_path, st.nx_get_operation, operation="op_blocked_01").data
+    dialog = data["blocked_by_dialog"]
+    assert dialog["title"] == "Large Sketch Performance" and "hwnd" not in dialog
+    assert 89 <= dialog["seconds"] <= 95 and dialog["since"].endswith("Z")
+    assert "dialog" in data["note"] and data["progress"]["completed"] == 8
+    assert data["progress"]["age_seconds"] >= 0
+    beat["running_operation_id"] = "op_someone_else"  # another call is blocked: not this one
+    (tmp_path / ".nx-mcp" / "ui-state.json").write_text(json.dumps(beat), encoding="utf-8")
+    other = side(tmp_path, st.nx_get_operation, operation="op_blocked_01").data
+    assert "blocked_by_dialog" not in other
+
+
+def test_a_silent_running_call_gets_a_note(tmp_path, store):
+    receipts = Receipts(store, "s")
+    record, _ = receipts.begin("nx_run_batch", {"operations": []}, "op_silent_01", None)
+    record["progress"] = {"completed": 1, "total": 4, "at": "2020-01-01T00:00:00+00:00"}
+    store.put(record)
+    data = side(tmp_path, st.nx_get_operation, operation="op_silent_01").data
+    assert data["progress"]["age_seconds"] > 60 and "No progress for" in data["note"]
+
+
+def test_dialog_rows_use_iso_times():
+    row = st.dialog_row({"title": "T", "hwnd": 5, "since": 0.0}, now=30.0)
+    assert row == {"title": "T", "since": "1970-01-01T00:00:00Z", "seconds": 30}
+    assert st.dialog_row(None) is None

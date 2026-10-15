@@ -755,6 +755,38 @@
     "mutation_outcome": "not_started",
     "error.field": "/hinge"
    }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "section",
+    "parent": "$topv.data.view.id"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/cut",
+    "error.hint": {
+     "contains": "nx_create_drawing_view#section"
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "section",
+    "parent": "$topv.data.view.id",
+    "cut": "$h1.data.items.0.id"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/arrow_direction",
+    "error.message": {
+     "contains": "arrow_direction, position"
+    },
+    "mutation_outcome": "not_started"
+   },
+   "intent": "Acceptance: with its cut given, a section view names every other field it still needs"
   }
  ]
 }

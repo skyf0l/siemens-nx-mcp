@@ -140,7 +140,7 @@ def test_quantities_take_expression_names_and_formulas():
         "a": "90 deg",
         "n": 3,
     }
-    for bad in ({"d": "10 cm"}, {"d": "a b"}, {"d": "mm"}, {"a": "10 mm"}, {"n": 1}, {"n": 2.5}):
+    for bad in ({"d": "10 ft"}, {"d": "a b"}, {"d": "mm"}, {"a": "10 mm"}, {"n": 1}, {"n": 2.5}):
         args = {"d": 1, "a": 1, "n": 2, **bad}
         assert refused(spec, args).field == "/" + next(iter(bad)), bad
 

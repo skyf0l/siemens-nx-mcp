@@ -267,11 +267,15 @@ def has_undo_state(services) -> bool:
 
 def settle(services, seen: Watch | None, spec, operation_id: str, tx=None) -> None:
     """After a non-read call: barriers for the parts it loaded, reasons for the marks it
-    dropped, a note when NX evicted marks. Never raises."""
-    if seen is None:
-        return
+    dropped, a note when NX evicted marks, a note when the call makes a checkpoint of its
+    part unrestorable. Never raises."""
+    if seen is not None:
+        with contextlib.suppress(Exception):
+            _settle(services, seen, spec, operation_id, tx)
     with contextlib.suppress(Exception):
-        _settle(services, seen, spec, operation_id, tx)
+        from nx_mcp.core import undoable  # imports this module
+
+        undoable.checkpoint_notes(services, tx)
 
 
 def _settle(services, seen: Watch, spec, operation_id: str, tx) -> None:

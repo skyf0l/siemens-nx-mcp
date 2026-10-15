@@ -15,9 +15,13 @@ NX 2406 lessons kept here (``FeatureCollection.CreateOffsetCurveBuilder``):
   the committed feature (negated height, toggled reverse) did not move it, so a trial
   build under ``tx.scratch()`` finds NX's height side and the real build negates the
   height (and toggles the reverse) when it is against ``direction``.
-- The seed NX picks may lie on any curve of the loop, so ``toward`` is not tested against
-  the seed's side directly: that side is carried along the chain (left or right of its
-  direction) to the curve point nearest ``toward`` and tested there.
+- ``ComputeOffsetDirection`` does not predict the side for every input order: the four
+  top edges of a 50 x 30 block, listed x = 250, x = 200, y = 0, y = 30, offset to the side
+  opposite the one it reported (listed from a y edge they worked). So the curves are put
+  in chain order, and the side is measured: a trial build on NX's side (under
+  ``tx.scratch()``) is measured where the curves come nearest ``toward``, and the real
+  build reverses when that is the wrong side. ``ComputeOffsetDirection`` still runs first:
+  it refuses a straight line before the commit.
 - Distance and draft need curves that span a plane: a single straight line is refused
   ("Input curves form straight line, unable to determine offset plane").
 - 3D axial moves a line normal to the axis by the signed distance along the axis
@@ -41,6 +45,9 @@ from nx_mcp.kit import builders, curve, expr, geom, readback, select, units
 StringRef = Annotated[str, RefTo("curve", "edge", doc="Curve or edge 'c:7'/'e:21'")]
 TYPES = {"distance": "Distance", "draft": "Draft", "axial_3d": "Axial3d"}
 PLANE_HINT = "distance and draft need curves spanning a plane; for one straight line use axial_3d"
+# NX 2406: "Input curves form straight line, unable to determine offset plane".
+STRAIGHT_LINE = 1395069
+STRING_HINT = "distance and draft need one planar string of curves meeting end to end"
 
 
 class OffsetData(cc.CurvesData):
@@ -99,7 +106,8 @@ def _side(tx, b):
         with native(default="NX_BUILD_FAILED"):
             vector, seed = b.ComputeOffsetDirection()
     except NXError as error:
-        error.hint = PLANE_HINT
+        line = error.nx_code == STRAIGHT_LINE or "straight line" in error.message
+        error.hint = PLANE_HINT if line else STRING_HINT
         raise
     return geom.unit(geom.xyz(vector)), geom.xyz(seed)
 
@@ -132,6 +140,18 @@ def _orientations(tx, sources) -> list:
     return flags
 
 
+def _chained(tx, sources) -> None:
+    """Refuse curves that do not form one string end to end (NX: "Input curves must form
+    continuous string"), naming the first curve not connected to curves/0."""
+    flags = _orientations(tx, sources)
+    loose = next((i for i, f in enumerate(flags) if f is None), None)
+    if loose is not None:
+        fail("NX_INVALID_ARGUMENT", f"curves/{loose} is not connected end to end with the "
+             "string through curves/0", field=f"/curves/{loose}",
+             hint="List curves that meet end to end (one string); offset separate strings "
+             "in separate calls")  # fmt: skip
+
+
 def _frame(tx, sources, point):
     """``(source index, nearest source point, unit tangent there)`` for ``point``."""
     found = [(curve.point_distance(tx, s, point), i) for i, s in enumerate(sources)]
@@ -139,49 +159,81 @@ def _frame(tx, sources, point):
     return i, foot, curve.closest(tx, sources[i], foot)[1]
 
 
-def _against(tx, sources, flags, side, seed, toward) -> bool:
-    """Whether ``toward`` lies on the other side of the curves than NX's ``side`` at
-    ``seed``. NX's side is carried along the chain as the left or right of its direction
-    to the source point nearest ``toward`` and tested there: tested at the seed, a point
-    off a far corner reads the wrong side (toward [200, 200, 20] off a 100 x 50 rim seeded
-    on its x = 0 edge gave the inward offset, live 2026-10-13)."""
-    i, _foot, t_seed = _frame(tx, sources, seed)
-    j, near, t_near = _frame(tx, sources, toward)
-    normal = geom.cross(geom.scale(t_seed, flags[i] or 1), side)
-    if flags[i] is None or flags[j] is None or geom.norm(normal) <= 1e-9:
-        return geom.dot(geom.sub(list(toward), seed), side) < 0  # not chained: at the seed
-    local = geom.cross(normal, geom.scale(t_near, flags[j]))
-    return geom.dot(geom.sub(list(toward), near), local) < 0
+def _in_chain_order(tx, sources) -> list:
+    """``sources`` reordered so that each meets the next, starting with ``sources[0]`` (NX
+    2406 offset a rim listed out of chain order to the side opposite the one asked for);
+    as given when they do not form one string."""
+    ends = [curve.ends(tx, s) for s in sources]
+    limit = cc.gap_tolerance(tx, *(p for pair in ends for p in pair))
+    order = [0]
+    left, right = ends[0]
+    free = list(range(1, len(sources)))
+    grew = True
+    while free and grew:
+        grew = False
+        for j in list(free):
+            start, end = ends[j]
+            if geom.dist(right, start) <= limit or geom.dist(right, end) <= limit:
+                right = end if geom.dist(right, start) <= limit else start
+                order.append(j)
+            elif geom.dist(left, end) <= limit or geom.dist(left, start) <= limit:
+                left = start if geom.dist(left, end) <= limit else end
+                order.insert(0, j)
+            else:
+                continue
+            free.remove(j)
+            grew = True
+    return list(sources) if free else [sources[i] for i in order]
 
 
-def _build(tx, method, sources, values, axis, toward, flip=False):
-    """``(feature, in-plane side, seed)`` of one offset build; ``flip`` turns the draft
-    height over (a negated height flips both sides, so the in-plane side is reversed back)."""
+def _toward(tx, sources, made, toward, normal):
+    """``(moved, wanted)``: in the curves' plane, how the offset point nearest the source
+    point nearest ``toward`` moved from it, and the way to ``toward``."""
+    _i, foot, _t = _frame(tx, sources, toward)
+    moved = geom.sub(_nearest(tx, made, foot), foot)
+    wanted = geom.sub(list(toward), foot)
+
+    def flat(v):
+        return geom.sub(v, geom.scale(normal, geom.dot(v, normal)))
+
+    return flat(moved), flat(wanted)
+
+
+def _build(tx, method, sources, values, axis, reverse=False, flip=False):
+    """``(feature, seed)`` of one offset build (``seed``: NX's point on the curves, None for
+    axial_3d); ``reverse`` flips the in-plane side, ``flip`` turns the draft height over (a
+    negated height flips both sides, so the in-plane side is reversed back)."""
     distance, height, angle = values
     with builders.build(tx, tx.part.Features.CreateOffsetCurveBuilder, None) as b:
         _configure(tx, b, method, sources, distance, height, angle, axis)
-        side = seed = None
-        reverse = False
+        seed = None
         if method != "axial_3d":
-            side, seed = _side(tx, b)
-            flags = _orientations(tx, sources) if toward is not None else []
-            if toward is not None and _against(tx, sources, flags, side, seed, toward):
-                reverse = True
-                side = geom.scale(side, -1)
+            _vector, seed = _side(tx, b)  # also refuses a straight line before the commit
         if flip:
             b.DraftHeight.RightHandSide = f"-({expr.rhs(height)})"
             reverse = not reverse
-        b.ReverseDirection = reverse
+        b.ReverseDirection = bool(reverse)
         feature = b.commit()
-    return feature, side, seed
+    return feature, seed
 
 
-def _height_flipped(tx, method, sources, values, axis, toward) -> bool:
+def _height_flipped(tx, method, sources, values, axis) -> bool:
     """Whether NX's draft height goes against ``axis``: a trial build, always undone."""
     with tx.scratch():
-        feature, _side_, seed = _build(tx, method, sources, values, axis, toward)
+        feature, seed = _build(tx, method, sources, values, axis)
         moved = geom.sub(_nearest(tx, cc.output_curves(tx, feature), seed), seed)
     return geom.dot(moved, axis) < 0
+
+
+def _side_reversed(tx, method, sources, values, axis, toward, flip, normal) -> bool:
+    """Whether the offset must be reversed to reach ``toward``: a trial build on NX's own
+    side (always undone), measured where the curves come nearest ``toward``. NX's
+    ``ComputeOffsetDirection`` did not predict the side of a rim listed out of chain order,
+    so the side is measured instead."""
+    with tx.scratch():
+        feature, _seed = _build(tx, method, sources, values, axis, False, flip)
+        moved, wanted = _toward(tx, sources, cc.output_curves(tx, feature), toward, normal)
+    return geom.dot(moved, wanted) < 0
 
 
 def _measured(tx, made, sources):
@@ -235,23 +287,32 @@ def nx_create_offset_curve(
     expected = _check(method, distance, height, angle, direction)
     with tx.checks():
         sources = cc.strings(tx, curves, "/curves")
+        _chained(tx, sources)
         axis = select.direction(tx, direction, "/direction") if direction is not None else None
     cc.licensed(tx)
+    sources = _in_chain_order(tx, sources)
     values = (distance, height, angle)
     flip = method == "draft" and axis is not None
-    flip = flip and _height_flipped(tx, method, sources, values, axis, toward)
-    feature, side, seed = _build(tx, method, sources, values, axis, toward, flip)
+    flip = flip and _height_flipped(tx, method, sources, values, axis)
+    flat = method == "draft" and geom.close(_or_zero(angle), 0.0, 1e-12)  # no in-plane move
+    sided = toward is not None and method != "axial_3d" and not flat
+    normal = cc.chain_normal(tx, sources, "/curves") if sided else None
+    reverse = sided and _side_reversed(tx, method, sources, values, axis, toward, flip, normal)
+    feature, seed = _build(tx, method, sources, values, axis, reverse, flip)
     made = cc.output_curves(tx, feature)
     low, high = _measured(tx, made, sources)
     limit = cc.gap_tolerance(tx)
     readback.expect(abs(low - expected) <= limit, "distance", "The offset is not at the distance",
                     expected=expected, measured_min=low)  # fmt: skip
+    if sided:
+        moved, wanted = _toward(tx, sources, made, toward, normal)
+        readback.expect(geom.dot(moved, wanted) > 0, "side", "The offset went to the other side",
+                        moved=moved)  # fmt: skip
     if seed is None:  # axial_3d: moved along the axis by the sign of the distance
         seed = cc.samples(tx, sources[0], 3)[1]
-        side = geom.scale(axis, 1.0 if _or_zero(distance) > 0 else -1.0)
     moved = geom.sub(_nearest(tx, made, seed), seed)
-    flat = method == "draft" and geom.close(_or_zero(angle), 0.0, 1e-12)  # no in-plane move
-    if (toward is not None and not flat) or method == "axial_3d":
+    if method == "axial_3d":
+        side = geom.scale(axis, 1.0 if _or_zero(distance) > 0 else -1.0)
         readback.expect(geom.dot(moved, side) > 0, "side", "The offset went to the other side",
                         moved=moved)  # fmt: skip
     if method == "draft" and axis is not None:

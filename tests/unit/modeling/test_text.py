@@ -53,14 +53,18 @@ def test_planar_text_frame_font_and_curves(nx, monkeypatch):
 
 
 def test_text_arguments_are_checked_first(nx):
-    both = run(nx, "nx_create_text", text="A", plane="xy", path=["cu:1"])
+    stale = run(nx, "nx_create_text", text="A", plane="xy", path=["cu:1"])
+    assert stale.error["code"] == "NX_STALE_REFERENCE" and stale.error["field"] == "/path/0"
+    arc = nx.edge((10, 0, 0), (-10, 0, 0), linear=False)
+    both = run(nx, "nx_create_text", text="A", plane="xy", path=[arc.ref])
     assert both.error["category"] == "invalid_argument" and both.mutation_outcome == "not_started"
     blank = run(nx, "nx_create_text", text="  ", plane="xy")
     assert blank.error["field"] == "/text"
     flat = run(nx, "nx_create_text", text="A", plane="xy", x_direction=[0, 0, 1])
     assert flat.error["field"] == "/x_direction"
+    block = nx.block(40, 20, 10)
     deep = run(nx, "nx_create_text", text="A", plane="xy",
-               relief={"kind": "engrave", "depth": 0, "target": "b:1"})  # fmt: skip
+               relief={"kind": "engrave", "depth": 0, "target": block.ref})  # fmt: skip
     assert deep.error["field"] == "/relief/depth"
     assert not any(b.kind == "TextBuilder" for b in nx.builders)
 

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/bolt_circle_section_in_view.json",
-  "scenario_sha256": "e2560268edf2db18f8e9a5799bb8f5c4c9e9b804d5f3f0def8cf27750e18338d",
+  "scenario_sha256": "2f43958ca79028c13d86706eb5c107e6b91632ad2f32de322fef07fdf8b18a27",
   "domain": "drawing",
   "covers": {
     "nx_create_centerline": [
@@ -12,12 +12,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_centerline": "d3622516609aa31ec836bf324bbe2f4b4ed9d3a76059bace985191de632a9e5b",
-    "nx_set_view_sectioning": "ba9ab1d811a579d5c4b1429c23f2193f7fee8725f6571ab640441da1a95d6ee6"
+    "nx_create_centerline": "b0ad94cd46a47e0ed470885bdd5860f9b0779d0b8a8a4cf38ee7bed7c185bc62",
+    "nx_set_view_sectioning": "882002f8ed6dfc5ffd1cb1cd9d624b0e9ff7a1d5a53b24159e0dfa87debd9f18"
   },
-  "recorded": "2026-10-13T12:14:42Z",
+  "recorded": "2026-10-15T10:52:12Z",
   "passed": true,
-  "checks": 21,
+  "checks": 25,
   "failed_checks": 0,
   "steps": [
     {
@@ -151,17 +151,24 @@
       "call": "nx_set_view_sectioning",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 20,
+      "call": "nx_set_view_sectioning",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 21,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 21,
+      "index": 22,
       "call": "nx_close_part",
       "setup": true,
       "passed": true,

@@ -26,7 +26,7 @@
      "args": {"sketch": "$ch.data.sketch.id", "curves": [
        {"type": "polyline", "points": [[0, 0], [40, 0], [40, 10], [20, 25]]}]},
      "expect": {"data.curves": {"count": 3}, "data.loops": {"count": 1}, "data.loops.0.closed": false,
-                "data.loops.0.open_ends": 2, "changes.created": {"count": 0}}},
+                "data.loops.0.open_ends": 2, "changes.created": {"count_kind": {"curve": 3}}}},
     {"call": "nx_create_sketch_curves",
      "args": {"sketch": "$ch.data.sketch.id", "curves": [
        {"type": "polyline", "points": [[20, 25], [0, 10], [0, 0]]},

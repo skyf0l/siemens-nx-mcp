@@ -1170,7 +1170,7 @@
    },
    "expect": {
     "mutation_outcome": "rolled_back",
-    "error.code": "NX_VERIFICATION_FAILED"
+    "error.code": "NX_BUILD_FAILED"
    }
   },
   {

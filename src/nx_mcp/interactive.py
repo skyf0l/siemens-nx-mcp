@@ -91,6 +91,9 @@ DEV_PYTHON = "nx_dev_python"  # a development snippet: no target part
 # (WSAAsyncSelect), and "tick again now" (posted by the host itself).
 WM_BRIDGE_ACCEPT = 0x8000 + 0x4E1
 WM_HOST_WAKE = 0x8000 + 0x4E2
+# "Repaint the panel now": the dialog watchdog posts it from its thread while a modal NX
+# dialog holds the UI thread; NX's modal loop still dispatches it to the panel.
+WM_HOST_ALERT = 0x8000 + 0x4E3
 FD_ACCEPT = 0x08
 # Giving the bridge worker threads the GIL: stop when no worker made progress
 # for one slice (it waits on its socket, not on us), and after the budget.
@@ -152,11 +155,10 @@ def _envelope(error):
 def _show_blocked(envelope, blocked):
     """Name the modal dialog that blocks NX in a status envelope (``control`` and a
     warning); the dialog's window handle stays inside the host."""
+    from nx_mcp.domains.session.status import dialog_row
     from nx_mcp.host import dialogs
 
-    row = {k: v for k, v in blocked.items() if k != "hwnd"}
-    since = row.get("since")
-    row["seconds"] = round(time.time() - since) if isinstance(since, (int, float)) else None
+    row = dialog_row(blocked)  # since as UTC ISO 8601, seconds waited, no window handle
     control = (envelope.get("data") or {}).get("control")
     if isinstance(control, dict):
         control["blocked_by_dialog"] = row
@@ -463,6 +465,9 @@ class ControlPanel:
             if msg == WM_HOST_WAKE:
                 self.host.tick()
                 return 0
+            if msg == WM_HOST_ALERT:
+                self.host.show_alert()
+                return 0
             if msg == 0x111:
                 ident = int(wp) & 0xFFFF
                 if ident in ID_MODES:
@@ -564,6 +569,10 @@ class ControlPanel:
     def wake(self):
         """Ask for another tick as soon as NX dispatches messages again."""
         self.user.PostMessageW(self.hwnd, WM_HOST_WAKE, 0, 0)
+
+    def alert(self):
+        """Ask for a panel repaint (``WM_HOST_ALERT``) from any thread; never waits."""
+        self.user.PostMessageW(self.hwnd, WM_HOST_ALERT, 0, 0)
 
     def close(self):
         self.user.DestroyWindow(self.hwnd)
@@ -668,10 +677,18 @@ class InteractiveHost:
             Workspace(self.root),
         )
         self.services.host = self  # nx_get_status reports the panel mode
+        # No "Large Sketch Performance" dialog for an agent's sketch (host/quiet.py).
+        from nx_mcp.host import quiet
+
+        quiet.prepare(self.session)
         token = secrets.token_hex(32)
         progress = threading.Event()  # Set by bridge workers: a call queued or answered.
         self.dispatcher = MainThreadDispatcher(
-            self.execute, queue_timeout=QUEUE_TIMEOUT, progress=progress, run_timeout=run_timeout
+            self.execute,
+            queue_timeout=QUEUE_TIMEOUT,
+            progress=progress,
+            run_timeout=run_timeout,
+            queue_timeout_for=self._queue_wait,
         )
         self.dispatcher.explain = self._explain_wait
         self.server = BridgeServer(
@@ -792,6 +809,15 @@ class InteractiveHost:
             left = deadline - time.monotonic()
             if left <= 0 or not progress.wait(min(left, BRIDGE_SLICE)):
                 return
+
+    def _queue_wait(self, method):
+        """How long a call may wait in NX's queue: in Auto a read fails fast
+        (``bridge.READ_QUEUE_TIMEOUT``: it waits only behind other agent steps or a
+        blocked NX); in Ask me first every call keeps the full time for the engineer's
+        answer on the card."""
+        from nx_mcp.bridge import QUEUE_TIMEOUT, queue_timeout
+
+        return queue_timeout(method) if self.mode == "auto" else QUEUE_TIMEOUT
 
     def dispatch(self, method, params):
         # Bridge-worker health reads use an immutable UI-thread snapshot only.
@@ -1071,6 +1097,9 @@ class InteractiveHost:
 
             summary = with_part(self.current_part, self.current_summary or self.running_method)
             lines = [head + _clip(summary, LINE_WIDTH - len(head) - len(tail)) + tail]
+            alert = self.dialog_alert()
+            if alert:
+                lines = [_clip(alert, LINE_WIDTH), *lines]
             if self.current_intent:
                 indent = " " * (len(head) + 2)
                 lines.append(indent + _clip(f"“{self.current_intent}”", LINE_WIDTH - len(indent)))
@@ -1105,7 +1134,9 @@ class InteractiveHost:
         product = "NX MCP DEV" if self.dev else "NX MCP"
         label = MODE_LABELS.get(self.mode, self.mode)
         waiting = bool(self.waiting_count) or self.busy_wait is not None
-        if self.mode == "ask" and self.waiting_count:
+        if self.running_method and self.blocked_by is not None:
+            title = f"{product} — an NX dialog waits for your answer"
+        elif self.mode == "ask" and self.waiting_count:
             title = f"{product} — Agent is waiting"
         elif self.running_method:
             title = f"{product} — {label} · agent step running"
@@ -1520,12 +1551,19 @@ class InteractiveHost:
             raise NXError(
                 "NX_MODAL_DIALOG_OPEN",
                 dialogs.message(open_now, still_open=True),
-                hint="Ask the engineer to answer the NX dialog, then retry",
+                hint=dialogs.hint_for(
+                    open_now[0].title, "Ask the engineer to answer the NX dialog"
+                )
+                + ", then retry",
                 details={"mutation_outcome": "not_started",
                          "dialogs": [d.row() for d in open_now]},
             )  # fmt: skip
         return dialogs.Watch(
-            open_now, on_new=self._dialog_appeared, on_gone=self._dialog_gone, scanner=scan
+            open_now,
+            on_new=self._dialog_appeared,
+            on_gone=self._dialog_gone,
+            on_stuck=self._dialog_stuck,
+            scanner=scan,
         ).start()
 
     def _dialog_appeared(self, dialog):
@@ -1549,6 +1587,7 @@ class InteractiveHost:
             }
             self._mark_snapshot(self.blocked_by)
             self._reject_queued(self.blocked_by)
+            self._post_alert()  # the panel names the dialog at once
         if getattr(self, "dev", False):
             self._answer_blocked_call(dialog)
 
@@ -1558,6 +1597,55 @@ class InteractiveHost:
         if blocked is not None and blocked.get("hwnd") == dialog.hwnd:
             self.blocked_by = None
             self._mark_snapshot(None)
+            self._post_alert()
+
+    def _dialog_stuck(self, dialog, seconds):
+        """The dialog watchdog (from the watch thread): nobody answered the modal dialog
+        an agent call opened for ``seconds``. Alert the engineer: an activity line, the
+        panel (an alert line on top, its title) and NX's taskbar button flashing. Every
+        agent call is refused meanwhile, so only the engineer can free NX."""
+        from nx_mcp.host import dialogs
+
+        found = dialogs.known(dialog.title)
+        what = f" ({found[0]})" if found else ""
+        try:
+            self.activity.nx_dialog(
+                f"NX has waited {int(seconds)} s for your answer to its dialog "
+                f"{dialog.describe()}{what}; agent steps are blocked until you answer it in NX"
+            )
+        except Exception as exc:
+            self.last_error = "Activity history: " + str(exc)
+        self._flash_nx()
+        self._post_alert()
+
+    def dialog_alert(self):
+        """The panel's alert line while a modal NX dialog blocks the running call, else
+        None (pure Python state: the panel repaints it while the dialog holds NX)."""
+        blocked = self.blocked_by
+        if blocked is None:
+            return None
+        since = blocked.get("since")
+        waited = (
+            f" for {_span(int(time.time() - since))}" if isinstance(since, (int, float)) else ""
+        )
+        title = blocked.get("title") or "an NX dialog"
+        return f"⚠  NX waits{waited} for your answer to “{title}”: agent steps are blocked"
+
+    def show_alert(self):
+        """``WM_HOST_ALERT`` on the UI thread: repaint the panel (no NX call)."""
+        try:
+            self.panel.update(*self.panel_state())
+        except Exception as exc:
+            self.last_error = "Panel alert: " + str(exc)
+
+    def _post_alert(self):
+        alert = getattr(getattr(self, "panel", None), "alert", None)
+        if alert is None:
+            return
+        try:
+            alert()
+        except Exception as exc:
+            self.last_error = "Panel alert: " + str(exc)
 
     def _mark_snapshot(self, blocked):
         """Put the blocking dialog in (or out of) the snapshot health reads answer from."""
@@ -1586,10 +1674,11 @@ class InteractiveHost:
             if outcome == "unknown"
             else "nx_get_status shows when NX is free; then retry"
         )
+        ask = "Ask the engineer to answer the NX dialog (the agent never clicks it)"
         return NXError(
             "NX_MODAL_DIALOG_OPEN",
             dialogs.blocked_message(blocked, outcome=outcome),
-            hint="Ask the engineer to answer the NX dialog (the agent never clicks it); " + then,
+            hint=dialogs.hint_for(blocked.get("title"), ask) + "; " + then,
             details={
                 "mutation_outcome": outcome,
                 "dialogs": [row],

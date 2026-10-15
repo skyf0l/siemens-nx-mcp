@@ -260,8 +260,8 @@ def display_nx(units="mm"):
         CreateLighting=lighting,
     )
     nx.part.DynamicSections.CreateSectionBuilder = lambda *a: SectionBuilder(
-        nx, a[0] if len(a) == 2 else None, a[-1]
-    )
+        nx, a[0] if len(a) == 2 else a[-1].ActiveDynamicSection, a[-1]
+    )  # NX 2406: (view) alone edits the view's active section, (Null, view) makes one
 
     def delete(_flag, targets):
         for t in targets:
@@ -277,9 +277,10 @@ def display_nx(units="mm"):
         RenderingStyleType=STYLES,
     )
     nx.nx.Display = NS(
+        DynamicSection=NS(Null=None),
         DynamicSectionTypes=NS(
             Type=NS(OnePlane=1), CoordinateSystem=NS(Absolute=1), Clip=NS(Section=1)
-        )
+        ),
     )
     nx.uf.Disp = NS(
         ColorName=NS(**{k: k for k in display.COLOR_NAMES.values()}),

@@ -131,7 +131,7 @@ def _principal(vector):
     effect="model",
     label="Extrude sketch",
     summary=_extrude_summary,
-    keywords=("pad", "boss", "protrude", "extrusion", "cut", "pocket"),
+    keywords=("pad", "boss", "protrude", "extrusion", "cut", "pocket", "pull profile", "prism"),
     requires=("work_part", "no_active_sketch"),
     cost="heavy",
     previewable=True,
@@ -239,12 +239,15 @@ def _profile(tx, sk) -> list:
     """``[(curve, part points)]`` of the sketch's profile curves (construction curves and
     sketch points left out), each sampled at ``SAMPLES + 1`` points."""
     out = []
+    joined = units.part_tolerance(tx, JOINED_MM)
     for c in common.sketch_curves(sk):
         try:
             with curve.evaluator(tx, c) as e:
                 points = [e.at(k / SAMPLES)[0] for k in range(SAMPLES + 1)]
         except Exception:
             continue  # a sketch point, not a curve
+        if all(geom.dist(p, points[0]) <= joined for p in points[1:]):
+            continue  # a point NX evaluates (a path sketch's "Sketch Origin")
         out.append((c, points))
     return out
 
@@ -309,6 +312,29 @@ def _chains(tx, profile) -> dict:
             if gap <= window:
                 out["gaps"].append({"point": [round(v, 6) for v in nodes[a][0]], "gap": gap})
     return out
+
+
+def section_loops(tx, sk) -> dict:
+    """``{"closed", "open", "branched", "gaps"}`` of a section sketch's profile curves
+    (sampled; curves NX cannot evaluate are left out)."""
+    found = _chains(tx, _profile(tx, sk))
+    return {k: found[k] for k in ("closed", "open", "branched", "gaps")}
+
+
+def refuse_open(tx, sk, field: str, hint: str) -> None:
+    """Refuse, before NX, a section with open chains and no closed loop: NX builds no solid
+    from it (a sheet or nothing), which used to surface as a volume read-back failure."""
+    loops = section_loops(tx, sk)
+    loose = loops["open"] + loops["branched"]
+    if loose and not loops["closed"]:
+        fail(
+            "NX_WRONG_GEOMETRY",
+            f"The section is open ({loose} open chain(s), no closed loop): a solid needs a "
+            "closed profile",
+            field=field,
+            hint=hint,
+            details={k: loops[k] for k in ("closed", "open", "branched")},
+        )
 
 
 def _simplified(points, tol):
@@ -466,8 +492,30 @@ def _check_section(section) -> None:
         )
 
 
-def _refused(error, combine, section) -> NoReturn:
+def _on_axis(tx, profile, origin, direction) -> int:
+    """How many profile curves lie on the revolve axis line (every sample on it)."""
+    d = geom.unit(direction)
+    tol = units.part_tolerance(tx)
+    count = 0
+    for _c, points in profile:
+        offs = [geom.sub(p, origin) for p in points]
+        if all(geom.norm(geom.sub(o, geom.scale(d, geom.dot(o, d)))) <= tol for o in offs):
+            count += 1
+    return count
+
+
+def _refused(error, combine, section, sheet=False) -> NoReturn:
     """NX's 671623 once the axis, crossings and gaps are ruled out: the causes left."""
+    if sheet and section.get("on_axis"):
+        fail(
+            "NX_WRONG_GEOMETRY",
+            f"A sheet revolve cannot sweep a curve lying on the axis ({section['on_axis']} "
+            f"of the profile curves do): NX refused it ({error.message})",
+            field="/sketch",
+            hint="Make the curves on the axis construction (nx_edit_sketch_curves), or omit "
+            "sheet to build a solid",
+            nx_code=error.nx_code,
+        )
     causes = []
     loose = section["open"] + section["branched"]
     if loose and section["closed"]:
@@ -484,8 +532,8 @@ def _refused(error, combine, section) -> NoReturn:
         f"NX refused the revolve ({error.message}); the profile stays on one side of the "
         "axis with no gap or crossing found. Likely: " + "; or ".join(causes),
         field="/combine/targets" if combine is not None and not loose else "/sketch",
-        hint="Check the sketch loops with nx_get_sketch; or revolve without combine and "
-        "use nx_create_boolean",
+        hint="Check the sketch loops with nx_get_sketch"
+        + ("; or revolve without combine and use nx_create_boolean" if combine else ""),
         nx_code=error.nx_code,
         details={k: section[k] for k in ("closed", "open", "branched")},
     )
@@ -558,6 +606,7 @@ def nx_create_revolve(
         if _crosses_axis(tx, sk, profile, resolved[1], resolved[2]):
             _crosses()
         section = _section(tx, sk, profile)
+        section["on_axis"] = _on_axis(tx, profile, resolved[1], resolved[2])
         _check_section(section)
     targets = common.combine_targets(tx, combine)
     before = common.target_state(tx, targets)
@@ -579,7 +628,7 @@ def nx_create_revolve(
             raise
         if tilt > 1e-9:  # here the axis leaves the plane, not the profile
             _tilted(False, error.nx_code, error.message)
-        _refused(error, combine, section)
+        _refused(error, combine, section, sheet)
     common.sound(tx, common.feature_bodies(feature), known)
     if combine is not None:
         _open_note(tx, section, False)
@@ -594,6 +643,15 @@ def nx_create_revolve(
         return cast(RevolveData, made)
     common.changed(0.0, out["volume"], "positive")
     return {**out, "sheet": False}
+
+
+OPEN_SWEEP_HINT = (
+    "Close the profile (nx_get_sketch lists its loops), or sweep it as a thin wall with "
+    "nx_create_sweep_along_guide first_offset/second_offset"
+)
+CORNER_SWEEP_HINT = (
+    common.SMOOTH_HINT + "; or use nx_create_sweep_along_guide, which mitres sharp corners"
+)
 
 
 @tool(
@@ -614,7 +672,9 @@ def nx_create_sweep(
     combine: Combine | None = None,
 ) -> common.FeatureData:
     """Sweep a closed section sketch along a guide sketch, as a new body or combined with
-    bodies (a separate Boolean feature). The guide must be tangent-continuous (G1)."""
+    bodies (a separate Boolean feature). The guide must be tangent-continuous (G1); a guide
+    with sharp corners, curve or edge guides, or a thin wall from an open section:
+    nx_create_sweep_along_guide."""
     if section == guide:
         fail("NX_INVALID_ARGUMENT", "section and guide must differ", field="/guide")
     common.check_one_target(combine, "sweep")
@@ -623,7 +683,8 @@ def nx_create_sweep(
         g = ksketch.resolve(tx, guide, "/guide")
         if int(a.Tag) == int(g.Tag):
             fail("NX_INVALID_ARGUMENT", "section and guide must differ", field="/guide")
-        common.refuse_corners(tx, common.sketch_curves(g), "/guide", "guide")
+        refuse_open(tx, a, "/section", OPEN_SWEEP_HINT)
+        common.refuse_corners(tx, common.sketch_curves(g), "/guide", "guide", CORNER_SWEEP_HINT)
     targets = common.one_target(tx, combine, "sweep")
     before = measure.volume(tx, targets) if targets else 0.0
 

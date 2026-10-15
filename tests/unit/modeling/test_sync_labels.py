@@ -118,3 +118,23 @@ def test_offset_region_and_pull_read_the_face_offsets_back():
     no_dir = run(nx, "nx_edit_face_region", faces=[nx.ref_of(side, "face")], action="pull",
                  distance=5)  # fmt: skip
     assert no_dir.error["field"] == "/direction" and no_dir.mutation_outcome == "not_started"
+
+
+def test_label_between_faces_must_meet_the_chamfer_and_duplicates_warn():
+    nx, a, ch, front, bottom = chamfered()
+    top = a.face((0, 0, 1))
+    bad = run(nx, "nx_create_face_label", faces=[nx.ref_of(ch, "face")], kind="chamfer",
+              between=[nx.ref_of(front, "face"), nx.ref_of(top, "face")])  # fmt: skip
+    assert bad.error["code"] == "NX_WRONG_GEOMETRY" and bad.error["field"] == "/between/1", bad
+    assert bad.mutation_outcome == "not_started"
+
+    def label(b):
+        f = feature(nx, "LABEL_CHAMFER", [a])
+        f.GetFaces = lambda: [ch]
+        return f
+
+    nx.on_commit("LabelChamferBuilder", label)
+    first = run(nx, "nx_create_face_label", faces=[nx.ref_of(ch, "face")], kind="chamfer")
+    assert first.ok and not first.warnings, first
+    second = run(nx, "nx_create_face_label", faces=[nx.ref_of(ch, "face")], kind="chamfer")
+    assert second.ok and any("already labels" in w["message"] for w in second.warnings), second

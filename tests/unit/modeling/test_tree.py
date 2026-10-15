@@ -163,7 +163,11 @@ def test_suppression_dependents_and_inactive_features():
         bad.error["category"] == "invalid_argument"
         and "nx_set_current_feature" in bad.error["hint"]
     )
-    assert bad.mutation_outcome == "rolled_back" and bad.changes["references"] == "preserved"
+    assert bad.mutation_outcome == "not_started"
+    wrong = run(nx, "nx_set_feature_suppression", features=[nx.block(1, 1, 1).ref],
+                suppressed=True)  # fmt: skip
+    assert wrong.error["code"] == "NX_WRONG_KIND" and wrong.error["field"] == "/features/0"
+    assert wrong.mutation_outcome == "not_started"
 
 
 def test_suppression_that_does_not_stick_rolls_back():
@@ -206,7 +210,7 @@ def test_rolling_back_names_the_bodies_nx_removes_until_rolled_forward():
     ok = run(nx, "nx_set_current_feature", feature=nx.ref_of(block, "feature"))
     assert ok.ok, ok
     notes = [w["message"] for w in ok.warnings if w["code"] == "NX_NOTE"]
-    assert notes and "1 body(ies)" in notes[0] and "new refs" in notes[0]
+    assert notes and "1 body of" in notes[0] and "new refs" in notes[0]
     missing = run(nx, "nx_set_current_feature", feature="f:999999")
     assert missing.mutation_outcome == "not_started"
 
@@ -309,6 +313,17 @@ def test_update_model_reports_health_and_fails_on_update_errors():
     nx.update_errors = 3
     bad = run(nx, "nx_update_model")
     assert bad.error["code"] == "NX_UPDATE_FAILED" and bad.mutation_outcome == "rolled_back"
+
+
+def test_update_model_warns_about_deformed_values_out_of_range(monkeypatch):
+    from nx_mcp.kit import deform
+
+    nx = modeling_nx()
+    nx.block(1, 1, 1)
+    text = "Deformed o:7 (SPRING): length = 90 lies outside its range [40, 80]"
+    monkeypatch.setattr(deform, "range_messages", lambda tx, part: [text])
+    ok = run(nx, "nx_update_model")
+    assert ok.ok and {"code": "NX_UPDATE_WARNING", "message": text} in ok.warnings, ok
 
 
 @pytest.mark.parametrize("position", ["before", "after"])
@@ -566,3 +581,105 @@ def test_tube_diameters_answer_to_outer_and_inner_diameter():
         {"name": "outer_diameter", "value": 12}, {"name": "inner_diameter", "value": 6}])  # fmt: skip
     assert ok.ok, ok
     assert outer.RightHandSide == "12.0" and inner.RightHandSide == "6.0"
+
+
+def test_set_expression_names_the_unknown_variable_and_warns_on_unitless():
+    nx = modeling_nx()
+    numeric(nx)
+    nx.expression("p1", "4", 4.0)
+
+    def refuse(spec, unit):
+        raise NXException(1050007, "The specified expression variable does not exist.")
+
+    nx.part.Expressions.CreateNumberExpression = refuse
+    bad = run(nx, "nx_set_expression", name="wall", formula="nosuch*2 + p1 + sqrt(4)", units="mm")
+    assert bad.error["code"] == "NX_INVALID_FORMULA" and bad.error["field"] == "/formula", bad
+    assert bad.error["details"]["missing"] == ["nosuch"] and "nosuch" in bad.error["message"]
+    numeric(modeling_nx())
+    nx = modeling_nx()
+    numeric(nx)
+    bare = run(nx, "nx_set_expression", name="gap", formula=2)
+    assert bare.ok and any("unitless" in w["message"] for w in bare.warnings), bare
+    sized = run(nx, "nx_set_expression", name="gap2", formula=2, units="mm")
+    assert sized.ok and not sized.warnings
+
+
+def test_set_expression_converts_without_float_noise():
+    nx = modeling_nx()
+    numeric(nx)
+    exp = nx.expression("blk_len", "100", 100.0)
+    exp.Units = MM
+    ok = run(nx, "nx_set_expression", name="blk_len", formula="3 in")
+    assert ok.ok and exp.RightHandSide == "76.2", ok
+
+
+def test_set_expression_read_only_says_why_and_what_drives_it():
+    nx = modeling_nx()
+    exp = nx.expression("p111", "12", 12.0)
+    exp.IsNoEdit = True
+    thread = feature(nx, "SYMBOLIC_THREAD")
+    thread.expressions = [exp]
+    bad = run(nx, "nx_set_expression", name="p111", formula="10")
+    assert bad.error["code"] == "NX_READ_ONLY" and bad.mutation_outcome == "not_started", bad
+    assert bad.error["details"]["reason"] == "locked"
+    assert bad.error["details"]["features"][0]["name"] == thread.Name
+    assert "nx_edit_feature" in bad.error["hint"]
+
+
+def test_update_model_rows_are_refs_and_inactive_excludes_suppressed():
+    nx = modeling_nx()
+    block, boss, hole = timeline(nx)
+    hole.GetFeatureWarningMessages = lambda: ["Edges consumed"]
+    nx.part.CurrentFeature = block
+    nx.suppress_codes[int(boss.Tag)] = 1 | 16
+    nx.suppress_codes[int(hole.Tag)] = 16
+    ok = run(nx, "nx_update_model")
+    assert ok.ok, ok
+    assert ok.data["warnings"][0]["feature"]["id"] == nx.ref_of(hole, "feature")
+    assert ok.data["suppressed"] == 1 and ok.data["inactive"] == 1
+
+
+def test_reorder_across_the_current_feature_reports_activity():
+    nx = modeling_nx()
+    block, boss, hole = timeline(nx)
+    datum = feature(nx, "DATUM_PLANE")
+    datum.GetChildren = lambda: []
+    renumbering_reorder(nx)
+    nx.part.CurrentFeature = boss
+    ok = run(nx, "nx_set_feature_order", feature=nx.ref_of(datum, "feature"),
+             before=nx.ref_of(block, "feature"))  # fmt: skip
+    assert ok.ok, ok
+    assert [r["id"] for r in ok.data["activated"]] == [nx.ref_of(datum, "feature")]
+    assert ok.data["deactivated"] == [] and ok.data["current"]["id"] == nx.ref_of(boss, "feature")
+    assert any("current feature" in w["message"] for w in ok.warnings)
+
+
+def test_reorder_before_the_current_feature_keeps_it_current():
+    """NX makes the feature before the new position current; the move restores it."""
+    nx = modeling_nx()
+    block, boss, hole = timeline(nx)
+    datum = feature(nx, "DATUM_PLANE")
+    datum.GetChildren = lambda: []
+    for f in (block, boss, hole, datum):
+        f.MakeCurrentFeature = lambda f=f: setattr(nx.part, "CurrentFeature", f)
+    renumbering_reorder(nx)
+    move = nx.part.Features.ReorderFeature
+
+    def rolling(features, anchor, how):
+        move(features, anchor, how)
+        order = list(nx.part.Features)
+        at = order.index(features[0])
+        nx.part.CurrentFeature = order[at - 1] if at else order[0]
+
+    nx.part.Features.ReorderFeature = rolling
+    nx.part.CurrentFeature = boss
+    ok = run(nx, "nx_set_feature_order", feature=nx.ref_of(datum, "feature"),
+             before=nx.ref_of(boss, "feature"))  # fmt: skip
+    assert ok.ok, ok
+    assert ok.data["current"]["id"] == nx.ref_of(boss, "feature")
+    assert [r["id"] for r in ok.data["activated"]] == [nx.ref_of(datum, "feature")]
+    nx.part.CurrentFeature = hole  # the timeline's end stays its end
+    end = run(nx, "nx_set_feature_order", feature=nx.ref_of(datum, "feature"),
+              after=nx.ref_of(hole, "feature"))  # fmt: skip
+    assert end.ok and end.data["current"]["id"] == nx.ref_of(datum, "feature"), end
+    assert "activated" not in end.data

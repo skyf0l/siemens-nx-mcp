@@ -311,7 +311,9 @@ def test_shell_draft_and_transform_keep_expression_values():
     assert ok.ok and nx.last("ShellBuilder").DefaultThickness.RightHandSide == "wall", ok
     side = nx.ref_of(block.face((1, 0, 0)), "face")
     bottom = nx.ref_of(block.face((0, 0, -1)), "face")
-    changes(nx, "DraftBuilder", block, 1900.0)
+    from tests.unit.modeling.test_details_bodies import tilts
+
+    tilts(nx, block, block.face((1, 0, 0)), 10, 1900.0)  # taper*2: the wall's read-back
     drafted = run(nx, "nx_create_draft", faces=[side], stationary_face=bottom,
                   direction="z", angle="taper*2")  # fmt: skip
     assert drafted.ok, drafted

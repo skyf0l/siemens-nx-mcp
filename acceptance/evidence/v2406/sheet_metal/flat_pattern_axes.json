@@ -16,13 +16,13 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_sheet_metal_feature": "0cb86ec2b1b68627b15937d5f5b1ee2110821e242858eae414b284fbcb25da32",
-    "nx_get_sheet_metal": "95a0511ea3b5bef12af2c1ee901d3bde2d5424d217901961aa0f065f85125285",
-    "nx_get_sheet_metal_defaults": "e372a3b710c15e0ee38385076358771f2d93738dbf413087317cf2ca8e366e2f",
-    "nx_set_sheet_metal_defaults": "e372a3b710c15e0ee38385076358771f2d93738dbf413087317cf2ca8e366e2f",
-    "nx_export_flat_pattern": "d148430c523270bb5b98030e73505e276b4781818c8ecaa96085d60c3e69c793"
+    "nx_create_sheet_metal_feature": "bf3fd67fcbf3614ac852a3481d8b19132a27603a0e2d699d391486c90c3c3fcf",
+    "nx_get_sheet_metal": "3454f129b2bc6b67a30e503008b92761eeaceb5c96944ae256c116d6957be74c",
+    "nx_get_sheet_metal_defaults": "2eea7d3fd0cee2ffe8184fa55b1cefaa01f5f86ee96f54eaa2a0dddf80d0afc9",
+    "nx_set_sheet_metal_defaults": "2eea7d3fd0cee2ffe8184fa55b1cefaa01f5f86ee96f54eaa2a0dddf80d0afc9",
+    "nx_export_flat_pattern": "d488204612e7c07f7eeaf354ebe78f2c01ef7abf14e72f43defe9f2f584f4594"
   },
-  "recorded": "2026-10-13T07:32:58Z",
+  "recorded": "2026-10-15T11:28:05Z",
   "passed": true,
   "checks": 25,
   "failed_checks": 0,

@@ -197,12 +197,13 @@
     },
     "data.origin": {
      "close": [
-      155,
-      195
+      68.65,
+      175
      ],
      "tol": 1
     }
-   }
+   },
+   "intent": "Acceptance: the default origin goes outside the view, clear of the projected view below"
   },
   {
    "call": "nx_create_gdt",
@@ -237,8 +238,8 @@
     },
     "data.origin": {
      "close": [
-      140,
-      220
+      68.65,
+      200
      ],
      "tol": 8.01
     }
@@ -285,8 +286,8 @@
     },
     "data.origin": {
      "close": [
-      155,
-      195
+      68.65,
+      175
      ],
      "tol": 1
     }
@@ -346,7 +347,7 @@
     ]
    },
    "expect": {
-    "mutation_outcome": "committed",
+    "mutation_outcome": "not_applicable",
     "data.origins": {
      "count": 2
     },
@@ -363,8 +364,10 @@
       200
      ],
      "tol": 0.001
-    }
-   }
+    },
+    "warnings.0.code": "NX_NO_EFFECT"
+   },
+   "intent": "Acceptance: holes that have the center marks NX made with the view get those marks back, no second one"
   },
   {
    "call": "nx_create_centerline",
@@ -376,7 +379,7 @@
     ]
    },
    "expect": {
-    "mutation_outcome": "committed",
+    "mutation_outcome": "not_applicable",
     "data.origins.0": {
      "close": [
       120,

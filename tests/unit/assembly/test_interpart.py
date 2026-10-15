@@ -13,8 +13,9 @@ MM = NS(Name="MilliMeter", Abbreviation="mm")
 
 
 class InterpartBuilder:
-    """``ExpressionCollection.CreateInterpartExpressionsBuilder``: Commit adds
-    ``name = "part"::source`` interpart expressions to the work part."""
+    """``ExpressionCollection.CreateInterpartExpressionsBuilder``: Commit adds interpart
+    expressions to the work part whose right-hand side is NX's ``interpartN`` handle and
+    whose ``GetInterpartExpressionNames`` names the source part and expression."""
 
     def __init__(self, nx):
         self.nx = nx
@@ -27,8 +28,9 @@ class InterpartBuilder:
 
     def Commit(self):
         work = self.nx.session.Parts.Work
-        for src, name in self.pairs:
-            e = Expression(name, f'"{src.OwningPart.Name}"::{src.Name}', src.Units)
+        for i, (src, name) in enumerate(self.pairs):
+            e = Expression(name, f"interpart{len(work.Expressions) + i}", src.Units)
+            e.GetInterpartExpressionNames = lambda src=src: (src.OwningPart.Name, src.Name)
             e.OwningPart = work
             e.IsInterpartExpression = True
             e.Value = src.Value + (1.0 if self.nx.lie else 0.0)
@@ -103,7 +105,7 @@ def test_refusals_change_nothing(nx):
                     {"source": "deck_len", "name": "a"},
                 ],
             },
-            "/expressions/1",
+            "/expressions/1/name",
         ),  # fmt: skip
     ]
     for args, field in cases:
@@ -115,6 +117,8 @@ def test_refusals_change_nothing(nx):
     clash = run(nx, "nx_create_interpart_link", part="asm", source_part="blk",
                 expressions=[{"source": "deck_len"}])  # fmt: skip
     assert clash.error["code"] == "NX_NAME_CONFLICT", clash
+    assert clash.error["field"] == "/expressions/0/source"
+    assert clash.error["details"]["existing"]["name"] == "deck_len"
 
 
 def test_a_wrong_linked_value_rolls_back(nx):

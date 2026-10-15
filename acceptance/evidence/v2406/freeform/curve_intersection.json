@@ -9,9 +9,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_intersection_curve": "6658bde294740c520d7892d63e18b7785bb05fd49fc1f48d7e25adf6bc0d4f45"
+    "nx_create_intersection_curve": "6938a6cea3cc9b92cfe08d86d5acefd03fde12cd594d912f909aff996da31d05"
   },
-  "recorded": "2026-10-13T06:43:08Z",
+  "recorded": "2026-10-15T10:59:43Z",
   "passed": true,
   "checks": 16,
   "failed_checks": 0,

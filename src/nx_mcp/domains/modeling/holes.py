@@ -160,7 +160,9 @@ def check_spec(form, diameter, depth, tip_angle, counterbore, countersink, threa
             "depth": expr.number(counterbore["depth"]),
         }
         if cb["diameter"] <= spec["diameter"]:
-            fail("NX_INVALID_ARGUMENT", "The counterbore must be wider", field="/counterbore")
+            fail("NX_INVALID_ARGUMENT",
+                 f"The counterbore ({cb['diameter']:g}) must be wider than the hole "
+                 f"({spec['diameter']:g})", field="/counterbore")  # fmt: skip
         if cb["depth"] <= 0 or (spec["depth"] is not None and cb["depth"] >= spec["depth"]):
             fail("NX_INVALID_ARGUMENT", "counterbore depth must be 0..depth", field="/counterbore")
         spec["counterbore"] = cb
@@ -170,7 +172,9 @@ def check_spec(form, diameter, depth, tip_angle, counterbore, countersink, threa
             "angle": expr.number(countersink.get("angle", 90.0)),
         }
         if cs["diameter"] <= spec["diameter"]:
-            fail("NX_INVALID_ARGUMENT", "The countersink must be wider", field="/countersink")
+            fail("NX_INVALID_ARGUMENT",
+                 f"The countersink ({cs['diameter']:g}) must be wider than the hole "
+                 f"({spec['diameter']:g})", field="/countersink")  # fmt: skip
         if not 0 < cs["angle"] < 180:
             fail("NX_INVALID_ARGUMENT", "countersink angle must be 0..180", field="/countersink")
         h = countersink_height(spec["diameter"], cs["diameter"], cs["angle"])
@@ -280,6 +284,19 @@ def _complete(points, origin, normal):
     return out
 
 
+def _outside(tx, face, q) -> str:
+    """Why a point of the face plane is off the face: inside its outline (an opening, such as
+    an existing hole) or beyond it."""
+    try:
+        low, high = measure.bounds(tx, [face])
+    except Exception:  # noqa: BLE001 - no box: say it plainly
+        return "outside the face"
+    slack = 1e-6 * max(1.0, *(abs(v) for v in (*low, *high)))
+    if all(low[k] - slack <= q[k] <= high[k] + slack for k in range(3)):
+        return "in an opening of the face (e.g. an existing hole), not on its material"
+    return "outside the face"
+
+
 def _on_face(tx, placement, points, origin, normal):
     """Project points within tolerance onto the plane; each must lie inside the face."""
     points = check_positions(_complete(points, origin, normal))
@@ -301,8 +318,9 @@ def _on_face(tx, placement, points, origin, normal):
         q = geom.sub(p, geom.scale(normal, distance))
         state = tx.uf.Modeling.AskPointContainment([float(c) for c in q], placement.Tag)
         if state != 1:  # 1 inside, 2 outside, 3 on the boundary
-            where = "on the face boundary" if state == 3 else "outside the face"
-            fail("NX_INVALID_ARGUMENT", f"position {i} is {where}", field=f"/positions/{i}")
+            where = "on the face boundary" if state == 3 else _outside(tx, placement, q)
+            fail("NX_INVALID_ARGUMENT", f"position {i} {q} is {where}", field=f"/positions/{i}",
+                 hint="Pick a point on the face material, away from its edges and openings")  # fmt: skip
         out.append(q)
     return out
 
@@ -440,8 +458,48 @@ class HoleData(TypedDict):
     volume: float
     removed: float
     nominal: float | None
+    diameter: Annotated[float, Doc("Drill diameter used (a threaded hole's tap drill)")]
+    depth: Annotated[float | None, Doc("Blind depth used; null through_all")]
     positions: list[Point3]
     direction: Point3
+
+
+# A blind hole removing less than this share of its analytic volume is not fully inside.
+NOMINAL_REL = 1e-3
+
+
+def _material(tx, body, origin, drill) -> float | None:
+    """How deep the body reaches below the face plane along the drill (its box, so an
+    upper bound); None when NX cannot box it."""
+    try:
+        low, high = measure.bounds(tx, [body])
+    except Exception:  # a body NX cannot box: the volume check alone decides
+        return None
+    corners = [[x, y, z] for x in (low[0], high[0]) for y in (low[1], high[1])
+               for z in (low[2], high[2])]  # fmt: skip
+    return max(geom.dot(geom.sub(c, origin), drill) for c in corners)
+
+
+def _breaks_through(tx, spec, removed, nominal, material) -> bool:
+    """Warn when a blind hole is not fully inside the material: deeper than the body
+    reaches along the drill, or removing less than its analytic volume."""
+    reach = spec["depth"] + tip_height(spec["diameter"], spec["tip_angle"])
+    deep = material is not None and reach > material * (1 + 1e-9)
+    short = removed < nominal * (1 - NOMINAL_REL)
+    if not (deep or short):
+        return False
+    why = (
+        f"the blind depth {spec['depth']:g} (tip included {reach:.6g}) exceeds the "
+        f"{material:.6g} of material below the face"
+        if deep and material is not None
+        else f"it removed {removed:.6g}, less than its analytic {nominal:.6g}"
+    )
+    tx.warn(
+        "NX_UPDATE_WARNING",
+        f"A blind hole breaks through or meets a cavity: {why}; nominal is null. Use depth "
+        "'through_all' for a through hole",
+    )
+    return True
 
 
 @tool(
@@ -474,7 +532,8 @@ def nx_create_hole(
 ) -> HoleData:
     """Create one NX Hole feature with 1-100 holes on a planar face, drilled into the material.
     Threaded: thread {size: 'M6'}, diameter default its tap drill. nominal is the analytic
-    removed volume of blind holes fully inside the body."""
+    removed volume of blind holes fully inside the body (null with a warning when one
+    breaks through); diameter and depth echo the drill used."""
     limit = depth_limit(depth)
     spec = check_spec(form, diameter, limit, tip_angle, counterbore, countersink, thread)
     points = check_positions(positions)
@@ -507,12 +566,18 @@ def nx_create_hole(
     directions = [geom.xyz(d) for d in feature.GetDirections()]
     _verify(spec, got, centres, origins, directions, drill, before - after)
     nominal = None if spec["through_all"] else nominal_volume(spec) * len(centres)
+    if nominal is not None and _breaks_through(
+        tx, spec, before - after, nominal, _material(tx, body, origin, drill)
+    ):
+        nominal = None
     return {
         "feature": tx.ref(feature, kind="feature"),
         "bodies": common.body_rows(tx, [body]),
         "volume": after,
         "removed": before - after,
         "nominal": nominal,
+        "diameter": float(spec["diameter"]),
+        "depth": spec["depth"],
         "positions": origins,
         "direction": drill,
     }

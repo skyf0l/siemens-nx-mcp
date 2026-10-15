@@ -1,0 +1,401 @@
+{
+ "covers": {
+  "nx_create_face_paste": [
+   "auto"
+  ],
+  "nx_create_face_label": [
+   "chamfer"
+  ],
+  "nx_edit_face_relation": [
+   "offset"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "t",
+   "args": {
+    "shape": "block",
+    "origin": [
+     100,
+     0,
+     0
+    ],
+    "length": 20,
+    "width": 20,
+    "height": 20
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "s",
+   "args": {
+    "shape": "block",
+    "origin": [
+     150,
+     0,
+     0
+    ],
+    "length": 20,
+    "width": 20,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_create_face_paste",
+   "args": {
+    "target": "$t.data.bodies.0.id",
+    "tools": [
+     "$s.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "error.field": "/tools/0",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "e",
+   "args": {
+    "shape": "block",
+    "origin": [
+     0,
+     100,
+     0
+    ],
+    "length": 20,
+    "width": 20,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top_back",
+   "args": {
+    "owner": "$e.data.bodies.0.id",
+    "kind": "edge",
+    "order": "nearest",
+    "near": [
+     10,
+     120,
+     10
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "etop",
+   "args": {
+    "owner": "$e.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     10,
+     110,
+     10
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_edit_edges",
+   "args": {
+    "edges": [
+     "$top_back.data.items.0.id"
+    ],
+    "action": "offset",
+    "distance": -200,
+    "along": "$etop.data.items.0.id"
+   },
+   "intent": "An offset larger than the face names distance",
+   "expect": {
+    "error.code": "NX_BUILD_FAILED",
+    "error.field": "/distance",
+    "mutation_outcome": "rolled_back"
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$e.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 4000,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "a",
+   "args": {
+    "shape": "block",
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "length": 60,
+    "width": 40,
+    "height": 20
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ce",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "edge",
+    "order": "nearest",
+    "near": [
+     30,
+     0,
+     0
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_chamfer",
+   "setup": true,
+   "args": {
+    "edges": [
+     "$ce.data.items.0.id"
+    ],
+    "method": "symmetric",
+    "offset": 2
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ch",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     30,
+     1,
+     1
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     -0.7071067811865476,
+     -0.7071067811865476
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "front",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     30,
+     0,
+     10
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     -1,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "atop",
+   "args": {
+    "owner": "$a.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     30,
+     20,
+     20
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_create_face_label",
+   "args": {
+    "faces": [
+     "$ch.data.items.0.id"
+    ],
+    "kind": "chamfer",
+    "between": [
+     "$front.data.items.0.id",
+     "$atop.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "error.field": "/between/1",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_face_label",
+   "args": {
+    "faces": [
+     "$ch.data.items.0.id"
+    ],
+    "kind": "chamfer"
+   },
+   "expect": {
+    "data.volume": {
+     "close": 47880,
+     "tol": 1e-06
+    },
+    "data.faces": {
+     "count": 2
+    }
+   }
+  },
+  {
+   "call": "nx_create_face_label",
+   "args": {
+    "faces": [
+     "$ch.data.items.0.id"
+    ],
+    "kind": "chamfer"
+   },
+   "intent": "A second label of a labelled chamfer face is reported",
+   "expect": {
+    "data.volume": {
+     "close": 47880,
+     "tol": 1e-06
+    },
+    "warnings": {
+     "contains": {
+      "code": "NX_NOTE"
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "f",
+   "args": {
+    "shape": "block",
+    "origin": [
+     0,
+     -60,
+     0
+    ],
+    "length": 20,
+    "width": 20,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "fxp",
+   "args": {
+    "owner": "$f.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     20,
+     -50,
+     5
+    ],
+    "limit": 1,
+    "normal": [
+     1,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "fxm",
+   "args": {
+    "owner": "$f.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     0,
+     -50,
+     5
+    ],
+    "limit": 1,
+    "normal": [
+     -1,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_edit_face_relation",
+   "args": {
+    "face": "$fxp.data.items.0.id",
+    "relation": "offset",
+    "to": "$fxm.data.items.0.id",
+    "distance": 25
+   },
+   "expect": {
+    "data.distance": {
+     "close": 25,
+     "tol": 0.0001
+    },
+    "data.volume": {
+     "close": 5000,
+     "tol": 1e-06
+    }
+   }
+  }
+ ]
+}

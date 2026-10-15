@@ -39,7 +39,13 @@ UNIT_SCALE = {
     "Radian": ("angle", 57.29577951308232),
 }
 _TARGET_UNIT = {"mm": "MilliMeter", "in": "Inch", "deg": "Degrees", "rad": "Radian"}
-_NOUN = {"length": "a length", "sheet_length": "a length", "angle": "an angle", "count": "a count"}
+_NOUN = {
+    "length": "a length",
+    "sheet_length": "a length",
+    "angle": "an angle",
+    "count": "a count",
+    "scalar": "a number",
+}
 
 # Semantic parameter names -> words of the NX expression description, in order
 # of preference. Descriptions look like "Extrude(3) End Limit" or "Blend(5) Radius 1".
@@ -241,6 +247,12 @@ def _unit_of(exp):
     return getattr(unit, "Name", None) if unit else None
 
 
+def _file_of(part) -> str:
+    """The part's file name for messages (``bracket.prt``), else ``the work part``."""
+    full = str(getattr(part, "FullPath", "") or "").replace("\\", "/")
+    return full.rsplit("/", 1)[-1] if full else "the work part"
+
+
 def evaluate(services, formula, dim, unit, *, field=None, scratch=False) -> float:
     """``formula`` (an expression name or formula) of the work part, in ``unit``.
 
@@ -254,12 +266,13 @@ def evaluate(services, formula, dim, unit, *, field=None, scratch=False) -> floa
         fail("NX_NO_WORK_PART", "No work part is open", hint="Open a part with nx_open_part")
     noun = _NOUN.get(dim, "a value")
     listing = "List them with nx_list_objects kind 'expression'; create one with nx_set_expression"
+    where = _file_of(part)
     if NAME.fullmatch(formula):
         exp = next((e for e in part.Expressions if e.Name == formula), None)
         if exp is None:
             fail(
                 "NX_INVALID_ARGUMENT",
-                f"{field or 'value'}: the work part has no expression {formula!r}",
+                f"{field or 'value'}: {where} has no expression {formula!r}",
                 field=field,
                 hint=listing,
             )
@@ -274,7 +287,7 @@ def evaluate(services, formula, dim, unit, *, field=None, scratch=False) -> floa
             number = float(exp.IntegerValue)
         else:
             number = float(exp.GetValueUsingUnits(services.nx.Expression.UnitsOption.Expression))
-        if own is None or dim == "count":
+        if own is None or dim in ("count", "scalar"):
             return number  # unitless: a plain number in the target units, as NX takes it
         kind, scale = UNIT_SCALE.get(own, (None, None))
         want = "angle" if dim == "angle" else "length"
@@ -310,7 +323,7 @@ def evaluate(services, formula, dim, unit, *, field=None, scratch=False) -> floa
             raise  # a license or session failure stays what it is
         reason = {
             DIMENSION_ERROR: f"is not {noun}",
-            NO_SUCH_EXPRESSION: "names an expression the work part does not have",
+            NO_SUCH_EXPRESSION: f"names an expression {where} does not have",
         }.get(error.nx_code or 0, "is not a valid NX formula")
         fail(
             error.code,

@@ -1,15 +1,15 @@
 {
   "format": 2,
   "scenario": "acceptance/session/multipart_undo.json",
-  "scenario_sha256": "83eeca7b6188ef6f5db05923ebe07d1b5e061cf5fad4f9d54345b59e77c2e3a0",
+  "scenario_sha256": "5be52f396f4aece64e20561170ffc9dfde119d5cd35e221b46e5d8c29fc7d710",
   "domain": "session",
   "covers": {},
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {},
-  "recorded": "2026-10-12T10:40:09Z",
+  "recorded": "2026-10-15T12:41:40Z",
   "passed": true,
-  "checks": 82,
+  "checks": 86,
   "failed_checks": 0,
   "steps": [
     {
@@ -35,17 +35,17 @@
     },
     {
       "index": 4,
-      "call": "nx_find_geometry",
-      "setup": false,
+      "call": "nx_create_primitive",
+      "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 5,
-      "call": "nx_create_blend",
+      "call": "nx_delete_objects",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 6,
@@ -59,7 +59,7 @@
       "call": "nx_undo_operation",
       "setup": false,
       "passed": true,
-      "checks": 6
+      "checks": 8
     },
     {
       "index": 8,
@@ -108,7 +108,7 @@
       "call": "nx_list_checkpoints",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 15,

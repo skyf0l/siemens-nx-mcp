@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/self_overlap_face_limit.json",
-  "scenario_sha256": "9948c84f656c4bdf135fa247d9072edfcaadd566570e684ec935af2787552313",
+  "scenario_sha256": "0996ad059cd8a28235586dddcb1f6a072c3cebefc6ba29e28a99074100e56fba",
   "domain": "inspection",
   "covers": {
     "nx_check_model": [],
@@ -10,10 +10,10 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_check_model": "0c5bc348bb43cbf083ed17e8cfde37dfc9a0fb988b2a3a175f19b9704c20cac8",
-    "nx_get_model_summary": "0c5bc348bb43cbf083ed17e8cfde37dfc9a0fb988b2a3a175f19b9704c20cac8"
+    "nx_check_model": "04370ec0d9acc067da6a6b67b36a9301862d71d7268caa41246bdcfa8f18a70a",
+    "nx_get_model_summary": "04370ec0d9acc067da6a6b67b36a9301862d71d7268caa41246bdcfa8f18a70a"
   },
-  "recorded": "2026-10-14T15:24:22Z",
+  "recorded": "2026-10-15T12:20:10Z",
   "passed": true,
   "checks": 19,
   "failed_checks": 0,

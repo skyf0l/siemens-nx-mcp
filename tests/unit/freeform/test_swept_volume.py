@@ -4,7 +4,7 @@ from types import SimpleNamespace as NS
 
 import pytest
 
-from tests.unit.freeform.fakes import curve, freeform_nx, sheet
+from tests.unit.freeform.fakes import curve, face, flat, freeform_nx, sheet
 from tests.unit.modeling.fakes import call, feature, new_body
 
 
@@ -14,6 +14,9 @@ def scene(volume_after=7762.301):
     nx = freeform_nx()
     nx.part.Features.SweepFeatureCollection = nx.part.Features
     tool = new_body(nx, [-2, 48, 0, 2, 52, 6], volume=75.398)
+    side = face(nx, flat(), kind="cylinder", body=tool)
+    nx.face_data[side.Tag] = ("cylinder", [0, 50, 0], [0, 0, 1])  # the tool's axis
+    tool.GetFaces = lambda: [side]
     block = new_body(nx, [-10, 40, -3, 60, 60, 3])
     path = curve(nx, [0, 50, 0], [50, 50, 0])
 
@@ -137,3 +140,35 @@ def test_swept_volume_tolerance_floor_is_the_part_distance_tolerance_when_larger
     ok = call(nx, "nx_create_swept_volume", base)  # the default follows the floor
     assert ok.ok, ok
     assert nx.last("SweptVolumeBuilder").DistanceTolerance == pytest.approx(0.0254)
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "lead"),
+    [([-10, 50, 20], [70, 50, 20], -10.0), ([20, 25, 20], [50, 25, 20], 20.0)],
+)
+def test_swept_volume_refuses_a_path_not_level_with_the_tool_axis(start, end, lead):
+    nx, tool, block, _path = scene()
+    path = curve(nx, start, end)
+    (t,), (target,) = refs(nx, tool), refs(nx, block)
+    bad = call(nx, "nx_create_swept_volume", {"tool": t, "path": [path.ref], "targets": [target]})
+    assert bad.error["field"] == "/path/0" and bad.mutation_outcome == "not_started", bad
+    assert bad.error["details"]["lead"] == pytest.approx(lead)
+    assert bad.error["details"]["shift"] == pytest.approx([-lead, 0, 0])
+    assert not nx.builders
+
+
+def test_swept_volume_path_beside_the_axis_but_level_is_accepted():
+    nx, tool, block, _path = scene()
+    path = curve(nx, [0, 150, 20], [50, 150, 20])  # 100 off sideways, level with the axis
+    (t,), (target,) = refs(nx, tool), refs(nx, block)
+    ok = call(nx, "nx_create_swept_volume", {"tool": t, "path": [path.ref], "targets": [target]})
+    assert ok.ok, ok.error
+
+
+@pytest.mark.parametrize(("code", "word"), [(4120009, "level"), (4120021, "crosses")])
+def test_swept_volume_maps_nx_refusals_to_hints(code, word):
+    nx, tool, block, path = scene()
+    nx.refuse("SweptVolumeBuilder", code, "refused")
+    (t,), (target,) = refs(nx, tool), refs(nx, block)
+    bad = call(nx, "nx_create_swept_volume", {"tool": t, "path": [path.ref], "targets": [target]})
+    assert bad.error["nx_code"] == code and word in bad.error["hint"], bad.error

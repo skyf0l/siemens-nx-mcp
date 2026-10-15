@@ -342,3 +342,39 @@ def test_a_run_nx_does_not_store_rolls_back(nx):
     bad = run(nx, "nx_run_clearance_set", part="asm", name="ER")
     assert bad.error["category"] == "verification_failed", bad
     assert bad.mutation_outcome == "rolled_back"
+
+
+def test_rerun_lists_cleared_pairs_and_type_changes(nx):
+    run(nx, "nx_create_clearance_set", part="asm", name="ER", clearance=10, overlap=False)
+    nx.clashes[frozenset((int(nx.a.Tag), int(nx.b.Tag)))] = (SOFT, (90, 0, 0), (92, 0, 0), 0.0)
+    del nx.clashes[frozenset((int(nx.a.Tag), int(nx.c.Tag)))]
+    ok = run(nx, "nx_run_clearance_set", part="asm", name="ER", overlap=False)
+    assert ok.ok, ok
+    (soft,) = ok.data["interferences"]
+    assert soft["type"] == "soft" and soft["previous_type"] == "hard"
+    (gone,) = ok.data["cleared"]
+    assert gone["previous_type"] == "soft"
+    assert [o["name"] for o in gone["objects"]] == ["A", "C"]
+    again = run(nx, "nx_run_clearance_set", part="asm", name="ER", overlap=False)
+    assert again.data["cleared"] == [] and "previous_type" not in again.data["interferences"][0]
+
+
+def test_first_run_lists_no_cleared_pairs(nx):
+    run(nx, "nx_create_clearance_set", part="asm", name="ER", run=False)
+    ok = run(nx, "nx_run_clearance_set", part="asm", name="ER", overlap=False)
+    assert ok.ok and "cleared" not in ok.data, ok
+
+
+def test_existing_name_names_the_set(nx):
+    run(nx, "nx_create_clearance_set", part="asm", name="ER", run=False)
+    bad = run(nx, "nx_create_clearance_set", part="asm", name="er", run=False)
+    assert bad.error["code"] == "NX_ALREADY_EXISTS" and bad.error["details"]["existing"] == "ER"
+
+
+def test_lists_no_sets_on_a_part_without_components():
+    nx = assembly_nx()
+    nx.sets = []
+    nx.asm.ComponentAssembly.ClearanceSets = nx.sets
+    ok = run(nx, "nx_list_clearance_sets", part="asm")
+    assert ok.ok and ok.data == {"items": []}, ok
+    assert "no components yet" in ok.warnings[0]["message"]

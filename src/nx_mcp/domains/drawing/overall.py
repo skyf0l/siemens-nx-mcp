@@ -109,7 +109,8 @@ def outer_edges(tx, view, along, low, high):
     (``[at low, at high]``, None where there is none)."""
     out: list = [None, None]
     tol = 1e-6 * max(1.0, high - low)
-    for edge, _drawn in drawing.visible_edges(tx, view):
+    cut = type(view).__name__ == "SectionView"  # its cut removed what a ray would meet
+    for edge, _drawn, _state in drawing.visible_edges(tx, view, hidden_removal=not cut):
         with contextlib.suppress(Exception):  # an edge NX cannot evaluate
             found = facts.edge(tx, edge)
             if found["kind"] != "line":

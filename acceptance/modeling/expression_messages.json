@@ -1,0 +1,74 @@
+{
+ "covers": {
+  "nx_set_expression": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "wall",
+    "formula": "nosuch*2",
+    "units": "mm"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_FORMULA",
+    "error.field": "/formula",
+    "error.details.missing": {
+     "contains": "nosuch"
+    }
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "gap",
+    "formula": 2
+   },
+   "expect": {
+    "data.units": "unitless",
+    "data.value": {
+     "close": 2,
+     "tol": 1e-09
+    },
+    "warnings": {
+     "contains": {
+      "code": "NX_NOTE"
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "blk_len",
+    "formula": "100",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "blk_len",
+    "formula": "3 in"
+   },
+   "expect": {
+    "data.formula": "76.2",
+    "data.value": {
+     "close": 76.2,
+     "tol": 1e-09
+    }
+   }
+  }
+ ]
+}

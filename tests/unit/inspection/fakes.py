@@ -14,6 +14,7 @@ from __future__ import annotations
 import math
 from types import SimpleNamespace as NS
 
+from nx_mcp.kit import massprops
 from tests.kit import fake_nx
 from tests.kit.objects import Body, Component, Object, point
 
@@ -164,14 +165,24 @@ def inspection_nx(units="mm"):
         values[1] = volume * m**3
         values[2] = mass
         values[3:6] = [c * m for c in centre]
-        sizes = [bodies[0].box[i + 3] - bodies[0].box[i] for i in range(3)]
-        moments = [
-            mass * (sizes[1] ** 2 + sizes[2] ** 2) / 12 * m**2,
-            mass * (sizes[0] ** 2 + sizes[2] ** 2) / 12 * m**2,
-            mass * (sizes[0] ** 2 + sizes[1] ** 2) / 12 * m**2,
-        ]
-        values[12:15] = moments
-        values[31:34] = sorted(moments)
+        # Centroidal moments and products (NX order: yz, xz, xy at 19-21, positive
+        # sums of m*a*b) of the boxes, moved to the common centre (parallel axes).
+        moments, products = [0.0] * 3, [0.0] * 3
+        for b in bodies:
+            own = b.volume * nx.density
+            s = [b.box[i + 3] - b.box[i] for i in range(3)]
+            d = [(b.box[i] + b.box[i + 3]) / 2 - centre[i] for i in range(3)]
+            for i in range(3):
+                j, k = (i + 1) % 3, (i + 2) % 3
+                moments[i] += own * ((s[j] ** 2 + s[k] ** 2) / 12 + d[j] ** 2 + d[k] ** 2)
+            products[0] += own * d[1] * d[2]
+            products[1] += own * d[0] * d[2]
+            products[2] += own * d[0] * d[1]
+        values[12:15] = [v * m**2 for v in moments]
+        values[19:22] = [v * m**2 for v in products]
+        yz, xz, xy = products
+        tensor = [[moments[0], -xy, -xz], [-xy, moments[1], -yz], [-xz, -yz, moments[2]]]
+        values[31:34] = [v * m**2 for v in massprops.principal_moments(tensor)]
         return values, [0.0] * 11
 
     def new_mass(_units, _accuracy, bodies):
@@ -245,11 +256,12 @@ def inspection_nx(units="mm"):
     part.MeasureManager = NS(NewMassProperties=new_mass)
     part.WCS = NS(CoordinateSystem=NS(Origin=point(0, 0, 0), Orientation=NS(Element=_identity())))
     part.AnalysisManager = NS(CreateSimpleInterferenceObject=lambda: Interference(nx))
-    part.DynamicSections.CreateSectionBuilder = lambda view: SectionBuilder(nx)
+    part.DynamicSections.CreateSectionBuilder = lambda section, view: SectionBuilder(nx)
     nx.nx.Display = NS(
+        DynamicSection=NS(Null=None),
         DynamicSectionTypes=NS(
             Type=NS(OnePlane=1), CoordinateSystem=NS(Absolute=1), Clip=NS(Section=1)
-        )
+        ),
     )
     nx.nx.GeometricAnalysis = NS(
         SimpleInterference=NS(

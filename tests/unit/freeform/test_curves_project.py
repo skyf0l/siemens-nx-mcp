@@ -118,3 +118,20 @@ def test_combined_projection_needs_a_direction_for_a_line_or_a_3d_curve():
     assert spatial.error["field"] == "/second_direction"
     same = run(nx, "nx_create_combined_projection", first=[prof.ref], second=[prof.ref])
     assert same.error["field"] == "/second" and not nx.builders
+
+
+def test_vector_projection_flags_curves_behind_a_nearer_hit():
+    nx = curves_nx()
+    body = nx.block(100, 50, 20)
+    line = curve(nx, [10, 10, 50], [90, 40, 50])
+    hits = [[[10, 10, 0], [90, 40, 0]], [[10, 10, 20], [90, 40, 20]]]
+    nx.on_commit(P, lambda b: made(nx, "CPROJ", hits))
+    ok = run(nx, "nx_create_projected_curve", curves=[line.ref], faces=[body.ref],
+             along="vector", direction="-z")  # fmt: skip
+    assert ok.ok, ok.error
+    assert ok.data["far_curves"] == [ok.data["curves"][0]["curve"]]
+    assert ok.warnings and "far side" in ok.warnings[0]["message"]
+    nx.on_commit(P, lambda b: made(nx, "CPROJ", hits[1:]))
+    one = run(nx, "nx_create_projected_curve", curves=[line.ref], faces=[body.ref],
+              along="vector", direction="-z")  # fmt: skip
+    assert one.data["far_curves"] == [] and not one.warnings

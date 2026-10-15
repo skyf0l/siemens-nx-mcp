@@ -8,7 +8,14 @@ from nx_mcp.domains.drawing import symbols
 from tests.kit import run
 from tests.kit.fake import Node
 from tests.kit.objects import Object, point
-from tests.unit.drawing.fakes import arc_edge, drawing_nx, install_eval, line_edge, make_view
+from tests.unit.drawing.fakes import (
+    arc_edge,
+    beside,
+    drawing_nx,
+    install_eval,
+    line_edge,
+    make_view,
+)
 
 COPIED = (
     "Type", "UpperText", "LowerText", "Size", "MasterSymbolPath", "MasterSymbolName", "Method",
@@ -120,6 +127,8 @@ def test_a_divided_id_symbol_with_a_leader_and_its_refusals():
         ({"text": "A"}, "/origin"),
         ({"origin": [1, 2]}, "/text"),
         ({"text": "A", "origin": [1, 2], "deviations": ["+0.1"]}, "/deviations"),
+        ({"text": "A", "origin": [1, 2], "size": -3}, "/size"),
+        ({"text": "A", "origin": [1, 2], "size": "0 mm"}, "/size"),
     ]:
         bad = run(nx, "nx_create_sheet_symbol", symbol="id", **extra)
         assert bad.error["field"] == field and bad.mutation_outcome == "not_started", (extra, bad)
@@ -188,7 +197,7 @@ def test_edge_condition_deviations_follow_their_method():
     b = nx.last("EdgeConditionBuilder")
     assert (b.LimitDeviationA1, b.LimitDeviationA2) == ("+0.3", "-0.1")
     anchor = size.data["leader"]["point"]
-    assert size.data["origin"] == pytest.approx([anchor[0] + 20, anchor[1] + 20])
+    assert size.data["origin"] == beside(nx, nx.top, anchor)
     both = run(nx, "nx_create_sheet_symbol", symbol="edge_condition", view=nx.top.ref,
                objects=[nx.back.ref], condition="bilateral", deviations=["0.2"])  # fmt: skip
     assert both.data["symbol"]["deviations"] == ["0.2"]
@@ -218,3 +227,23 @@ def test_the_drafting_license_is_asked_before_nx():
     bad = run(nx, "nx_create_sheet_symbol", symbol="id", text="1", origin=[300, 250])
     assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and bad.mutation_outcome != "committed"
     assert not nx.builders
+
+
+def test_symbols_on_view_geometry_get_no_overlap_warning():
+    nx = symbols_nx()
+    nx.spot = (125.0, 125.0)
+    nx.top.pos = [120.0, 120.0]  # the border [110, 115, 130, 125] around the symbol
+
+    def no_text(tag):
+        raise RuntimeError("no text")
+
+    nx.uf.ModlGeneral = NS(AskBoundingBox=lambda tag: [123.0, 123.0, 0.0, 127.0, 127.0, 0.0])
+    nx.uf.Drf = NS(AskAnnotationTextBox=no_text)
+    nx.hole = arc_edge(nx, (5, 5, 20), 8)
+    install_eval(nx, [nx.hole, nx.back, nx.right, nx.front])
+    ok = run(nx, "nx_create_sheet_symbol", symbol="target_point", view=nx.top.ref,
+             objects=[nx.hole.ref])  # fmt: skip
+    assert ok.ok, ok
+    assert ok.data["bounds"] == pytest.approx([123, 123, 127, 127]) and ok.warnings == []
+    off = run(nx, "nx_create_sheet_symbol", symbol="id", text="1", origin=[125, 125])
+    assert [w["code"] for w in off.warnings] == ["NX_VIEW_OVERLAP"]

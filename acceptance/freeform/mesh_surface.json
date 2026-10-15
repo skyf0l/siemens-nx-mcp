@@ -143,6 +143,17 @@
      "count_kind": {
       "feature": 1
      }
+    },
+    "data.deviation": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.gaps.cross": {
+     "close": [
+      0,
+      0
+     ],
+     "tol": 0.0001
     }
    }
   },
@@ -403,7 +414,15 @@
    "expect": {
     "error.code": "NX_BUILD_FAILED",
     "error.category": "geometry_failed",
-    "mutation_outcome": "rolled_back"
+    "mutation_outcome": "rolled_back",
+    "error.field": "/cross/1",
+    "error.details.pairs.0.gap": {
+     "close": 5,
+     "tol": 0.0001
+    },
+    "error.hint": {
+     "contains": "tolerance 5.5"
+    }
    }
   },
   {
@@ -545,6 +564,226 @@
    "expect": {
     "error.category": "invalid_argument",
     "error.field": "/primary/1",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e0",
+   "args": {
+    "owner": "$m1.data.bodies.0.id",
+    "kind": "edge",
+    "near": [
+     0,
+     5,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e20",
+   "args": {
+    "owner": "$m1.data.bodies.0.id",
+    "kind": "edge",
+    "near": [
+     20,
+     5,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "intent": "Sheet edges as cross sections",
+   "args": {
+    "primary": [
+     "$p1.data.curve.id",
+     "$p2.data.curve.id"
+    ],
+    "cross": [
+     "$e0.data.items.0.id",
+     "$e20.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.area": {
+     "close": 200,
+     "tol": 0.001
+    },
+    "data.gaps.cross": {
+     "close": [
+      0,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "data.deviation": {
+     "close": 0,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "intent": "A 0.5 mm tolerance builds with a warning that the sheet may miss its curves",
+   "args": {
+    "primary": [
+     "$p1.data.curve.id",
+     "$p2.data.curve.id"
+    ],
+    "cross": [
+     "$c1.data.curve.id",
+     "$c2.data.curve.id"
+    ],
+    "tolerance": 0.5
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.tolerance": 0.5,
+    "warnings.0.code": "NX_APPROXIMATED"
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "t0",
+   "args": {
+    "points": [
+     [
+      20,
+      0,
+      0
+     ],
+     [
+      28,
+      0,
+      0
+     ],
+     [
+      34,
+      0,
+      4
+     ],
+     [
+      40,
+      0,
+      10
+     ]
+    ],
+    "method": "poles",
+    "degree": 3
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "t10",
+   "args": {
+    "points": [
+     [
+      20,
+      10,
+      0
+     ],
+     [
+      28,
+      10,
+      0
+     ],
+     [
+      34,
+      10,
+      4
+     ],
+     [
+      40,
+      10,
+      10
+     ]
+    ],
+    "method": "poles",
+    "degree": 3
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "tend",
+   "args": {
+    "points": [
+     [
+      40,
+      0,
+      10
+     ],
+     [
+      40,
+      10,
+      10
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "intent": "G1 to the first sheet along its x = 20 edge (the edge's face by default)",
+   "args": {
+    "primary": [
+     "$t0.data.curve.id",
+     "$t10.data.curve.id"
+    ],
+    "cross": [
+     "$e20.data.items.0.id",
+     "$tend.data.curve.id"
+    ],
+    "boundaries": [
+     {
+      "side": "first_cross",
+      "continuity": "g1"
+     }
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.boundaries.0.side": "first_cross",
+    "data.boundaries.0.angle": {
+     "close": 0,
+     "tol": 0.5
+    },
+    "data.deviation": {
+     "close": 0,
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "intent": "G1 on a curve section without faces is refused",
+   "args": {
+    "primary": [
+     "$t0.data.curve.id",
+     "$t10.data.curve.id"
+    ],
+    "cross": [
+     "$e20.data.items.0.id",
+     "$tend.data.curve.id"
+    ],
+    "boundaries": [
+     {
+      "side": "last_cross",
+      "continuity": "g1"
+     }
+    ]
+   },
+   "expect": {
+    "ok": false,
+    "error.field": "/boundaries/0/faces",
     "mutation_outcome": "not_started"
    }
   },

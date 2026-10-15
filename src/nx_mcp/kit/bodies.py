@@ -345,3 +345,30 @@ def expect_no_clash(tx, made, *, known=(), check="body_health", hint=CLASH_HINT)
                 details={"check": check, "face_intersections": count},
             )
     return note
+
+
+def open_loops(body) -> int | None:
+    """How many open boundary loops a sheet body has (its edges used by one face, chained
+    through shared vertices): a plane sheet or a cup has 1, an open tube 2. None when NX
+    does not list the edges' faces or vertices (the caller skips its check)."""
+    try:
+        free = [e for e in body.GetEdges() if len(list(e.GetFaces())) == 1]
+        ends = [[tuple(round(float(v), 6) for v in (p.X, p.Y, p.Z)) for p in e.GetVertices()]
+                for e in free]  # fmt: skip
+    except Exception:  # an object without edge faces or vertices
+        return None
+    parent: dict = {}
+
+    def root(key):
+        while parent.setdefault(key, key) != key:
+            key = parent[key]
+        return key
+
+    loops = 0
+    for points in ends:
+        if not points:
+            loops += 1  # a closed edge (a circle) is a loop of its own
+            continue
+        for p in points[1:]:
+            parent[root(p)] = root(points[0])
+    return loops + len({root(p) for points in ends for p in points})

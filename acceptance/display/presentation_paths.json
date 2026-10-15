@@ -1,0 +1,108 @@
+{
+ "covers": {
+  "nx_save_presentation": [],
+  "nx_restore_display": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "shape": "block",
+    "length": 100,
+    "width": 60,
+    "height": 20
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "setup": true,
+   "args": {
+    "orientation": "isometric",
+    "fit": true
+   }
+  },
+  {
+   "call": "nx_save_presentation",
+   "save": "p",
+   "args": {
+    "path": "$run/view.json"
+   },
+   "expect": {
+    "ok": true,
+    "data.objects": 1
+   }
+  },
+  {
+   "call": "nx_save_presentation",
+   "args": {
+    "path": "$run/view.json"
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_ALREADY_EXISTS"
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "setup": true,
+   "args": {
+    "orientation": "top",
+    "fit": true
+   }
+  },
+  {
+   "call": "nx_save_presentation",
+   "args": {
+    "path": "$run/view.json",
+    "overwrite": true
+   },
+   "expect": {
+    "ok": true,
+    "data.objects": 1
+   }
+  },
+  {
+   "call": "nx_set_camera",
+   "setup": true,
+   "args": {
+    "orientation": "front",
+    "fit": true
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "presentation": "$run/view.json"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.camera.view": "top",
+    "data.count": 1
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "restore_id": "last",
+    "skip_missing": true
+   },
+   "expect": {
+    "ok": false,
+    "error.field": "/skip_missing",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

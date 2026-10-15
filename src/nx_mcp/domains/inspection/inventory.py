@@ -23,7 +23,8 @@ pattern) and the pattern's ``GetImmediateContainedFeatures`` order, which is als
 ``(2:5A)`` number in the copy's name. An instance has no angle or location of its own
 (``Location``: "Feature has no origin"); nx_get_feature reads the pattern's layout.
 ``compact: true`` gives body, face and edge rows as id, name and the conservative box
-(``min``, ``max``: UF ``AskBoundingBox``) only, so hundreds of bodies page in few tokens.
+(``min``, ``max``: UF ``AskBoundingBox``) only (bodies also ``hidden``), so hundreds of
+bodies page in few tokens.
 """
 
 from __future__ import annotations
@@ -100,6 +101,7 @@ _INCLUDE_KINDS = {"adjacency": ("face", "edge"), "views": ("drawing_sheet",)}
 
 class ObjectRow(result.Row, total=False):
     type: str
+    hidden: bool  # bodies: blanked (hidden) in the display
     details: dict[str, Any]
     min: list[float]
     max: list[float]
@@ -193,11 +195,11 @@ def _expand(tx, obj, kind: str) -> dict:
         "list bodies",
         "list faces",
         "list edges",
+        "list topology",
         "list features",
         "list expressions",
         "assembly constraints status",
-        "topology",
-        "part navigator",
+        "edge names",
     ),
     requires=("work_part",),
     cost="light",
@@ -216,8 +218,8 @@ def nx_list_objects(
     limit: PageLimit = 20,
 ) -> ListData:
     """List work-part objects of one kind by owner, name or type, paged.
-    Feature parameters: kind expression, owner the feature. Pattern copies (bodies) give
-    details.pattern and details.instance."""
+    Feature parameters: kind expression, owner the feature. Pattern copy bodies give
+    details.pattern and .instance."""
     lister = hooks("lister").get(kind)
     if lister is None:
         fail("NX_UNSUPPORTED_OPTION", f"No lister for {kind}", field="/kind")
@@ -257,6 +259,7 @@ def nx_list_objects(
                 axial = common.axial_facts(tx, obj, tx.uf.Modeling.AskFaceData(obj.Tag))
             row["details"] = {**(row.get("details") or {}), **axial}
         if k == "body":
+            row["hidden"] = bool(getattr(obj, "IsBlanked", False))
             instance = _pattern_instance(tx, obj, patterns)
             if instance is not None:
                 row["details"] = {**(row.get("details") or {}), **instance}
@@ -267,14 +270,17 @@ def nx_list_objects(
 
 
 def _compact(tx, selected) -> list[ObjectRow]:
-    """Compact rows: id, name and the conservative box of each object."""
+    """Compact rows: id, name and the conservative box of each object (bodies: hidden)."""
     items: list[ObjectRow] = []
     for obj, k, _extra in selected:
         tx.checkpoint()
         row = tx.ref(obj, kind=k)
         with native():
             box = [float(v) for v in tx.uf.ModlGeneral.AskBoundingBox(obj.Tag)]
-        items.append({"id": row["id"], "name": row["name"], "min": box[:3], "max": box[3:6]})
+        compact: ObjectRow = {"id": row["id"], "name": row["name"], "min": box[:3], "max": box[3:6]}
+        if k == "body":
+            compact["hidden"] = bool(getattr(obj, "IsBlanked", False))
+        items.append(compact)
     return items
 
 

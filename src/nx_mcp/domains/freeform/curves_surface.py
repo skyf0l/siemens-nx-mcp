@@ -30,19 +30,20 @@ through every point.
 from __future__ import annotations
 
 import math
-from typing import Annotated, Literal
+from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Angle, Direction, Doc, FaceRef, Items, Point3, Range
 from nx_mcp.domains.freeform import curves_common as cc
-from nx_mcp.kit import args, builders, curve, geom, licenses, readback, select, units
+from nx_mcp.kit import args, builders, curve, geom, licenses, readback, result, select, units
 
 MAX_CURVES = 100
 Faces = Annotated[list[FaceRef], Items(1, 100)]
 ISOCLINE_LICENSES = ("solid_modeling", "studio_free_form")
 ANGLE_TOLERANCE = 0.05  # degrees, isocline read-back
+ISO_SAMPLES = 5  # face parameters read per isoparametric curve
 
 
 class OnFaceData(cc.CurvesData):
@@ -91,6 +92,69 @@ def _miss(tx, curves, points) -> float:
 # Isoparametric curves
 
 
+class IsoRow(cc.CurveRow):
+    family: Literal["u", "v"]  # constant u or constant v
+    parameter: float  # the constant face parameter (NX's u or v)
+    duplicate_of: int | None  # index of an earlier curve this one coincides with (a seam)
+
+
+class IsoData(TypedDict):
+    feature: result.Row
+    curves: list[IsoRow]
+    count: int
+    length: float
+    gap: float  # largest sampled distance of a curve from the face
+    distinct: int  # curves that are not duplicates
+
+
+def _parms(tx, face, obj) -> list[list[float]]:
+    """Face (u, v) of ``ISO_SAMPLES`` points along a curve on ``face``."""
+    modeling = tx.uf.Modeling
+    out = []
+    for p in cc.samples(tx, obj, ISO_SAMPLES):
+        with native(default="NX_ERROR"):
+            uv = modeling.AskFaceParm(face.Tag, [float(v) for v in p])[0]
+        out.append([float(uv[0]), float(uv[1])])
+    return out
+
+
+def _same(tx, a, b) -> bool:
+    """Whether two curve rows run through the same points (either way round)."""
+    limit = cc.gap_tolerance(tx, a["start"], a["end"])
+    ends = (a["start"], a["end"])
+    return abs(a["length"] - b["length"]) <= limit and all(
+        min(geom.dist(p, q) for q in ends) <= limit for p in (b["start"], b["end"])
+    )
+
+
+def _iso_rows(tx, face, curves, rows, direction) -> list[IsoRow]:
+    """Each curve row with its family, constant parameter and the earlier curve it
+    coincides with (a closed face repeats its seam)."""
+    out: list[IsoRow] = []
+    for i, (obj, row) in enumerate(zip(curves, rows, strict=True)):
+        tx.checkpoint()
+        uv = _parms(tx, face, obj)
+        spread = [max(p[k] for p in uv) - min(p[k] for p in uv) for k in (0, 1)]
+        family = direction if direction != "uv" else ("u" if spread[0] <= spread[1] else "v")
+        k = 0 if family == "u" else 1
+        twin = next(
+            (j for j in range(i) if out[j]["family"] == family and _same(tx, out[j], row)), None
+        )
+        out.append(
+            {
+                "curve": row["curve"],
+                "length": row["length"],
+                "start": row["start"],
+                "end": row["end"],
+                "closed": row["closed"],
+                "family": "u" if family == "u" else "v",
+                "parameter": sum(p[k] for p in uv) / len(uv),
+                "duplicate_of": twin,
+            }
+        )
+    return out
+
+
 @tool(
     effect="model",
     label="Create isoparametric curves",
@@ -102,7 +166,9 @@ def _miss(tx, curves, points) -> float:
     keywords=(
         "isoparametric curves",
         "iso curves",
+        "uv lines on face",
         "u v lines",
+        "isoparms",
         "constant parameter",
         "surface grid lines",
         "rulings",
@@ -134,13 +200,13 @@ def nx_create_isoparametric_curves(
         list[Point3], Items(1, MAX_CURVES), Doc("On the face. through_points: any; between: 2")
     ]
     | None = None,
-) -> OnFaceData:
+) -> IsoData:
     """Create associative curves of constant u and/or v on a face. uniform: count curves
-    per family from boundary to boundary, both included (a closed face repeats its
-    seam); through_points: one curve through each point; between_points: count curves
-    from the first point to the second, both included. u and v are NX's face parameters
-    (on a cylinder one family runs along the axis, the other around): check the returned
-    lengths."""
+    per family from boundary to boundary, both included (a closed face repeats its seam:
+    duplicate_of marks the copy); through_points: one curve through each point;
+    between_points: count curves from the first point to the second, both included. u and
+    v are NX's face parameters (on a cylinder one family runs along the axis, the other
+    around): each curve row gives its family and parameter."""
     with tx.checks():
         target = select.one(tx, face, "face", field="/face")
         pts = []
@@ -168,7 +234,19 @@ def nx_create_isoparametric_curves(
     gap = _on_faces(tx, curves, [target])
     if pts:
         _miss(tx, curves, pts)
-    return {**cc.describe(tx, feature, curves), "gap": gap}
+    data = cc.describe(tx, feature, curves)
+    rows = _iso_rows(tx, target, curves, data["curves"], direction)
+    copies = [r for r in rows if r["duplicate_of"] is not None]
+    if copies:
+        pairs = ", ".join(f"{rows.index(r)} = {r['duplicate_of']}" for r in copies)
+        more = (
+            f": count {(count or 0) + 1} gives {count} distinct curves"
+            if method == "uniform"
+            else ""
+        )
+        tx.warn("NX_NOTE", f"Curves {pairs} coincide on the closed face's seam (duplicate_of)"
+                f"{more}")  # fmt: skip
+    return {**data, "curves": rows, "gap": gap, "distinct": len(rows) - len(copies)}
 
 
 # ---------------------------------------------------------------------------

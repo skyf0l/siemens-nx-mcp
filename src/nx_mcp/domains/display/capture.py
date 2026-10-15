@@ -234,7 +234,7 @@ def nx_capture_view(
     sheet: SheetArg | None = None,
 ) -> CaptureData:
     """PNG of the shown view or a sheet, to path or captures/; inline only with inline=true
-    or no path. view_from/up aim it. Without part, the displayed part; part X shows X for it."""
+    or no path. view_from/up aim it. Without part: the displayed part; with part X: X."""
     if overwrite and path is None:
         fail("NX_INVALID_ARGUMENT", "overwrite applies to path; give path", field="/overwrite")
     if up is not None and view_from is None:
@@ -385,6 +385,12 @@ def _render(tx, part, out, temp, *, on_sheet, fit, aim, quality, style, backdrop
                 if exact and list(size) != [width, height] and not on_sheet and shown in SHADED:
                     studio = _studio_over(tx, temp, width, height, chosen, backdrop, rgb)
                     if studio is not None:
+                        tx.warn(
+                            "NX_NOTE",
+                            f"NX exports the graphics window at its own {size[0]}x{size[1]}, "
+                            f"so Studio rendered the view at {width}x{height} in the same "
+                            "style (quality studio); omit width and height for the window",
+                        )
                         size, out["quality"] = studio, "studio"
                     else:
                         why = "NX's Studio render failed, so the view"

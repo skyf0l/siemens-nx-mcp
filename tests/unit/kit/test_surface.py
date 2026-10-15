@@ -67,8 +67,23 @@ def test_edge_continuity_samples_gap_angle_and_curvature():
     assert report["gap"] == pytest.approx(0.001) and report["samples"] == 4
     assert report["angle"] == pytest.approx(26.56505117707799) and report["curvature"] == 0
     assert report["unresolved"] == 0
+    assert report["gap_at"] == {"point": [0, 1.25, 0], "parameter": 0.125}
+    assert report["angle_at"]["parameter"] == 0.125 and report["curvature_at"] is not None
     only_gap = surface.edge_continuity(nx.tx, a, None, b, b_face)
     assert only_gap["angle"] is None and only_gap["curvature"] is None
+    assert only_gap["angle_at"] is None and only_gap["curvature_at"] is None
+
+
+def test_edge_continuity_locates_the_worst_samples():
+    nx = freeform_nx()
+    a_face = face(nx, flat())
+    b_face = face(nx, flat(du=(2, 0, 1)))
+    a = edge(nx, [0, 0, 0], [0, 10, 0])
+    b = edge(nx, [0, 0, 0], [0.4, 10, 0])  # drifts away along a: worst at the last sample
+    report = surface.edge_continuity(nx.tx, a, a_face, b, b_face, samples=4)
+    assert report["gap_at"]["parameter"] == 0.875
+    assert report["gap_at"]["point"] == pytest.approx([0, 8.75, 0])
+    assert report["gap"] == pytest.approx(0.35 * 10 / (0.4**2 + 100) ** 0.5)
     singular = face(nx, lambda uv: ([0, 0, 0], [1, 0, 0], [0] * 3, [0] * 3, [0] * 3))
     report = surface.edge_continuity(nx.tx, a, a_face, b, singular, samples=3)
     assert report["unresolved"] == 3 and report["angle"] is None
@@ -99,7 +114,7 @@ def test_point_distance_and_curves_selection():
     assert select.curves(nx.tx, [c.ref]) == [c]
     with pytest.raises(NXError) as error:
         select.curves(nx.tx, [c.ref, c.ref], "/boundaries")
-    assert error.value.field == "/boundaries"
+    assert error.value.field == "/boundaries/1"
 
 
 def test_area_is_reported_in_part_units_and_disposed():

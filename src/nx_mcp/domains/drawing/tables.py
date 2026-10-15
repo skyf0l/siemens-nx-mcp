@@ -20,16 +20,15 @@ NX 2406 findings encoded here:
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, TypedDict
+import contextlib
+from typing import Annotated, Literal, TypedDict, cast
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
     Doc,
-    DrawingSheetRef,
     DrawingTableRef,
-    DrawingViewRef,
     EdgeRef,
     Items,
     Range,
@@ -42,7 +41,12 @@ from nx_mcp.domains.drawing import hole_callouts, title_blocks
 from nx_mcp.domains.drawing.common import (
     NATIVE_TABLE,
     TABLE_KIND,
+    SheetArg,
+    ViewArg,
+    associated,
     commit,
+    id_symbol_text,
+    sheet_of,
     shown_table,
     table_kind,
     table_tag,
@@ -69,7 +73,7 @@ BendColumns = Annotated[list[BendColumn], Items(1, 5)]
 
 
 class TableInfo(TypedDict, total=False):
-    table: result.Row
+    table: Annotated[result.Row | None, Doc("None: the sheet has no title block")]
     kind: str
     sheet: result.Row
     position: list[float]
@@ -109,6 +113,11 @@ def cells(tx, tag, raw=False):
         ]
         for i in range(tab.AskNmRows(tag))
     ]
+
+
+def _stored_rows(tx, tag):
+    """The stored cell texts by row (``cells`` raw: ``<W@X>`` links kept)."""
+    return cells(tx, tag, raw=True)
 
 
 def _expect_rows(tx, obj, rows):
@@ -312,22 +321,28 @@ def nx_create_drawing_table(
     *,
     kind: Literal["parts_list", "bend", "title_block", "revision", "hole"],
     position: SheetPoint,
-    sheet: DrawingSheetRef | None = None,
-    view: DrawingViewRef | None = None,
-    scope: Literal["leaves", "top_level", "all"] = "leaves",
-    columns: BendColumns | None = None,
-    automatic: bool = True,
-    rows: Rows | None = None,
-    widths: Widths | None = None,
-    row_height: RowHeight | None = None,
-    origin: EdgeRef | None = None,
-    origin_point: Literal["auto", "start", "end", "center"] = "auto",
+    sheet: SheetArg | None = None,
+    view: ViewArg | None = None,
+    scope: Annotated[
+        Literal["leaves", "top_level", "all"], Doc("parts_list: rows listed")
+    ] = "leaves",
+    columns: Annotated[BendColumns, Doc("bend: column order")] | None = None,
+    automatic: Annotated[bool, Doc("bend: follows the flat pattern")] = True,
+    rows: Annotated[Rows, Doc("title_block/revision: one cell per width")] | None = None,
+    widths: Annotated[Widths, Doc("title_block/revision: column widths")] | None = None,
+    row_height: Annotated[RowHeight, Doc("title_block/revision: sheet units")] | None = None,
+    origin: Annotated[EdgeRef, Doc("hole: edge the hole positions are measured from")]
+    | None = None,
+    origin_point: Annotated[
+        Literal["auto", "start", "end", "center"], Doc("hole: on origin")
+    ] = "auto",
 ) -> TableInfo:
     """Place a parts list, bend, title block, revision or hole table. Parts lists need an
     assembly, bend tables a flat-pattern view, hole tables a view and an origin edge; title
     blocks and revisions take rows (one cell per width) and widths. position is a title
-    block's bottom-right corner and a revision table's top-left corner (rows grow down);
-    the result's bounds give the extent."""
+    block's bottom-right corner, a revision table's top-left corner (rows grow down) and a
+    parts list's top-left corner (header at the bottom, rows added above it); the result's
+    bounds give the extent."""
     if kind == "hole":
         args.need(view=view, origin=origin)
         return hole_callouts.create_table(tx, view, position, origin, origin_point, table_info)
@@ -353,7 +368,7 @@ def _check_grid(rows, widths):
 
 def _create_parts_list(tx, sheet_ref, position, scope):
     with tx.checks():
-        sheet = select.resolve(tx, sheet_ref, "drawing_sheet", field="/sheet", work_part=True)
+        sheet = sheet_of(tx, sheet_ref, "/sheet")
         part = tx.part
         if not parts.components(part):
             fail("NX_WRONG_PART_CONTEXT", "A parts list needs an assembly", field="/sheet")
@@ -474,9 +489,20 @@ def _fill(tx, tag, rows, widths, height, fixed=False):
             tab.SetRowHeight(row, height)
 
 
+def _title_blocks_on(tx, sheet):
+    """The title blocks shown on ``sheet``."""
+    blocks = getattr(getattr(tx.part, "DraftingManager", None), "TitleBlocks", None) or []
+    return [
+        b
+        for b in blocks
+        if (on := drawing.sheet_of_annotation(tx, b)) is not None and int(on.Tag) == int(sheet.Tag)
+    ]
+
+
 def _create_grid(tx, kind, sheet_ref, position, rows, widths, row_height):
     with tx.checks():
-        sheet = select.resolve(tx, sheet_ref, "drawing_sheet", field="/sheet", work_part=True)
+        sheet = sheet_of(tx, sheet_ref, "/sheet")
+        present = _title_blocks_on(tx, sheet) if kind == "title_block" else []
     part = tx.part
     with drawing.on_sheet(tx, sheet, part) as sh:
         height = (
@@ -513,6 +539,11 @@ def _create_grid(tx, kind, sheet_ref, position, rows, widths, row_height):
         _expect_rows(tx, table, rows)
         out = table_info(tx, table, kind)
         _warn_off_sheet(tx, out, sheet)
+        if present:
+            names = ", ".join(str(tx.ref(b, "drawing_table").get("id")) for b in present)
+            tx.warn("NX_UPDATE_WARNING", f"The sheet already had a title block ({names}): it now "
+                    "has two, and nx_get_drawing_table by sheet needs table; edit the existing "
+                    "one with nx_edit_drawing_table, or delete one with nx_delete_objects")  # fmt: skip
         return out
 
 
@@ -566,23 +597,29 @@ def nx_edit_drawing_table(
     *,
     table: DrawingTableRef,
     kind: Literal["parts_list", "bend", "title_block", "revision", "hole"],
-    rows: Rows | None = None,
-    widths: Widths | None = None,
-    row_height: RowHeight | None = None,
+    rows: Annotated[Rows, Doc("title_block/revision: all rows")] | None = None,
+    widths: Annotated[Widths, Doc("title_block/revision: column widths")] | None = None,
+    row_height: Annotated[RowHeight, Doc("title_block/revision: sheet units")] | None = None,
     position: SheetPoint | None = None,
-    columns: Annotated[list[ColumnEdit], Items(1, 20)] | None = None,
-    bend_columns: BendColumns | None = None,
-    automatic: bool | None = None,
-    cells: Annotated[list[title_blocks.CellEdit], Items(1, 100)] | None = None,
+    columns: Annotated[list[ColumnEdit], Items(1, 20), Doc("parts_list: column edits")]
+    | None = None,
+    bend_columns: Annotated[BendColumns, Doc("bend: column order")] | None = None,
+    automatic: Annotated[bool, Doc("bend: follows the flat pattern")] | None = None,
+    cells: Annotated[list[title_blocks.CellEdit], Items(1, 100), Doc("title_block: cells")]
+    | None = None,
+    append_rows: Annotated[Rows, Doc("revision: rows added below the current ones")] | None = None,
 ) -> TableInfo:
-    """Edit a drawing table of the given kind, or move it. Title blocks and revisions take rows,
-    widths and row height; title blocks also cells (text, <W@TITLE> attribute link or lock,
-    by label or row/column); parts lists columns; bend tables column order and update mode."""
-    if all(
-        v is None
-        for v in (rows, widths, row_height, position, columns, bend_columns, automatic, cells)
-    ):
+    """Edit a drawing table of the given kind, or move it. Title blocks and revisions take rows
+    (all of them), widths and row height, revisions also append_rows; title blocks also cells
+    (text, <W@TITLE> attribute link or lock, by label or row/column); parts lists columns
+    (rows follow the assembly); bend tables column order and update mode."""
+    edits = (rows, widths, row_height, position, columns, bend_columns, automatic, cells,
+             append_rows)  # fmt: skip
+    if all(v is None for v in edits):
         fail("NX_INVALID_ARGUMENT", "Give an edit")
+    if rows is not None and append_rows is not None:
+        fail("NX_INVALID_ARGUMENT", "Give rows (all rows) or append_rows, not both",
+             field="/append_rows")  # fmt: skip
     if cells:
         title_blocks.check_edits(cells)
     pairs = None
@@ -599,7 +636,7 @@ def nx_edit_drawing_table(
             "bend": {"bend_columns", "automatic", "position"},
             "hole": {"position"},
             "title_block": {"rows", "widths", "row_height", "position", "cells"},
-        }.get(kind, {"rows", "widths", "row_height", "position"})
+        }.get(kind, {"rows", "widths", "row_height", "position", "append_rows"})
         given = {
             k
             for k, v in {
@@ -611,13 +648,14 @@ def nx_edit_drawing_table(
                 "bend_columns": bend_columns,
                 "automatic": automatic,
                 "cells": cells,
+                "append_rows": append_rows,
             }.items()
             if v is not None
         }
         if given - allowed:
             field = sorted(given - allowed)[0]
             fail("NX_UNSUPPORTED_OPTION", f"{field} does not apply to a {kind} table",
-                 field=f"/{field}")  # fmt: skip
+                 field=f"/{field}", hint=_edit_hint(kind, field, allowed))  # fmt: skip
         if columns:
             _check_columns(tx, obj, columns)
         if kind == "title_block":
@@ -626,8 +664,11 @@ def nx_edit_drawing_table(
             if grid and table_tag(tx, obj) is None:
                 fail("NX_UNSUPPORTED_OPTION", "This title block spans several tables: edit its "
                      "cells", field=f"/{sorted(grid)[0]}")  # fmt: skip
+        if append_rows is not None:
+            tag = table_tag(tx, obj)
+            rows = [*(_stored_rows(tx, tag) if tag is not None else []), *append_rows]
         if kind not in ("parts_list", "bend") and (rows or widths):
-            _check_grid_edit(tx, obj, rows, widths)
+            _check_grid_edit(tx, obj, rows, widths, "/append_rows" if append_rows else "/rows")
         if cells:
             title_blocks.check_attributes(tx, tx.part, cells)
             current = title_blocks.read(tx, obj)
@@ -665,6 +706,14 @@ def nx_edit_drawing_table(
                     f"not {row_height:g}: its text needs more height")  # fmt: skip
         _warn_off_sheet(tx, out, sheet)
     return out
+
+
+def _edit_hint(kind, field, allowed):
+    """Where an edit a table kind does not take goes instead."""
+    if kind == "parts_list" and field in ("rows", "append_rows", "cells"):
+        return ("A parts list's rows follow the assembly: set component attributes with "
+                "nx_set_attributes, then nx_update_annotations; columns edits its columns")  # fmt: skip
+    return f"A {kind} table takes {', '.join(sorted(allowed))}"
 
 
 def _title_block_of(tx, obj):
@@ -760,7 +809,7 @@ def _edit_bend(tx, obj, columns, automatic):
         b.commit()
 
 
-def _check_grid_edit(tx, obj, rows, widths) -> None:
+def _check_grid_edit(tx, obj, rows, widths, rows_field="/rows") -> None:
     """Before NX: an edit's widths and rows keep the table's column count."""
     for j, width in enumerate(widths or []):
         if not width > 0:
@@ -780,7 +829,8 @@ def _check_grid_edit(tx, obj, rows, widths) -> None:
     for i, row in enumerate(rows or []):
         if len(row) != count:
             fail("NX_INVALID_ARGUMENT", f"Row {i} has {len(row)} cells; {keep}",
-                 field=f"/rows/{i}", hint=hint, details={"columns": count})  # fmt: skip
+                 field=f"{rows_field}/{i}" if rows_field == "/rows" else rows_field, hint=hint,
+                 details={"columns": count})  # fmt: skip
 
 
 def _edit_grid(tx, obj, rows, widths, row_height, sh):
@@ -832,10 +882,11 @@ def nx_get_drawing_table(
     tx: Tx,
     *,
     table: DrawingTableRef | None = None,
-    sheet: DrawingSheetRef | None = None,
+    sheet: SheetArg | None = None,
 ) -> TableInfo:
     """Read a drawing table, or a sheet's title block. Give exactly one of table (that table)
-    or sheet (its title block, plus tables: every table on the sheet). Gives kind, rows, columns,
+    or sheet (its title block, table null when it has none, plus tables: every table on the
+    sheet). Gives kind, rows, columns,
     update mode and position (the anchor given at creation); title blocks list cells (label,
     lock, text with <W@TITLE> links, value)."""
     if (table is None) == (sheet is None):
@@ -849,7 +900,7 @@ def nx_get_drawing_table(
             tx, table, "drawing_table", "annotation", field="/table", work_part=True
         )
         return table_info(tx, shown_table(tx, obj))
-    target = select.resolve(tx, sheet, "drawing_sheet", field="/sheet", work_part=True)
+    target = sheet_of(tx, sheet, "/sheet")
     on_sheet = [
         (obj, kind)
         for obj, kind in all_tables(tx)
@@ -859,12 +910,15 @@ def nx_get_drawing_table(
     rows = [{**tx.ref(obj, "drawing_table"), "type": kind} for obj, kind in on_sheet]
     found = [obj for obj, _ in on_sheet if _is_title_block(obj)]
     if not found:
-        fail("NX_NOT_FOUND", "The sheet has no title block", field="/sheet",
-             hint="Read one of details.tables by table, create the sheet from a template, or "
-             "use nx_create_drawing_table kind=title_block", details={"tables": rows})  # fmt: skip
+        tx.warn("NX_NOTE", "The sheet has no title block: read one of data.tables with table, or "
+                "add one with nx_create_drawing_table kind=title_block")  # fmt: skip
+        return cast(TableInfo, {"table": None, "sheet": tx.ref(target, "drawing_sheet"),
+                                "tables": rows})  # fmt: skip
     if len(found) > 1:
         fail("NX_AMBIGUOUS_REFERENCE", "The sheet has several title blocks: pass table",
-             field="/sheet", details={"tables": [tx.ref(b, "drawing_table") for b in found]})  # fmt: skip
+             field="/sheet", hint="Pass one of details.candidates as table",
+             details={"candidates": [tx.ref(b, "drawing_table") for b in found],
+                      "tables": rows})  # fmt: skip
     out = table_info(tx, found[0], "title_block")
     out["tables"] = rows
     return out
@@ -894,8 +948,50 @@ def all_tables(tx):
     return out
 
 
+def _balloon_facts(tx, balloon, table_rows):
+    """``text`` (the item number), ``row`` (its parts-list row index in nx_get_drawing_table
+    rows) and ``component`` (the leader's component) of a balloon, each when NX tells."""
+    out: dict = {}
+    texts = id_symbol_text(tx, balloon)
+    if texts:
+        out["text"] = texts[0]
+        index = next((i for i, r in enumerate(table_rows) if r and r[0].strip() == texts[0]),
+                     None)  # fmt: skip
+        if index is not None:
+            out["row"] = index
+    for target in associated(balloon):
+        component = _component_of(tx, target)
+        if component is not None:
+            out["component"] = tx.ref(component, "component")
+            break
+    return out
+
+
+def _component_of(tx, target):
+    """The component behind a balloon's leader object: the component itself, the owner of
+    an occurrence, or (NX attaches balloons to the view's drafting curve) the owner of the
+    curve's parent edge."""
+    if type(target).__name__ == "Component":
+        return target
+    owner = getattr(target, "OwningComponent", None)
+    if owner is not None:
+        return owner
+    try:
+        parents = tx.uf.Draw.AskDraftingCurveParents(target.Tag)[1] or []
+    except Exception:  # not a drafting curve
+        return None
+    for tag in parents:
+        with contextlib.suppress(Exception):  # a parent NX cannot look up
+            owner = getattr(tx.nx.TaggedObjectManager.GetTaggedObject(tag), "OwningComponent", None)
+            if owner is not None:
+                return owner
+    return None
+
+
 class BalloonData(TypedDict, total=False):
-    balloons: Annotated[list[result.Row], Doc("Each with its sheet bounds")]
+    balloons: Annotated[
+        list[result.Row], Doc("Each with text (item number), row, component and sheet bounds")
+    ]
     parts_list: result.Row
     note: str
 
@@ -914,7 +1010,7 @@ def nx_create_balloons(
     tx: Tx,
     *,
     parts_list: DrawingTableRef,
-    view: DrawingViewRef,
+    view: ViewArg,
 ) -> BalloonData:
     """Create parts-list balloons for the components shown in a drawing view of an assembly.
     parts_list: a table from nx_create_drawing_table kind=parts_list. One per parts-list row;
@@ -936,12 +1032,15 @@ def nx_create_balloons(
         obj.ShowBalloonsInView(shown)
         update(tx)
         created = [a for a in part.Annotations.IdSymbols if int(a.Tag) not in before]
-        rows, crowded = [], 0
+        table_rows = (table_info(tx, obj).get("rows") or []) if created else []
+        rows: list = []
+        crowded = 0
         for balloon in created:
-            row = tx.ref(balloon, "annotation")
+            tx.checkpoint()
+            row = {**tx.ref(balloon, "annotation"), **_balloon_facts(tx, balloon, table_rows)}
             bounds, text = drawing.annotation_box(tx, balloon, sh)
             if bounds is not None:
-                row["bounds"] = bounds  # type: ignore[typeddict-unknown-key]  # extra row field
+                row["bounds"] = bounds
                 views, off = drawing.crowding(tx, sheet, text or bounds)
                 crowded += bool(views or off)
             rows.append(row)

@@ -122,9 +122,10 @@ def test_import_into_a_new_part(nx, root, ugii):
     ok = call(nx, importing.nx_import_model, path="in.step", format="step", target="new_part",
               new_part_path="imp/new.prt")  # fmt: skip
     assert ok.ok, ok
-    work = nx.session.Parts.Work
-    assert Path(work.FullPath) == root / "imp" / "new.prt" and len(work.Bodies) == 1
+    made = next(p for p in nx.session.Parts if p.Name == "new")
+    assert Path(made.FullPath) == root / "imp" / "new.prt" and len(made.Bodies) == 1
     assert ok.data["target"] == "new_part"
+    assert nx.session.Parts.Work is not made  # the tab active before came back
 
 
 def test_import_rejections_and_rollback(nx, root, ugii):

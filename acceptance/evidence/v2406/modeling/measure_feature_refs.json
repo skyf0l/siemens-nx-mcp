@@ -1,0 +1,57 @@
+{
+  "format": 2,
+  "scenario": "acceptance/modeling/measure_feature_refs.json",
+  "scenario_sha256": "af8b76d3cce412946d94b0ea1950b4fd044fcb942eabf964fb89e473bb4c843b",
+  "domain": "modeling",
+  "covers": {
+    "nx_create_measurement": [
+      "distance"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_measurement": "7a6936bf1e664966a3fb7a46f4924529080e0f21193924d11601b0a9f84b04b4"
+  },
+  "recorded": "2026-10-15T11:54:25Z",
+  "passed": true,
+  "checks": 4,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_measurement",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 5,
+      "call": "nx_create_measurement",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    }
+  ]
+}

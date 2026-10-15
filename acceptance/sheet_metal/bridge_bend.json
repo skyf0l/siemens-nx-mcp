@@ -177,6 +177,21 @@
   },
   {
    "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "bridge_bend",
+    "parameters": {
+     "edges": [
+      "$e1.data.items.0.id"
+     ]
+    }
+   },
+   "expect": {
+    "error.field": "/parameters/edges",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
    "save": "br",
    "args": {
     "operation": "bridge_bend",
@@ -266,21 +281,6 @@
      ],
      "tol": 1e-06
     }
-   }
-  },
-  {
-   "call": "nx_create_sheet_metal_feature",
-   "args": {
-    "operation": "bridge_bend",
-    "parameters": {
-     "edges": [
-      "$e1.data.items.0.id"
-     ]
-    }
-   },
-   "expect": {
-    "error.field": "/parameters/edges",
-    "mutation_outcome": "not_started"
    }
   }
  ]

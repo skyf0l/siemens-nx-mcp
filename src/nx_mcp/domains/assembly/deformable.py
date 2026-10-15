@@ -36,20 +36,31 @@ NX 2406 findings encoded here (probed live):
 from __future__ import annotations
 
 import json
+import re
 from typing import Annotated, TypedDict
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail, native
+from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Name, Point3, Text, forbid_extra
 from nx_mcp.domains.assembly import common
 from nx_mcp.domains.assembly.common import ComponentId, ComponentRow
-from nx_mcp.kit import builders, expr, features, licenses, measure, model, readback, result
+from nx_mcp.kit import builders, deform, expr, features, licenses, measure, model, readback, result
 
-FLEXIBLE, FLEXED = "FLEXIBLE_PART", "FLEXED_PART"
-RANGE_ATTRIBUTE = "NXMCP_DEFORM_RANGES"
+FLEXIBLE, FLEXED = deform.FLEXIBLE, deform.FLEXED
+RANGE_ATTRIBUTE = deform.RANGE_ATTRIBUTE
 MAX_VARYING = 20
 EXP, RANGE, REAL = 0, 1, 1  # DeformDefinitionBuilder ExpressionType / RangeType values
+# NX formula errors on a deformed value ("The specified string contains a syntax error").
+FORMULA_CODES = frozenset({3270008, 1050017})
+_UNIT_TEXT = re.compile(
+    r"^\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?)\s*(mm|cm|m|in|deg|rad)\s*$", re.IGNORECASE
+)
+UNITS = {
+    "mm": ("length", 1.0), "cm": ("length", 10.0), "m": ("length", 1000.0),
+    "in": ("length", expr.UNIT_SCALE["Inch"][1]), "deg": ("angle", 1.0),
+    "rad": ("angle", expr.UNIT_SCALE["Radian"][1]),
+}  # fmt: skip
 _EXPRESSION_NAME = r"^[A-Za-z_][A-Za-z0-9_]{0,99}$"
 ExpressionName = Annotated[str, Text(100, _EXPRESSION_NAME)]
 
@@ -115,31 +126,9 @@ class DeformData(TypedDict):
 # Shared lookups
 
 
-def _definition(part):
-    """The ``FLEXIBLE_PART`` feature of ``part``, or None."""
-    return next((f for f in part.Features if f.FeatureType == FLEXIBLE), None)
-
-
-def _ranges(tx, feature) -> dict:
-    """``{name: [min, max]}`` recorded by nx_create_deformable_definition ({} if none)."""
-    try:
-        if feature.HasUserAttribute(RANGE_ATTRIBUTE, tx.nx.NXObject.AttributeType.String, -1):
-            return dict(json.loads(feature.GetStringAttribute(RANGE_ATTRIBUTE)))
-    except Exception:  # no attribute support or an unreadable record: no ranges
-        return {}
-    return {}
-
-
-def _deformation(tx, assembly, component):
-    """The ``FLEXED_PART`` feature of ``assembly`` that deforms ``component``, or None."""
-    for feature in assembly.Features:
-        if feature.FeatureType != FLEXED:
-            continue
-        with native(default="NX_ERROR"):
-            data = tx.uf.Assem.AskDeformedDefinitionData(feature.Tag)
-        if int(data.PartOcc) == int(component.Tag):
-            return feature
-    return None
+_definition = deform.definition
+_ranges = deform.ranges
+_deformation = deform.deformation
 
 
 def _instantiation(assembly, flexed):
@@ -151,15 +140,7 @@ def _instantiation(assembly, flexed):
     return None
 
 
-def _bodies(flexed) -> list:
-    """Bodies of the assembly features a deformation copied."""
-    out, seen = [], set()
-    for parent in flexed.GetParents():
-        for body in parent.GetBodies() if hasattr(parent, "GetBodies") else []:
-            if int(body.Tag) not in seen:
-                seen.add(int(body.Tag))
-                out.append(body)
-    return out
+_bodies = deform.flexed_bodies
 
 
 # ---------------------------------------------------------------------------
@@ -204,9 +185,14 @@ def nx_create_deformable_definition(
             fail("NX_INVALID_ARGUMENT", "min must be below max", field=f"/expressions/{i}/min")
     with tx.checks():
         part = tx.part
-        if _definition(part) is not None:
+        existing = _definition(part)
+        if existing is not None:
             fail("NX_ALREADY_EXISTS", "The work part is already deformable",
-                 hint="Deform its components with nx_set_component_deformation")  # fmt: skip
+                 details={"feature": tx.ref(existing, kind="feature"),
+                          "expressions": sorted(str(e.Name) for e in existing.GetExpressions()),
+                          "ranges": _ranges(tx, existing)},
+                 hint="Deform its components with nx_set_component_deformation "
+                 "(details.ranges: the recorded min/max); NX 2406 cannot edit a definition")  # fmt: skip
         members = features.timeline(part)
         if not members:
             fail("NX_INVALID_ARGUMENT", "The work part has no features to deform")
@@ -291,6 +277,39 @@ def _check_range(name, value, low, high, field) -> None:
              field=field, hint="Stay within the deformable definition's min and max")  # fmt: skip
 
 
+def _unit_value(text, exp, field) -> float | None:
+    """A ``'70 mm'``-style value in ``exp``'s own units (None: not a number with a unit, so
+    a formula); a length for an angle (or the reverse) is refused."""
+    match = _UNIT_TEXT.match(text)
+    if match is None:
+        return None
+    number, unit = float(match.group(1)), match.group(2).lower()
+    kind, scale = UNITS[unit]
+    own = getattr(getattr(exp, "Units", None), "Name", None)
+    own_kind, own_scale = expr.UNIT_SCALE.get(str(own), (None, None))
+    if own_kind is None or own_scale is None:
+        return number if own is None else None  # unitless: the number; else NX converts
+    if own_kind != kind:
+        noun = "an angle" if own_kind == "angle" else "a length"
+        fail("NX_INVALID_ARGUMENT", f"{exp.Name} is {noun}, not {text!r}", field=field)
+    return number * scale / own_scale
+
+
+def _formula_value(tx, text, exp, field) -> float | None:
+    """Value of the formula ``text`` in ``exp``'s own units, evaluated by NX in a scratch
+    expression of the assembly before any deformation starts (a failed deform commit leaves
+    NX's deform manager mid-update: the next component's deformation then creates nothing).
+    A syntax error, an unknown name or another dimension is refused here. None when ``exp``
+    is neither a length nor an angle (NX then judges the formula)."""
+    own = str(getattr(getattr(exp, "Units", None), "Name", "") or "")
+    kind, scale = expr.UNIT_SCALE.get(own, (None, None))
+    if kind is None or scale is None:
+        return None
+    unit = "deg" if kind == "angle" else "mm"
+    value = tx.services.evaluate_formula(text, kind, unit, field=field, scratch=True)
+    return float(value) / scale
+
+
 def _text(value) -> str:
     return value.strip() if isinstance(value, str) else repr(float(value))
 
@@ -364,10 +383,11 @@ def nx_set_component_deformation(
     values: Annotated[list[DeformValue], Items(1, MAX_VARYING)],
 ) -> DeformData:
     """Deform a direct component of a deformable part: set its varying expressions for this
-    occurrence only. The part file keeps its own values (nx_create_deformable_definition
-    defines them). Creates or edits the deformation. A formula such as 'hatch_len - 40' keeps it
-    following assembly expressions after nx_update_model. Values outside the min/max are
-    refused."""
+    occurrence only. The part file keeps its values. Creates or edits the deformation. A value
+    is a number, '70 mm' or a formula of assembly expressions ('hatch_len - 40', followed on
+    update). Values outside min/max are refused; nx_update_assembly warns when a formula
+    drives one out later. The deformed shape is assembly bodies (bodies); the component then
+    shows none."""
     wanted: dict[str, str] = {}
     for i, item in enumerate(values):
         name = item["expression"]
@@ -377,6 +397,7 @@ def nx_set_component_deformation(
         if not text:
             fail("NX_INVALID_ARGUMENT", "value is empty", field=f"/values/{i}/value")
         wanted[name] = text
+    numbers: dict[str, float] = {}  # values given as numbers or unit strings
     with tx.checks():
         assembly = tx.part
         c = common.component(tx, component, "/component", unsuppressed=True)
@@ -397,8 +418,19 @@ def nx_set_component_deformation(
                 fail("NX_NOT_FOUND", f"{name} is not a varying expression of the part",
                      field=f"/values/{i}/expression", details={"available": sorted(own)})  # fmt: skip
             low, high = ranges.get(name) or (None, None)
-            number = item["value"]
-            if low is not None and not isinstance(number, str):
+            given = item["value"]
+            number: float | None = None
+            if isinstance(given, str):
+                number = _unit_value(given, own[name], f"/values/{i}/value")
+                if number is not None:
+                    wanted[name] = repr(number)
+            else:
+                number = float(given)
+            if number is not None:
+                numbers[name] = float(number)
+            else:  # a formula: NX checks and evaluates it now, before the deform builders
+                number = _formula_value(tx, wanted[name], own[name], f"/values/{i}/value")
+            if low is not None and number is not None:
                 _check_range(name, float(number), low, high, f"/values/{i}/value")
         if not list(prototype.UserDefinedTemplates):
             fail("NX_UNSUPPORTED_OPTION", "The part's deformable definition has no feature "
@@ -408,11 +440,25 @@ def nx_set_component_deformation(
         licenses.require(tx, ("assemblies",), "Deforming a component needs an assemblies "
                          "license")  # fmt: skip
     part_values = {name: expr.value_or_none(tx, own[name]) for name in own}
-    if existing is None:
-        _create(tx, assembly, c, prototype, wanted)
-    else:
-        _edit(tx, assembly, c, prototype, existing, definition, wanted)
-    model.update(tx)
+    try:
+        with native(default="NX_BUILD_FAILED"):
+            if existing is None:
+                _create(tx, assembly, c, prototype, wanted)
+            else:
+                _edit(tx, assembly, c, prototype, existing, definition, wanted)
+            model.update(tx)
+    except NXError as error:
+        if error.nx_code not in FORMULA_CODES:
+            raise
+        formulas = [i for i, item in enumerate(values) if item["expression"] not in numbers]
+        fail(
+            "NX_INVALID_FORMULA",
+            f"NX refused a value: {error.message}",
+            field=f"/values/{formulas[0]}/value" if len(formulas) == 1 else "/values",
+            hint="Send a number, '70 mm', or a formula of the assembly's expressions "
+            "(nx_list_objects kind 'expression')",
+            nx_code=error.nx_code,
+        )
     flexed = _deformation(tx, assembly, c)
     readback.expect(flexed is not None, "deformation", "NX created no deformation")
     assert flexed is not None
@@ -425,9 +471,9 @@ def nx_set_component_deformation(
         name = item["expression"]
         exp = mine[order.index(name)]
         got = expr.value_or_none(tx, exp)
-        if not isinstance(item["value"], str):
-            readback.expect_close(got, float(item["value"]), f"value.{name}",
-                                  tol=1e-9 * max(1.0, abs(float(item["value"]))))  # fmt: skip
+        if name in numbers:
+            readback.expect_close(got, numbers[name], f"value.{name}",
+                                  tol=1e-9 * max(1.0, abs(numbers[name])))  # fmt: skip
         low, high = ranges.get(name) or (None, None)
         if low is not None and got is not None:
             _check_range(name, got, low, high, f"/values/{i}/value")

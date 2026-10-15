@@ -1,0 +1,41 @@
+{
+  "format": 2,
+  "scenario": "acceptance/modeling/wrap_checks.json",
+  "scenario_sha256": "3daf1dc29ab8a5e8f965fb5bba8cfd6b26935a8d6dc20dc86698e05761540e27",
+  "domain": "modeling",
+  "covers": {
+    "nx_create_wrap_geometry": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_wrap_geometry": "54dcb1aa2c2dbc69205e3dce4a343a6678f42130c9dfaa0bbb00af1002340b0e"
+  },
+  "recorded": "2026-10-15T10:39:14Z",
+  "passed": true,
+  "checks": 3,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_wrap_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 """Mass properties and bounds of bodies, in work-part units (no NX import).
 
     m = measure.mass(tx, [body])          # {"volume", "area", "centroid"}
-    s = measure.solid_props(tx, body)     # {"volume", "area"}: one UF call, many bodies
+    s = measure.solid_props(tx, body)     # {"volume", "area", "mass"}: one UF call
     v = measure.volume(tx, body)          # part units^3
     low, high = measure.bounds(tx, bodies)  # absolute axis-aligned box
     n = measure.length(tx, curves)        # arc length, part units
@@ -196,7 +196,7 @@ def wcs(tx):
 
 
 def solid_props(tx, body, accuracy=ACCURACY):
-    """``{"volume", "area"}`` of one solid body in part units from one UF
+    """``{"volume", "area", "mass"}`` of one solid body (part units, kg) from one UF
     ``AskMassProps3d`` (kg and metres, converted). It reads the same values as ``mass``
     (``NewMassProperties``) in a fraction of the time (NX 2406: about 1.7 against 4.5 ms
     for a block, far more for a complex body), so tools measuring every body of a part use it."""
@@ -205,7 +205,11 @@ def solid_props(tx, body, accuracy=ACCURACY):
             [body.Tag], 1, UF_SOLID, UF_KG_M, 0.0, 1, [float(accuracy)] + [0.0] * 10
         )[0]
     to_part = 1.0 / M_PER[units.part_units(tx)]
-    return {"volume": float(values[1]) * to_part**3, "area": float(values[0]) * to_part**2}
+    return {
+        "volume": float(values[1]) * to_part**3,
+        "area": float(values[0]) * to_part**2,
+        "mass": float(values[2]),
+    }
 
 
 def wcs_is_absolute(tx, tol=1e-8):
@@ -221,7 +225,10 @@ def inertia(tx, bodies, accuracy=ACCURACY):
     ``mass`` is kg, ``volume`` part units^3, ``center`` the centre of gravity (absolute, part units), ``inertia``
     the 3x3 tensor about the centre of gravity in absolute axes and ``principal`` the
     principal moments, both kg * (part unit)^2. UF reports kg and metres in WCS axes
-    (centroidal moments at 12-14, products at 19-21, principal moments at 31-33).
+    (centroidal moments at 12-14, principal moments at 31-33, centroidal products of
+    inertia sum(m*y*z), sum(m*x*z), sum(m*x*y) at 19, 20, 21: NX 2406, checked against the
+    parallel-axis tensor of two offset blocks). The tensor's off-diagonal terms are the
+    negated products (``Ixy = -sum(m*x*y)``), so its eigenvalues are the principal moments.
     """
     bodies = list(bodies)
     if not bodies:
@@ -241,10 +248,11 @@ def inertia(tx, bodies, accuracy=ACCURACY):
     origin, r = wcs(tx)
     center_wcs = geom.scale(m[3:6], to_part)
     center = geom.add(origin, geom.matvec(r, center_wcs))
+    yz, xz, xy = m[19], m[20], m[21]
     tensor_wcs = [
-        [m[12], -m[19], -m[21]],
-        [-m[19], m[13], -m[20]],
-        [-m[21], -m[20], m[14]],
+        [m[12], -xy, -xz],
+        [-xy, m[13], -yz],
+        [-xz, -yz, m[14]],
     ]
     k2 = to_part**2
     tensor = geom.matmul(geom.matmul(r, tensor_wcs), geom.transpose(r))

@@ -68,4 +68,5 @@ def test_unsaved_part_without_a_file_may_only_be_saved_as_into_the_workspace(
     rig.part.SaveAs = save_as
     saved_as = rig.run("nx_save_part", {"path": str(destination)})
     assert saved_as["data"]["path"] == "smoke/model1.prt"
+    rig.part.IsModified = True  # an unmodified part is left as it is
     assert rig.run("nx_save_part", {})["data"]["saved_files"] == ["smoke/model1.prt"]

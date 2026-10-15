@@ -14,8 +14,9 @@
     {"call": "nx_activate_drawing_sheet", "args": {"sheet": "SHT1"},
      "expect": {"data.sheet.name": "SHT1", "warnings": {"count": 0}}},
     {"call": "nx_save_part", "args": {},
-     "expect": {"mutation_outcome": "committed", "warnings": {"count": 1},
-                "warnings.0.message": {"contains": "expires NX undo marks"}}},
+     "intent": "Acceptance: the reopened part has no out-of-date view left, so a save finds nothing to write (an out-of-date view would make it save)",
+     "expect": {"mutation_outcome": "not_applicable", "data.saved": false, "warnings": {"count": 1},
+                "warnings.0.code": "NX_NO_EFFECT", "warnings.0.message": {"contains": "no unsaved changes"}}},
     {"call": "nx_close_part", "setup": true, "args": {"part": "$again.data.part.id", "save": false}}
   ]
 }

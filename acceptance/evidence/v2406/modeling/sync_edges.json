@@ -12,9 +12,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_edit_edges": "a10210ed5a9dded9bea72f5e8c74879ddc438949a53587f24d9b7a963ea032eb"
+    "nx_edit_edges": "427cfd344a56ad8e9c95277f1c919f2aaa20b71cda3de680b60ac7688db0bea6"
   },
-  "recorded": "2026-10-13T12:08:26Z",
+  "recorded": "2026-10-15T10:37:47Z",
   "passed": true,
   "checks": 14,
   "failed_checks": 0,

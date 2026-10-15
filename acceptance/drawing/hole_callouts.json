@@ -598,6 +598,23 @@
     "error.code": "NX_INVALID_ARGUMENT",
     "error.field": "/hole"
    }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "args": {
+    "view": "$v.data.view.id",
+    "kind": "hole_callout",
+    "hole": "$h1.data.feature.id",
+    "first": "$one.data.items.0.id"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/first",
+    "error.message": {
+     "contains": "exactly one"
+    },
+    "mutation_outcome": "not_started"
+   }
   }
  ]
 }

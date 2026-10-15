@@ -31,7 +31,6 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
-    DrawingViewRef,
     FaceRef,
     Items,
     Length,
@@ -43,6 +42,7 @@ from nx_mcp.core.types import (
     forbid_extra,
 )
 from nx_mcp.domains.drawing.common import (
+    ViewArg,
     add_leader,
     check_leader,
     commit,
@@ -332,7 +332,7 @@ def nx_create_gdt(
     kind: Kind,
     faces: Annotated[list[FaceRef], Items(1, 20)] | None = None,
     position: Point3 | None = None,
-    view: DrawingViewRef | None = None,
+    view: ViewArg | None = None,
     object: Annotated[str, RefTo("edge", "face")] | None = None,  # noqa: A002
     origin: SheetPoint | None = None,
     letter: Annotated[str, Text(3, r"^[A-Za-z]{1,3}$")] | None = None,
@@ -579,7 +579,7 @@ def _in_view(tx, kind, view_ref, obj_ref, origin, letter, frame, target):
             else:
                 _configure_target(tx, b, letter, target)
             anchor = add_leader(tx, b.Leader, obj, view)
-            origin = origin if origin is not None else default_origin(sh, anchor)
+            origin = origin if origin is not None else default_origin(sh, anchor, view)
             set_origin(tx, b.Origin, sh, origin)
             made = commit(b, what)
         update(tx)

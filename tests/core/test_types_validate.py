@@ -38,7 +38,7 @@ def test_unit_strings_convert_explicitly(value, dim, to, expected):
     [
         ("30 deg", "length"),
         ("10 mm", "angle"),
-        ("10 inch", "length"),
+        ("10 ft", "length"),
         ("mm", "length"),
         (True, "length"),
         (math.inf, "length"),
@@ -51,7 +51,8 @@ def test_wrong_dimension_or_spelling_is_rejected(value, dim):
 
 
 def test_patterns_match_the_architecture_rule():
-    assert re.match(T.LENGTH_PATTERN, "-1.5e-3 in") and not re.match(T.LENGTH_PATTERN, "1 cm")
+    assert re.match(T.LENGTH_PATTERN, "-1.5e-3 in") and re.match(T.LENGTH_PATTERN, "1 cm")
+    assert not re.match(T.LENGTH_PATTERN, "1 ft") and re.match(T.MASS_PATTERN, "12 kg")
     assert re.match(T.ANGLE_PATTERN, "+.5 rad") and not re.match(T.ANGLE_PATTERN, "5 mm")
 
 

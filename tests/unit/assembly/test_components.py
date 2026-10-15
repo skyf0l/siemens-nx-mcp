@@ -32,6 +32,9 @@ def test_create_component_places_the_saved_part_at_the_pose(nx):
     assert ok.data["component"]["path"] == "A" and ok.data["part_path"] == "parts/blk.prt"
     assert pose_of(ok.data["component"]) == ([10, 0, 5], RZ90)
     assert nx.undo_marks and ok.changes["references"] == "preserved"
+    # parts/ is not the assembly's folder: NX sessions that load from that folder miss it
+    notes = [w["message"] for w in ok.warnings if w["code"] == "NX_NOTE"]
+    assert any("not in the assembly's folder" in n for n in notes), ok.warnings
 
 
 def test_create_component_refuses_itself_missing_files_and_basename_clashes(nx):
@@ -178,8 +181,9 @@ def test_edit_component_refuses_moves_and_bad_requests(nx):
 
 
 def test_component_tools_need_an_assembly(nx):
+    b = place(nx, nx.blk, "B")
     nx.asm.ComponentAssembly.RootComponent = None
-    ok = run(nx, "nx_edit_component", part="asm", components=["o:1"], suppressed=True)
+    ok = run(nx, "nx_edit_component", part="asm", components=[b.ref], suppressed=True)
     assert ok.error["code"] == "NX_WRONG_PART_CONTEXT" and ok.mutation_outcome == "not_started"
     assert math.isfinite(1.0)
 
@@ -245,7 +249,7 @@ def test_make_unique_points_one_component_at_a_new_part(nx):
     assert both.error["field"] == "/make_unique"
 
 
-# ---- natural values and clearer results (b05) ----------------------------------------
+# ---- natural values and clearer results ----------------------------------------------
 
 
 def test_create_component_reports_the_part_ref_name_and_reference_set(nx):

@@ -232,3 +232,21 @@ def test_background_sheet_metal_calls_make_their_part_current_in_nx():
     specs = catalogue.load()
     assert specs["nx_export_flat_pattern"].switch_for({}) == "display"
     assert specs["nx_get_sheet_metal"].switch_for({}) == "work"
+
+
+def test_an_existing_flat_pattern_file_is_replaced_only_with_overwrite():
+    nx = sm_nx()
+    root = services(nx).root
+    feature = flat(nx)
+    nx.on_commit("ExportFlatPatternBuilder", writes(DXF))
+    (root / "old.dxf").write_text("old")
+    bad = run(nx, "nx_export_flat_pattern", flat_pattern=feature.ref, path="old.dxf")
+    assert bad.error["code"] == "NX_ALREADY_EXISTS" and bad.error["field"] == "/path"
+    assert bad.error["details"]["path"] == "old.dxf" and bad.mutation_outcome == "not_started"
+    assert nx.builders == []
+    ok = run(nx, "nx_export_flat_pattern", flat_pattern=feature.ref, path="old.dxf",
+             overwrite=True)  # fmt: skip
+    assert ok.ok and ok.data["overwritten"] is True, ok
+    assert (root / "old.dxf").read_text(encoding="latin-1").startswith("  0\nSECTION")
+    new = run(nx, "nx_export_flat_pattern", flat_pattern=feature.ref, path="new.dxf")
+    assert new.ok and new.data["overwritten"] is False

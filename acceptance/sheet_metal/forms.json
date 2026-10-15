@@ -192,6 +192,24 @@
       "$he.data.items.0.id"
      ],
      "length": 10,
+     "style": "fillet"
+    }
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "error.field": "/parameters/style",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "args": {
+    "operation": "hem",
+    "parameters": {
+     "edges": [
+      "$he.data.items.0.id"
+     ],
+     "length": 10,
      "radius": 2,
      "style": "open"
     }
@@ -332,24 +350,6 @@
    "expect": {
     "error.category": "invalid_argument",
     "error.field": "/parameters/body",
-    "mutation_outcome": "not_started"
-   }
-  },
-  {
-   "call": "nx_create_sheet_metal_feature",
-   "args": {
-    "operation": "hem",
-    "parameters": {
-     "edges": [
-      "$he.data.items.0.id"
-     ],
-     "length": 10,
-     "style": "fillet"
-    }
-   },
-   "expect": {
-    "error.category": "invalid_argument",
-    "error.field": "/parameters/style",
     "mutation_outcome": "not_started"
    }
   }

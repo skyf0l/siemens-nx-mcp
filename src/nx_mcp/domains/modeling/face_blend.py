@@ -70,6 +70,27 @@ def measured_radius(tx, faces, want: float) -> float:
     return max(found, key=lambda r: abs(r - want))
 
 
+TWO_SOLIDS_HINT = (
+    "Faces of two separate solids cannot be trimmed and sewn into one: unite the bodies "
+    "first (nx_create_boolean), or pass trim false for a separate blend sheet"
+)
+
+
+def _one_solid(first, second) -> None:
+    """Refuse trim with the walls on two different solids: NX 2406 fails "Unable to attach
+    Blends" (sheets of different bodies sew, solids do not)."""
+    a, b = first[0].GetBody(), second[0].GetBody()
+    both_solid = getattr(a, "IsSolidBody", True) and getattr(b, "IsSolidBody", True)
+    if both_solid and int(a.Tag) != int(b.Tag):
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "faces1 and faces2 lie on two separate solid bodies: a trimmed face blend needs "
+            "one solid",
+            field="/faces2",
+            hint=TWO_SOLIDS_HINT,
+        )
+
+
 @tool(
     effect="model",
     label="Blend between face sets",
@@ -91,7 +112,7 @@ def nx_create_face_blend(
     tx: Tx,
     *,
     faces1: Annotated[FaceList, Doc("First wall's faces (one body or sheet)")],
-    faces2: Annotated[FaceList, Doc("Second wall's faces; may be another body")],
+    faces2: Annotated[FaceList, Doc("Second wall's faces; another solid only with trim false")],
     radius: Annotated[Length, Doc("Rolling ball radius, > 0")],
     flip1: Annotated[bool, Doc("Roll the ball on the other side of faces1")] = False,
     flip2: Annotated[bool, Doc("Roll the ball on the other side of faces2")] = False,
@@ -102,7 +123,8 @@ def nx_create_face_blend(
     """Blend two face sets with a rolling ball of a constant radius (hull-deck, stringer
     fillets). The ball rolls where both face normals point: outward on a solid, so a
     concave corner fills; flip1 and flip2 true round a convex edge. Sheets: the side their
-    normals face. Edges of one body: nx_create_blend."""
+    normals face. Walls on two solids: unite them first, or trim false. Edges of one body:
+    nx_create_blend."""
     want = float(radius)
     if want <= 0:
         fail("NX_INVALID_ARGUMENT", "radius must be positive", field="/radius")
@@ -114,6 +136,8 @@ def nx_create_face_blend(
             if int(f.Tag) in tags:
                 fail("NX_INVALID_ARGUMENT", "A face is in both sets", field=f"/faces2/{i}",
                      hint="Each wall is its own face set")  # fmt: skip
+        if trim:
+            _one_solid(first, second)
     inputs: list = []
     for f in [*first, *second]:
         body = f.GetBody()

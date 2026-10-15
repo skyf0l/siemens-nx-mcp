@@ -1,5 +1,5 @@
 {
- "covers": {"nx_create_wave_link": ["body", "face", "curve", "datum", "sketch"]},
+ "covers": {"nx_create_wave_link": ["body", "face", "curve", "datum", "sketch"], "nx_create_extract": []},
  "part": "new",
  "steps": [
   {"call": "nx_create_part", "setup": true, "save": "pa", "args": {"path": "$run/wl/wl_a.prt", "units": "mm"}},
@@ -20,7 +20,7 @@
   {"call": "nx_create_component", "setup": true, "save": "B", "args": {"part": "$part", "path": "$run/wl/wl_b.prt", "name": "B", "pose": {"translation": [100, 0, 0], "rotation": [[0, -1, 0], [1, 0, 0], [0, 0, 1]]}}},
   {"call": "nx_find_geometry", "setup": true, "save": "Atop", "args": {"owner": "$A.data.component.id", "kind": "face", "geometry_type": "plane", "normal": [0, 0, 1], "order": "highest", "axis": "z", "limit": 1}},
   {"call": "nx_find_geometry", "setup": true, "save": "Aedge", "args": {"owner": "$A.data.component.id", "kind": "edge", "geometry_type": "line", "near": [10, 0, 30], "order": "nearest", "limit": 1}},
-  {"call": "nx_create_wave_link", "args": {"kind": "body", "sources": ["$ext.data.bodies.0.id"], "component": "$A.data.component.id"}, "expect": {"error.code": "NX_WRONG_PART_CONTEXT", "error.details.targets": {"count": 2}, "mutation_outcome": "not_started"}},
+  {"call": "nx_create_wave_link", "args": {"kind": "body", "sources": ["$ext.data.bodies.0.id"], "component": "$A.data.component.id"}, "expect": {"error.code": "NX_WRONG_PART_CONTEXT", "error.field": "/target", "error.details.targets": {"count": 2}, "mutation_outcome": "not_started"}},
   {"call": "nx_activate_part", "setup": true, "args": {"part": "$pb.data.part.id", "display": false}},
   {"call": "nx_create_wave_link", "save": "lb", "args": {"kind": "body", "sources": ["$ext.data.bodies.0.id"], "component": "$A.data.component.id"}, "expect": {"mutation_outcome": "committed", "data.volume": {"close": 6000, "tol": 1e-06}, "data.features": {"count": 1}, "data.features.0.name": {"matches": "^LINKED_BODY"}, "data.bodies": {"count": 1}, "data.sources.0.kind": "body", "data.associative": true}},
   {"call": "nx_create_wave_link", "save": "lbt", "args": {"kind": "body", "sources": ["$ext.data.bodies.0.id"], "component": "$A.data.component.id", "at_timestamp": true}, "expect": {"mutation_outcome": "committed", "data.volume": {"close": 6000, "tol": 1e-06}, "data.at_timestamp": true}},
@@ -34,7 +34,7 @@
   {"call": "nx_create_wave_link", "args": {"kind": "body", "sources": ["$ext.data.bodies.0.id"]}, "expect": {"mutation_outcome": "committed", "data.volume": {"close": 6000, "tol": 1e-06}, "data.sources": {"count": 1}, "data.sources.0.name": {"matches": "^A/"}}},
   {"call": "nx_create_wave_link", "args": {"kind": "body", "sources": ["$A.data.component.id"]}, "expect": {"mutation_outcome": "committed", "data.volume": {"close": 6000, "tol": 1e-06}, "data.bodies": {"count": 1}, "data.sources": {"count": 1}, "data.sources.0.kind": "body", "data.sources.0.name": {"matches": "^A/"}}},
   {"call": "nx_create_wave_link", "args": {"kind": "face", "sources": ["$A.data.component.id"]}, "expect": {"error.code": "NX_WRONG_KIND", "error.field": "/sources/0", "mutation_outcome": "not_started"}},
-  {"call": "nx_create_wave_link", "args": {"kind": "body", "sources": ["$lb.data.bodies.0.id"], "component": "$B.data.component.id"}, "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/sources/0", "mutation_outcome": "not_started"}},
+  {"call": "nx_create_wave_link", "args": {"kind": "body", "sources": ["$lb.data.bodies.0.id"], "component": "$B.data.component.id"}, "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/sources/0", "error.message": {"matches": "wl_b[.]prt, the part that receives"}, "mutation_outcome": "not_started"}},
   {"call": "nx_create_wave_link", "args": {"kind": "body", "sources": ["$ext.data.bodies.0.id"], "component": "$B.data.component.id"}, "expect": {"error.code": "NX_WRONG_OWNER", "error.field": "/sources/0", "mutation_outcome": "not_started"}},
   {"call": "nx_create_wave_link", "args": {"kind": "body", "sources": ["$ext.data.bodies.0.id"], "component": "$A.data.component.id", "associative": false, "at_timestamp": true}, "expect": {"error.field": "/at_timestamp", "mutation_outcome": "not_started"}},
   {"call": "nx_activate_part", "setup": true, "args": {"part": "$pa.data.part.id", "display": false}},
@@ -47,6 +47,8 @@
   {"call": "nx_update_assembly", "args": {"part": "$part"}, "expect": {"mutation_outcome": "committed"}},
   {"call": "nx_measure_mass", "args": {"bodies": ["$lb.data.bodies.0.id"]}, "expect": {"data.volume": {"close": 8750, "tol": 1e-06}}},
   {"call": "nx_measure_mass", "args": {"bodies": ["$lbt.data.bodies.0.id"]}, "expect": {"data.volume": {"close": 9000, "tol": 1e-06}}},
-  {"call": "nx_measure_mass", "args": {"bodies": ["$lbn.data.bodies.0.id"]}, "expect": {"data.volume": {"close": 6000, "tol": 1e-06}}}
+  {"call": "nx_measure_mass", "args": {"bodies": ["$lbn.data.bodies.0.id"]}, "expect": {"data.volume": {"close": 6000, "tol": 1e-06}}},
+  {"call": "nx_find_geometry", "setup": true, "save": "Abody", "args": {"part": "$part", "owner": "$A.data.component.id", "kind": "body", "limit": 1}},
+  {"call": "nx_create_extract", "args": {"kind": "body", "objects": ["$Abody.data.items.0.id"]}, "expect": {"error.code": "NX_WRONG_OWNER", "error.field": "/objects/0", "error.hint": {"matches": "nx_create_wave_link"}, "mutation_outcome": "not_started"}}
  ]
 }

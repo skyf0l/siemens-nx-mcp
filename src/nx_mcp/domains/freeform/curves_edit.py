@@ -42,13 +42,24 @@ from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Plane, Point3, Range, RefTo
 from nx_mcp.domains.freeform import curves_common as cc
-from nx_mcp.kit import args, builders, geom, licenses, measure, readback, result, select, units
+from nx_mcp.kit import (
+    args,
+    builders,
+    expr,
+    geom,
+    licenses,
+    measure,
+    readback,
+    result,
+    select,
+    units,
+)
 from nx_mcp.kit import curve as kcurve
 
 StringRef = Annotated[str, RefTo("curve", "edge", doc="Curve or edge 'c:7'/'e:21'")]
-CurveRef = Annotated[str, RefTo("curve", doc="Curve 'c:7'")]
 Continuity = Literal["G0", "G1", "G2", "G3"]
 CONTINUITY_DOC = "G0 touch, G1 tangent, G2 curvature, G3 curvature rate"
+MAGNITUDE_DOC = "G1 and above: tangent magnitude (default 1)"
 ANGLE_TOL = 0.01  # degrees, G1 and higher
 JOIN_TYPES = {"general": "General", "cubic": "Cubic", "quintic": "Quintic"}
 SAMPLES = 1000  # curve samples for plane crossings and arc lengths
@@ -70,6 +81,8 @@ class BridgeData(TypedDict):
     end_gap: float
     start_angle: float  # degrees between the bridge and start.curve's outward tangent
     end_angle: float
+    start_magnitude: float  # tangent magnitudes the bridge was built with
+    end_magnitude: float
 
 
 class JoinData(cc.CurvesData):
@@ -78,6 +91,7 @@ class JoinData(cc.CurvesData):
 
 class MirrorData(cc.CurvesData):
     symmetry_gap: float  # largest distance of a reflected source sample from the mirror
+    skipped: list[str]  # input refs lying in the plane (not mirrored)
 
 
 class TrimData(cc.CurvesData):  # curves: the pieces along the source from its start
@@ -120,11 +134,19 @@ def nx_create_bridge_curve(
     end: CurveEnd,
     start_continuity: Annotated[Continuity, Doc(CONTINUITY_DOC)] = "G1",
     end_continuity: Annotated[Continuity, Doc(CONTINUITY_DOC)] = "G1",
+    start_magnitude: Annotated[float, Range(gt=0, le=100), Doc(MAGNITUDE_DOC)] | None = None,
+    end_magnitude: Annotated[float, Range(gt=0, le=100), Doc(MAGNITUDE_DOC)] | None = None,
 ) -> BridgeData:
     """Create an associative bridge curve between an end of one curve or edge and an end of
     another. Each side is {curve, end: start|end}; the bridge leaves that end outward,
-    continuing the curve, with the side's continuity (tangent magnitude 1). Returns the
-    gaps and the tangent angles at both ends (0 for G1 and above)."""
+    continuing the curve, with the side's continuity and tangent magnitude (default 1;
+    larger keeps it closer to the curve's direction longer). Returns the gaps and the
+    tangent angles at both ends (0 for G1 and above)."""
+    for name, value, kind in (("start_magnitude", start_magnitude, start_continuity),
+                              ("end_magnitude", end_magnitude, end_continuity)):  # fmt: skip
+        if value is not None and kind == "G0":
+            fail("NX_INVALID_ARGUMENT", f"{name} applies to G1 and above (a G0 end has no "
+                 "tangent)", field=f"/{name}")  # fmt: skip
     with tx.checks():
         first = select.one(tx, start["curve"], "curve", "edge", field="/start/curve")
         second = select.one(tx, end["curve"], "curve", "edge", field="/end/curve")
@@ -146,6 +168,13 @@ def nx_create_bridge_curve(
         builders.curve_section(tx, [second], start=p1, into=b.EndSection)
         b.StartConnectivity.Continuity.ContinuityType = getattr(continuity, start_continuity)
         b.EndConnectivity.Continuity.ContinuityType = getattr(continuity, end_continuity)
+        if start_magnitude is not None or end_magnitude is not None:
+            b.ShapeControlMethod = kinds.ShapeControlMethods.TangentMagnitude
+            magnitude = b.TangentMagnitude
+            if start_magnitude is not None:
+                expr.drive(magnitude.StartTangentMagnitude, float(start_magnitude))
+            if end_magnitude is not None:
+                expr.drive(magnitude.EndTangentMagnitude, float(end_magnitude))
         feature = b.commit()
     bridge = _only(tx, feature)
     with kcurve.evaluator(tx, bridge) as e:
@@ -171,6 +200,8 @@ def nx_create_bridge_curve(
         "end_gap": gaps[1],
         "start_angle": angles[0],
         "end_angle": angles[1],
+        "start_magnitude": 1.0 if start_magnitude is None else float(start_magnitude),
+        "end_magnitude": 1.0 if end_magnitude is None else float(end_magnitude),
     }
 
 
@@ -198,6 +229,20 @@ def nx_create_joined_curve(
     shape and length; cubic and quintic approximate it with one degree 3 or 5 spline."""
     with tx.checks():
         objs = cc.strings(tx, curves, "/curves")
+        limit = units.part_tolerance(tx) + geom.tol(*(kcurve.ends(tx, objs[0])))
+        problem = cc.chain_problem(tx, objs, limit)
+        if problem is not None:
+            index, kind, details = problem
+            fail(
+                "NX_WRONG_GEOMETRY",
+                f"The curves branch at {details['branch_at']}" if kind == "branch" else
+                "The curves do not chain end to end" + (f": a {details['gap']:.4g} gap"
+                                                         if details.get("gap") else ""),
+                field=f"/curves/{index}",
+                hint="Join one chain without branches; close a gap with nx_create_bridge_curve"
+                if kind == "gap" else "Join one chain without branches: leave out a branch",
+                details=details,
+            )  # fmt: skip
     cc.licensed(tx)
     source = measure.length(tx, objs)
     try:
@@ -228,7 +273,14 @@ def nx_create_joined_curve(
     effect="model",
     label="Create mirror curve",
     summary="Mirror {curves}",
-    keywords=("mirror curve", "symmetric curve", "reflect curves", "mirror edges", "copy mirrored"),
+    keywords=(
+        "mirror curve",
+        "symmetric curve",
+        "reflect curves",
+        "reflect wire across plane",
+        "mirror edges",
+        "symmetric copy",
+    ),
     requires=("work_part", "no_active_sketch"),
     cost="heavy",
     previewable=True,
@@ -242,11 +294,23 @@ def nx_create_mirror_curve(
 ) -> MirrorData:
     """Create associative mirror copies of curves or edges about a plane. The plane is 'yz',
     a datum plane, a planar face or {origin, normal}, copied when the call runs (a later
-    datum move does not follow). The inputs stay. Bodies and features: nx_create_mirror."""
+    datum move does not follow). The inputs stay. Curves lying in the plane are skipped
+    (their mirror is themselves; listed in skipped). Bodies and features: nx_create_mirror."""
     with tx.checks():
         objs = cc.strings(tx, curves, "/curves")
         _obj, origin, normal = select.plane(tx, plane, "/plane")
+        limit = cc.gap_tolerance(tx, origin)
+        flat = [i for i, c in enumerate(objs) if cc.plane_gap(tx, [c], origin, normal) <= limit]
+        if len(flat) == len(objs):
+            fail("NX_INVALID_ARGUMENT", "Every curve lies in the mirror plane: its mirror would "
+                 "coincide with it", field="/curves",
+                 hint="Pick a plane the curves are not in")  # fmt: skip
     cc.licensed(tx)
+    skipped = [curves[i] for i in flat]
+    objs = [c for i, c in enumerate(objs) if i not in flat]
+    if skipped:
+        tx.warn("NX_NOTE", f"Skipped {', '.join(skipped)}: in the mirror plane, the mirror "
+                "would duplicate the curve")  # fmt: skip
     with builders.build(tx, tx.part.Features.CreateMirrorCurveBuilder, None) as b:
         builders.curve_section(tx, objs, into=b.Curve)
         b.PlaneOption = tx.nx.Features.MirrorCurveBuilder.PlaneOptions.NewPlane
@@ -261,7 +325,7 @@ def nx_create_mirror_curve(
             gap = max(gap, min(kcurve.point_distance(tx, m, image)[0] for m in made))
     readback.expect(gap <= cc.gap_tolerance(tx), "symmetry", "A mirror is not symmetric",
                     gap=gap)  # fmt: skip
-    return {**cc.describe(tx, feature, made), "symmetry_gap": gap}
+    return {**cc.describe(tx, feature, made), "symmetry_gap": gap, "skipped": skipped}
 
 
 # ---- trim / divide -------------------------------------------------------------------------
@@ -328,6 +392,17 @@ def _cuts(tx, obj, table, closed, planes, at, segments):
     with kcurve.evaluator(tx, obj) as e:
         if at is not None:
             feet = [e.closest(list(p)) for p in at]
+            for i, (p, (foot, _d)) in enumerate(zip(at, feet, strict=True)):
+                off = geom.dist(list(p), foot)
+                if off > cc.gap_tolerance(tx, foot):
+                    fail(
+                        "NX_INVALID_ARGUMENT",
+                        f"at[{i}] lies {off:.4g} off the curve",
+                        field=f"/at/{i}",
+                        hint="Give points on the curve; the nearest curve point is in "
+                        "details.nearest",
+                        details={"distance": off, "nearest": cc.clean(foot)},
+                    )
         else:
             ts, _pts, lengths = table
             total = lengths[-1]
@@ -356,7 +431,7 @@ def _cuts(tx, obj, table, closed, planes, at, segments):
 def nx_create_trim_curve(
     tx: Tx,
     *,
-    curve: CurveRef,
+    curve: StringRef,
     method: Literal["trim", "divide"] = "trim",
     planes: Annotated[
         list[Plane], Items(1, 20), Doc("Planes crossing the curve: trim bounds or cuts")
@@ -367,11 +442,11 @@ def nx_create_trim_curve(
     | None = None,
     segments: Annotated[int, Range(ge=2, le=100), Doc("divide: equal-length pieces")] | None = None,
 ) -> TrimData:
-    """Trim a curve to bounding planes, or divide it into pieces, as an associative feature;
-    the input stays. trim: planes plus keep, a point picking the piece kept. divide: one of
-    planes (cut where each crosses), at (points on the curve) or segments (equal lengths);
-    curves lists the pieces along the source from its start. Planes must cross the curve (no extension). Bounding curves or faces are not taken:
-    give planes ('yz', datum plane, planar face, {origin, normal})."""
+    """Trim a curve or edge to bounding planes, or divide it into pieces, as an associative
+    feature; the input stays. trim: planes plus keep, a point picking the piece kept. divide:
+    one of planes (cut where each crosses), at (points on the curve) or segments (equal
+    lengths); curves lists the pieces from its start. Planes must cross the curve (no
+    extension): give planes ('yz', datum plane, planar face, {origin, normal})."""
     if method == "trim":
         args.need(planes=planes, keep=keep)
         for name, value in (("at", at), ("segments", segments)):
@@ -382,7 +457,7 @@ def nx_create_trim_curve(
         if keep is not None:
             fail("NX_INVALID_ARGUMENT", "keep applies to trim only", field="/keep")
     with tx.checks():
-        obj = select.one(tx, curve, "curve", field="/curve")
+        obj = select.one(tx, curve, "curve", "edge", field="/curve")
         table = _table(tx, obj)
         ends = (table[1][0], table[1][-1])
         closed = geom.dist(*ends) <= cc.gap_tolerance(tx, *ends)

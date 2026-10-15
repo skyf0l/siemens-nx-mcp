@@ -559,7 +559,7 @@ def corners(tx, curves) -> list[dict]:
     return found
 
 
-def refuse_corners(tx, curves, field: str, what: str) -> None:
+def refuse_corners(tx, curves, field: str, what: str, hint: str = SMOOTH_HINT) -> None:
     """Refuse a sweep guide or tube path with sharp corners before NX builds it."""
     sharp = corners(tx, curves)
     if sharp:
@@ -569,7 +569,7 @@ def refuse_corners(tx, curves, field: str, what: str) -> None:
             f"The {what} has {len(sharp)} sharp corner(s) (up to {worst['angle']:.3g} deg at "
             f"{worst['point']}); it must be tangent-continuous",
             field=field,
-            hint=SMOOTH_HINT,
+            hint=hint,
             details={"corners": sharp[:10]},
         )
 

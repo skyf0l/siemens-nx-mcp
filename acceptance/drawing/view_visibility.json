@@ -1,0 +1,353 @@
+{
+ "covers": {
+  "nx_list_view_edges": [],
+  "nx_create_drawing_view": [
+   "base",
+   "projected",
+   "detail",
+   "section"
+  ],
+  "nx_edit_drawing_view": [],
+  "nx_get_drawing_view": [],
+  "nx_set_view_settings": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "fv",
+   "args": {
+    "type": "projected",
+    "parent": "$top.data.view.id",
+    "direction": "bottom",
+    "spacing": 20
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "iso",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "isometric",
+    "position": [
+     320,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h1",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     25,
+     25,
+     20
+    ],
+    "limit": 1,
+    "radius": 8
+   }
+  },
+  {
+   "call": "nx_list_view_edges",
+   "args": {
+    "view": "$iso.data.view.id"
+   },
+   "intent": "Acceptance: the isometric view lists only the 12 edges NX draws visible; the back-bottom edges and the hole bottoms are hidden",
+   "expect": {
+    "ok": true,
+    "page.total": 12
+   }
+  },
+  {
+   "call": "nx_list_view_edges",
+   "args": {
+    "view": "$iso.data.view.id",
+    "hidden": true
+   },
+   "expect": {
+    "page.total": 17
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "save": "det",
+   "args": {
+    "type": "detail",
+    "parent": "$top.data.view.id",
+    "center": [
+     75,
+     45,
+     20
+    ],
+    "radius": 10,
+    "position": [
+     330,
+     60
+    ],
+    "scale": 3
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.scale": {
+     "close": 3,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_list_view_edges",
+   "args": {
+    "view": "$det.data.view.id"
+   },
+   "intent": "Acceptance: detail edges are cut to the boundary circle",
+   "expect": {
+    "page.total": 3,
+    "data.items.0.model_length": {
+     "close": 14.142136,
+     "tol": 1e-05
+    },
+    "data.items.1.model_length": {
+     "close": 3.660254,
+     "tol": 0.0001
+    },
+    "data.items.1.partial": true,
+    "data.items.1.length": {
+     "close": 10.980762,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "detail",
+    "parent": "$top.data.view.id",
+    "center": [
+     500,
+     500,
+     30
+    ],
+    "radius": 5,
+    "position": [
+     380,
+     40
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/center",
+    "mutation_outcome": "rolled_back"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "save": "sx",
+   "args": {
+    "type": "section",
+    "parent": "$top.data.view.id",
+    "cut": "$h1.data.items.0.id",
+    "cut_point": "center",
+    "step_direction": [
+     1,
+     0
+    ],
+    "arrow_direction": [
+     0,
+     1
+    ],
+    "position": [
+     140,
+     60
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed"
+   }
+  },
+  {
+   "call": "nx_list_view_edges",
+   "args": {
+    "view": "$sx.data.view.id",
+    "geometry_type": "circle"
+   },
+   "intent": "Acceptance: circles seen edge-on in the section view are listed as lines, never as degenerate circles",
+   "expect": {
+    "page.total": 0
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "front",
+    "position": [
+     500,
+     100
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/position",
+    "mutation_outcome": "not_started",
+    "error.details.sheet_size": {
+     "close": [
+      420,
+      297
+     ],
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "args": {
+    "view": "$iso.data.view.id",
+    "position": [
+     600,
+     200
+    ]
+   },
+   "expect": {
+    "error.field": "/position",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "args": {
+    "view": "$top.data.view.id",
+    "position": [
+     130,
+     200
+    ]
+   },
+   "intent": "Acceptance: NX keeps this parent's x with its projected view below: the move is read back, refused and undone",
+   "expect": {
+    "error.code": "NX_UNSUPPORTED_OPTION",
+    "error.field": "/position",
+    "mutation_outcome": "rolled_back",
+    "error.details.aligned_views.0.name": "ORTHO@2"
+   }
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "args": {
+    "view": "$top.data.view.id",
+    "position": [
+     120,
+     205
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.position": {
+     "close": [
+      120,
+      205
+     ],
+     "tol": 1e-06
+    },
+    "changes.modified": {
+     "count_kind": {
+      "drawing_view": 1
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "args": {
+    "view": "$fv.data.view.id",
+    "scale": 1
+   },
+   "expect": {
+    "error.code": "NX_UNSUPPORTED_OPTION",
+    "error.field": "/scale",
+    "mutation_outcome": "not_started",
+    "error.details.parent.name": "Top@1"
+   }
+  },
+  {
+   "call": "nx_get_drawing_view",
+   "args": {
+    "view": "top"
+   },
+   "expect": {
+    "data.view.name": "Top@1",
+    "data.position": {
+     "close": [
+      120,
+      205
+     ],
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_view_settings",
+   "args": {
+    "views": [
+     "$fv.data.view.id"
+    ],
+    "settings": {
+     "hidden_lines": false
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "warnings.0.message": {
+     "contains": "hidden_font"
+    }
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$part.data.part.id",
+    "save": false
+   }
+  }
+ ]
+}

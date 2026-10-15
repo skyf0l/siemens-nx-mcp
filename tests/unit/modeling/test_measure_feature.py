@@ -133,3 +133,37 @@ def test_a_sheet_body_is_refused():
     body.IsSolidBody = False
     bad = run(nx, "nx_create_measurement", kind="body", bodies=[body.ref])
     assert bad.error["field"] == "/bodies/0" and bad.error["code"] == "NX_WRONG_GEOMETRY"
+
+
+def test_a_feature_ref_stands_for_its_one_body():
+    nx = measuring_nx()
+    a, b = nx.block(10, 10, 10), nx.block(10, 10, 10, origin=(100, 0, 0))
+    made = feature(nx, "BLOCK", [b])
+    ok = run(nx, "nx_create_measurement", kind="distance", first=a.ref,
+             second=nx.ref_of(made, "feature"))  # fmt: skip
+    assert ok.ok, ok
+    assert nx.calls[0] == ("distance", "MilliMeter", a, b)
+    two = feature(nx, "PATTERN", [a, b])
+    bad = run(nx, "nx_create_measurement", kind="distance", first=a.ref,
+              second=nx.ref_of(two, "feature"))  # fmt: skip
+    assert bad.error["field"] == "/second" and bad.mutation_outcome == "not_started"
+    assert "2 bodies" in bad.error["message"]
+
+
+def test_a_body_and_its_own_feature_are_refused_before_the_mark():
+    nx = measuring_nx()
+    a = nx.block(10, 10, 10)
+    made = feature(nx, "BLOCK", [a])
+    bad = run(nx, "nx_create_measurement", kind="distance", first=a.ref,
+              second=nx.ref_of(made, "feature"))  # fmt: skip
+    assert bad.error["field"] == "/second" and bad.mutation_outcome == "not_started", bad
+    assert "same object" in bad.error["message"] and not nx.calls
+
+
+def test_a_ref_of_another_part_is_refused_before_the_mark():
+    nx = measuring_nx()
+    a, b = nx.block(10, 10, 10), nx.block(10, 10, 10, origin=(100, 0, 0))
+    b.OwningPart = object()  # owned by another part
+    bad = run(nx, "nx_create_measurement", kind="distance", first=a.ref, second=b.ref)
+    assert bad.error["code"] == "NX_WRONG_OWNER" and bad.error["field"] == "/second", bad
+    assert bad.mutation_outcome == "not_started" and not nx.calls

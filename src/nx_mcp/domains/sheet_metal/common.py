@@ -67,12 +67,61 @@ def is_flat_pattern(body) -> bool:
     return bool(features) and all(_of_flat_pattern(f) for f in features)
 
 
+def flat_pattern_of(tx, body):
+    """The FLAT_PATTERN feature whose sub-features (``FLAT_PATTERN(n:...)``) built a Flat
+    Pattern body, or None."""
+    names = set()
+    try:
+        features = list(body.GetFeatures())
+    except Exception:  # no feature query for this body
+        return None
+    for feature in features:
+        name = str(getattr(feature, "JournalIdentifier", ""))
+        if name.startswith("FLAT_PATTERN(") and ":" in name:
+            names.add(name.split(":", 1)[0] + ")")
+    for feature in tx.part.Features:
+        if str(getattr(feature, "FeatureType", "")) == "FLAT_PATTERN" and (
+            str(getattr(feature, "JournalIdentifier", "")) in names or feature in features
+        ):
+            return feature
+    return None
+
+
+def formed_body(feature):
+    """The formed (bent) body a Flat Pattern's centre lines point at, or None."""
+    for method in ("GetBendUpCenterLines", "GetBendDownCenterLines"):
+        lines = getattr(feature, method, None)
+        for data in lines() if lines is not None else ():
+            face = getattr(data, "FormedBodyObject", None)
+            if face is not None:
+                return face.GetBody()
+    return None
+
+
+def not_flat_pattern(tx, body, field):
+    """Refuse a Flat Pattern body: NX keeps those flat copies on a hidden layer where they
+    overlap the formed body's web; a feature built on one corrupts the flat pattern."""
+    if not is_flat_pattern(body):
+        return body
+    feature = flat_pattern_of(tx, body)
+    formed = formed_body(feature) if feature is not None else None
+    details: dict[str, Any] = {"body": tx.ref(body, "body")}
+    hint = "Use geometry of the formed body: nx_find_geometry(owner=<formed body>)"
+    if feature is not None:
+        details["flat_pattern"] = tx.ref(feature, "feature")
+    if formed is not None:
+        details["formed_body"] = row = tx.ref(formed, "body")
+        hint = f"Use geometry of the formed body {row['id']}: nx_find_geometry(owner={row['id']})"
+    fail("NX_WRONG_GEOMETRY", "This is a Flat Pattern body (NX's hidden flat copy), not the "
+         "formed sheet-metal body", field=field, hint=hint, details=details)  # fmt: skip
+
+
 def owner_body(tx, obj, field):
-    """The sheet-metal body owning a face or edge."""
+    """The formed sheet-metal body owning a face or edge (never a Flat Pattern body)."""
     body = obj.GetBody()
     if body is None or not is_sheet_metal(tx, body):
         fail("NX_WRONG_GEOMETRY", "Select geometry of a sheet-metal body", field=field)
-    return body
+    return not_flat_pattern(tx, body, field)
 
 
 def is_plain_solid(tx, body) -> bool:

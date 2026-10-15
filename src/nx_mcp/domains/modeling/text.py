@@ -19,6 +19,7 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
+    Aliases,
     BodyRef,
     Doc,
     Items,
@@ -247,7 +248,9 @@ def nx_create_text(
     font: Annotated[str, Text(64), Doc("Installed TrueType font name")] = "Arial",
     style: Style = "regular",
     anchor: Annotated[
-        Anchor, Doc("Frame point at origin; on a path only left/center/right")
+        Anchor,
+        Aliases(left="bottom_left", center="bottom_center", right="bottom_right"),
+        Doc("Frame point at origin; on a path only the side counts: left, center or right"),
     ] = "bottom_left",
     relief: Relief | None = None,
 ) -> TextData:

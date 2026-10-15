@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/optimization/strength.json",
-  "scenario_sha256": "4627a095bb775052b0a6f004c9ddc7801679ebcf6f6d512a7604ab1e3c39d0f5",
+  "scenario_sha256": "237d52683803d10ea8e62fed21c9cc6cd01b65b3b887aec3d932cfc8606f1ba4",
   "domain": "optimization",
   "covers": {
     "nx_analyze_topology_study": [],
@@ -16,13 +16,13 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_analyze_topology_study": "1cfac9c09ad21cd87af97e412731bdb4fb3046314dadf72fd4bb438d6e0910c8",
-    "nx_create_topology_environment": "9aefa43c4c5ac1ad1365fab5d7b77033ac8b232d9128e4b8e0dc1263719d5e00",
-    "nx_create_topology_condition": "6731afdb9481651c4a2334ae63883df004c141ba5f85320a18cda665e8939033"
+    "nx_analyze_topology_study": "c641dec75ac0cfac9c754767cdf0be6c46279d9cabf049470dde85ad6492abc8",
+    "nx_create_topology_environment": "d46e73926144d53827daf3df4ee7888e74185d44e78db47b97a4fff26c38ff99",
+    "nx_create_topology_condition": "013a72b50e2db830767061a81ebd08a42ea6205dfb8cf1ff386888d87177f5f0"
   },
-  "recorded": "2026-10-13T07:00:48Z",
+  "recorded": "2026-10-15T11:09:10Z",
   "passed": true,
-  "checks": 36,
+  "checks": 39,
   "failed_checks": 0,
   "steps": [
     {
@@ -93,7 +93,7 @@
       "call": "nx_analyze_topology_study",
       "setup": false,
       "passed": true,
-      "checks": 9
+      "checks": 12
     },
     {
       "index": 11,

@@ -217,3 +217,79 @@ def test_bridge_reports_sheet_faces_and_area():
     nx, a, b, _fa, _fb = bridge_nx()
     ok = run(nx, "nx_create_bridge_surface", first=a.ref, second=b.ref, continuity="g0")
     assert ok.ok and ok.data["sheet"] is True and ok.data["faces"] == 1, ok
+
+
+def test_mesh_miss_reports_the_worst_pair_and_a_tolerance():
+    nx = freeform_nx()
+    p, c = network(nx)
+    high = curve(nx, [20, 0, 5], [20, 10, 5])  # 5 above the primaries
+    nx.refuse("ThroughCurveMeshBuilder", 670946, "Strings do not intersect within tolerance.")
+    bad = run(nx, "nx_create_mesh_surface", primary=[x.ref for x in p],
+              cross=[c[0].ref, high.ref])  # fmt: skip
+    assert bad.error["field"] == "/cross/1" and "5.5" in bad.error["hint"], bad.error
+    assert bad.error["details"]["pairs"][0] == {"primary": 0, "cross": 1, "gap": 5.0}
+    assert len(bad.error["details"]["pairs"]) == 2
+
+
+def test_mesh_takes_edges_reports_gaps_and_warns_on_a_loose_tolerance():
+    nx = freeform_nx()
+    p, _c = network(nx)
+    sides = [edge(nx, [0, 0, 0], [0, 10, 0]), edge(nx, [20, 0, 0], [20, 10, 0])]
+    mesh_commit(nx)
+    ok = run(nx, "nx_create_mesh_surface", primary=[x.ref for x in p],
+             cross=[e.ref for e in sides], tolerance=0.5)  # fmt: skip
+    assert ok.ok, ok.error
+    sections = [
+        call[0][0] for call in nx.last("ThroughCurveMeshBuilder").CrossCurvesList.Append.calls
+    ]
+    assert sections[0].rules == [("EdgeDumb", [sides[0]])]
+    assert ok.data["gaps"] == {"primary": [0.0, 0.0], "cross": [0.0, 0.0]}
+    assert ok.data["deviation"] == 0 and ok.data["tolerance"] == 0.5
+    assert [w["code"] for w in ok.warnings] == ["NX_APPROXIMATED"]
+
+
+def _mesh_with_side_faces(nx):
+    """A 20 x 10 network whose x = 0 cross section is the boundary edge of a sheet x < 0
+    (tangent to the mesh: both flat in z = 0)."""
+    p, _c = network(nx)
+    wing = face(nx, flat())
+    wing.box = [-10, 0, 0, 0, 10, 0]
+    rim = edge(nx, [0, 0, 0], [0, 10, 0], [wing])
+    other = curve(nx, [20, 0, 0], [20, 10, 0])
+    patch = face(nx, flat())
+    patch.box = [0, 0, 0, 20, 10, 0]
+    mesh_edge = edge(nx, [0, 0, 0], [0, 10, 0], [patch])
+    nx.on_commit("ThroughCurveMeshBuilder", lambda b: made(
+        nx, "THRU_CURVE_MESH", [sheet(nx, (0, 0, 0, 20, 10, 0), [patch], [mesh_edge])]))  # fmt: skip
+    return p, rim, other, wing
+
+
+def test_mesh_boundary_continuity_follows_the_edges_faces():
+    nx = freeform_nx()
+    p, rim, other, wing = _mesh_with_side_faces(nx)
+    ok = run(nx, "nx_create_mesh_surface", primary=[x.ref for x in p],
+             cross=[rim.ref, other.ref],
+             boundaries=[{"side": "first_cross", "continuity": "g1"}])  # fmt: skip
+    assert ok.ok, ok.error
+    b = nx.last("ThroughCurveMeshBuilder")
+    kinds = nx.nx.GeometricUtilities.Continuity.ContinuityTypes
+    assert b.FirstCrossContinuity.ContinuityType is kinds.G1
+    assert b.FirstCrossContinuity.ConstraintFaces.ReplaceRules.calls[0][0][0] == [
+        ("FaceDumb", [wing])
+    ]
+    assert ok.data["boundaries"] == [
+        {"side": "first_cross", "continuity": "g1", "angle": 0.0, "curvature": 0.0}
+    ]
+
+
+def test_mesh_boundary_rejections():
+    nx = freeform_nx()
+    p, rim, other, _wing = _mesh_with_side_faces(nx)
+    args = {"primary": [x.ref for x in p], "cross": [rim.ref, other.ref]}
+    curve_side = run(nx, "nx_create_mesh_surface", **args,
+                     boundaries=[{"side": "last_cross", "continuity": "g2"}])  # fmt: skip
+    assert curve_side.error["field"] == "/boundaries/0/faces" and not nx.builders
+    twice = run(nx, "nx_create_mesh_surface", **args,
+                boundaries=[{"side": "first_cross", "continuity": "g0"},
+                            {"side": "first_cross", "continuity": "g1"}])  # fmt: skip
+    assert twice.error["field"] == "/boundaries/1/side"

@@ -1,7 +1,7 @@
 import pytest
 
 from tests.kit import run
-from tests.unit.assembly.fakes import ALIGN, STATUS, TYPE, assembly_nx, place
+from tests.unit.assembly.fakes import ALIGN, STATUS, TYPE, Constraint, assembly_nx, place
 
 RZ90 = [[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]
 
@@ -431,7 +431,7 @@ def test_independent_copies_are_plain_components(nx):
     [
         (linear(direction2=[1, 0, 0], count2=2, spacing2=5), "/layout/linear/direction2"),
         (linear(count2=2), "/layout/linear"),
-        (linear(spacing=0), "/layout/linear"),
+        (linear(spacing=0), "/layout/linear/spacing"),
         ({"circular": {"axis": {"principal": "z"}, "count": 5, "angle": 90}},
          "/layout/circular/angle"),
         (linear(count=20, direction2=[0, 1, 0], count2=6, spacing2=5), "/layout"),
@@ -484,7 +484,7 @@ def test_edit_pattern_rules(nx):
     assert ok.ok and ok.data["count"] == 5 and ok.data["angle"] == 45
 
 
-# ---- natural values (live tester b13) -------------------------------------------------------
+# ---- natural values ---------------------------------------------------------------------------
 
 
 def planar(nx, c, origin, normal):
@@ -532,10 +532,12 @@ def test_inch_strings_convert_to_inch_part_units(nx):
 @pytest.mark.parametrize(
     ("type", "value", "says"),
     [("distance", "45 deg", "a length"), ("angle", "10 mm", "an angle"),
-     ("distance", "ten", "not a number"), ("angle", -5, "0 to 180"), ("angle", "4 rad", "0 to 180"),
+     ("distance", "ten", "no expression 'ten'"), ("angle", -5, "0 to 180"),
+     ("angle", "4 rad", "0 to 180"),
      ("distance", 2e6, "within")],
 )  # fmt: skip
 def test_value_errors_name_what_to_send(nx, type, value, says):
+    nx.asm.Expressions = []
     bad = run(nx, "nx_create_assembly_constraint", type=type, component=nx.b.ref,
               geometry=geometry(nx, nx.b), target_component=nx.a.ref,
               target_geometry=geometry(nx, nx.a), value=value)  # fmt: skip
@@ -647,7 +649,43 @@ def test_update_assembly_lists_suppressed_constraints(nx):
     assert fix.ok and off.ok
     done = run(nx, "nx_update_assembly", part="asm")
     assert done.ok, done
-    rows = {c["constraint"]["id"]: c for c in done.data["constraints"]}
+    assert done.data["constraint_counts"] == {"total": 2, "solved": 1, "suppressed": 1}
+    (only,) = done.data["constraints"]  # solved ones are counted, not listed
+    assert only["constraint"]["id"] == touch.data["constraint"]["id"] and only["suppressed"]
+    assert done.data["moved"] == []
+    every = run(nx, "nx_update_assembly", part="asm", all_constraints=True)
+    rows = {c["constraint"]["id"]: c for c in every.data["constraints"]}
     assert rows[fix.data["constraint"]["id"]]["status"] == "Solved"
     suppressed = rows[touch.data["constraint"]["id"]]
     assert suppressed["suppressed"] and suppressed["status"] == "Suppressed"
+
+
+def test_unsolved_constraint_reports_the_requested_type(nx):
+    nx.assembly.solver_status = STATUS.OverConstrained
+    bad = run(nx, "nx_create_assembly_constraint", type="touch", component=nx.b.ref,
+              geometry=geometry(nx, nx.b), target_component=nx.a.ref,
+              target_geometry=geometry(nx, nx.a), alignment="same")  # fmt: skip
+    assert bad.error["code"] == "NX_CONSTRAINT_UNSATISFIED", bad
+    details = bad.error["details"]
+    assert details["type"] == "touch" and details["nx_type"] == "align"
+
+
+def test_a_value_may_be_an_expression_that_keeps_driving_it(nx, monkeypatch):
+    from nx_mcp.kit import expr
+
+    calls = []
+
+    def evaluate(services, formula, dim, unit, *, field=None, scratch=False):
+        calls.append((formula, dim, unit, field, scratch))
+        return 24.0
+
+    def set_expression(self, text):  # NX keeps the formula and evaluates it
+        self.Expression._rhs, self.Expression.Value = text, 24.0
+
+    monkeypatch.setattr(expr, "evaluate", evaluate)
+    monkeypatch.setattr(Constraint, "SetExpression", set_expression)
+    ok = distance(nx, "gap * 2")
+    assert ok.ok, ok
+    c = nx.assembly.positioner.Constraints[-1]
+    assert c.Expression.RightHandSide == "gap * 2" and ok.data["value"] == 24
+    assert calls == [("gap * 2", "length", "mm", "/value", True)]

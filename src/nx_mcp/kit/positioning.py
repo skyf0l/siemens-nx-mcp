@@ -78,6 +78,26 @@ def components(constraint) -> list:
     return out
 
 
+def holding(tx, part, component) -> list[dict]:
+    """``[{constraint, type}]`` of the unsuppressed constraints of ``part`` that position
+    ``component`` (one of their references moves it), at most 20."""
+    tag = int(component.Tag)
+    rows: list[dict] = []
+    for constraint in all_constraints(part):
+        with contextlib.suppress(Exception):
+            if constraint.Suppressed or tag not in {int(c.Tag) for c in components(constraint)}:
+                continue
+            rows.append(
+                {
+                    "constraint": tx.ref(constraint, "assembly_constraint", part=part),
+                    "type": kind_name(tx, constraint),
+                }
+            )
+        if len(rows) == 20:
+            break
+    return rows
+
+
 def unsolved(tx, part) -> list[dict]:
     """``[{constraint, type, status, severity, components}]`` of the unsuppressed
     constraints of ``part`` that do not report Solved (``_constraint``: the live object)."""

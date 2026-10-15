@@ -81,11 +81,19 @@ ENGAGEMENTS = ("0.75", "Standard")
 # start_face. NX threads along the cylinder's own axis, which for a bore cut by a Boolean
 # subtract points away from the start face; the build is repeated reversed.
 THREAD_OUTWARD = 674805
+# NX 2406 "Invalid thread axis direction.": a detailed thread from the end the cylinder's
+# axis points to (a shaft's top) must be reversed; the build is repeated reversed too.
+AXIS_REVERSED = 671154
+# NX 2406 "Threads overlapped.": the span already carries a thread.
+THREADS_OVERLAP = 671153
 BUILD_HINTS = {
+    THREADS_OVERLAP: "This face already carries a thread on that span: change the existing "
+    "thread with nx_edit_feature (nx_list_objects kind feature lists it), or thread another "
+    "span",
     670030: "A detailed thread found no material to cut: an internal thread needs a bore below "
     "the major diameter (the tap drill), an external one a shaft at the major diameter",
-    671154: "NX threads from start_face into the material: leave reverse false and pass the "
-    "planar end face the thread starts at",
+    AXIS_REVERSED: "NX found no thread direction from start_face into the material (both "
+    "were tried): pass a planar end face of this cylinder as start_face",
 }
 
 
@@ -189,6 +197,7 @@ def resolve_size(rows, standard, text, field="/size") -> tuple[str, str]:
             )
     keys = {_size_key(s): s for name in tried for s in _sizes(rows, name)}
     near = [keys[k] for k in difflib.get_close_matches(_size_key(text), list(keys), 3, 0.6)]
+    near = near or _nearest_sizes(rows, tried, text)
     guess = f"; did you mean {near[0]!r}?" if near else ""
     where = " or ".join(repr(t) for t in tried) or "the thread table"
     fail(
@@ -202,6 +211,28 @@ def resolve_size(rows, standard, text, field="/size") -> tuple[str, str]:
         ),
         details={"close_matches": near},
     )
+
+
+def _nearest_sizes(rows, tried, text) -> list[str]:
+    """The sizes of ``tried`` standards with the major diameters next below and above the
+    number in ``text`` ('M7' -> M6 and M8), when it has one."""
+    match = re.search(r"\d+(?:\.\d+)?", str(text))
+    if match is None:
+        return []
+    wanted = float(match.group())
+    majors: dict[str, float] = {}
+    for r in rows:
+        major = common.float_or_none(r.get("MajorDiameter"))
+        if r.get("Standard") in tried and r.get("Size") and major is not None:
+            majors.setdefault(r["Size"], major)
+    below = [s for s, d in majors.items() if d < wanted]
+    above = [s for s, d in majors.items() if d > wanted]
+    out = []
+    if below:
+        out.append(max(below, key=lambda s: majors[s]))
+    if above:
+        out.append(min(above, key=lambda s: majors[s]))
+    return out
 
 
 def _same_value(value, row_value) -> bool:
@@ -327,6 +358,12 @@ def _size_summaries(rows, standard) -> list[dict]:
     return [{k: v for k, v in row.items() if v is not None} for row in out.values()]
 
 
+def _note_standard(tx, given, name) -> None:
+    """Say which standard a loose name ('ISO metric') was read as."""
+    if name and _standard_key(given) != _standard_key(name):
+        tx.warn("NX_NOTE", f"standard {given!r} read as {name!r}")
+
+
 @tool(
     effect="read",
     label="List thread sizes",
@@ -353,9 +390,14 @@ def nx_list_thread_sizes(
             for n in standards(rows)
         ]
     elif size is None:
-        found = _size_summaries(rows, resolve_standard(rows, standard))
+        name = resolve_standard(rows, standard)
+        _note_standard(tx, standard, name)
+        found = _size_summaries(rows, name)
     else:
-        found = [_row(r, True) for r in size_rows(rows, standard, size)]
+        picked = size_rows(rows, standard, size)
+        if standard is not None and picked:
+            _note_standard(tx, standard, picked[0].get("Standard"))
+        found = [_row(r, True) for r in picked]
     items, page = result.page(found, offset, limit)
     return {"items": items, "page": page}
 
@@ -624,6 +666,23 @@ def _full_length(tx, target, start, axis) -> float:
     return max(reach)
 
 
+def _check_span(tx, target, start, axis, span) -> None:
+    """Refuse a thread length past the far end of the cylindrical face (NX would accept it
+    and keep a thread longer than the face); a face of unknown length is not checked."""
+    try:
+        reach = _full_length(tx, target, start, axis)
+    except Exception:  # noqa: BLE001 - no edge listing: the length stays unchecked
+        return
+    if span > reach * (1 + 1e-6) + 1e-9:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"length {span:.6g} exceeds the face length {reach:.6g} from start_face",
+            field="/length",
+            hint=f"Use length 'full' or at most {reach:.6g}",
+            details={"face_length": reach},
+        )
+
+
 def _plan(tx, ref, field, start_face, length, fit) -> dict:
     """What one face's thread needs: the face, its radius, start face and span."""
     target = select.one(tx, ref, "face", field=field)
@@ -643,6 +702,8 @@ def _plan(tx, ref, field, start_face, length, fit) -> dict:
             fail("NX_WRONG_OWNER", "start_face must be on the face's body", field="/start_face")
     full = length is None or length == "full"
     span = _full_length(tx, target, start, axis) if full else float(length)
+    if not full:
+        _check_span(tx, target, start, axis, span)
     return {"face": target, "radius": radius, "body": body, "start": start, "span": span,
             "full": full, "field": field, "internal": internal}  # fmt: skip
 
@@ -745,7 +806,9 @@ def nx_create_thread(
     | None = None,
     detailed: Annotated[bool, Doc("Helical geometry instead of a symbolic thread")] = False,
     hand: Literal["right", "left"] = "right",
-    reverse: Annotated[bool, Doc("Leave false: threads run from start_face inward")] = False,
+    reverse: Annotated[
+        bool, Doc("Rarely needed: the thread runs from start_face inward (both senses tried)")
+    ] = False,
 ) -> ThreadData:
     """Thread a cylindrical face, or several (faces: one thread each). spec: a table size, or
     pitch, major_diameter and minor_diameter for a custom thread. A size alone is looked up
@@ -770,21 +833,22 @@ def nx_create_thread(
         _check_manual(spec)
         major, minor, tap = float(spec["major_diameter"]), float(spec["minor_diameter"]), None
         size = None
-    plans = [
-        _plan(
-            tx,
-            ref,
-            "/face" if face is not None else f"/faces/{i}",
-            start_face,
-            length,
-            (major, minor, tap, size),
-        )  # fmt: skip
-        for i, ref in enumerate(refs)
-    ]
-    if manual is not None:
-        _check_custom(tx, manual, plans)
-    if row is not None:
-        check_units(tx, row, "/spec/standard")
+    with tx.checks():  # read-only checks: a refusal here changes nothing (not_started)
+        if row is not None:  # before the fit check, which compares in the part's units
+            check_units(tx, row, "/spec/standard")
+        plans = [
+            _plan(
+                tx,
+                ref,
+                "/face" if face is not None else f"/faces/{i}",
+                start_face,
+                length,
+                (major, minor, tap, size),
+            )  # fmt: skip
+            for i, ref in enumerate(refs)
+        ]
+        if manual is not None:
+            _check_custom(tx, manual, plans)
     bodies = list({int(p["body"].Tag): p["body"] for p in plans}.values())
     before = [measure.volume(tx, body) for body in bodies]
     made = []
@@ -792,7 +856,7 @@ def nx_create_thread(
         try:
             made.append(_build(tx, plan, row, manual, length, (detailed, hand, reverse)))
         except NXError as error:
-            if error.nx_code != THREAD_OUTWARD:
+            if error.nx_code not in (THREAD_OUTWARD, AXIS_REVERSED):
                 raise
             made.append(_build(tx, plan, row, manual, length, (detailed, hand, not reverse)))
         tx.checkpoint()

@@ -21,7 +21,7 @@ from typing import Annotated, TypedDict
 
 from nx_mcp.core import target as targets
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail, native
+from nx_mcp.core.errors import counted, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Length, RefTo, Text
 from nx_mcp.domains.assembly import common, structure
@@ -95,6 +95,16 @@ def _destination(tx, text):
         fail("NX_NOT_LOADED", "destination_part is only partially loaded",
              field="/destination_part")  # fmt: skip
     tx.require_owned(dest, field="/destination_part")
+    held = list(dest.Bodies)
+    if held:  # a second result would lie on top of the first one
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"destination_part already holds {counted(len(held), 'body')}; it must be empty",
+            field="/destination_part",
+            hint="Pass a new part (nx_create_part), or delete its bodies (details.bodies) "
+            "with nx_delete_objects first",
+            details={"bodies": [tx.ref(b, "body", part=dest) for b in held[:20]]},
+        )
     return dest
 
 
@@ -117,6 +127,7 @@ def _limit(b, use, value, size) -> None:
         "fill holes",
         "lightweight model",
         "block model",
+        "shrink wrap assembly",
     ),  # fmt: skip
     requires=("work_part", "assembly", "no_active_sketch"),
     display_bound=True,
@@ -133,7 +144,7 @@ def nx_create_simplified_assembly(
     destination_part: Annotated[
         str,
         Text(260),
-        Doc("Loaded empty part (nx_create_part) for the result; default: the assembly"),
+        Doc("Loaded empty part (nx_create_part) for the result (refused if it has bodies)"),
     ]
     | None = None,
     fill_holes_up_to: Annotated[Length, Doc("Fill holes up to this diameter")] | None = None,

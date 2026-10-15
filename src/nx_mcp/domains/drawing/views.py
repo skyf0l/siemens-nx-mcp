@@ -34,14 +34,12 @@ from nx_mcp.core.types import (
     Aliases,
     BodyRef,
     Doc,
-    DrawingViewRef,
     EdgeRef,
     ExplosionRef,
     FeatureRef,
     Items,
     Point3,
     Range,
-    RefTo,
     SheetPoint,
     forbid_extra,
 )
@@ -52,13 +50,18 @@ from nx_mcp.domains.drawing.common import (
     DETAIL,
     VIEW_PARENT,
     ScaleArg,
+    SheetArg,
+    ViewArg,
     attribute,
+    on_sheet_point,
     open_or_only_sheet,
     scale_terms,
     scale_value,
+    sheet_of,
     update,
 )
 from nx_mcp.domains.drawing.view_kinds import EdgePoint
+from nx_mcp.domains.drawing.view_settings import HIDDEN_LINES_DOC
 from nx_mcp.kit import builders, drawing, geom, parts, readback, result, select, units
 
 ORIENTATIONS = {
@@ -361,13 +364,24 @@ def _summary(a, say):
     ),
     requires=("work_part", "no_active_sketch"),
     variants="type",
+    # The field that sets each derived view apart (a short list: nx_get_tool_schemas shows
+    # it); the tool refuses a call missing any other field it needs, naming them all.
+    required_by={
+        "section": ("cut",),
+        "half_section": ("cut",),
+        "stepped_section": ("cuts",),
+        "revolved_section": ("cuts",),
+        "detail": ("center",),
+        "break_out": ("center",),
+        "auxiliary": ("hinge",),
+        "broken": ("breaks",),
+    },
     cost="heavy",
     invalidates="deleted",
     example={
         "type": "base",
         "sheet": "sh:3",
         "orientation": "front",
-        "body": "b:4",
         "position": [120, 150],
     },
 )
@@ -387,8 +401,8 @@ def nx_create_drawing_view(
         "revolved_section",
         "break_out",
     ],
-    sheet: Annotated[str, RefTo("drawing_sheet", doc="Ref; default the open sheet")] | None = None,
-    parent: DrawingViewRef | None = None,
+    sheet: Annotated[SheetArg, Doc("Sheet ref or name; default the open sheet")] | None = None,
+    parent: ViewArg | None = None,
     orientation: Annotated[
         Literal["top", "front", "back", "right", "left", "bottom", "isometric"],
         Aliases(ORIENTATION_ALIASES),
@@ -399,35 +413,34 @@ def nx_create_drawing_view(
     direction: Annotated[
         Literal["right", "left", "top", "bottom"],
         Aliases(DIRECTION_ALIASES),
-        Doc("Projected: the side of the parent the view goes on"),
+        Doc("Projected: side of the parent"),
     ]
     | None = None,
-    spacing: Annotated[float, Range(gt=0), Doc("Projected: gap between borders, sheet units")]
-    | None = None,
-    hinge: EdgeRef | None = None,
-    cut: EdgeRef | None = None,
+    spacing: Annotated[float, Range(gt=0), Doc("Projected: border gap, sheet units")] | None = None,
+    hinge: Annotated[EdgeRef, Doc("Auxiliary: straight edge")] | None = None,
+    cut: Annotated[EdgeRef, Doc("section/half_section: cut edge")] | None = None,
     cut_point: Literal["start", "end", "center"] = "start",
-    bend: EdgePoint | None = None,
-    rotation: EdgePoint | None = None,
-    cuts: Annotated[list[EdgePoint], Items(2, 49)] | None = None,
+    bend: Annotated[EdgePoint, Doc("half_section: bend point")] | None = None,
+    rotation: Annotated[EdgePoint, Doc("revolved_section: rotation point")] | None = None,
+    cuts: Annotated[list[EdgePoint], Items(2, 49), Doc("stepped_section/revolved_section: legs")]
+    | None = None,
     step_direction: Vec2 | None = None,
     arrow_direction: Vec2 | None = None,
     axis: Literal["x", "y"] = "x",
-    breaks: Annotated[list[Band], Items(1, 4), Doc("Sheet [start, end]")] | None = None,
-    gap: Annotated[float, Range(gt=0), Doc("Sheet units")] | None = None,
-    center: Point3 | None = None,
-    radius: Annotated[float, Range(gt=0), Doc("Part units")] | None = None,
-    depth: Annotated[float, Range(gt=0), Doc("Part units")] | None = None,
+    breaks: Annotated[list[Band], Items(1, 4), Doc("Broken: sheet [start, end]")] | None = None,
+    gap: Annotated[float, Range(gt=0), Doc("Broken: sheet units")] | None = None,
+    center: Annotated[Point3, Doc("detail/break_out: model point")] | None = None,
+    radius: Annotated[float, Range(gt=0), Doc("detail/break_out: part units")] | None = None,
+    depth: Annotated[float, Range(gt=0), Doc("Break_out: part units")] | None = None,
     flat_pattern: FeatureRef | None = None,
     position: SheetPoint | None = None,
     scale: ScaleArg | None = None,
 ) -> ViewData:
-    """Place a drawing view at a sheet point (position: the view's reference point, sheet
-    units). Projected: parent plus orientation (the view to show, e.g. top; the projection
-    angle picks the side) or direction (the side of the parent it goes on). It
-    stays aligned with the parent: give spacing (border gap, default 20 mm) or a position whose
-    x (right/left) or y (top/bottom) lies past the parent's on that side and on the sheet.
-    Derived views keep the parent scale; broken and break_out cut the parent."""
+    """Place a drawing view at a sheet point (position: its reference point, sheet units;
+    data.center: border centre). Each type's fields: tool#type. Projected: parent +
+    orientation (the projection angle picks the side) or direction; it stays aligned with the
+    parent: spacing (border gap, default 20 mm) or a position past the parent on that side.
+    Derived views keep the parent scale (detail: 2); broken and break_out cut the parent."""
     a = {**locals(), "scale": scale_value(scale)}
     out = _create(tx, type, a)
     if type not in ("broken", "break_out"):  # those cut the parent view in place
@@ -527,7 +540,7 @@ def _section_points(kind, cut, cut_point, bend, rotation, cuts):
 def _sheet(tx, sheet_ref):
     if sheet_ref is None:
         return open_or_only_sheet(tx)
-    return select.resolve(tx, sheet_ref, "drawing_sheet", field="/sheet", work_part=True)
+    return sheet_of(tx, sheet_ref, "/sheet")
 
 
 def _create_base(tx, sheet_ref, orientation, body_ref, explosion_ref, position, scale):
@@ -544,12 +557,18 @@ def _create_base(tx, sheet_ref, orientation, body_ref, explosion_ref, position, 
                 fail("NX_INVALID_ARGUMENT", "explosion needs an assembly", field="/explosion")
             if body_ref is not None:
                 select.resolve(tx, body_ref, "body", field="/body", work_part=True)
-            if len(list(part.Bodies)) != 1:
+            count = len(list(part.Bodies))
+            if count != 1:
                 fail(
                     "NX_UNSUPPORTED_OPTION",
-                    "A base view of a part needs a single-body part",
-                    field="/body",
-                    details={"bodies": len(list(part.Bodies))},
+                    f"A base view of a part needs a part with exactly one body; this one has "
+                    f"{count}" + (": body cannot pick one of several" if body_ref else ""),
+                    field="/body" if body_ref is not None else "/type",
+                    hint="Keep one body: link it into a new part with nx_create_wave_link and "
+                    "draw that part, or remove the others with nx_create_delete_body"
+                    if count
+                    else "Model a body first",
+                    details={"bodies": count},
                 )
         else:
             if tx.session.Parts.Display != part:
@@ -564,6 +583,7 @@ def _create_base(tx, sheet_ref, orientation, body_ref, explosion_ref, position, 
                 fail("NX_WRONG_OWNER", "The explosion must belong to the work part",
                      field="/explosion")  # fmt: skip
         model_view = _model_view(tx, ORIENTATIONS[orientation])
+        on_sheet_point(target_sheet, position)
     with drawing.on_sheet(tx, target_sheet, part) as sh:
         point = list(position) if position else drawing.from_mm(sh.units, *DEFAULT_POSITION_MM)
         view = _base(tx, sh, point, scale, model_view)
@@ -712,6 +732,7 @@ def _create_section(tx, parent_ref, cut, cut_point, step, arrow, position, scale
         parent, sheet = drawing.view(tx, parent_ref, "/parent")
         edge, at, _ = kinds.edge_point(tx, cut, cut_point, "/cut", "/cut_point")
         scale = scale if scale is not None else drawing.scale(tx, parent)
+        on_sheet_point(sheet, position)
     with drawing.on_sheet(tx, sheet) as sh:
         data = kinds.drf_object(tx, edge, at, parent)
         tag = tx.uf.Draw.CreateSimpleSxview(
@@ -728,6 +749,7 @@ def _create_sx_kind(tx, kind, parent_ref, given, step, arrow, position, scale):
         if kind == "revolved":
             kinds.revolved_legs(tx, parent, points[0], points[1:])
         scale = scale if scale is not None else drawing.scale(tx, parent)
+        on_sheet_point(sheet, position)
     with drawing.on_sheet(tx, sheet) as sh:
         tag = kinds.create_sxview(
             tx, kind, sheet, parent, float(scale), step, arrow, points, position
@@ -750,6 +772,7 @@ def _finish_section(tx, sh, parent, tag, arrow, position, scale):
 def _create_auxiliary(tx, parent_ref, hinge_ref, position):
     with tx.checks():
         parent, sheet = drawing.view(tx, parent_ref, "/parent")
+        on_sheet_point(sheet, position)
         parent_scale = drawing.scale(tx, parent)
         found, hinge = kinds.hinge_of(tx, parent, hinge_ref, parent_scale)
         center = drawing.position(parent)
@@ -816,6 +839,7 @@ def _create_break_out(tx, view_ref, center, radius, depth):
 def _create_detail(tx, parent_ref, center, radius, position, scale):
     with tx.checks():
         parent, sheet = drawing.view(tx, parent_ref, "/parent")
+        on_sheet_point(sheet, position)
     scale = scale if scale is not None else DEFAULT_DETAIL_SCALE
     part = tx.part
     with drawing.on_sheet(tx, sheet, part) as sh:
@@ -840,6 +864,15 @@ def _create_detail(tx, parent_ref, center, radius, position, scale):
         view.SetAttribute(DETAIL, json.dumps(record))
         drawing.place(tx, view, position)
         _verify_scale(tx, view, scale)
+        if not drawing.drawn_curves(view):
+            fail(
+                "NX_INVALID_ARGUMENT",
+                "The detail boundary holds no geometry of the parent view: the view would be empty",
+                field="/center",
+                hint="center is a model point (part units) on the geometry to enlarge; pick "
+                "it from nx_list_view_edges of the parent or nx_find_geometry",
+                details={"center": [float(v) for v in center], "radius": float(radius)},
+            )
         return view_data(tx, view, sheet)
 
 
@@ -853,6 +886,7 @@ def _create_flat(tx, sheet_ref, feature_ref, position, scale):
         manager = part.Features.SheetmetalManager
         with builders.build(tx, manager.CreateFlatPatternBuilder, feature) as definition:
             model_view = _model_view(tx, definition.FlatPatternViewName)
+        on_sheet_point(target_sheet, position)
     with drawing.on_sheet(tx, target_sheet, part) as sh:
         point = list(position) if position else drawing.from_mm(sh.units, *DEFAULT_POSITION_MM)
         view = _base(tx, sh, point, scale, model_view)
@@ -865,11 +899,17 @@ def _create_flat(tx, sheet_ref, feature_ref, position, scale):
 # ---- edit and inspect --------------------------------------------------------------------
 
 
+Font = Literal[
+    "invisible", "solid", "dashed", "phantom", "centerline", "dotted", "long_dashed",
+    "dotted_dashed",
+]  # fmt: skip
+
+
 class ViewStyle(TypedDict, total=False):
-    hidden_lines: bool
+    hidden_lines: Annotated[bool, Doc(HIDDEN_LINES_DOC)]
     self_hidden: bool
-    hidden_font: Annotated[int, Range(ge=0, le=7)]
-    visible_font: Annotated[int, Range(ge=1, le=7)]
+    hidden_font: Annotated[Font, Doc("invisible: hidden edges not drawn")]
+    visible_font: Font
     smooth_edges: bool
     rendering: Literal["fully_shaded", "partially_shaded", "wireframe"]
     construction_geometry: bool
@@ -913,27 +953,55 @@ def view_info(tx, view, sheet):
 def nx_edit_drawing_view(
     tx: Tx,
     *,
-    view: DrawingViewRef,
+    view: ViewArg,
     position: SheetPoint | None = None,
     scale: ScaleArg | None = None,
     style: ViewStyle | None = None,  # noqa: A002 - surface name
 ) -> ViewInfo:
-    """Move a drawing view, change its scale or its display style (fonts 0-7, 0 invisible).
+    """Move a drawing view, change its scale or its display style (line fonts by name).
     Projected views made from it follow a scale change, keeping their gap (rescaled); a
-    projected view itself keeps its parent's scale (rescale the parent) and moves only along
-    the axis away from its parent. Every change is read back."""
-    changes = {k: v for k, v in (style or {}).items() if v is not None}
+    projected view itself keeps its parent's scale (rescale the parent). A projected view
+    moves only along the axis that keeps it aligned with its parent (a view below keeps
+    its x); a parent moved along that axis drags it when NX allows, else fails and stays.
+    Every change is read back."""
+    changes = {
+        k: view_style.font_name(v) if k.endswith("font") else v
+        for k, v in (style or {}).items()
+        if v is not None
+    }
+    if changes.get("visible_font") == "invisible":
+        fail("NX_INVALID_ARGUMENT", "visible_font cannot be invisible", field="/style/visible_font")
     ratio = scale_value(scale)
     if position is None and ratio is None and not changes:
         fail("NX_INVALID_ARGUMENT", "Give position, scale or style")
     with tx.checks():
         obj, sheet = drawing.view(tx, view)
         before = drawing.position(obj)
+        if ratio is not None and view_type(obj) == "projected":
+            parent = parent_of(tx, obj, sheet)
+            fail(
+                "NX_UNSUPPORTED_OPTION",
+                "A projected view keeps its parent's scale",
+                field="/scale",
+                hint="Rescale the parent view with nx_edit_drawing_view; its projected views "
+                "follow, keeping their gap",
+                details={"parent": tx.ref(parent, "drawing_view") if parent is not None else None,
+                         "scale": drawing.scale(tx, obj)},
+            )  # fmt: skip
+        on_sheet_point(sheet, position)
+        if position is not None:
+            _check_alignment(tx, obj, sheet, before, position)
     construction = changes.pop("construction_geometry", None)
     with drawing.on_sheet(tx, sheet):
         others = [v for v in sheet.GetDraftingViews() if int(v.Tag) != int(obj.Tag)]
+        at = {int(v.Tag): drawing.position(v) for v in others}
         styles = {int(v.Tag): view_style.read_style(tx, v) for v in others} if changes else {}
         followers = _followers(tx, obj, sheet) if ratio is not None else []
+        # A free view keeps its border centre on a rescale (NX may keep the reference point
+        # instead): a scale round trip puts it back where it was.
+        recentre = ratio is not None and position is None and not followers
+        recentre = recentre and view_type(obj) in ("base", "detail")
+        centre = _centre(tx, obj) if recentre else None
         if ratio is not None:
             tx.uf.Draw.SetViewScale(obj.Tag, ratio)
             for child, *_ in followers:
@@ -945,6 +1013,8 @@ def nx_edit_drawing_view(
         if construction is not None:
             view_style.set_construction(tx, obj, construction, strict=True)
         tx.part.DraftingViews.UpdateViews([obj] + [f[0] for f in followers])
+        if centre is not None:
+            _keep_centre(tx, obj, centre, sheet)
         rescaled = _keep_gaps(tx, followers, ratio)
         refresh_details(tx)
         out = view_info(tx, obj, sheet)
@@ -952,16 +1022,6 @@ def nx_edit_drawing_view(
         if rescaled:
             out["rescaled"] = rescaled
     if ratio is not None:
-        if out["type"] == "projected" and not abs(out["scale"] - ratio) <= 1e-8:
-            fail(
-                "NX_VERIFICATION_FAILED",
-                f"NX kept this projected view at scale {out['scale']:g}, not {ratio:g}: a "
-                "projected view follows its parent's scale",
-                hint="Rescale the parent view with nx_edit_drawing_view; its projected views "
-                "follow, keeping their gap",
-                details={"check": "scale", "actual": out["scale"], "wanted": ratio,
-                         "parent": out["parent"]},
-            )  # fmt: skip
         readback.expect_close(out["scale"], ratio, "scale", 1e-8)
     if position is not None:
         tol = units.tolerance(units.sheet_units(tx, sheet), 1e-4)
@@ -970,18 +1030,90 @@ def nx_edit_drawing_view(
             for i in (0, 1)
         ]
         if any(kept) and not all(kept):
-            # An aligned (projected or section) view moves only along its free axis.
+            # An aligned (projected or section) view moves only along its free axis; NX
+            # drags a parent's projected views along with it only in some cases.
+            k = kept.index(True)
+            rows = [tx.ref(v, "drawing_view") for v in aligned_axes(tx, obj, sheet).get(k, [])]
+            names = ", ".join(str(r.get("name") or r.get("id")) for r in rows) or "another view"
             fail(
                 "NX_UNSUPPORTED_OPTION",
-                "The view is aligned to its parent along this axis: move only along the other "
-                "axis, or move the parent",
+                f"NX keeps this view aligned with {names}: its {'xy'[k]} stays {before[k]:g}",
                 field="/position",
-                details={"requested": list(position), "actual": out["position"]},
-            )
+                hint=f"Move it only along {'yx'[k]} (keep {'xy'[k]} = {before[k]:g})",
+                details={"aligned_views": rows, "requested": list(position),
+                         "actual": out["position"]},
+            )  # fmt: skip
         readback.expect_close(out["position"], list(position), "position", tol)
+        for v in others:  # projected views NX dragged along with their parent
+            now = drawing.position(v)
+            if any(abs(now[i] - at[int(v.Tag)][i]) > tol for i in (0, 1)):
+                tx.modified(v, "drawing_view")
+    tx.modified(obj, "drawing_view")
     if position is not None or ratio is not None:
         warn_overlaps(tx, out)
     return out
+
+
+def aligned_axes(tx, view, sheet, children=True):
+    """``{axis: [views]}``: the sheet axes (0 x, 1 y) along which ``view`` is aligned with
+    another view, and those views. A projected view is aligned with its parent across the
+    side it lies on (a view below its parent shares its x); with ``children``, the parent
+    with each of its projected views the same way."""
+    handle = tx.uf.Tag.AskHandleFromTag(view.Tag)
+    parent = parent_of(tx, view, sheet) if view_type(view) == "projected" else None
+    pairs = [(parent, view)] if parent is not None else []
+    pairs += [
+        (view, child)
+        for child in (sheet.GetDraftingViews() if children else [])
+        if int(child.Tag) != int(view.Tag)
+        and view_type(child) == "projected"
+        and attribute(tx, child, VIEW_PARENT) == handle
+    ]
+    out: dict[int, list] = {}
+    for a_view, b_view in pairs:
+        a, b = drawing.borders(tx, a_view), drawing.borders(tx, b_view)
+        apart = [max(b[i] - a[i + 2], a[i] - b[i + 2]) for i in (0, 1)]
+        free = 0 if apart[0] >= apart[1] else 1  # the borders are apart along the free axis
+        other = b_view if int(a_view.Tag) == int(view.Tag) else a_view
+        out.setdefault(1 - free, []).append(other)
+    return out
+
+
+def _check_alignment(tx, view, sheet, before, position):
+    """Refuse a projected view's move across the alignment with its parent (NX keeps it).
+    A parent's move along its projected views' alignment is left to NX: it drags them along
+    in some cases and holds the parent in others (read back after the move)."""
+    tol = units.tolerance(units.sheet_units(tx, sheet), 1e-4)
+    held = aligned_axes(tx, view, sheet, children=False)
+    for axis in (0, 1):
+        if axis in held and abs(float(position[axis]) - before[axis]) > tol:
+            rows = [tx.ref(v, "drawing_view") for v in held[axis]]
+            names = ", ".join(str(r.get("name") or r.get("id")) for r in rows)
+            fail(
+                "NX_UNSUPPORTED_OPTION",
+                f"NX keeps this view aligned with {names} along {'xy'[axis]}: its "
+                f"{'xy'[axis]} stays {before[axis]:g}",
+                field="/position",
+                hint=f"Move it only along {'yx'[axis]} (keep {'xy'[axis]} = {before[axis]:g}), "
+                "or move the parent view: its projected views follow when NX allows it",
+                details={"aligned_views": rows, "position": before, "requested": list(position)},
+            )
+
+
+def _centre(tx, view):
+    bounds = drawing.borders(tx, view)
+    return [(bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2]
+
+
+def _keep_centre(tx, view, centre, sheet):
+    """Move ``view`` so its border centre is ``centre`` again (read back)."""
+    now = _centre(tx, view)
+    tol = units.tolerance(units.sheet_units(tx, sheet), 1e-4)
+    if all(abs(a - b) <= tol for a, b in zip(now, centre, strict=True)):
+        return
+    point = [p + c - n for p, c, n in zip(drawing.position(view), centre, now, strict=True)]
+    drawing.place(tx, view, point)
+    readback.expect_close(_centre(tx, view), centre, "center", 10 * tol)
 
 
 def _followers(tx, view, sheet):
@@ -1068,11 +1200,10 @@ def _apply_style(tx, view, changes):
 def nx_get_drawing_view(
     tx: Tx,
     *,
-    view: DrawingViewRef,
+    view: ViewArg,
 ) -> ViewInfo:
     """Read a drawing view: type, orientation, parent, position, scale and border. Also the
-    views it overlaps, whether it lies on the sheet, its style and construction state. A
-    projected view may read visible_font/hidden_font 0 (raw NX value) while NX draws it
-    solid/dashed."""
+    views it overlaps, whether it lies on the sheet, its style (line fonts by name;
+    hidden_font invisible: hidden edges are not drawn) and construction state."""
     obj, sheet = drawing.view(tx, view)
     return view_info(tx, obj, sheet)

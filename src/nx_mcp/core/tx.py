@@ -250,6 +250,24 @@ class Services:
         return None
 
 
+REPLACE_TRIES = 20  # backoff 0.05 s doubling to 0.5 s, about 6 s in all: Windows refuses a
+# replace while a scanner holds a file that was just written or read
+
+
+def replace_file(temp, target) -> None:
+    """``os.replace`` (atomic on one volume; staging is inside the workspace), retried
+    for a moment while Windows refuses it (``PermissionError``: another process, such as
+    a virus scanner or an indexer, has just opened the earlier file)."""
+    for attempt in range(REPLACE_TRIES):
+        try:
+            os.replace(temp, target)
+            return
+        except PermissionError:
+            if attempt == REPLACE_TRIES - 1:
+                raise
+            time.sleep(min(0.5, 0.05 * 2**attempt))
+
+
 def publish_new(temp, target, *, field: str | None = "/path") -> Path:
     """Move a finished ``temp`` file to ``target`` without ever overwriting it.
 
@@ -344,7 +362,7 @@ class Files:
         try:
             for temp, target, replace in staged:
                 if replace and target.exists():
-                    os.replace(temp, target)  # atomic on one volume (staging is inside)
+                    replace_file(temp, target)
                     self.replaced.append(target)
                 else:
                     publish_new(temp, target, field=None)
@@ -491,6 +509,10 @@ class Tx:
         # Keys the kernel adds to this call's undo-history entry (``compensation``: an
         # undo by deletion, never undone itself; core/marks.py).
         self.history_note: dict | None = None
+        # The committed call's ``changes`` block, set by the kernel before it records the
+        # undo-history entry (None until then): read by the checkpoint notes of gate 14
+        # (``core/undoable.checkpoint_notes``) before the receipt is finished.
+        self.changes: dict | None = None
         # The part a call without a target worked in (the part nx_create_part or
         # nx_open_part made or reused): the busy-part table's stream (core/busy.py).
         self.worked_in: Any = None
@@ -499,15 +521,44 @@ class Tx:
         self.caller: dict | None = parent.caller if parent is not None else None
 
     def note_restore(self, data: dict) -> None:
-        """Keep the before-values of what this call changes in its undo-history entry
-        (``history_note["restore"]``): a compensating undo sets them back through the
-        tool's ``@restorer`` hook. Only a top-level call's entry carries them (a batch
-        step's values are not restored by compensation)."""
-        if self.parent is not None:
+        """Keep the before-values of what this call changes, so an undo can set them back
+        when NX's undo cannot reach the call (other parts' work came after it).
+
+        A value-setting tool calls it once, after its change read back, with plain JSON
+        data (refs, names, numbers, strings: never NX objects), and registers the hook
+        that sets the values back: ``@restorer("<tool name>")`` (core/catalogue.py),
+        ``fn(tx, data, *, apply) -> str``. With ``apply`` false the hook only checks that
+        the values still read what the call set (``fail("NX_DEPENDENCY_ORDER", ...)``
+        when they changed since); with ``apply`` true it sets ``data``'s before-values
+        back in ``tx.part`` and verifies them; it returns what it set back ("PART_NO of
+        a.prt back to 'A-1'"). Without both, an undo the NX undo cannot reach is refused
+        for the call. Example (domains/session/naming.py)::
+
+            tx.note_restore({"object": ref, "before": old, "after": new})
+
+        A top-level call keeps ``data`` in its undo-history entry
+        (``history_note["restore"]``); a child of ``nx_run_batch`` or an accepted
+        ``nx_finish_preview`` adds it to its parent's entry (``child_restores``: step
+        index, tool, part key), so the parent is undone child by child."""
+        if self.parent is None:
+            note = dict(self.history_note or {})
+            note["restore"] = data
+            self.history_note = note
             return
-        note = dict(self.history_note or {})
-        note["restore"] = data
-        self.history_note = note
+        if self.parent.parent is not None:
+            return  # a grandchild: not kept (its parent's step is not undone by values)
+        root = self.parent
+        part = None
+        with contextlib.suppress(Exception):
+            work = self._services.work_part()
+            part = self._services.part_key(work) if work is not None else None
+        note = dict(root.history_note or {})
+        steps = list(note.get("child_restores") or [])
+        steps.append(
+            {"index": len(root.children), "tool": self.spec.name, "restore": data, "part": part}
+        )
+        note["child_restores"] = steps
+        root.history_note = note
 
     # -- NX access ------------------------------------------------------------
     @property
@@ -587,6 +638,15 @@ class Tx:
         if key in self.extra_parts or (work is not None and services.part_key(work) == key):
             return
         self.extra_parts[key] = (part, services.snapshot(part))
+        root = self
+        while root.parent is not None:
+            root = root.parent
+        note = dict(root.history_note or {})
+        if key not in (note.get("parts") or []):
+            # the undo-history entry names the other parts the call changed: an undo by
+            # compensation deletes what it created there too
+            note["parts"] = [*(note.get("parts") or []), key]
+            root.history_note = note
 
     def require_owned(self, part, *, field: str | None = None) -> None:
         """Refuse to save, close or change ``part`` unless the agent owns it (gate 6).

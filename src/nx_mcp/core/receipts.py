@@ -113,13 +113,21 @@ def _conflict(existing: dict, tool: str, args: dict, operation_id: str, part) ->
             "NX_IDEMPOTENCY_CONFLICT",
             f"operation_id {operation_id} was already used for the same call in another "
             f"part ({name})",
+            field="/operation_id",
             hint="Use a new operation_id for each part, e.g. prefix it with the part's name",
             details={"operation_id": operation_id, "part": name, "part_path": other},
+            retry="after_fix",
         )
     fail(
         "NX_IDEMPOTENCY_CONFLICT",
-        "operation_id was already used with different arguments",
-        details={"operation_id": operation_id},
+        f"operation_id {operation_id} was already used by another call ("
+        f"{existing.get('tool') or 'another tool'}) with different arguments",
+        field="/operation_id",
+        hint="This id already ran with other arguments: use a new operation_id for a "
+        "different call (nx_get_operation shows the earlier call); repeat the same id only "
+        "with the same arguments to retry it",
+        details={"operation_id": operation_id, "tool": existing.get("tool")},
+        retry="after_fix",
     )
 
 
@@ -403,6 +411,9 @@ class Receipts:
             state = existing.get("state")
             stored = existing.get("envelope")
             if existing.get("reverted_by") and state == "committed":
+                rerun = self._redone(existing)
+                if rerun is not None:
+                    return rerun
                 return None  # undone: the call runs again (begin links the new receipt)
             if state in ("committed", "failed") and isinstance(stored, dict):
                 replay = dict(stored, replayed=True)
@@ -422,6 +433,35 @@ class Receipts:
                 details={"operation_id": operation_id, "state": state},
             )
         return None
+
+    def _redone(self, existing: dict) -> dict | None:
+        """The replay of an undone call that ``nx_redo_operation`` ran again under another
+        operation_id (``redone_as``: its refs were remapped), while that run stands: a
+        retry of the old id must not make the objects a second time."""
+        other = existing.get("redone_as")
+        if not isinstance(other, str):
+            return None
+        try:
+            rerun = self.store.get(other)
+        except Exception:
+            return None
+        stored = rerun.get("envelope")
+        if (
+            rerun.get("state") != "committed"
+            or rerun.get("reverted_by")
+            or not isinstance(stored, dict)
+        ):
+            return None
+        replay = dict(stored, replayed=True)
+        replay["warnings"] = [
+            *(replay.get("warnings") or []),
+            {
+                "code": "NX_NOTE",
+                "message": f"{existing.get('operation_id')} was undone and redone as {other}: "
+                "this is that run's result",
+            },
+        ]
+        return replay
 
     def begin(
         self,

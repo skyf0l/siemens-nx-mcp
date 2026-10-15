@@ -1,0 +1,54 @@
+{
+ "covers": {
+  "nx_list_lights": [],
+  "nx_set_light": [],
+  "nx_set_lighting_preset": [],
+  "nx_set_true_shading": [],
+  "nx_get_true_shading": []
+ },
+ "part": null,
+ "fixture": null,
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "save": "front", "args": {"path": "$run/lbg/lbg_front.prt", "units": "mm"}},
+  {"call": "engineer", "args": {"code": "from nx_mcp.kit import parts as kp\nservices.host._remember_model()  # the development tool's own undo mark is no engineer edit\np = [x for x in session.Parts if str(x.Leaf).lower().startswith('lbg_front') and str(x.FullPath).lower().startswith(r'$run'.lower())][0]\nkp.show(NXOpen, session.Parts, p)\nresult = p.Leaf"}, "intent": "Acceptance: the engineer looks at lbg_front.prt (a tab click, no edit): it is the displayed part", "expect": {"ok": true, "data.noticed": false}},
+  {"call": "nx_create_primitive", "setup": true, "args": {"shape": "block", "length": 40, "width": 20, "height": 10}},
+  {"call": "nx_create_part", "setup": true, "save": "a", "args": {"path": "$run/lbg/lbg_a.prt", "units": "mm", "display": false}},
+  {"call": "nx_create_primitive", "setup": true, "args": {"shape": "block", "length": 100, "width": 50, "height": 20, "part": "lbg_a"}},
+  {"call": "nx_set_lighting_preset", "setup": true, "args": {"part": "lbg_a", "preset": "lighting_1"}, "expect": {"mutation_outcome": "committed"}},
+
+  {"call": "nx_set_light", "args": {"part": "lbg_a", "name": "Point 1", "on": true, "position": [50, -100, 100], "intensity": 1},
+   "expect": {"mutation_outcome": "committed", "data.light.on": true, "data.light.position": {"close": [50, -100, 100], "tol": 1e-06}}},
+  {"call": "nx_list_lights", "args": {"part": "lbg_a", "on_only": true},
+   "intent": "Acceptance: lights of a part in the background are read with that part shown (live: the displayed part's five scene lights and lighting_4 came back)",
+   "expect": {"ok": true, "part.file": "lbg_a.prt", "data.on": {"contains": "Point 1"},
+              "data.lights": {"contains": {"name": "Point 1", "on": true, "intensity": 1.0}}}},
+  {"call": "nx_list_parts", "args": {"path_prefix": "$run"},
+   "expect": {"data.items": {"contains": {"part": {"id": "$front.data.part.id"}, "display": true}}}},
+
+  {"call": "nx_set_light", "args": {"part": "lbg_a", "name": "Distant 1", "on": true, "direction": [0, 0, -1], "intensity": 2, "color": [255, 0, 0]},
+   "intent": "Acceptance: a colour with an intensity above 1 (live: UF EditViewLight refused it with 1105005)",
+   "expect": {"mutation_outcome": "committed", "data.light.intensity": {"close": 2, "tol": 1e-06}, "data.color": {"close": [1, 0, 0], "tol": 1e-06}}},
+  {"call": "nx_set_light", "args": {"part": "lbg_a", "name": "Distant 1", "color": [0, 255, 0]},
+   "expect": {"mutation_outcome": "committed", "data.light.intensity": {"close": 2, "tol": 1e-06}}},
+
+  {"call": "nx_set_lighting_preset", "args": {"part": "lbg_a", "preset": "scene"},
+   "expect": {"mutation_outcome": "committed", "data.on": {"count": 8}}},
+  {"call": "nx_list_lights", "args": {"part": "lbg_a", "on_only": true},
+   "expect": {"ok": true, "data.count": 8, "data.on": {"contains": "Scene Front"}}},
+
+  {"call": "nx_set_true_shading", "args": {"part": "lbg_a", "material": "chrome"},
+   "expect": {"mutation_outcome": "committed", "data.enabled": true, "data.style": "studio"}},
+  {"call": "nx_get_true_shading", "args": {"part": "lbg_a"},
+   "expect": {"ok": true, "mutation_outcome": "not_applicable", "data.enabled": true, "data.material": "chrome"}},
+  {"call": "nx_set_true_shading", "args": {"part": "lbg_a", "enabled": false},
+   "expect": {"mutation_outcome": "committed", "data.enabled": false, "data.style": {"matches": "^(shaded|shaded_with_edges)$"}}},
+  {"call": "nx_get_true_shading", "args": {"part": "lbg_a"},
+   "intent": "Acceptance: true shading switched off stays off when the part is shown again (live: the read-back builder switched it back on)",
+   "expect": {"ok": true, "data.enabled": false, "data.material": "chrome", "data.style": {"matches": "^(shaded|shaded_with_edges)$"}}},
+  {"call": "nx_get_camera", "args": {"part": "lbg_a"},
+   "expect": {"ok": true, "data.style": {"matches": "^(shaded|shaded_with_edges)$"}}},
+  {"call": "nx_get_true_shading", "args": {"part": "lbg_a"},
+   "intent": "Acceptance: reading twice changes nothing",
+   "expect": {"ok": true, "data.enabled": false}}
+ ]
+}

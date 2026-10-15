@@ -10,6 +10,7 @@ from types import SimpleNamespace as NS
 
 import pytest
 
+from nx_mcp.core import undoable
 from nx_mcp.domains.session import compensate
 from tests.kit import run
 from tests.kit.kernel import services
@@ -140,10 +141,13 @@ def test_drawing_views_nx_refreshed_do_not_block_a_create_only_undo():
     views = [{"id": "v:1", "kind": "drawing_view"}, {"id": "sh:2", "kind": "drawing_sheet"}]
     record = {"state": "committed", "envelope": {"changes": {"created": [feature],
                                                              "modified": views}}}  # fmt: skip
-    assert compensate._creates(entry, record) == [feature]
+    assert undoable.creates(undoable.units(None, entry, record)[0]) == [feature]
+    # a body the created feature changed comes back when the feature is deleted
     record["envelope"]["changes"]["modified"].append({"id": "b:3", "kind": "body"})
+    assert undoable.creates(undoable.units(None, entry, record)[0]) == [feature]
+    record["envelope"]["changes"]["modified"].append({"id": "o:4", "kind": "component"})
     with pytest.raises(compensate.Refusal, match="did more than create objects"):
-        compensate._creates(entry, record)
+        undoable.creates(undoable.units(None, entry, record)[0])
 
 
 def test_an_operation_behind_another_parts_close_is_offered_and_done_by_compensation(nx):
@@ -195,4 +199,5 @@ def test_an_operation_that_qualifies_for_nothing_gets_the_fix_forward_hint(nx):
     refused = run(nx, "nx_undo_operation", part="a")
     assert refused.error["code"] == "NX_CROSS_PART", refused
     assert refused.error["hint"].startswith("Fix forward instead")
-    assert "nx_set_attributes" in refused.error["hint"]
+    assert "create again what it deleted" in refused.error["hint"]
+    assert refused.error["retry"] == "never"

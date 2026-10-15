@@ -81,8 +81,12 @@
       210
      ],
      "tol": 1e-06
+    },
+    "changes.modified": {
+     "count": 2
     }
-   }
+   },
+   "intent": "Acceptance: the parent moves and NX drags its right-hand projected view along in y (reported modified)"
   },
   {
    "call": "nx_edit_drawing_view",
@@ -114,25 +118,29 @@
    },
    "expect": {
     "error.category": "unsupported",
-    "mutation_outcome": "rolled_back",
-    "error.field": "/position"
-   }
+    "mutation_outcome": "not_started",
+    "error.field": "/position",
+    "error.details.aligned_views": {
+     "count": 1
+    }
+   },
+   "intent": "Acceptance: a projected view's move across its parent's alignment is refused before NX"
   },
   {
    "call": "nx_edit_drawing_view",
    "args": {
     "view": "$top.data.view.id",
     "style": {
-     "hidden_font": 0,
-     "visible_font": 1,
+     "hidden_font": "invisible",
+     "visible_font": "solid",
      "smooth_edges": false,
      "rendering": "wireframe"
     }
    },
    "expect": {
-    "data.style.hidden_font": 0,
+    "data.style.hidden_font": "invisible",
     "data.style.smooth_edges": false,
-    "data.style.visible_font": 1
+    "data.style.visible_font": "solid"
    }
   },
   {
@@ -157,12 +165,12 @@
     "style": {
      "hidden_lines": true,
      "self_hidden": true,
-     "hidden_font": 2
+     "hidden_font": "dashed"
     }
    },
    "expect": {
     "data.style.hidden_lines": true,
-    "data.style.hidden_font": 2,
+    "data.style.hidden_font": "dashed",
     "warnings": {
      "count": 0
     }
@@ -237,6 +245,69 @@
    "expect": {
     "error.category": "wrong_kind",
     "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "iso",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "isometric",
+    "position": [
+     300,
+     100
+    ]
+   }
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "args": {
+    "view": "$iso.data.view.id",
+    "scale": 2
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.scale": {
+     "close": 2,
+     "tol": 1e-09
+    },
+    "data.center": {
+     "close": "$iso.data.center",
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "args": {
+    "view": "$iso.data.view.id",
+    "scale": 1
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.center": {
+     "close": "$iso.data.center",
+     "tol": 0.001
+    },
+    "data.position": {
+     "close": "$iso.data.position",
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "args": {
+    "view": "$iso.data.view.id",
+    "style": {
+     "hidden_font": "phantom"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.style.hidden_font": "phantom"
    }
   },
   {

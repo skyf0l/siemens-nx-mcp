@@ -176,7 +176,7 @@ def test_a_sheets_title_block_lists_its_cells_across_sections():
     assert both.error["code"] == "NX_INVALID_ARGUMENT"
     other = nx.make_sheet("SHT2")
     none = run(nx, "nx_get_drawing_table", sheet=other.ref)
-    assert none.error["code"] == "NX_NOT_FOUND"
+    assert none.ok and none.data["table"] is None and none.data["tables"] == []
 
 
 def test_cells_take_text_and_attribute_links_that_follow_the_attribute():
@@ -257,3 +257,13 @@ def test_created_title_blocks_define_every_cell_and_keep_labels_by_place():
 def test_bound_references_read_as_written():
     assert title_blocks.normalize("REV <WID12*0@DB_PART_REV>") == "REV <W@DB_PART_REV>"
     assert title_blocks.reference("DB_MATERIAL") == "<W@DB_MATERIAL>"
+
+
+def test_labels_match_ignoring_case_and_a_miss_names_the_label():
+    nx, model, ref = template_nx()
+    ok = edit(nx, ref, [{"label": "drawn  BY", "text": "AGENT"}])
+    assert ok.ok, ok
+    assert next(c for c in ok.data["cells"] if c["label"] == "Drawn By")["value"] == "AGENT"
+    miss = edit(nx, ref, [{"label": "drawer", "text": "X"}])
+    assert miss.error["code"] == "NX_NOT_FOUND" and "'drawer'" in miss.error["message"]
+    assert "Drawn By" in miss.error["details"]["labels"]

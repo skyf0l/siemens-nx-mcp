@@ -14,14 +14,14 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_list_visual_materials": "730d9f6d96ac3d26a00bf9854329d6706aeb82ad7449f765af045893804d08ae",
-    "nx_set_visual_material": "730d9f6d96ac3d26a00bf9854329d6706aeb82ad7449f765af045893804d08ae",
-    "nx_get_visual_material": "730d9f6d96ac3d26a00bf9854329d6706aeb82ad7449f765af045893804d08ae",
-    "nx_set_true_shading": "730d9f6d96ac3d26a00bf9854329d6706aeb82ad7449f765af045893804d08ae",
-    "nx_create_decal": "1742db3e53339e3fbb9eea70115e58feca5557c65f604ed9733d0a59a902ab01",
-    "nx_delete_decal": "1742db3e53339e3fbb9eea70115e58feca5557c65f604ed9733d0a59a902ab01"
+    "nx_list_visual_materials": "ca598fe8b6b3ee93fe47272df2a98fb1b948cde5487074ec9b7de4f420a7beee",
+    "nx_set_visual_material": "ca598fe8b6b3ee93fe47272df2a98fb1b948cde5487074ec9b7de4f420a7beee",
+    "nx_get_visual_material": "ca598fe8b6b3ee93fe47272df2a98fb1b948cde5487074ec9b7de4f420a7beee",
+    "nx_set_true_shading": "ca598fe8b6b3ee93fe47272df2a98fb1b948cde5487074ec9b7de4f420a7beee",
+    "nx_create_decal": "56f4869570b6e7ecfe26870b25132422cc398de72d2a609a8040db2803d2f87f",
+    "nx_delete_decal": "56f4869570b6e7ecfe26870b25132422cc398de72d2a609a8040db2803d2f87f"
   },
-  "recorded": "2026-10-13T15:40:57Z",
+  "recorded": "2026-10-15T11:46:02Z",
   "passed": true,
   "checks": 62,
   "failed_checks": 0,

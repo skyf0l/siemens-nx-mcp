@@ -37,6 +37,43 @@ def test_mirror_bodies_checks_the_reflection_and_hides_sources():
     assert bad.error["details"]["check"] == "mirror[0]" and bad.mutation_outcome == "rolled_back"
 
 
+def test_mirror_bodies_reports_the_hidden_sources():
+    nx = modeling_nx()
+    block = nx.block(40, 20, 10)
+    nx.on_commit("MirrorBodyBuilder", lambda b: feature(nx, "MIRROR_BODY",
+                 [new_body(nx, [-40, 0, 0, 0, 20, 10])]))  # fmt: skip
+    ok = run(nx, "nx_create_mirror", bodies=[block.ref], plane="yz", keep_original=False)
+    assert ok.ok, ok
+    assert [r["id"] for r in ok.data["hidden"]] == [block.ref]
+    kept = run(nx, "nx_create_mirror", bodies=[block.ref], plane="yz")
+    assert kept.ok and "hidden" not in kept.data
+
+
+def test_mirror_infers_target_features_and_takes_a_datum_plane_feature():
+    nx = modeling_nx()
+    block = nx.block(40, 20, 10)
+    seed = feature(nx, "EXTRUDE", [block])
+    datum = feature(nx, "DATUM_PLANE", [])
+    datum.DatumPlane = nx.datum_plane((20, 0, 0), (1, 0, 0))
+
+    def mirrored(b):
+        block.volume += 30
+        return feature(nx, "MIRROR", [block])
+
+    nx.on_commit("MirrorBuilder", mirrored)
+    ok = run(nx, "nx_create_mirror", features=[nx.ref_of(seed, "feature")],
+             plane=nx.ref_of(datum, "feature"))  # fmt: skip
+    assert ok.ok, ok
+    assert ok.data["target"] == "features"
+    b = nx.last("MirrorBuilder")
+    assert b.PatternService.MirrorDefinition.ExistingPlane.Value is datum.DatumPlane
+    plain = feature(nx, "BLOCK", [])
+    bad = run(nx, "nx_create_mirror", features=[nx.ref_of(seed, "feature")],
+              plane=nx.ref_of(plain, "feature"))  # fmt: skip
+    assert bad.error["code"] == "NX_WRONG_KIND" and bad.mutation_outcome == "not_started"
+    assert "datum plane" in bad.error["hint"]
+
+
 def test_mirror_features_uses_the_mirror_layout_and_reads_the_volume():
     nx = modeling_nx()
     block = nx.block(40, 20, 10)
@@ -482,7 +519,7 @@ def test_mirror_features_unite_merges_the_mirror_into_the_seed_body():
 
 
 # ---------------------------------------------------------------------------
-# Short forms and guidance (live tester batch b25)
+# Short forms and guidance
 
 
 def test_pattern_takes_bare_principal_directions_and_axes():

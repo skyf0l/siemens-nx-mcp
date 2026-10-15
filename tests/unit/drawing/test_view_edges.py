@@ -1,11 +1,14 @@
 """nx_list_view_edges on the fake: the drafting curves' parent edges in sheet coordinates."""
 
+import json
 from types import SimpleNamespace as NS
 
 import pytest
 
+from nx_mcp.domains.drawing.common import DETAIL
 from tests.kit import run
-from tests.unit.drawing.fakes import arc_edge, drawing_nx, install_eval, line_edge
+from tests.kit.objects import matrix
+from tests.unit.drawing.fakes import arc_edge, drawing_nx, install_eval, line_edge, make_view
 
 
 def edges_nx(scale=2.0):
@@ -66,3 +69,66 @@ def test_view_edges_of_a_view_without_drafting_curves_is_an_empty_page():
     view.DraftingBodies = []
     ok = run(nx, "nx_list_view_edges", view=view.ref)
     assert ok.ok and ok.data["items"] == [] and ok.page["total"] == 0
+
+
+def trace_through_top(nx, edges, top=20.0):
+    """Every edge on ``body``; a ray toward the top-view viewer (+z) hits material when it
+    starts below the block's top face."""
+    body = NS(Tag=4242)
+    for e in edges:
+        e.GetBody = lambda: body
+
+    def trace(count, tags, origin, direction, matrix, flag):
+        if origin[2] < top - 1e-6:
+            return 1, [NS(HitPoint=[origin[0], origin[1], top])]
+        return 0, []
+
+    nx.uf.Modeling = NS(TraceARay=trace)
+    return body
+
+
+def test_edges_behind_material_are_left_out_or_flagged_on_request():
+    nx, view, e = edges_nx()
+    hidden = e.hidden
+    nx.uf.Draw.AskDraftingCurveParents = _with_curve(nx, view, hidden)
+    trace_through_top(nx, [e.front, e.left, e.slant, e.hole, hidden])
+    ok = run(nx, "nx_list_view_edges", view=view.ref)
+    assert ok.ok, ok
+    assert hidden.ref not in [i["id"] for i in ok.data["items"]]
+    every = run(nx, "nx_list_view_edges", view=view.ref, hidden=True)
+    row = next(i for i in every.data["items"] if i["id"] == hidden.ref)
+    assert row["hidden"] is True and row["length"] == pytest.approx(160.0)
+
+
+def _with_curve(nx, view, edge):
+    """Give ``edge`` a drafting curve in ``view`` (NX drafts hidden edges too)."""
+    body = view.DraftingBodies[0]
+    curve = NS(Tag=9100, GetLength=lambda: 80.0)
+    body.DraftingCurves.append(curve)
+    old = nx.uf.Draw.AskDraftingCurveParents
+    return lambda tag: (1, [int(edge.Tag)]) if int(tag) == 9100 else old(tag)
+
+
+def test_a_circle_seen_edge_on_is_listed_as_the_line_it_is_drawn_as():
+    nx, view, e = edges_nx(scale=1.0)
+    view.Matrix = matrix((1, 0, 0), (0, 0, 1), (0, -1, 0))  # a front view
+    ok = run(nx, "nx_list_view_edges", view=view.ref, geometry_type="line",
+             orientation="horizontal")  # fmt: skip
+    hole = next(i for i in ok.data["items"] if i["id"] == e.hole.ref)
+    assert hole["edge_on"] is True and hole["type"] == "line"
+    assert hole["length"] == pytest.approx(16.0) and hole["center"] == pytest.approx([125, 120])
+
+
+def test_a_detail_view_clips_its_edges_to_the_boundary_circle():
+    nx, view, e = edges_nx(scale=1.0)
+    detail = make_view(nx, nx.part.DrawingSheets[0], "DETAIL@2", pos=(300, 100), scale=3.0,
+                       native="DetailView")  # fmt: skip
+    detail.SetAttribute(DETAIL, json.dumps({"parent": "h1", "center": [80, 0, 20], "radius": 10}))
+    detail.DraftingBodies = view.DraftingBodies
+    ok = run(nx, "nx_list_view_edges", view=detail.ref)
+    assert ok.ok, ok
+    rows = {i["id"]: i for i in ok.data["items"]}
+    front = rows[e.front.ref]  # x 300..540 on the sheet, cut at the circle (center 540, r 30)
+    assert front["partial"] is True and front["start"] == pytest.approx([510, 100])
+    assert front["end"] == pytest.approx([540, 100]) and front["model_length"] == pytest.approx(10)
+    assert e.left.ref not in rows and e.hole.ref not in rows  # outside the boundary

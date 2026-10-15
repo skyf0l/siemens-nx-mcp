@@ -41,7 +41,7 @@ from nx_mcp.core.types import (
     Text,
     forbid_extra,
 )
-from nx_mcp.domains.drawing import fits, overall
+from nx_mcp.domains.drawing import dimension_text, fits, overall
 from nx_mcp.domains.drawing.common import (
     ViewArg,
     associated,
@@ -92,6 +92,7 @@ class DimensionData(TypedDict, total=False):
     ordinate_origin: result.Row
     origin: list[float]
     margin: float
+    margin_line: float
     units: str
     callout: dict
     bounds: list[float]
@@ -173,6 +174,44 @@ def text_spot(tx, sh, view, anchor, direction):
     return spots[0]
 
 
+def on_sheet_line(sheet, value, axis, field):
+    """Refuse a dimension line off the sheet (``axis`` 1: a sheet y, 0: a sheet x)."""
+    limit = drawing.size(sheet)[axis]
+    if not 0 <= value <= limit:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"The dimension line would lie off the sheet at {'xy'[axis]} = {value:g} "
+            f"(sheet 0 to {limit:g})",
+            field=field,
+            hint="Use a smaller margin (the gap from the view border), or move the view",
+            details={"sheet_size": drawing.size(sheet)},
+        )
+
+
+def set_bounds(tx, sh, out, members, taken, what):
+    """``out`` with the members' joint ``bounds``; warns when they leave the sheet, or their
+    texts lie over a view or over annotations that were there before (``taken``)."""
+    boxes = [b for b in (drawing.annotation_box(tx, d, sh)[0] for d in members) if b is not None]
+    if not boxes:
+        return out
+    box = [min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes),
+           max(b[3] for b in boxes)]  # fmt: skip
+    out["bounds"] = box
+    texts = [t for t in (drawing.annotation_box(tx, d, sh)[1] for d in members) if t is not None]
+    views = {r["id"]: r for t in texts for r in drawing.crowding(tx, sh.sheet, t)[0]}
+    if views:
+        names = ", ".join(str(r.get("name") or r.get("id")) for r in list(views.values())[:5])
+        tx.warn("NX_VIEW_OVERLAP", f"The {what} have text over view {names}: pass margin or "
+                "origin to place them clear of it (see bounds)")  # fmt: skip
+    if not drawing.inside(box, sh.sheet):
+        tx.warn("NX_VIEW_OVERLAP", f"The {what} run off the sheet (bounds {box}): use a "
+                "smaller margin")  # fmt: skip
+    if any(drawing.overlap(t, other) for t in texts or [box] for other in taken):
+        tx.warn("NX_VIEW_OVERLAP", f"The {what} lie over annotations already on the sheet: "
+                "pass margin (gap from the view border) or origin to move them clear")  # fmt: skip
+    return out
+
+
 def ordinate_snap(info, snap, field):
     """Resolve the auto snap of an ordinate target and refuse impossible ones."""
     if snap == "auto":
@@ -208,8 +247,18 @@ def _check_value(actual, expected, check="value"):
 def _ends(edge, field):
     points = [geom.xyz(v) for v in edge.GetVertices()]
     if len(points) < 2:
-        fail("NX_WRONG_GEOMETRY", "This edge has no two end points (a full circle?)", field=field)
+        fail("NX_WRONG_GEOMETRY", "This edge has no two end points (a full circle?)", field=field,
+             hint="Give a second edge (a circle measures to its centre), or use kind diameter")  # fmt: skip
     return points
+
+
+def _measured_point(tx, edge, field):
+    """``(point, snap)`` a linear dimension measures on one of two edges: a full circle's
+    centre (NX measures a circle there), else the edge's start vertex."""
+    found = facts.edge(tx, edge)
+    if found["kind"] == "arc" and found.get("closed"):
+        return found["center"], "Center"
+    return _ends(edge, field)[0], "Start"
 
 
 # ---- create -----------------------------------------------------------------------------
@@ -292,19 +341,26 @@ def nx_create_drawing_dimension(
     objects: Annotated[list[EdgeRef], Items(1, MAX_ORDINATES)] | None = None,
     object_point: Literal["auto", "start", "end", "center"] = "auto",
     direction: Literal["horizontal", "vertical"] = "horizontal",
-    margin: SheetLength | None = None,
+    margin: Annotated[SheetLength, Doc("Sets/ordinate: gap from the view border")] | None = None,
     hole: FeatureRef | None = None,
 ) -> DimensionData:
     """Create an associative dimension on edges in a drawing view, checked against the model.
-    Linear: an edge's length or first to second, oriented (or kind horizontal/vertical).
-    Baseline/chain: datum + objects, 3+ points. Ordinate: objects from datum. Chamfer: edge,
-    then reference. Text: outside the view."""
+    Linear: an edge's length or first to second (a full circle counts at its centre),
+    oriented (or kind horizontal/vertical). Baseline/chain: datum + objects, 3+ points.
+    Ordinate: objects from datum. Sets and ordinates: margin is the gap from the view
+    border. Chamfer: edge, then reference. Text: outside the view."""
     if kind in ("horizontal", "vertical"):
         if orientation not in ("aligned", kind):
             fail("NX_INVALID_ARGUMENT", f"kind {kind} measures {kind}ly: drop orientation "
                  f"{orientation!r} or use kind linear", field="/orientation")  # fmt: skip
         orientation = "horizontal" if kind == "horizontal" else "vertical"
         kind = "linear"
+    if margin is not None and kind not in (*SETS, "ordinate"):
+        fail("NX_INVALID_ARGUMENT", "margin applies to baseline, chain and ordinate",
+             field="/margin", hint="Place other dimensions with origin")  # fmt: skip
+    if margin is not None and not float(margin) > 0:
+        fail("NX_INVALID_ARGUMENT", "margin is a gap from the view border: give a positive "
+             "length", field="/margin")  # fmt: skip
     if not re.match(REF_PATTERN, view):
         with tx.checks():
             shown, sheet = view_of(tx, view)
@@ -315,13 +371,18 @@ def nx_create_drawing_dimension(
         view = shown
     if kind == "hole_callout":
         if (hole is None) == (first is None):
-            fail("NX_INVALID_ARGUMENT", "Give hole or first", field="/hole")
+            both = hole is not None
+            fail("NX_INVALID_ARGUMENT", "A hole callout takes exactly one of hole (the Hole "
+                 "feature) or first (a circular edge of the hole)" + (", not both" if both else ""),
+                 field="/first" if both else "/hole")  # fmt: skip
         if second is not None:
             fail("NX_INVALID_ARGUMENT", "A hole callout takes one hole", field="/second")
         from nx_mcp.domains.drawing import hole_callouts
 
         return hole_callouts.create_callout(tx, view, hole, first, origin)
     if kind in SETS:
+        if margin is not None and origin is not None:
+            fail("NX_INVALID_ARGUMENT", "Give origin or margin, not both", field="/margin")
         objects = args.required(objects, "objects")
         points = len(objects) + (datum is not None)
         if points < 3:
@@ -338,7 +399,7 @@ def nx_create_drawing_dimension(
         from nx_mcp.domains.drawing import dimension_kinds as more
 
         return more.dimension_set(
-            tx, view, kind, objects, object_point, direction, origin, (datum, datum_point)
+            tx, view, kind, objects, object_point, direction, origin, (datum, datum_point), margin
         )
     if kind == "ordinate":
         args.need(datum=datum)
@@ -378,12 +439,15 @@ def linear(tx, view_ref, first, second, orientation, origin, existing=None,
         view, sheet = view_ref if isinstance(view_ref, tuple) else drawing.view(tx, view_ref)
         a = geometry(tx, first, ("edge",), fields[0])
         b = geometry(tx, second, ("edge",), fields[1]) if second else a
-        ends_a = _ends(a, fields[0])
-        ends_b = _ends(b, fields[1]) if second else ends_a
-        pa, pb = ends_a[0], (ends_b[0] if second else ends_a[1])
+        if second:
+            (pa, snap_a), (pb, snap_b) = (_measured_point(tx, e, f) for e, f in
+                                          zip((a, b), fields, strict=True))  # fmt: skip
+        else:
+            pa, pb = _ends(a, fields[0])[:2]
+            snap_a, snap_b = "Start", "End"
         expected = linear_value(pa, pb, drawing.axes(view), orientation)
         if expected <= 1e-9:
-            what = "start points of the two edges" if second else "ends of the edge"
+            what = "measured points of the two edges" if second else "ends of the edge"
             fail(
                 "NX_INVALID_ARGUMENT",
                 f"The {what} have no {orientation} distance in this view",
@@ -402,10 +466,10 @@ def linear(tx, view_ref, first, second, orientation, origin, existing=None,
         factory = tx.part.Dimensions.CreateLinearDimensionBuilder
         with builders.build(tx, factory, existing) as builder:
             builder.FirstAssociativity.SetValue(
-                snap.Start, a, view, tx.nx.Point3d(*pa), None, None, empty
+                getattr(snap, snap_a), a, view, tx.nx.Point3d(*pa), None, None, empty
             )
             builder.SecondAssociativity.SetValue(
-                snap.Start if second else snap.End, b, view, tx.nx.Point3d(*pb), None, None, empty
+                getattr(snap, snap_b), b, view, tx.nx.Point3d(*pb), None, None, empty
             )
             methods = builder.Measurement.MeasurementMethod
             builder.Measurement.Method = getattr(methods, METHODS[orientation])
@@ -539,14 +603,17 @@ def _ordinate(tx, view_ref, datum, datum_point, objects, object_point, direction
             (ref, *_target(tx, ref, object_point, f"/objects/{i}")) for i, ref in enumerate(objects)
         ]
         U = uf_types(tx)
+        # The margin line: above the view for horizontal, left of it for vertical ordinates.
+        bounds = drawing.borders(tx, view)
+        if margin is None:
+            margin = drawing.from_mm(units.sheet_units(tx, sheet), MARGIN_GAP_MM)[0]
+        at_line = bounds[3] + float(margin) if horizontal else bounds[0] - float(margin)
+        on_sheet_line(sheet, at_line, 1 if horizontal else 0, "/margin")
     axis = drawing.axes(view)[0 if horizontal else 1]
     with drawing.on_sheet(tx, sheet) as sh:
-        if margin is None:  # above the view for horizontal, left of it for vertical ordinates
-            bounds = drawing.borders(tx, view)
-            gap = drawing.from_mm(sh.units, MARGIN_GAP_MM)[0]
-            margin = bounds[3] + gap if horizontal else bounds[0] - gap
+        taken = drawing.sheet_annotation_bounds(tx, sheet)
         # UF_DRF placement points are in part units; mapped points are in sheet units.
-        line = sh.to_part([margin, margin])[0]
+        line = sh.to_part([at_line, at_line])[0]
         at = sh.to_part(drawing.to_sheet(tx, view, origin_xyz))
         drf = tx.uf.Drf
         origin_tag = drf.CreateOrdorigin(_drf(U, origin_edge, view, origin_assoc), 5, 2, 2, "")
@@ -559,7 +626,7 @@ def _ordinate(tx, view_ref, datum, datum_point, objects, object_point, direction
             0.0,
         )
         lookup = tx.nx.TaggedObjectManager.GetTaggedObject
-        rows = []
+        rows, made = [], []
         for i, (_ref, edge, xyz, assoc) in enumerate(targets):
             tx.checkpoint(done=i, total=len(targets))
             p = sh.to_part(drawing.to_sheet(tx, view, xyz))
@@ -583,12 +650,15 @@ def _ordinate(tx, view_ref, datum, datum_point, objects, object_point, direction
                 "The ordinate dimension does not use the new ordinate origin",
             )
             rows.append(_row(tx, dimension, actual, expected))
-        return {
+            made.append(dimension)
+        out: DimensionData = {
             "ordinate_origin": tx.ref(lookup(origin_tag), "dimension"),
             "dimensions": rows,
             "margin": float(margin),
+            "margin_line": at_line,
             "units": units.part_units(tx),
         }
+        return set_bounds(tx, sh, out, made, taken, "ordinate dimensions")
 
 
 # ---- inspect and edit -------------------------------------------------------------------
@@ -625,7 +695,10 @@ class DimensionInfo(TypedDict, total=False):
     valid: bool
     associations: int
     objects: list[result.Row]
-    text: str
+    text: Annotated[str, Doc("The nominal value as NX shows it")]
+    display: Annotated[str, Doc("The whole callout: symbol, value, tolerance, appended text")]
+    appended: Annotated[dict, Doc("Appended text lines: before, after, above, below")]
+    view: result.Row
     format: dict
     tolerance: dict
     origin: list[float]
@@ -696,6 +769,15 @@ def dimension_info(tx, d):
         prefs.Dispose()
     with contextlib.suppress(Exception):  # the text NX shows (its decimal separator)
         out["text"] = " ".join(str(t) for t in d.GetDimensionText()[0])
+    with contextlib.suppress(Exception):  # a dimension without appended text support
+        out["appended"] = dimension_text.read_appended(d)
+    shown = dimension_text.display_text(out)
+    if shown is not None:
+        out["display"] = shown
+    with contextlib.suppress(Exception):  # a dimension NX keeps on no view (PMI)
+        view = _rebind_view(d)
+        if view is not None:
+            out["view"] = tx.ref(view, "drawing_view")
     bound = bound_objects(tx, d)
     if bound:
         out["objects"] = bound
@@ -883,8 +965,8 @@ def _fit_request(tol):
         if role in tol:
             parsed = fits.parse(tol[role], role)
             if isinstance(parsed, str):
-                code = "NX_INVALID_ARGUMENT" if "not a tolerance class" in parsed else None
-                fail(code or "NX_UNSUPPORTED_OPTION", parsed, field=f"/tolerance/{role}")
+                fail("NX_INVALID_ARGUMENT", parsed, field=f"/tolerance/{role}",
+                     hint=fits.CLASS_HINT[role])  # fmt: skip
 
 
 def _fit_expected(tx, d, tol, shown_units=None):
@@ -986,13 +1068,14 @@ def nx_edit_dimension(
     format: DimensionFormat | None = None,  # noqa: A002 - surface name
     tolerance: DimensionTolerance | None = None,
     edges: Annotated[list[EdgeRef], Items(1, 2)] | None = None,
+    appended: Annotated[dimension_text.Appended, Doc(dimension_text.APPENDED_DOC)] | None = None,
 ) -> DimensionInfo:
-    """Change a dimension's format or tolerance, or rebind a linear one to 1-2 edges (read
-    back in objects). upper/lower: signed numbers in part units, upper > lower; symmetric
-    takes upper (+/-). Fit: ISO 286 hole and/or shaft class on a size shown in mm (up to
-    500 mm, not an angle); NX computes the deviations (no upper/lower) and they are checked."""
-    if not format and not tolerance and not edges:
-        fail("NX_INVALID_ARGUMENT", "Give format, tolerance or edges")
+    """Change a dimension's format, tolerance or appended text (REF, 2X). Or rebind a
+    linear one (1-2 edges). upper/lower: signed numbers in part units, upper > lower;
+    symmetric: upper (+/-). Fit: ISO 286 hole and/or shaft class on a size shown in mm (to
+    500 mm, not an angle); NX computes the deviations (no upper/lower)."""
+    if not format and not tolerance and not edges and not appended:
+        fail("NX_INVALID_ARGUMENT", "Give format, tolerance, appended or edges")
     fit = bool(tolerance and tolerance.get("type") == "fit")
     if tolerance:
         tolerance = _normalized(tolerance)
@@ -1053,10 +1136,16 @@ def nx_edit_dimension(
         _set_tolerance(tx, d, tolerance)
         if fit:
             _set_fit(tx, d, tolerance)
+    if appended:
+        dimension_text.write_appended(d, appended)
     if first is None and origin is not None:
         _keep_origin(tx, d, origin)
     d.RedisplayObject()
     out = dimension_info(tx, d)
+    for side, text in (appended or {}).items():
+        shown = " ".join(out.get("appended", {}).get(side, [])).strip()
+        readback.expect(shown == str(text).strip(), "appended",
+                        f"NX shows {shown!r} {side} the value, not {text!r}")  # fmt: skip
     if first is None and origin is not None:
         readback.expect_close(_origin(d), origin, "origin", tol=1e-6)
         after = (out["value"], out["associations"], not out["valid"])

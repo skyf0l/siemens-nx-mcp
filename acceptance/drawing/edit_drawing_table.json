@@ -121,6 +121,80 @@
    "args": {
     "table": "$rev.data.table.id",
     "kind": "revision",
+    "append_rows": [
+     [
+      "C",
+      "Slot",
+      "TR"
+     ]
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.rows": {
+     "count": 3
+    },
+    "data.rows.2": [
+     "C",
+     "Slot",
+     "TR"
+    ],
+    "data.rows.1": [
+     "B",
+     "Hole added",
+     "TR"
+    ]
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$rev.data.table.id",
+    "kind": "revision",
+    "rows": [
+     [
+      "A",
+      "x",
+      "y"
+     ]
+    ],
+    "append_rows": [
+     [
+      "D",
+      "y",
+      "z"
+     ]
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/append_rows",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$tb.data.table.id",
+    "kind": "title_block",
+    "append_rows": [
+     [
+      "X",
+      "Y"
+     ]
+    ]
+   },
+   "expect": {
+    "error.code": "NX_UNSUPPORTED_OPTION",
+    "error.field": "/append_rows",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_drawing_table",
+   "args": {
+    "table": "$rev.data.table.id",
+    "kind": "revision",
     "rows": [
      [
       "A",

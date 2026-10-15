@@ -11,6 +11,10 @@ NX 2406 lessons kept here:
 - Suppressing an inactive feature sets its flag but NX still builds it once the
   model rolls forward: suppression changes need active features.
 - NX unsuppresses only the listed features; dependents stay suppressed.
+- ``ReorderFeature`` of a feature before the current feature of a rolled-back timeline
+  makes the feature before the new position current (the moved feature and the old
+  current one turn inactive): the move puts the old current feature (or, when the
+  timeline was at its end, the last feature) back as current.
 - A model update leaves an active sketch unsolved after a driving expression
   changed; ``kit.sketch.solve`` (``LocalUpdate``) solves it and checks the
   driven dimensions.
@@ -22,15 +26,16 @@ NX 2406 lessons kept here:
 
 from __future__ import annotations
 
+import contextlib
 import math
 import re
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import hooks, restorer, tool
-from nx_mcp.core.errors import NXError, fail, native
+from nx_mcp.core.errors import NXError, counted, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import MM_PER_IN, Doc, FeatureRef, Items, Pose, Text, forbid_extra
-from nx_mcp.kit import args, builders, expr, readback, result
+from nx_mcp.kit import args, builders, deform, expr, readback, result
 from nx_mcp.kit import features as kfeatures
 from nx_mcp.kit import sketch as ksketch
 
@@ -102,8 +107,9 @@ def convert(number: float, unit: str, to: str) -> float | None:
 
 
 def number_text(value: float) -> str:
-    """A number as NX formula text (``25`` rather than ``25.0``)."""
-    text = repr(float(value))
+    """A number as NX formula text (``25`` rather than ``25.0``), without the float noise of
+    a unit conversion (``3 in`` is ``76.2``, not ``76.19999999999999``)."""
+    text = repr(float(f"{float(value):.15g}"))
     return text[:-2] if text.endswith(".0") else text
 
 
@@ -197,7 +203,11 @@ def owner_of(part, f):
 def _feature(tx, ref, field="/feature"):
     """A feature of the work part; an internal one (a hole's or a sketch's own sub-feature)
     is refused with its owner's ref."""
-    f = tx.resolve(ref, "feature", work_part=True)
+    try:
+        f = tx.resolve(ref, "feature", work_part=True)
+    except NXError as error:
+        error.field = error.field or field
+        raise
     if _internal(f):
         owner = owner_of(tx.part, f)
         if owner is None:
@@ -306,15 +316,41 @@ def acted_edges(tx, f) -> list | None:
     return edges
 
 
+# A word of an expression description, unless a feature name follows it ("Block(1)").
+_DESCRIPTION_WORD = re.compile(r"\b([A-Za-z]{3,})\b(?!\()")
+
+
+def _description_words(f) -> list[str]:
+    """Candidate aliases from the feature's own expression descriptions ("Block(1) Length
+    (XC)" -> length): every word that is not the feature's name or type."""
+    kind = str(getattr(f, "FeatureType", "") or "").casefold()
+    own = set(re.split(r"[^a-z]+", kind)) | set(
+        re.split(r"[^a-z]+", str(getattr(f, "JournalIdentifier", "") or "").casefold())
+    )
+    words: list[str] = []
+    for e in f.GetExpressions():
+        for word in _DESCRIPTION_WORD.findall(str(getattr(e, "Description", "") or "")):
+            word = word.casefold()
+            if word not in own and word not in words:
+                words.append(word)
+    return words
+
+
 def aliases(f) -> dict:
-    """``{alias: expression tag}``: the semantic names (``distance``, ``end``...) that
-    ``nx_edit_feature`` resolves on this feature, so p-numbered expressions read clearly."""
+    """``{alias: expression tag}``: the names ``nx_edit_feature`` resolves on this feature
+    (semantic names such as ``distance`` and the words of the expression descriptions,
+    such as a block's ``length``), each kept only when the resolver finds exactly that
+    editable expression, so p-numbered expressions read clearly."""
     out = {}
-    for name in expr.alias_names():
+    for name in (*expr.alias_names(), *_description_words(f)):
+        if name in out:
+            continue
         try:
-            out[name] = int(expr.alias(f, name).Tag)
+            found = expr.alias(f, name)
         except NXError:
             continue
+        if expr.editable(found):
+            out[name] = int(found.Tag)
     return out
 
 
@@ -585,20 +621,22 @@ def nx_set_feature_suppression(
     ones (see still_suppressed). Reacquire faces and edges after."""
     args.distinct("/features", features, "features")
     part = tx.part
-    targets = [_feature(tx, ref, f"/features/{i}") for i, ref in enumerate(features)]
-    if len({int(f.Tag) for f in targets}) != len(targets):
-        fail("NX_INVALID_ARGUMENT", "features name the same feature twice", field="/features")
-    before = states(tx, part)
-    inactive = [f for f in targets if not before.get(int(f.Tag), (f, False, True))[2]]
-    if inactive:
-        fail(
-            "NX_INVALID_ARGUMENT",
-            "Features after the current feature are inactive; NX would not honour their "
-            "suppression when the model rolls forward",
-            field="/features",
-            hint="Make the last feature current with nx_set_current_feature, then retry",
-            details={"inactive": [_row(tx, f) for f in inactive]},
-        )
+    with tx.checks():  # lookups and refusals: nothing changed yet (not_started)
+        targets = [_feature(tx, ref, f"/features/{i}") for i, ref in enumerate(features)]
+        if len({int(f.Tag) for f in targets}) != len(targets):
+            fail("NX_INVALID_ARGUMENT", "features name the same feature twice",
+                 field="/features")  # fmt: skip
+        before = states(tx, part)
+        inactive = [f for f in targets if not before.get(int(f.Tag), (f, False, True))[2]]
+        if inactive:
+            fail(
+                "NX_INVALID_ARGUMENT",
+                "Features after the current feature are inactive; NX would not honour their "
+                "suppression when the model rolls forward",
+                field="/features",
+                hint="Make the last feature current with nx_set_current_feature, then retry",
+                details={"inactive": [_row(tx, f) for f in inactive]},
+            )
     pending = [f for f in targets if before[int(f.Tag)][1] != suppressed]
     with native(default="NX_BUILD_FAILED"):
         if pending and suppressed:
@@ -680,8 +718,8 @@ def nx_set_current_feature(
     if gone:  # NX removes the bodies of inactive features: listed as deleted, not destroyed
         tx.warn(
             "NX_NOTE",
-            f"{gone} body(ies) of the now inactive features are gone until the timeline rolls "
-            "forward (changes.deleted); rolling forward rebuilds them under new refs",
+            f"NX removed {counted(gone, 'body')} of the now inactive features until the timeline "
+            "rolls forward (changes.deleted); rolling forward rebuilds them under new refs",
         )
     current = getattr(part, "CurrentFeature", None)
     if current is None:
@@ -710,7 +748,13 @@ class Renamed(result.Row):
     was: str
 
 
-class OrderData(TypedDict):
+class _OrderState(TypedDict, total=False):
+    current: Annotated[Row, Doc("The current feature after the move (the timeline's end)")]
+    activated: Annotated[list[Row], Doc("Features the move made active (now before current)")]
+    deactivated: Annotated[list[Row], Doc("Features the move made inactive (now after current)")]
+
+
+class OrderData(_OrderState):
     feature: Row
     anchor: Row
     moved: bool
@@ -755,7 +799,14 @@ def _placement(anchor, position, before, after) -> tuple[str, str]:
             "",
         )
     ).strip(),
-    keywords=("reorder", "move feature", "timeline order", "feature order", "drag in history"),
+    keywords=(
+        "reorder",
+        "move feature",
+        "timeline order",
+        "feature order",
+        "drag in history",
+        "move hole before blend",
+    ),
     requires=("work_part", "no_active_sketch"),
     cost="heavy",
     previewable=True,
@@ -772,7 +823,9 @@ def nx_set_feature_order(
 ) -> OrderData:
     """Move a feature directly before or after another: before or after alone, or anchor with
     position. Refs like f:12. A feature cannot move before a parent or after a child
-    (NX_DEPENDENCY_ORDER lists them). NX renumbers names (see renamed)."""
+    (NX_DEPENDENCY_ORDER lists them). NX renumbers names (see renamed). In a rolled-back
+    timeline, a move across the current feature changes which features are active
+    (activated, deactivated)."""
     ref, where = _placement(anchor, position, before, after)
     field = "/" + ("anchor" if before is None and after is None else where)
     if feature == ref:
@@ -785,6 +838,9 @@ def nx_set_feature_order(
             fail("NX_INVALID_ARGUMENT", "feature and anchor must differ", field=field)
         old = states(tx, part)
         order = list(old)
+        was = getattr(part, "CurrentFeature", None)
+        # The timeline's end stays its end; a rolled-back one keeps its current feature.
+        keep = None if was is None or int(was.Tag) == order[-1] else int(was.Tag)
         names = {tag: display_name(f) for tag, (f, _, _) in old.items()}
         parents = {key: {int(p.Tag) for p in moved.GetParents()}}
         children = {key: child_map(list(part.Features)).get(key, set())}
@@ -812,6 +868,7 @@ def nx_set_feature_order(
                 [moved], target, kinds.Before if where == "before" else kinds.After
             )
         update(tx)
+        _keep_current(tx, part, keep if keep is not None else wanted[-1])
         new = states(tx, part)
         readback.expect(list(new) == wanted, "order", "NX timeline order differs from the request")
     # Rows from the refreshed timeline: NX renumbers names after a move.
@@ -825,7 +882,38 @@ def nx_set_feature_order(
         "anchor": _row(tx, fresh.get(at, target), index=wanted.index(at)),
         "moved": wanted != order,
         "renamed": renamed,
+        **_activity(tx, part, old, new),
     }
+
+
+def _keep_current(tx, part, tag: int) -> None:
+    """Make the feature ``tag`` current again when the move made another one current (NX
+    rolls back to the feature before a move across the current feature)."""
+    now = getattr(part, "CurrentFeature", None)
+    if now is None or int(now.Tag) == tag:
+        return
+    feature = next((f for f in timeline(part) if int(f.Tag) == tag), None)
+    if feature is None:
+        return
+    with native(default="NX_BUILD_FAILED"):
+        feature.MakeCurrentFeature()
+    update(tx)
+
+
+def _activity(tx, part, old, new) -> dict:
+    """The current feature and the features a move turned active or inactive (a move across
+    the current feature of a rolled-back timeline), with a warning when there are any."""
+    flips = [(tag, f, a) for tag, (f, _, a) in new.items() if tag in old and old[tag][2] != a]
+    out: dict = {}
+    current = getattr(part, "CurrentFeature", None)
+    if current is not None:
+        out["current"] = _row(tx, current)
+    if flips:
+        out["activated"] = [_row(tx, f) for _, f, a in flips if a][:MAX_FEATURES]
+        out["deactivated"] = [_row(tx, f) for _, f, a in flips if not a][:MAX_FEATURES]
+        names = ", ".join(display_name(f) + (" active" if a else " inactive") for _, f, a in flips)
+        tx.warn("NX_NOTE", f"The move crossed the current feature: now {names[:300]}")
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -875,6 +963,8 @@ def nx_set_expression(
     expression's units). units apply to a new one only. Lists the features it drives."""
     with tx.checks():
         existing = expr.find(tx, name)
+        if existing is not None and not expr.editable(existing):
+            _read_only(tx, existing)
         number, unit = _formula_value(existing, formula, units)
     text = formula if number is None else number_text(number)
     before = str(existing.RightHandSide) if existing is not None else None
@@ -884,7 +974,14 @@ def nx_set_expression(
         if error.code == "NX_INVALID_FORMULA":
             error.field = error.field or "/formula"
             error.hint = error.hint or FORMULA_HINT
+            _name_missing(tx, error, name, text)
         raise
+    if existing is None and unit in (None, "unitless") and units is None:
+        tx.warn(
+            "NX_NOTE",
+            f"{name} was created unitless: pass units 'mm' (or a formula like '10 mm') for a "
+            "length, 'deg' for an angle",
+        )
     update(tx)
     if existing is not None:
         solve_driven_sketch(tx, [exp])
@@ -943,6 +1040,60 @@ def _restore_expression(tx: Tx, data: dict, *, apply: bool) -> str:
     return f"{name} back to {before}"
 
 
+# NX formula words that are not expressions: functions and constants.
+FORMULA_WORDS = frozenset((
+    "abs", "acos", "asin", "atan", "atan2", "ceiling", "cos", "cosh", "deg", "exp", "fact",
+    "floor", "hypot", "if", "else", "then", "ln", "log", "log10", "max", "min", "mod", "pi",
+    "rad", "round", "sgn", "sin", "sinh", "sqrt", "tan", "tanh", "true", "false", "and", "or",
+    "not", "xor", "arccos", "arcsin", "arctan",
+))  # fmt: skip
+_IDENTIFIER = re.compile(r"(?<![\w.])[A-Za-z_]\w*")
+
+
+def _name_missing(tx, error, name, formula) -> None:
+    """Name the identifiers of ``formula`` the part has no expression for (NX says only
+    "The specified expression variable does not exist")."""
+    if not isinstance(formula, str) or (
+        error.nx_code != expr.NO_SUCH_EXPRESSION and "does not exist" not in error.message
+    ):
+        return
+    words = _IDENTIFIER.findall(re.sub(r'"[^"]*"', "", formula))
+    missing = sorted(
+        {w for w in words if w != name and w.lower() not in FORMULA_WORDS}
+        - {str(e.Name) for e in tx.part.Expressions}
+    )
+    if missing:
+        error.message = f"{error.message} Unknown: {', '.join(missing[:10])}"
+        error.details = {**(error.details or {}), "missing": missing[:20]}
+        error.hint = (
+            f"Create {missing[0]} first with nx_set_expression, or fix the name "
+            "(names are case-sensitive)"
+        )
+
+
+def _read_only(tx, exp) -> None:
+    """Refuse an expression the agent cannot edit, saying why and what drives it."""
+    name = str(exp.Name)
+    users = driven_features(tx, [exp])[:5]
+    if getattr(exp, "IsInterpartExpression", False):
+        reason, hint = "interpart", "Edit it in the part it links from"
+    else:
+        reason = "locked"
+        hint = (
+            f"It is a value NX derives (e.g. from a thread or hole size): edit "
+            f"{users[0]['name']} with nx_edit_feature instead"
+            if users
+            else "Ask the engineer to unlock it"
+        )
+    fail(
+        "NX_READ_ONLY",
+        f"Expression {name} is {reason}: NX does not let it be edited",
+        field="/name",
+        hint=hint,
+        details={"name": name, "reason": reason, "features": users},
+    )
+
+
 def _formula_value(existing, formula, units) -> tuple[float | None, str | None]:
     """``(number or None, units)``: a number, or ``'10 mm'`` converted to the existing
     expression's units (a new expression takes the string's unit unless units is given)."""
@@ -990,10 +1141,12 @@ class HealthData(TypedDict):
     features: Annotated[
         int, Doc("Every feature of the part, NX's internal ones (a sketch's or a hole's) included")
     ]
-    errors: list[dict]
-    warnings: list[dict]
+    errors: Annotated[list[dict], Doc("{feature or body: ref row, message}")]
+    warnings: Annotated[list[dict], Doc("{feature: ref row, message}")]
     suppressed: Annotated[int, Doc("Features suppressed by the user")]
-    inactive: Annotated[int, Doc("Features after the current feature (rolled back)")]
+    inactive: Annotated[
+        int, Doc("Features after the current feature (rolled back), the suppressed not counted")
+    ]
     bodies_checked: int
 
 
@@ -1001,7 +1154,14 @@ class HealthData(TypedDict):
     effect="model",
     label="Update model",
     summary="Update the model",
-    keywords=("rebuild", "regenerate", "update model", "model health", "recompute"),
+    keywords=(
+        "rebuild",
+        "regenerate",
+        "update model",
+        "model health",
+        "recompute",
+        "rebuild after expression change",
+    ),
     requires=("work_part", "no_active_sketch"),
     cost="heavy",
     example={},
@@ -1012,16 +1172,19 @@ def nx_update_model(tx: Tx) -> HealthData:
     errors roll the model back."""
     part = tx.part
     update(tx)
+    with contextlib.suppress(NXError):  # an assembly NX cannot read: no such warning
+        for message in deform.range_messages(tx, part):  # a formula may drive one out of range
+            tx.warn("NX_UPDATE_WARNING", message)
     errors: list[dict] = []
     warnings: list[dict] = []
     for f in part.Features:
         tx.checkpoint()
         for kind, out in (("Error", errors), ("Warning", warnings)):
             for message in feature_messages(f, kind):
-                out.append({"feature": f.JournalIdentifier, "message": message})
+                out.append({"feature": tx.ref(f, kind="feature"), "message": message})
     state = states(tx, part).values()
     suppressed = sum(s for _, s, _ in state)
-    inactive = sum(not a for _, _, a in state)
+    inactive = sum(not a and not s for _, s, a in state)  # apart: a suppressed one is not
     bodies = list(part.Bodies)
     check = getattr(getattr(tx.uf, "Modeling", None), "AskBodyConsistency", None)
     if check is not None:
@@ -1029,7 +1192,7 @@ def nx_update_model(tx: Tx) -> HealthData:
             count = check(body.Tag)[0]
             if count:
                 errors.append(
-                    {"body": body.JournalIdentifier, "message": f"{count} consistency faults"}
+                    {"body": tx.ref(body, kind="body"), "message": f"{count} consistency faults"}
                 )
     return {
         "features": len(list(part.Features)),

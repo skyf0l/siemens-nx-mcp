@@ -188,6 +188,15 @@ def test_unsew_needs_the_variant_field_and_one_body():
     assert two.error["field"] == "/faces" and two.mutation_outcome == "not_started"
 
 
+def test_unsew_of_every_face_is_refused_before_nx():
+    nx = modeling_nx()
+    block = nx.block(10, 10, 10)
+    bad = run(nx, "nx_create_unsew", faces=[f.ref for f in block.faces], output="each_face")
+    assert bad.error["field"] == "/faces" and bad.mutation_outcome == "not_started", bad
+    assert "Leave one face out" in bad.error["hint"]
+    assert not any(b.commits for b in nx.builders)
+
+
 # ---- untrim --------------------------------------------------------------------------
 
 

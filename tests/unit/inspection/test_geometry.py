@@ -90,7 +90,7 @@ def test_holes_group_coaxial_bores():
     assert ok.page["total"] == 2 and len(ok.data["groups"]) == 2  # holes, not faces
     assert ok.page["faces"] == 3 and len(ok.data["items"]) == 3
     first = ok.data["groups"][0]
-    assert first["radii"] == [3.0, 5.0] and len(first["faces"]) == 2
+    assert first["radii"] == [5.0, 3.0] and len(first["faces"]) == 2  # as diameters
     assert all(row["full"] for row in ok.data["items"])
 
 
@@ -106,7 +106,7 @@ def test_handle_anchor_resolves_and_goes_stale():
     gone = run(nx, "nx_resolve_reference", anchor=made.data["anchor"])
     assert gone.error["code"] == "NX_STALE_REFERENCE" and gone.error["field"] == "/anchor"
     other = run(nx, "nx_resolve_reference", anchor="@other.prt:face=RM1 R1")
-    assert other.error["code"] == "NX_WRONG_OWNER"
+    assert other.error["code"] == "NX_NOT_FOUND" and "nx_open_part" in other.error["hint"]
     both = run(nx, "nx_resolve_reference")
     assert both.error["category"] == "invalid_argument"
 
@@ -125,7 +125,8 @@ def test_selector_reruns_rule_and_reports_ties():
     assert tied.error["code"] == "NX_AMBIGUOUS_REFERENCE"
     assert len(tied.error["details"]["candidates"]) == 2
     foreign = run(nx, "nx_resolve_reference", selector=json.dumps(dict(selector, part="x.prt")))
-    assert foreign.error["code"] == "NX_WRONG_OWNER" and foreign.error["field"] == "/selector"
+    assert foreign.error["code"] == "NX_NOT_FOUND" and foreign.error["field"] == "/selector"
+    assert "x.prt is not loaded" in foreign.error["message"]
     junk = run(nx, "nx_resolve_reference", selector='{"kind": "face"}')
     assert junk.error["code"] == "NX_INVALID_ARGUMENT" and junk.error["field"] == "/selector"
 
@@ -287,7 +288,7 @@ def test_role_filter_keeps_bores_or_bosses_and_reruns_from_the_selector():
     bore, boss = _bore_and_boss(nx, body)
     both = run(nx, "nx_find_geometry", radius=3)
     assert both.ok and both.page["total"] == 2, both
-    assert json.loads(both.data["selector"])["geometry_type"] == "cylinder"
+    assert json.loads(both.data["selector"])["geometry_type"] == "any"  # any round face
     bores = run(nx, "nx_find_geometry", role="bore")
     assert [i["id"] for i in bores.data["items"]] == [bore.ref]
     rule = json.loads(bores.data["selector"])
@@ -444,7 +445,7 @@ def test_resolve_errors_say_where_a_ref_or_another_part_goes():
     by_hand = run(nx, "nx_resolve_reference", selector={"kind": "face", "normal": "+z"})
     assert "run nx_find_geometry" in by_hand.error["hint"]
     other = run(nx, "nx_resolve_reference", anchor="@smoke/a/other.prt:face=RM1 R1")
-    assert other.error["code"] == "NX_WRONG_OWNER" and "part='other.prt'" in other.error["hint"]
+    assert other.error["code"] == "NX_NOT_FOUND" and "nx_open_part" in other.error["hint"]
 
 
 def _count_distances(nx):

@@ -233,29 +233,20 @@ def _clone(tx, part, sources, destination: Path, prefix: str, activate: bool) ->
     hashes = {p: files.sha256(p) for p in sources}
     originals = {int(p.Tag) for p in tx.session.Parts}
     shown = (tx.session.Parts.Display, tx.session.Parts.Work)  # put back after the clone
-    options = tx.session.Parts.LoadOptions
-    load_method = getattr(options, "ComponentLoadMethod", None)
-    as_saved = getattr(getattr(tx.nx, "LoadOptions", None), "LoadMethod", None)
     created = False
     try:
         destination.mkdir(parents=True, exist_ok=False)
         created = True
         for new in mapping.values():
             new.parent.mkdir(parents=True, exist_ok=True)
-        if load_method is not None and as_saved is not None:
-            options.ComponentLoadMethod = as_saved.AsSaved
-        with native(default="NX_EXPORT_FAILED"):
+        with native(default="NX_EXPORT_FAILED"), parts.loading_as_saved(tx):
             clone.Initialise(clone.OperationClass.CLONE_OPERATION)
             try:
                 clone.SetDefAction(clone.Action.CLONE)
                 loaded = clone.AddAssembly(str(top))
                 status = loaded[0] if isinstance(loaded, tuple) else loaded
                 if getattr(status, "Failed", False) is True:
-                    fail(
-                        "NX_NOT_LOADED",
-                        "The NX clone could not load the assembly's parts",
-                        details={"files": [str(f) for f in getattr(status, "FileNames", [])]},
-                    )
+                    _clone_refused(tx, part, status)
                 for source, new in mapping.items():
                     clone.SetNaming(str(source), clone.NamingTechnique.USER_NAME, str(new))
                 loaded_sources = [parts.loaded(tx, p) for p in sources]
@@ -268,11 +259,18 @@ def _clone(tx, part, sources, destination: Path, prefix: str, activate: bool) ->
             readback.expect(new.is_file(), "clone_file", path=files.relative(new, root))
             if files.sha256(source) != hashes[source]:
                 fail("NX_STALE_SOURCE", f"{source.name} changed during the clone")
-        with native():
+        with native(), parts.loading_as_saved(tx):  # reopened as nx_open_part opens it
             copy, status = tx.session.Parts.OpenBase(str(mapping[top]))
+        failed = parts.load_failures(status)
         if status is not None and hasattr(status, "Dispose"):
             with contextlib.suppress(Exception):
                 status.Dispose()
+        readback.expect(
+            not failed,
+            "clone_components",
+            "The copied assembly does not load all of its copied components",
+            unloaded=failed[:20],
+        )
         resolved = {Path(parts.prototype_file(c)).resolve() for c, _ in parts.components(copy)}
         expected = {p.resolve() for p in mapping.values()} - {mapping[top].resolve()}
         readback.expect(
@@ -301,6 +299,7 @@ def _clone(tx, part, sources, destination: Path, prefix: str, activate: bool) ->
                 },
                 indent=2,
             ).encode(),
+            root=root,
         )
         out: AssemblyExportData = {
             "path": files.relative(destination, root),
@@ -334,10 +333,40 @@ def _clone(tx, part, sources, destination: Path, prefix: str, activate: bool) ->
         if problems:
             tx.non_undoable("; ".join(problems))
         raise
-    finally:
-        if load_method is not None and as_saved is not None:
-            with contextlib.suppress(Exception):
-                options.ComponentLoadMethod = load_method
+
+
+def _family_members(tx, part) -> list[str]:
+    """File names of the assembly's component parts that are part family members."""
+    out = []
+    for p in {int(c.Prototype.Tag): c.Prototype for c, _ in parts.components(part)
+              if getattr(c, "Prototype", None) is not None}.values():  # fmt: skip
+        with contextlib.suppress(Exception):
+            answer = tx.uf.Part.IsFamilyInstance(p.Tag)
+            if bool(answer[0] if isinstance(answer, tuple) else answer):
+                out.append(Path(parts.file_of(p)).name)
+    return sorted(out)
+
+
+def _clone_refused(tx, part, status) -> None:
+    """The NX clone could not load the assembly's parts: say which and what to do."""
+    names = [Path(str(f)).name for f in getattr(status, "FileNames", [])]
+    members = _family_members(tx, part)
+    if members:
+        fail(
+            "NX_UNSUPPORTED_OPTION",
+            "The NX clone cannot copy part family members (it regenerates them from their "
+            f"template): {', '.join(members[:10])}",
+            field="/format",
+            hint="Package the assembly with format zip, which copies every file as saved",
+            details={"files": names, "family_members": members},
+        )
+    fail(
+        "NX_NOT_LOADED",
+        "The NX clone could not load the assembly's parts",
+        hint="Open the assembly with nx_open_part(load_components=true) to see which "
+        "component files NX cannot load (unloaded_components), fix them, then retry",
+        details={"files": names},
+    )
 
 
 def _switched(tx) -> bool:

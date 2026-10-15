@@ -20,9 +20,11 @@ from __future__ import annotations
 
 import contextlib
 import math
+import re
 
 from nx_mcp.core.errors import fail
-from nx_mcp.kit import facts, geom, select, units
+from nx_mcp.core.types import REF_PATTERN
+from nx_mcp.kit import curve, facts, geom, select, units
 
 MODELING_DISPLAY = 1  # UF_DRAW display state: 1 modeling, 2 drawing
 TRUE_SHAPE_TOL_DEG = 0.01  # Max tilt of a plane against the drawing plane.
@@ -145,14 +147,77 @@ def view_sheet(tx, view, field=None):
     """The one work-part sheet that shows ``view``."""
     matches = sheets_showing(tx.part, view)
     if len(matches) != 1:
-        fail("NX_WRONG_OWNER", "Select a view on one work-part sheet", field=field)
+        owner = getattr(view, "OwningPart", None)
+        mine = _file_name(tx.part)
+        if not matches and owner is not None and _file_name(owner) != mine:
+            fail("NX_WRONG_OWNER", f"The view is in {_file_name(owner)}, not in {mine} (the part "
+                 "the call works in)", field=field,
+                 hint=f"Pass a view of {mine}, or work in {_file_name(owner)} (part argument)",
+                 details={"view_part": _file_name(owner), "part": mine})  # fmt: skip
+        fail("NX_WRONG_OWNER", "Select a view shown on one sheet of the part", field=field,
+             hint="nx_list_objects kind=drawing_view lists the part's views")  # fmt: skip
     return matches[0]
 
 
+def _file_name(part):
+    path = str(getattr(part, "FullPath", "") or "")
+    return path.replace("\\", "/").rsplit("/", 1)[-1] or str(getattr(part, "Name", "") or "?")
+
+
+def is_ref(value):
+    """True for a reference string (``v:12``), False for a display name (``TOP@1``)."""
+    return bool(re.match(REF_PATTERN, str(value).strip()))
+
+
 def view(tx, ref, field="/view"):
-    """``(view, sheet)`` for a drawing-view reference of the work part."""
-    obj = select.resolve(tx, ref, "drawing_view", field=field) if isinstance(ref, str) else ref
+    """``(view, sheet)`` for a drawing view of the work part from its reference, its name
+    (any case; 'top' finds 'TOP@1' when one view has that name before the '@') or the
+    view object itself."""
+    if isinstance(ref, str) and not is_ref(ref):
+        obj = view_named(tx, ref, field)
+    else:
+        obj = select.resolve(tx, ref, "drawing_view", field=field) if isinstance(ref, str) else ref
     return obj, view_sheet(tx, obj, field)
+
+
+def view_named(tx, name, field="/view"):
+    """The one drawing view of the work part named ``name`` (see :func:`view`)."""
+    text = str(name).strip()
+    views = [v for s in getattr(tx.part, "DrawingSheets", None) or [] for v in s.GetDraftingViews()]
+    key = text.casefold()
+    found = [v for v in views if str(v.Name).casefold() == key] or [
+        v for v in views if str(v.Name).split("@")[0].casefold() == key
+    ]
+    if len(found) != 1:
+        fail(
+            "NX_NOT_FOUND" if not found else "NX_AMBIGUOUS_REFERENCE",
+            f"{'More than one' if found else 'No'} drawing view is named {text!r}",
+            field=field,
+            hint="Pass a view ref (v:N) or a name listed in details.views",
+            details={"views": [tx.ref(v, "drawing_view") for v in found or views][:50]},
+        )
+    return found[0]
+
+
+def sheet(tx, value, field="/sheet"):
+    """A drawing sheet of the work part from its reference, its name (any case) or the
+    sheet object itself."""
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    if is_ref(text):
+        return select.resolve(tx, text, "drawing_sheet", field=field, work_part=True)
+    sheets = list(getattr(tx.part, "DrawingSheets", None) or [])
+    found = [s for s in sheets if str(s.Name).casefold() == text.casefold()]
+    if not found:
+        fail(
+            "NX_NOT_FOUND",
+            f"The work part has no drawing sheet named {text!r}",
+            field=field,
+            hint="Pass a sheet ref (sh:N) or a name listed in details.sheets",
+            details={"sheets": [tx.ref(s, "drawing_sheet") for s in sheets]},
+        )
+    return found[0]
 
 
 def refresh(tx, views):
@@ -463,14 +528,22 @@ def crowding(tx, sheet, box, own=()):
 # ---- model edges as drawn in a view --------------------------------------------------------
 
 
-def visible_edges(tx, view):
-    """``[(edge, drawn model length)]``: the model edges NX draws visible in ``view``.
+def drawn_curves(view):
+    """The number of drafting curves ``view`` draws (edges, silhouettes, section lines);
+    0 for a view that shows no geometry (a detail boundary off the model)."""
+    return sum(
+        len(list(body.DraftingCurves)) for body in getattr(view, "DraftingBodies", None) or []
+    )
 
-    NX 2406 keeps the visible curves of a drafting view as ``DraftingBody.DraftingCurves``
-    (the view's ``DraftingBodies``), each with its model edge as parent (UF
-    ``Draw.AskDraftingCurveParents``); hidden lines are not among them and face
-    silhouettes have no edge parent. Several curves of one edge (an edge partly hidden)
-    add up their lengths.
+
+def drafted_edges(tx, view):
+    """``[(edge, drafted model length)]``: the model edges ``view`` has drafting curves of.
+
+    NX 2406 keeps a drafting view's curves as ``DraftingBody.DraftingCurves`` (the view's
+    ``DraftingBodies``), each with its model edge as parent (UF
+    ``Draw.AskDraftingCurveParents``); face silhouettes have no edge parent. Hidden edges
+    and switched-off smooth edges have drafting curves too, whole and with the visible
+    line font: the curves alone do not tell what NX draws (:func:`visible_edges`).
     """
     lookup = tx.nx.TaggedObjectManager.GetTaggedObject
     found: dict[int, list] = {}
@@ -485,39 +558,178 @@ def visible_edges(tx, view):
     return [(edge, length) for edge, length in found.values()]
 
 
+IDENTITY_4X4 = [1.0 if i % 5 == 0 else 0.0 for i in range(16)]
+RAY_SAMPLES = (0.1, 0.3, 0.5, 0.7, 0.9)  # points along an edge tested for occlusion
+SMOOTH_TOL = 1e-6  # 1 - cos of the angle between face normals at a smooth (tangent) edge
+
+
+def occluded(tx, bodies, point, toward):
+    """True when a solid of ``bodies`` lies between work-part ``point`` and the viewer
+    (UF ``Modeling.TraceARay`` from just in front of the point toward the viewer); None
+    when NX cannot trace the ray."""
+    gap = 1e-4 * max(1.0, *(abs(float(c)) for c in point))
+    origin = [float(point[i]) + gap * float(toward[i]) for i in range(3)]
+    try:
+        _count, hits = tx.uf.Modeling.TraceARay(
+            len(bodies), [b.Tag for b in bodies], origin, [float(c) for c in toward],
+            IDENTITY_4X4, 0,
+        )  # fmt: skip
+    except Exception:  # NX cannot trace this ray (an occurrence it does not answer for)
+        return None
+    for hit in hits or []:
+        at = [float(v) for v in list(hit.HitPoint)[:3]]
+        if sum((at[i] - origin[i]) * toward[i] for i in range(3)) > gap:
+            return True
+    return False
+
+
+def seen(tx, view, obj, bodies=None):
+    """How NX shows a model edge or face in ``view``: ``visible``, ``partial`` (an edge
+    partly behind material) or ``hidden`` (behind material: drawn dashed or not at all,
+    as the view's hidden-line font says). Edge points (RAY_SAMPLES) or a face's interior
+    point are traced toward the viewer through ``bodies`` (default the object's body);
+    ``visible`` when NX cannot trace."""
+    toward = axes(view, tx)[2]
+    if bodies is None:
+        body = obj.GetBody() if hasattr(obj, "GetBody") else None
+        bodies = [body] if body is not None else []
+    if not bodies:
+        return "visible"
+    if facts.is_edge(obj):
+        with curve.evaluator(tx, obj) as e:
+            points = [e.at(t)[0] for t in RAY_SAMPLES]
+    else:
+        points = [facts.face_point(tx, obj)]
+    states = [occluded(tx, bodies, p, toward) for p in points]
+    if any(s is None for s in states) or not any(states):
+        return "visible"
+    return "hidden" if all(states) else "partial"
+
+
+def smooth(tx, edge):
+    """True for an edge between two tangent faces (a blend's boundary): the edges NX's
+    smooth-edge setting shows or hides."""
+    faces = list(edge.GetFaces()) if hasattr(edge, "GetFaces") else []
+    if len(faces) != 2:
+        return False
+    modeling = tx.uf.Modeling
+    try:
+        point = curve.point_at(tx, edge, 0.5)
+        normals = []
+        for face in faces:
+            uv, _on = modeling.AskFaceParm(face.Tag, [float(v) for v in point])
+            normals.append(geom.unit([float(v) for v in modeling.AskFaceProps(face.Tag, uv)[5]]))
+    except Exception:  # a face NX cannot evaluate there
+        return False
+    return geom.dot(*normals) >= 1 - SMOOTH_TOL
+
+
+def view_bodies(edges):
+    """The bodies of ``edges`` (each once): what can hide an edge in a view."""
+    out = {}
+    for edge in edges:
+        with contextlib.suppress(Exception):  # an edge without a body
+            body = edge.GetBody()
+            out.setdefault(int(body.Tag), body)
+    return list(out.values())
+
+
+def visible_edges(tx, view, smooth_edges=True, hidden_removal=True, keep_hidden=False):
+    """``[(edge, drafted model length, state)]``: the model edges NX draws in ``view``,
+    ``state`` from :func:`seen` (``visible`` or ``partial``; ``hidden`` ones only with
+    ``keep_hidden``). ``smooth_edges`` False (the view hides tangent edges) leaves smooth
+    edges out; ``hidden_removal`` False (NX draws every edge solid) skips the occlusion
+    test."""
+    drafted = drafted_edges(tx, view)
+    bodies = view_bodies(edge for edge, _ in drafted)
+    out = []
+    for edge, drawn in drafted:
+        tx.checkpoint()
+        if not smooth_edges and smooth(tx, edge):
+            continue
+        state = "visible"
+        if hidden_removal:
+            with contextlib.suppress(Exception):  # an edge NX cannot evaluate: kept
+                state = seen(tx, view, edge, bodies)
+        if state != "hidden" or keep_hidden:
+            out.append((edge, drawn, state))
+    return out
+
+
+EDGE_ON_TOL = 1e-6  # |normal . view z| below which an arc is seen edge-on (as a line)
+
+
+def line_facts(start, end, view_scale, part_per_sheet):
+    """``length``, ``model_length`` and ``orientation`` of a straight segment on the sheet."""
+    dx, dy = end[0] - start[0], end[1] - start[1]
+    length = math.hypot(dx, dy)
+    tol = 1e-6 * max(1.0, length)
+    orientation = (
+        None
+        if length <= 1e-9
+        else "horizontal"
+        if abs(dy) <= tol
+        else "vertical"
+        if abs(dx) <= tol
+        else "inclined"
+    )
+    return {
+        "length": length,
+        "model_length": length / view_scale * part_per_sheet,
+        "orientation": orientation,
+    }
+
+
 def edge_in_view(tx, view, edge, drawn=None, part_per_sheet=1.0):
     """Facts of a model edge as drawn in ``view`` (sheet units): ``type`` (line, circle,
     other), ``start``, ``end``, ``center``; lines add ``length`` on the sheet,
     ``model_length`` (the length seen, in part units: what an aligned dimension reads) and
     ``orientation`` (horizontal, vertical, inclined; None seen end-on); circles seen true
-    shape add ``radius`` (part units). ``drawn``: the model length NX draws visible, to
-    flag a partly hidden edge (``partial``)."""
+    shape add ``radius`` (part units). A circle or arc seen edge-on is drawn as a line: it
+    is reported as one (its projected extent) with ``edge_on``. ``drawn``: the model length
+    NX drafts, to flag a partly drawn edge (``partial``)."""
     found = facts.edge(tx, edge)
     start, end = to_sheet(tx, view, found["start"]), to_sheet(tx, view, found["end"])
     out: dict = {"type": {"line": "line", "arc": "circle"}.get(found["kind"], "other")}
     out.update(start=start, end=end, center=[(start[0] + end[0]) / 2, (start[1] + end[1]) / 2])
+    view_scale = scale(tx, view)
     if found["kind"] == "line":
-        dx, dy = end[0] - start[0], end[1] - start[1]
-        length = math.hypot(dx, dy)
-        out["length"] = length
-        out["model_length"] = length / scale(tx, view) * part_per_sheet
-        tol = 1e-6 * max(1.0, length)
-        out["orientation"] = (
-            None
-            if length <= 1e-9
-            else "horizontal"
-            if abs(dy) <= tol
-            else "vertical"
-            if abs(dx) <= tol
-            else "inclined"
-        )
+        out.update(line_facts(start, end, view_scale, part_per_sheet))
         total = math.dist(found["start"], found["end"])
     else:
         total = float(edge.GetLength()) if hasattr(edge, "GetLength") else None
-    if found["kind"] == "arc":
+    normal = found.get("normal")
+    toward = axes(view, tx)[2]
+    if found["kind"] == "arc" and normal is not None:
+        if abs(sum(a * b for a, b in zip(normal, toward, strict=True))) <= EDGE_ON_TOL:
+            out.update(_edge_on(tx, view, found, toward, view_scale, part_per_sheet))
+        else:
+            out["center"] = to_sheet(tx, view, found["center"])
+            if seen_true_shape(normal, toward):
+                out["radius"] = float(found["radius"])
+    elif found["kind"] == "arc":
         out["center"] = to_sheet(tx, view, found["center"])
-        if found.get("normal") is not None and seen_true_shape(found["normal"], axes(view, tx)[2]):
-            out["radius"] = float(found["radius"])
     if drawn is not None and total and drawn < total * (1 - 1e-6):
         out["partial"] = True
     return out
+
+
+def _edge_on(tx, view, found, toward, view_scale, part_per_sheet):
+    """A circle or arc seen edge-on: the segment it is drawn as (its extreme points along
+    the line the circle's plane makes with the drawing plane)."""
+    center = found["center"]
+    along = geom.unit(geom.cross(found["normal"], toward))
+    points = [found["start"], *found.get("samples", []), found["end"]]
+    if found.get("closed"):
+        points = [[c + s * found["radius"] * a for c, a in zip(center, along, strict=True)]
+                  for s in (-1.0, 1.0)]  # fmt: skip
+    ranked = sorted(points, key=lambda p: geom.dot(geom.sub(p, center), along))
+    a, b = to_sheet(tx, view, ranked[0]), to_sheet(tx, view, ranked[-1])
+    return {
+        "type": "line",
+        "start": a,
+        "end": b,
+        "center": [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2],
+        **line_facts(a, b, view_scale, part_per_sheet),
+        "edge_on": True,
+    }

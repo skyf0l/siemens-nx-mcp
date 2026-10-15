@@ -201,7 +201,23 @@
      "close": 78.53981633974483,
      "tol": 0.01
     },
-    "data.closed": false
+    "data.closed": false,
+    "data.start": {
+     "close": [
+      50,
+      0,
+      0
+     ],
+     "tol": 0.05
+    },
+    "data.end": {
+     "close": [
+      0,
+      50,
+      0
+     ],
+     "tol": 0.05
+    }
    }
   },
   {
@@ -240,6 +256,27 @@
     "ok": false,
     "error.code": "NX_INVALID_ARGUMENT",
     "error.field": "/points",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_fit_curve",
+   "intent": "Degree 7 through 4 points: the degree is named, with the highest that fits",
+   "args": {
+    "degree": 7,
+    "points": [
+     "$pts.data.points.0.id",
+     "$pts.data.points.1.id",
+     "$pts.data.points.2.id",
+     "$pts.data.points.3.id"
+    ]
+   },
+   "expect": {
+    "ok": false,
+    "error.field": "/degree",
+    "error.hint": {
+     "contains": "degree 3"
+    },
     "mutation_outcome": "not_started"
    }
   }

@@ -289,6 +289,7 @@ class Sketch(BaseSketch):
         self.updates = []
         self.over = False
         self.refuse = None  # an exception raised by the next Create*Constraint
+        self.over_needs_fixed = False  # True: only a fully fixed curve keeps it over
 
     # -- geometry and constraints --------------------------------------------------
     def Update(self):
@@ -305,7 +306,11 @@ class Sketch(BaseSketch):
             self.status = self.fake.status
             return
         free = sum(not self.GetConstraintsForGeometry(c) for c in self.geometry)
-        self.status = (Sketch.Status.OverConstrained, 0) if self.over else (2, free)
+        # over-constrained while a fully fixed curve is driven (a trial delete relieves it)
+        over = self.over and (
+            not self.over_needs_fixed or any(self.fully_fixed(c) for c in self.geometry)
+        )
+        self.status = (Sketch.Status.OverConstrained, 0) if over else (2, free)
 
     def _add(self, kind, *geometry):
         if self.refuse is not None:
@@ -479,6 +484,7 @@ class FakeSketchNX(FakeNX):
             )
         )
         part.Expressions.EditExpression = self.edit_expression
+        part.Expressions.Rename = lambda exp, name: setattr(exp, "Name", name)
         part.Sketches.CreateSketchInPlaceBuilder2 = lambda *a: self.builder(
             "SketchInPlaceBuilder2", *a
         )
@@ -506,6 +512,7 @@ class FakeSketchNX(FakeNX):
             "SketchMakeEqualBuilder",
             "SketchMakeCoincidentBuilder",
             "SketchMakeTangentBuilder",
+            "SketchMakeCollinearBuilder",
         ):
             f.on_commit(kind, lambda b, kind=kind: self.commit_relation(kind, b))
         self.next_sketch = None  # frame of the next committed sketch (origin, x, y)
@@ -648,6 +655,20 @@ class FakeSketchNX(FakeNX):
             return None
         a = b.StationaryObject.Value
         (c,) = b.MotionObjects.Add.calls[-1][0]
+        if kind == "SketchMakeCollinearBuilder":  # c moves onto a's line, keeping its length
+            s, d = xyz(a.StartPoint), _dir(a)
+            n = math.hypot(d[0], d[1])
+            u = [d[0] / n, d[1] / n, 0.0]
+            cs = xyz(c.StartPoint)
+            t = (cs[0] - s[0]) * u[0] + (cs[1] - s[1]) * u[1]
+            length = c.GetLength()
+            start = [s[i] + u[i] * t for i in range(3)]
+            c.StartPoint = P(start)
+            c.EndPoint = P([start[i] + u[i] * length for i in range(3)])
+            sketch.constraints.append(
+                Constraint(CT.Collinear, [(a, "NotSet"), (c, "NotSet")], sketch)
+            )
+            return None
         if kind in ("SketchMakeParallelBuilder", "SketchMakePerpendicularBuilder"):
             d = _dir(a)
             n = math.hypot(d[0], d[1])
@@ -709,7 +730,8 @@ class FakeSketchNX(FakeNX):
 
     def edit_expression(self, exp, formula):
         exp.RightHandSide = formula
-        value = float(formula)
+        names = {e.Name: float(e.Value) for e in self.part.Expressions if e is not exp}
+        value = float(eval(formula, {}, names))  # numbers, or a formula of other expressions
         dim = getattr(exp, "dimension", None)
         exp.Value = value
         if dim is not None:

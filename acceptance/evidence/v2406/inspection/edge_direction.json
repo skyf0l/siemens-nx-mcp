@@ -10,10 +10,10 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_find_geometry": "c3eece99d94ca869ab70f5ba0e732768179feb2a40ff4a108e941fa93e84679f",
-    "nx_resolve_reference": "c3eece99d94ca869ab70f5ba0e732768179feb2a40ff4a108e941fa93e84679f"
+    "nx_find_geometry": "4862dcd88838568a8017dc7b34bdd7119e8104d308763bc82035a1087f0f5750",
+    "nx_resolve_reference": "4862dcd88838568a8017dc7b34bdd7119e8104d308763bc82035a1087f0f5750"
   },
-  "recorded": "2026-10-14T15:55:43Z",
+  "recorded": "2026-10-15T10:45:48Z",
   "passed": true,
   "checks": 29,
   "failed_checks": 0,

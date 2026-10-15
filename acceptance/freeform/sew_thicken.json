@@ -243,7 +243,9 @@
     "data.area": {
      "close": 400,
      "tol": 0.001
-    }
+    },
+    "data.free_edges": 6,
+    "data.closed": false
    }
   },
   {
@@ -1368,6 +1370,417 @@
       "code": "NX_UPDATE_WARNING"
      }
     }
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "zk000001",
+   "args": {
+    "points": [
+     [
+      90,
+      0,
+      0
+     ],
+     [
+      90,
+      0,
+      10
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "zk000010",
+   "args": {
+    "points": [
+     [
+      90,
+      0,
+      0
+     ],
+     [
+      90,
+      10,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "zk000100",
+   "args": {
+    "points": [
+     [
+      90,
+      0,
+      0
+     ],
+     [
+      100,
+      0,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "zk001011",
+   "args": {
+    "points": [
+     [
+      90,
+      0,
+      10
+     ],
+     [
+      90,
+      10,
+      10
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "zk001101",
+   "args": {
+    "points": [
+     [
+      90,
+      0,
+      10
+     ],
+     [
+      100,
+      0,
+      10
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "zk010011",
+   "args": {
+    "points": [
+     [
+      90,
+      10,
+      0
+     ],
+     [
+      90,
+      10,
+      10
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "zk010110",
+   "args": {
+    "points": [
+     [
+      90,
+      10,
+      0
+     ],
+     [
+      100,
+      10,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "zk011111",
+   "args": {
+    "points": [
+     [
+      90,
+      10,
+      10
+     ],
+     [
+      100,
+      10,
+      10
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "zk100101",
+   "args": {
+    "points": [
+     [
+      100,
+      0,
+      0
+     ],
+     [
+      100,
+      0,
+      10
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "zk100110",
+   "args": {
+    "points": [
+     [
+      100,
+      0,
+      0
+     ],
+     [
+      100,
+      10,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "zk101111",
+   "args": {
+    "points": [
+     [
+      100,
+      0,
+      10
+     ],
+     [
+      100,
+      10,
+      10
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "zk110111",
+   "args": {
+    "points": [
+     [
+      100,
+      10,
+      0
+     ],
+     [
+      100,
+      10,
+      10
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "save": "zq00",
+   "args": {
+    "primary": [
+     [
+      "$zk000010.data.curve.id"
+     ],
+     [
+      "$zk001011.data.curve.id"
+     ]
+    ],
+    "cross": [
+     [
+      "$zk000001.data.curve.id"
+     ],
+     [
+      "$zk010011.data.curve.id"
+     ]
+    ]
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "save": "zq01",
+   "args": {
+    "primary": [
+     [
+      "$zk100110.data.curve.id"
+     ],
+     [
+      "$zk101111.data.curve.id"
+     ]
+    ],
+    "cross": [
+     [
+      "$zk100101.data.curve.id"
+     ],
+     [
+      "$zk110111.data.curve.id"
+     ]
+    ]
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "save": "zq10",
+   "args": {
+    "primary": [
+     [
+      "$zk000100.data.curve.id"
+     ],
+     [
+      "$zk001101.data.curve.id"
+     ]
+    ],
+    "cross": [
+     [
+      "$zk000001.data.curve.id"
+     ],
+     [
+      "$zk100101.data.curve.id"
+     ]
+    ]
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "save": "zq11",
+   "args": {
+    "primary": [
+     [
+      "$zk010110.data.curve.id"
+     ],
+     [
+      "$zk011111.data.curve.id"
+     ]
+    ],
+    "cross": [
+     [
+      "$zk010011.data.curve.id"
+     ],
+     [
+      "$zk110111.data.curve.id"
+     ]
+    ]
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "save": "zq20",
+   "args": {
+    "primary": [
+     [
+      "$zk000100.data.curve.id"
+     ],
+     [
+      "$zk010110.data.curve.id"
+     ]
+    ],
+    "cross": [
+     [
+      "$zk000010.data.curve.id"
+     ],
+     [
+      "$zk100110.data.curve.id"
+     ]
+    ]
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "save": "zq21",
+   "args": {
+    "primary": [
+     [
+      "$zk001101.data.curve.id"
+     ],
+     [
+      "$zk011111.data.curve.id"
+     ]
+    ],
+    "cross": [
+     [
+      "$zk001011.data.curve.id"
+     ],
+     [
+      "$zk101111.data.curve.id"
+     ]
+    ]
+   },
+   "setup": true
+  },
+  {
+   "call": "nx_create_sew",
+   "intent": "Six sheets enclosing a cube sewn without solid: a closed sheet, no free edge, and a note to sew with solid",
+   "args": {
+    "target": "$zq00.data.bodies.0.id",
+    "tools": [
+     "$zq01.data.bodies.0.id",
+     "$zq10.data.bodies.0.id",
+     "$zq11.data.bodies.0.id",
+     "$zq20.data.bodies.0.id",
+     "$zq21.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.solid": false,
+    "data.closed": true,
+    "data.free_edges": 0,
+    "warnings.0.code": "NX_NOTE"
    }
   },
   {

@@ -50,19 +50,20 @@ part close leaves them listed as expired.
 from __future__ import annotations
 
 import contextlib
+import copy
 import re
 import uuid
 from typing import Annotated, Any, Literal, TypedDict
 
 from nx_mcp.core import marks as undo_marks
-from nx_mcp.core import parking
+from nx_mcp.core import parking, undoable
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.marks import MARK_CAP_TEXT
 from nx_mcp.core.target import ANY, counts, file_name, part_by_key
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Range, Text
-from nx_mcp.domains.session import compensate
+from nx_mcp.domains.session import compensate, preview
 from nx_mcp.kit import sketch as ksketch
 
 CHECKPOINT_ID = r"^cp_[0-9a-f]{32}$"
@@ -71,9 +72,7 @@ CheckpointKey = Annotated[
     Text(80, r"^[^\x00-\x1f]{1,80}$"),
     Doc("checkpoint_id (cp_...) from nx_create/list_checkpoints, or its label"),
 ]
-Label = Annotated[
-    str, Text(80, r"^[^\x00-\x1f]{1,80}$"), Doc("Checkpoint name; nx_restore_checkpoint takes it")
-]
+Label = Annotated[str, Text(80), Doc("Checkpoint name, 1-80 characters; restore takes it")]
 Steps = Annotated[int, Range(ge=1), Doc("Operations to undo")]
 OperationKey = Annotated[str, Text(128), Doc("Own operation_id to undo")]
 UndoMode = Annotated[
@@ -81,7 +80,10 @@ UndoMode = Annotated[
     Doc("No NX undo: delete what they made, set values back"),
 ]
 COMPENSATE = ("compensate", "delete_created")  # delete_created: the v1 name, same thing
-RedoCount = Annotated[int, Range(ge=1), Doc("Undone operations to repeat, next first")]
+RedoCount = Annotated[int, Range(ge=0), Doc("Undone operations to repeat, next first")]
+SkipCount = Annotated[
+    int, Range(ge=0), Doc("Undone operations to drop first, without running them")
+]
 ExpiredReason = Literal[
     "undone_past",
     "saved_or_closed",
@@ -147,17 +149,23 @@ class UndoData(_UndoData, total=False):
 
 
 class RedoneStep(TypedDict):
-    operation_id: str  # the undone call's id, run again under it
+    operation_id: str  # the undone call's id
+    run_as: str  # the id it ran under now: the same, or <id>-redo<n> when its refs were remapped
     tool: str
     data: dict  # the call's result data
     changes: dict  # what this call created, modified and deleted (new refs)
 
 
-class RedoData(TypedDict):
+class _RedoData(TypedDict):
     redone: list[str]  # operation ids run again, in order
     results: list[RedoneStep]
     redo_depth: int  # the part's undone calls nx_redo_operation can still repeat
     undo_depth: int  # the part's operations nx_undo_operation can undo
+
+
+class RedoData(_RedoData, total=False):
+    skipped: list[str]  # undone calls dropped from the redo list without running
+    remapped: dict[str, str]  # old ref -> new ref the redone steps made again
 
 
 class CheckpointData(TypedDict):
@@ -166,22 +174,41 @@ class CheckpointData(TypedDict):
     undo_depth: int  # the part's operations nx_undo_operation can undo
 
 
-class CheckpointRow(TypedDict):
+class BlockedBy(TypedDict):
+    operation_id: str  # the part's operation since the checkpoint that cannot be undone now
+    tool: str
+    reason: str  # why compensation cannot undo it (a delete, an edit without before-values)
+
+
+class _CheckpointRow(TypedDict):
     checkpoint_id: str
     label: str
     part_id: str
-    available: bool  # False: not restorable, expired_reason says why
-    expired_reason: ExpiredReason | None  # undone_past, part_loaded, mark_evicted...
+    part: str  # the part's file name ("a closed part" once closed)
+    available: bool  # False: expired, expired_reason says why
+    expired_reason: ExpiredReason | None  # undone_past, part_closed, engineer_change...
     operations_after: int  # the part's operations a restore would undo
     # true: a restore now undoes them without NX's undo (other parts' later work, loads or
     # closes, or dropped marks): deletes what they created, sets values back
     compensated: bool
+    # false: a restore now is refused (expired, or compensated and blocked_by an operation
+    # compensation cannot undo)
+    restorable: bool
 
 
-class CheckpointsData(TypedDict):
+class CheckpointRow(_CheckpointRow, total=False):
+    blocked_by: BlockedBy  # the operation that keeps a compensated restore from working
+
+
+class _CheckpointsData(TypedDict):
     checkpoints: list[CheckpointRow]
     undo_depth: int  # the part's operations nx_undo_operation can still undo
-    last_operation: str | None  # the operation nx_undo_operation would undo
+    last_operation: str | None  # the operation nx_undo_operation would undo; None: none can
+
+
+class CheckpointsData(_CheckpointsData, total=False):
+    undo_blocked_by: BlockedBy  # why undo_depth is 0 although the part has operations
+    hidden_expired: int  # expired checkpoints left out (include_expired lists them)
 
 
 class _RestoreData(TypedDict):
@@ -213,23 +240,8 @@ def _key(services, part) -> str | None:
     return None
 
 
-def _own(item: dict, key) -> bool:
-    """An operation of the part ``key`` (not a barrier, not an undo by deletion)."""
-    return (
-        undo_marks.barrier(item) is None
-        and not item.get("compensation")
-        and item.get("part_id") == key
-    )
-
-
-def _alive_entry(services, item: dict) -> bool:
-    """Whether NX's undo mark of a history entry still exists."""
-    if item.get("expired"):
-        return False
-    try:
-        return bool(services.mark_exists(item["mark"]))
-    except Exception:
-        return False
+_own = undoable.own  # an operation of the part (not a barrier, not an undo by deletion)
+_alive_entry = undoable.entry_alive  # NX's undo mark of a history entry still exists
 
 
 def _reach(history: list, key, mode: str | None = None) -> tuple[list, dict | None]:
@@ -336,6 +348,43 @@ def _sentence(rows: list[dict], total: int) -> str:
     return text + (f" and {total - len(rows)} more" if total > len(rows) else "")
 
 
+def _summary(services, blockers: list, rows: list[dict]) -> str:
+    """``N later operation(s) in M other part(s)`` (and loads or closes) of the work in the
+    way; the rows themselves are named only when there are three or fewer (the ids are in
+    ``details.in_the_way``)."""
+    operations = [h for h in blockers if undo_marks.barrier(h) is None]
+    parts = {h.get("part_id") for h in operations}
+    texts = []
+    if operations:
+        texts.append(
+            f"{len(operations)} later operation{'s' if len(operations) != 1 else ''} in "
+            f"{len(parts)} other part{'s' if len(parts) != 1 else ''}"
+        )
+    cuts = len(blockers) - len(operations)
+    if cuts:
+        texts.append(
+            f"{cuts} part load{'s' if cuts != 1 else ''} or close{'s' if cuts != 1 else ''}"
+        )
+    text = " and ".join(texts)
+    if len(blockers) <= 3:
+        text += ": " + _sentence(rows, len(blockers))
+    return text
+
+
+def _fix_forward(undone: list, refusal) -> str:
+    """The fix-forward hint, naming the tool of the operation that cannot be undone."""
+    operation = refusal.details.get("operation_id")
+    tool = next((str(h.get("method")) for h in undone if h.get("operation_id") == operation), None)
+    if tool == "nx_delete_objects":
+        return (
+            "Fix forward instead: create again what it deleted (a delete is undone only by "
+            "NX's undo, while no other part's work follows it)"
+        )
+    if tool:
+        return f"{FIX_FORWARD}; {operation} used {tool}: set its values back with it"
+    return FIX_FORWARD
+
+
 # ---------------------------------------------------------------------------
 # Effects shared by undo and restore
 
@@ -357,6 +406,18 @@ def _redo_steps(services, undone: list) -> list[RedoStep]:
     which NX Open calls cannot use (measured: it undoes nothing from the host)."""
     steps: list[RedoStep] = []
     for item in undone:
+        calls = item.get("redo_calls")
+        if isinstance(calls, list):  # an accepted preview: its previewed calls
+            for call in calls:
+                given = call.get("arguments") if isinstance(call, dict) else None
+                steps.append(
+                    {
+                        "tool": str(call.get("tool") or "") if isinstance(call, dict) else "",
+                        "arguments": given if isinstance(given, dict) else {},
+                        "complete": isinstance(given, dict),
+                    }
+                )
+            continue
         arguments: Any = {}
         with contextlib.suppress(Exception):
             arguments = services.store.get(item["operation_id"]).get("arguments") or {}
@@ -398,6 +459,7 @@ def _push_redo(services, reverted: list) -> None:
             "operation_id": str(h["operation_id"]),
             "method": str(h.get("method") or ""),
             "part_id": h.get("part_id"),
+            **({"calls": list(h["redo_calls"])} if isinstance(h.get("redo_calls"), list) else {}),
         }
         for h in reverted
     ]
@@ -498,6 +560,14 @@ def _repark(tx: Tx, undone: list) -> None:
             )
 
 
+def _count(n: int, kind: str) -> str:
+    """``2 bodies``, ``1 feature``, ``3 datum planes``."""
+    word = kind.replace("_", " ")
+    if n != 1:
+        word = word[:-1] + "ies" if word.endswith("y") else word + "s"
+    return f"{n} {word}"
+
+
 def _delete_created(
     tx: Tx, plan: compensate.Plan, start: int, undone: list, by: str, why: str
 ) -> tuple[list[RedoStep], dict]:
@@ -515,7 +585,7 @@ def _delete_created(
     undo_marks.remove_entries(services, undone)
     tx.history_note = {"compensation": True, "undid": [str(h["operation_id"]) for h in undone]}
     _push_redo(services, undone)
-    kinds = ", ".join(f"{n} {k}{'s' if n != 1 else ''}" for k, n in sorted(info["kinds"].items()))
+    kinds = ", ".join(_count(n, k) for k, n in sorted(info["kinds"].items()))
     done = []
     if kinds:
         done.append(f"deleted what {'it' if len(undone) == 1 else 'they'} created ({kinds})")
@@ -566,30 +636,38 @@ def _plan(
     try:
         plan = compensate.plan(tx, undone, history[start:])
     except compensate.Refusal as refusal:
+        hint = _fix_forward(undone, refusal)
+        # no fix makes the same call succeed when the receipt rules refuse (a delete, an
+        # edit without before-values): only fixing forward does
+        never = refusal.code in ("NX_UNSUPPORTED_OPTION", "NX_CROSS_PART")
+        retry = "never" if never else None
         if mode in COMPENSATE:
             fail(
                 refusal.code,
                 f"{what} cannot be undone without NX's undo (deleting what it created, "
                 f"setting back the values it set): {refusal.reason}",
-                hint=FIX_FORWARD,
+                hint=hint,
                 details={"delete_created": refusal.reason, **refusal.details},
+                retry=retry,
             )
         dependents = {k: v for k, v in refusal.details.items() if k == "dependents"}
         if blockers:
             rows = _in_the_way(services, blockers)
             fail(
                 "NX_CROSS_PART",
-                f"Undoing {what} with NX's undo would also revert later work: "
-                f"{_sentence(rows, len(blockers))}; and it cannot be compensated (deleting "
-                f"what it created, setting back the values it set): {refusal.reason}",
-                hint=FIX_FORWARD,
+                f"Undoing {what} with NX's undo would also revert later work "
+                f"({_summary(services, blockers, rows)}), and it cannot be compensated "
+                f"(deleting what it created, setting back the values it set): {refusal.reason}",
+                hint=hint,
                 details={
                     "part_id": undone[0].get("part_id"),
                     "operation_id": blockers[0].get("operation_id"),
                     "in_the_way": rows,
+                    "in_the_way_count": len(blockers),
                     "delete_created": refusal.reason,
                     **dependents,
                 },
+                retry=retry,
             )
         reason = str(dropped[0].get("expired") or "mark_evicted")
         fail(
@@ -597,7 +675,7 @@ def _plan(
             f"{what} can no longer be undone with NX's undo ({_dropped(dropped[0])}) and "
             "it cannot be compensated (deleting what it created, setting back the values "
             f"it set): {refusal.reason}",
-            hint=FIX_FORWARD,
+            hint=hint,
             details={"reason": reason, "delete_created": refusal.reason, **dependents},
             retry="never",  # no fix makes the same call succeed
         )
@@ -653,37 +731,15 @@ def _mark_alive(services, cp: dict) -> bool:
 
 
 def _reason(services, cp: dict) -> ExpiredReason | None:
-    """Why a checkpoint cannot be restored; None while it can. Per part: only an undo or
-    restore past it, its part's close, its part's own save (``marks.own_cut``) or the
-    engineer's edits end it. Other parts' loads, closes and saves, and marks NX evicted,
-    do not: the restore then deletes what the part's operations since created and sets
-    their values back (:func:`_compensated`)."""
-    expired = cp.get("expired")
-    if expired in ("undone_past", "part_closed", "engineer_change"):
-        return expired
-    key = cp.get("part_id")
-    if expired and undo_marks.own_cut(cp, key):
-        return expired
-    for item in services.undo_history()[int(cp["index"]) :]:
-        if undo_marks.barrier(item) == "engineer":
-            return "engineer_change"
-        if _own(item, key) and undo_marks.own_cut(item, key):
-            return item["expired"]
-    return None
+    """Why a checkpoint cannot be restored; None while it can (``core/undoable.py``). Per
+    part: only an undo or restore past it, its part's close, its part's own save
+    (``marks.own_cut``) or the engineer's edits end it. Other parts' loads, closes and
+    saves, and marks NX evicted, do not: the restore then compensates."""
+    return undoable.checkpoint_reason(services, cp)  # type: ignore[return-value]
 
 
 def _compensated(services, cp: dict) -> bool:
-    """Whether a restore of ``cp`` would undo the part's operations since without NX's
-    undo: other parts' work, loads or closes lie after them, or NX dropped their marks."""
-    key = cp.get("part_id")
-    later = services.undo_history()[int(cp["index"]) :]
-    own = [h for h in later if _own(h, key)]
-    if not own:
-        return False
-    first = next(i for i, h in enumerate(later) if h is own[0])
-    return any(not _own(h, key) for h in later[first:]) or any(
-        not _alive_entry(services, h) for h in own
-    )
+    return undoable.checkpoint_compensated(services, cp)
 
 
 def _restorable(services, checkpoints: dict) -> set[str]:
@@ -824,14 +880,41 @@ def _not_found(file: str, end: dict | None, other: bool) -> None:
     )
 
 
-def _too_many(steps: int, depth: int, end: dict | None, field: str = "/steps") -> None:
-    reason, why = _why_ended(end) if end is not None else (None, "")
+def _too_many(tx: Tx, history: list, key, file: str, steps: int, reach: list, end) -> None:
+    """Refuse ``steps`` beyond what can be undone: the part's whole history, or the depth
+    an operation that cannot be undone without NX's undo stops at. The end of the history
+    is named only when older operations of the part lie behind it."""
+    services = tx.services
+    depth = _depth(services, key)
+    reason = None
+    if depth < len(reach):
+        item = reach[depth]  # newest first: the first one that cannot be undone now
+        refusal = undoable.why_not(services, item)
+        why = refusal.reason if refusal is not None else "NX's undo cannot reach it"
+        message = (
+            f"steps {steps} is more than the {depth} operation(s) of {file} that can be "
+            f"undone now: {item.get('operation_id')} ({item.get('method')}) cannot be undone "
+            f"without NX's undo while other parts' work follows it ({why})"
+        )
+    else:
+        message = (
+            f"steps {steps} is more than the {depth} operation(s) of {file} in its undo history"
+        )
+        position = next((i for i, h in enumerate(history) if h is end), None)
+        if (
+            end is not None
+            and position is not None
+            and any(_own(h, key) for h in history[:position])
+        ):
+            reason, why = _why_ended(end)
+            message += f" (older ones are out of reach: {why})"
     fail(
         "NX_INVALID_ARGUMENT",
-        f"steps {steps} is more than the {depth} agent operation(s) that can be undone"
-        + (f" (the history ends there: {why})" if end is not None else ""),
-        field=field,
-        hint=f"Pass steps from 1 to {depth}; nx_list_checkpoints shows undo_depth",
+        message,
+        field="/steps",
+        hint=f"Pass steps from 1 to {depth}; nx_list_checkpoints shows undo_depth"
+        if depth
+        else "Nothing can be undone now; fix forward instead",
         details={"undo_depth": depth, **({"reason": reason} if reason else {})},
     )
 
@@ -846,9 +929,30 @@ def _choose(
         if not reach:
             _not_found(file, end, any(undo_marks.barrier(h) is None for h in history))
         if steps > len(reach):
-            _too_many(steps, _depth(tx.services, key), end)
+            _too_many(tx, history, key, file, steps, reach, end)
         return list(reversed(reach[:steps]))
     found = next((h for h in history if h.get("operation_id") == operation and _own(h, key)), None)
+    other = next(
+        (
+            h
+            for h in history
+            if h.get("operation_id") == operation
+            and undo_marks.barrier(h) is None
+            and not h.get("compensation")
+            and h.get("part_id") != key
+        ),
+        None,
+    )
+    if found is None and other is not None:
+        home = _file(tx.services, other.get("part_id"))
+        fail(
+            "NX_WRONG_PART_CONTEXT",
+            f"{operation} is an operation of {home}, not {file}"
+            + (" (it also changed this part)" if key in (other.get("parts") or []) else ""),
+            field="/part",
+            hint=f'Pass "part": "{home}", or drop part: the operation names its own part',
+            details={"operation_id": operation, "part": home},
+        )
     if found is None:
         fail(
             "NX_NOT_FOUND",
@@ -945,6 +1049,9 @@ def nx_undo_operation(
 # Checkpoint tools
 
 
+LABEL_RULE = "label must be 1-80 characters, without control characters or line breaks"
+
+
 @tool(
     effect="session",
     label="Create checkpoint",
@@ -955,10 +1062,15 @@ def nx_undo_operation(
     example={"label": "before fillets"},
 )
 def nx_create_checkpoint(tx: Tx, *, label: Label = "checkpoint") -> CheckpointData:
-    """Set an in-session undo checkpoint in the work part (restore by id or label; a reused
-    label restores its newest). Its part's own save or close, the engineer's edits or an undo
-    past it expire it; other parts' work never does. Disk saves are never rolled back."""
+    """Set an in-session undo checkpoint in the work part; restore it by id or label.
+    The part's save or close, the engineer's edits or an undo past it expire it. Once other
+    parts change, only operations an undo can compensate are restored: deletes and plain
+    edits block it (nx_list_checkpoints shows restorable)."""
     services = tx.services
+    with tx.checks():
+        if not label.strip() or any(ord(c) < 32 for c in label):
+            fail("NX_INVALID_ARGUMENT", LABEL_RULE, field="/label",
+                 hint="Pass a short name such as 'before fillets'")  # fmt: skip
     part = tx.part
     part_key = services.part_key(part)
     checkpoints = services.undo_checkpoints()
@@ -983,47 +1095,82 @@ def nx_create_checkpoint(tx: Tx, *, label: Label = "checkpoint") -> CheckpointDa
     return {"checkpoint_id": key, "label": label, "undo_depth": _depth(services, part_key)}
 
 
+def _blocked(row: dict | None) -> BlockedBy | None:
+    if not row:
+        return None
+    return {
+        "operation_id": str(row.get("operation_id") or ""),
+        "tool": str(row.get("tool") or ""),
+        "reason": str(row.get("reason") or ""),
+    }
+
+
 @tool(
     target="any",
     effect="read",
     label="List checkpoints",
     summary="List undo checkpoints",
-    keywords=("checkpoints", "undo history", "undo depth", "restore points"),
+    keywords=("checkpoints", "undo history", "undo depth", "restore points", "can i restore"),
     cost="light",
     example={},
 )
-def nx_list_checkpoints(tx: Tx) -> CheckpointsData:
-    """List this session's checkpoints (with the part key: only that part's) and the part's
-    undo depth.
-    Expired ones show available=false and expired_reason; compensated=true: a restore now
-    deletes what the part made since instead of using NX's undo."""
+def nx_list_checkpoints(
+    tx: Tx,
+    *,
+    include_expired: Annotated[bool, Doc("Also list expired checkpoints")] = False,
+) -> CheckpointsData:
+    """List this session's checkpoints (with part: that part's) and the part's undo depth.
+    restorable=false: a restore is refused now (expired_reason, or blocked_by an operation
+    compensation cannot undo); compensated=true: it deletes and sets back, not NX's undo."""
     services = tx.services
     history = services.undo_history()
     key = _key(services, services.work_part())
     named = tx.target is not None and tx.target.field == "/part"  # part given: its own
     rows: list[CheckpointRow] = []
+    hidden = 0
     for cp_key, cp in services.undo_checkpoints().items():
         if named and cp.get("part_id") != key:
             continue
-        reason = _reason(services, cp)
+        state = undoable.checkpoint_state(services, cp)
+        reason = state["reason"]
+        if reason and not include_expired:
+            hidden += 1
+            continue
         after = sum(1 for h in history[int(cp["index"]) :] if _own(h, cp.get("part_id")))
-        rows.append(
-            {
-                "checkpoint_id": cp_key,
-                "label": str(cp.get("label") or ""),
-                "part_id": str(cp["part_id"]),
-                "available": reason is None,
-                "expired_reason": reason,
-                "operations_after": 0 if reason else after,
-                "compensated": reason is None and _compensated(services, cp),
-            }
-        )
+        row: CheckpointRow = {
+            "checkpoint_id": cp_key,
+            "label": str(cp.get("label") or ""),
+            "part_id": str(cp["part_id"]),
+            "part": _file(services, cp.get("part_id")),
+            "available": reason is None,
+            "expired_reason": reason,
+            "operations_after": 0 if reason else after,
+            "compensated": state["compensated"],
+            "restorable": state["restorable"],
+        }
+        blocked = _blocked(state["blocked_by"])
+        if blocked is not None:
+            row["blocked_by"] = blocked
+        rows.append(row)
     ops = _reach(history, key)[0] if key is not None else []
-    return {
+    depth = _depth(services, key)
+    out: CheckpointsData = {
         "checkpoints": rows,
-        "undo_depth": _depth(services, key),
-        "last_operation": ops[0]["operation_id"] if ops else None,
+        "undo_depth": depth,
+        "last_operation": ops[0]["operation_id"] if ops and depth else None,
     }
+    if ops and not depth:
+        refusal = undoable.why_not(services, ops[0])
+        out["undo_blocked_by"] = {
+            "operation_id": str(ops[0].get("operation_id") or ""),
+            "tool": str(ops[0].get("method") or ""),
+            "reason": refusal.reason
+            if refusal is not None
+            else "NX's undo cannot reach it (other parts' work or a dropped undo mark)",
+        }
+    if hidden:
+        out["hidden_expired"] = hidden
+    return out
 
 
 def _checkpoint_part(services, args) -> Any:
@@ -1046,22 +1193,19 @@ def _checkpoint_part(services, args) -> Any:
 
 
 def _restore_refusal(services, cp: dict, reason: str) -> None:
+    """``NX_STALE_CHECKPOINT``: nothing makes the same restore work again (retry never)."""
     if reason == "undone_past":
-        fail("NX_STALE_CHECKPOINT",
-             "An undo or restore went back past this checkpoint: its state is gone",
-             field="/checkpoint_id", hint=STALE_HINT)  # fmt: skip
-    if reason == "engineer_change":
-        fail("NX_STALE_CHECKPOINT",
-             "The engineer changed the model after this checkpoint",
-             field="/checkpoint_id", hint=STALE_HINT)  # fmt: skip
-    if reason == "saved_or_closed":
-        fail("NX_STALE_CHECKPOINT",
-             "Its part was saved or closed after it (NX dropped the checkpoint's undo mark)",
-             field="/checkpoint_id", hint=STALE_HINT, details={"reason": reason})  # fmt: skip
-    fail("NX_STALE_CHECKPOINT",
-         f"The checkpoint cannot be restored: {WHY.get(reason, reason)}",
-         field="/checkpoint_id", hint=STALE_HINT,
-         details={"reason": reason})  # fmt: skip
+        message = "An undo or restore went back past this checkpoint: its state is gone"
+    elif reason == "engineer_change":
+        message = "The engineer changed the model after this checkpoint"
+    elif reason == "saved_or_closed":
+        message = "Its part was saved or closed after it (NX dropped the checkpoint's undo mark)"
+    elif reason == "part_closed":
+        message = f"Its part {_file(services, cp.get('part_id'))} was closed"
+    else:
+        message = f"The checkpoint cannot be restored: {WHY.get(reason, reason)}"
+    fail("NX_STALE_CHECKPOINT", message, field="/checkpoint_id", hint=STALE_HINT,
+         details={"reason": reason}, retry="never")  # fmt: skip
 
 
 @tool(
@@ -1075,10 +1219,10 @@ def _restore_refusal(services, cp: dict, reason: str) -> None:
     example={"checkpoint_id": "before fillets"},
 )
 def nx_restore_checkpoint(tx: Tx, *, checkpoint_id: CheckpointKey) -> RestoreData:
-    """Roll the checkpoint's part back to it (id or label), undoing its agent operations
-    since. It stays restorable until it expires (nx_create_checkpoint says what expires it).
-    Other parts' later work makes it compensate (delete what the part made, set values back),
-    refused when that does not qualify. Save to persist."""
+    """Roll the checkpoint's part back to it (id or label), undoing its agent operations since.
+    After other parts' later work it compensates (deletes what the part made, sets values
+    back): refused for deletes and plain edits (nx_list_checkpoints: restorable, blocked_by).
+    It stays restorable until it expires. Save to persist."""
     services = tx.services
     checkpoints = services.undo_checkpoints()
     history = services.undo_history()
@@ -1116,6 +1260,7 @@ def nx_restore_checkpoint(tx: Tx, *, checkpoint_id: CheckpointKey) -> RestoreDat
     if not undone:  # only other parts worked since: nothing of this part to undo
         _drop_own_mark(tx)
         references = "preserved"
+        tx.outcome = "not_applicable"  # nothing changed
     elif alone:
         _redo, references = _nx_undo(tx, cp["mark"], start, undone, key)
     elif how == "nx":
@@ -1145,7 +1290,9 @@ NOTHING_TO_REDO = (
 
 
 def _redo_arguments(services, item: dict, key) -> dict:
-    """The receipt arguments to repeat ``item`` with; refuse when they cannot be."""
+    """What repeats ``item``: ``{"arguments": ...}`` (the receipt's arguments) or, for an
+    accepted preview, ``{"calls": [...]}`` (its previewed calls), with ``old``: the undone
+    run's envelope; refuse when it cannot be repeated."""
     operation = item["operation_id"]
     record = services.store.get(operation)
     if record.get("state") != "committed" or not record.get("reverted_by"):
@@ -1153,7 +1300,7 @@ def _redo_arguments(services, item: dict, key) -> dict:
             "NX_NOT_FOUND",
             f"{operation} ({item['method']}) ran again since its undo "
             f"({record.get('state') or 'unknown'}): nothing of it is left to redo",
-            hint=NOTHING_TO_REDO,
+            hint=NOTHING_TO_REDO + "; skip passes over it",
             details={"operation_id": operation},
             retry="never",
         )
@@ -1164,16 +1311,121 @@ def _redo_arguments(services, item: dict, key) -> dict:
             hint="Activate the part it changed, then redo",
             details={"part_id": item.get("part_id"), "operation_id": operation},
         )
+    if item.get("method") == "nx_finish_preview":
+        calls = item.get("calls")
+        if not isinstance(calls, list) or not calls:
+            fail(
+                "NX_UNSUPPORTED_OPTION",
+                f"{operation} accepted a preview whose calls were not kept",
+                hint="Preview the changes again with nx_preview_changes and accept them; "
+                "skip passes over this step",
+                details={"operation_id": operation},
+            )
+        return {"calls": copy.deepcopy(calls), "old": record.get("envelope") or {}}
     arguments = record.get("arguments")
     if not _complete(arguments, repr(arguments)):
         fail(
             "NX_UNSUPPORTED_OPTION",
             f"The receipt of {operation} ({item['method']}) cut long text or file content",
             hint="Repeat it with nx_invoke and its full arguments (nx_get_operation shows "
-            "what the receipt kept)",
+            "what the receipt kept); skip passes over this step",
             details={"operation_id": operation},
         )
-    return dict(arguments)
+    return {"arguments": dict(arguments), "old": record.get("envelope") or {}}
+
+
+def _made(envelope: dict) -> set[str]:
+    """The short refs a committed call returned: its result data and created rows."""
+    found = preview.refs_in(envelope.get("data"))
+    for row in (envelope.get("changes") or {}).get("created") or []:
+        if isinstance(row, dict) and isinstance(row.get("id"), str):
+            found.append(row["id"])
+    return set(found)
+
+
+def _pairs(old: dict, new: dict) -> dict[str, str]:
+    """Old ref -> new ref of a call run again: the same place in its result data, and its
+    created rows matched by kind in creation order."""
+    out: dict[str, str] = {}
+
+    def walk(a, b) -> None:
+        if isinstance(a, str) and isinstance(b, str):
+            if a != b and preview.SHORT_REF.match(a) and preview.SHORT_REF.match(b):
+                out.setdefault(a, b)
+        elif isinstance(a, dict) and isinstance(b, dict):
+            for k in a:
+                if k in b:
+                    walk(a[k], b[k])
+        elif isinstance(a, list) and isinstance(b, list):
+            for x, y in zip(a, b, strict=False):
+                walk(x, y)
+
+    walk(old.get("data"), new.get("data"))
+    kinds: dict = {}
+    for row in (new.get("changes") or {}).get("created") or []:
+        if isinstance(row, dict):
+            kinds.setdefault(row.get("kind"), []).append(row.get("id"))
+    for row in (old.get("changes") or {}).get("created") or []:
+        if isinstance(row, dict) and kinds.get(row.get("kind")):
+            new_id = kinds[row.get("kind")].pop(0)
+            if isinstance(row.get("id"), str) and isinstance(new_id, str) and row["id"] != new_id:
+                out.setdefault(row["id"], new_id)
+    return out
+
+
+def _stale(tx: Tx, ref: str) -> bool:
+    try:
+        tx.resolve(ref)
+    except NXError as error:
+        return error.code == "NX_STALE_REFERENCE"
+    return False
+
+
+def _check_refs(tx: Tx, todo: list, plans: list, skip: int) -> None:
+    """Refuse before anything runs when a step names a ref that no longer exists and that
+    no earlier step of this redo makes again (its object was deleted another way)."""
+    made: set[str] = set()
+    for index, (item, plan) in enumerate(zip(todo, plans, strict=True)):
+        named = preview.refs_in(plan.get("arguments", plan.get("calls")))
+        for ref in dict.fromkeys(named):
+            if ref in made or not _stale(tx, ref):
+                continue
+            if index:
+                hint = (
+                    f"Redo the {index} step(s) before it (steps {index}), then call "
+                    f"{item['method']} yourself with current refs"
+                )
+            else:
+                hint = (
+                    f"Call {item['method']} yourself with current refs, or pass skip "
+                    f"{skip + 1} to pass over it"
+                )
+            fail(
+                "NX_STALE_REFERENCE",
+                f"Redo step {index} ({item['method']}, {item['operation_id']}) names {ref}, "
+                "which no longer exists and which no earlier redone step makes again",
+                field="/steps",
+                hint=hint,
+                details={
+                    "step": index,
+                    "ref": ref,
+                    "operation_id": item["operation_id"],
+                    "redoable": index,
+                },  # fmt: skip
+            )
+        made |= _made(plan["old"])
+
+
+def _run_as(services, operation: str) -> str:
+    """A new operation_id for a redo step whose arguments changed (remapped refs, or an
+    accepted preview run again): ``<id>-redo<n>``."""
+    base = operation[:110]
+    for n in range(1, 1000):
+        candidate = f"{base}-redo{n}"
+        with contextlib.suppress(Exception):
+            if services.store.get(candidate).get("state") == "unknown":
+                return candidate
+    return "op_" + uuid.uuid4().hex
 
 
 def _undo_redone(tx: Tx, start: int) -> None:
@@ -1210,10 +1462,10 @@ def _redo_part(services, args) -> Any:
     cost="heavy",
     example={},
 )
-def nx_redo_operation(tx: Tx, *, steps: RedoCount = 1) -> RedoData:
+def nx_redo_operation(tx: Tx, *, steps: RedoCount = 1, skip: SkipCount = 0) -> RedoData:
     """Repeat the part's agent calls an undo or checkpoint restore reverted, next first.
-    Each runs as its own operation (same operation_id, new refs). New work in the part
-    ends the redo list; a failing step undoes the steps redone."""
+    Refs earlier steps make again are remapped; skip drops the next ones unrun. New work in
+    the part ends the redo list; a failing step undoes the steps redone."""
     services = tx.services
     key = services.part_key(tx.part)
     pending = _redo_of(services, key)
@@ -1221,42 +1473,52 @@ def nx_redo_operation(tx: Tx, *, steps: RedoCount = 1) -> RedoData:
         if not pending:
             fail("NX_NOT_FOUND", f"Nothing to redo in {file_name(tx.part)}",
                  hint=NOTHING_TO_REDO, details={"redo_depth": 0}, retry="never")  # fmt: skip
-        if steps > len(pending):
+        if skip > len(pending):
+            fail("NX_INVALID_ARGUMENT",
+                 f"skip {skip} is more than the {len(pending)} undone call(s) to redo",
+                 field="/skip", hint=f"Pass skip from 0 to {len(pending)}",
+                 details={"redo_depth": len(pending)})  # fmt: skip
+        if steps == 0 and not skip:
+            fail("NX_INVALID_ARGUMENT", "steps 0 redoes nothing", field="/steps",
+                 hint="Pass steps 1 or more, or skip to drop undone calls")  # fmt: skip
+        if steps > len(pending) - skip:
+            left = len(pending) - skip
             fail(
                 "NX_INVALID_ARGUMENT",
-                f"steps {steps} is more than the {len(pending)} undone call(s) to redo",
+                f"steps {steps} is more than the {left} undone call(s) to redo"
+                + (f" after skipping {skip}" if skip else ""),
                 field="/steps",
-                hint=f"Pass steps from 1 to {len(pending)}",
+                hint=f"Pass steps from 1 to {left}" if left else "Pass steps 0 with skip",
                 details={"redo_depth": len(pending)},
             )
-        todo = list(pending[:steps])
-        arguments = [_redo_arguments(services, item, key) for item in todo]
-    rest = list(pending[steps:])
+        skipped = list(pending[:skip])
+        todo = list(pending[skip : skip + steps])
+        plans = [_redo_arguments(services, item, key) for item in todo]
+        _check_refs(tx, todo, plans, skip)
+    rest = list(pending[skip + steps :])
+    dropped = [str(h["operation_id"]) for h in skipped]
+    if not todo:  # only skipped
+        _set_redo(services, key, rest)
+        tx.outcome = "not_applicable"
+        return {"redone": [], "results": [], "redo_depth": len(rest),
+                "undo_depth": _depth(services, key), "skipped": dropped}  # fmt: skip
     history = services.undo_history()
     start = len(history)
     results: list[RedoneStep] = []
+    mapping: dict[str, str] = {}
+    renamed: list[tuple[str, str]] = []  # (undone operation, the id it ran under now)
     tx.touched = True
     try:
-        for index, (item, args) in enumerate(zip(todo, arguments, strict=True)):
+        for index, (item, plan) in enumerate(zip(todo, plans, strict=True)):
             tx.checkpoint(done=index, total=steps)
-            envelope = tx.call(item["method"], args, operation_id=item["operation_id"])
-            if not envelope.get("ok"):
-                error = envelope.get("error") or {}
-                raise NXError(
-                    str(error.get("code") or "NX_ERROR"),
-                    f"Redo step {index} ({item['method']}, {item['operation_id']}) failed: "
-                    + str(error.get("message") or ""),
-                    hint=error.get("hint"),
-                    details={
-                        "step": index,
-                        "operation_id": item["operation_id"],
-                        "step_outcome": envelope.get("mutation_outcome"),
-                        "redone_before_rollback": len(results),
-                    },
-                )
+            envelope, run_as = _redo_one(tx, index, item, plan, mapping)
+            if run_as != item["operation_id"]:
+                renamed.append((item["operation_id"], run_as))
+            mapping.update(_pairs(plan["old"], envelope))
             results.append(
                 {
                     "operation_id": item["operation_id"],
+                    "run_as": run_as,
                     "tool": item["method"],
                     "data": envelope.get("data") or {},
                     "changes": envelope.get("changes") or {},
@@ -1267,6 +1529,7 @@ def nx_redo_operation(tx: Tx, *, steps: RedoCount = 1) -> RedoData:
             )
     except NXError as error:
         outcome = error.details.get("step_outcome")
+        error.details.setdefault("redone_before_rollback", len(results))
         try:
             _undo_redone(tx, start)
         except Exception as undo_error:
@@ -1274,12 +1537,97 @@ def nx_redo_operation(tx: Tx, *, steps: RedoCount = 1) -> RedoData:
             error.details["rollback_error"] = str(undo_error)
         else:
             tx.outcome = "partial" if outcome in ("partial", "unknown") else "rolled_back"
-        _set_redo(services, key, todo + rest)  # the kernel ended it on the first commit
+        for operation, _run in renamed:  # their reruns were undone again
+            _note_record(services, operation, redone_as=None)
+        _set_redo(services, key, skipped + todo + rest)  # the kernel ended it on the first commit
         raise
+    for operation, run in renamed:
+        _note_record(services, operation, redone_as=run)
     _set_redo(services, key, rest)
-    return {
+    out: RedoData = {
         "redone": [item["operation_id"] for item in todo],
         "results": results,
         "redo_depth": len(rest),
         "undo_depth": _depth(services, key),
     }
+    if dropped:
+        out["skipped"] = dropped
+    if mapping:
+        out["remapped"] = dict(list(mapping.items())[:50])
+    return out
+
+
+def _note_record(services, operation: str, **values) -> None:
+    """Set (or, with None, remove) keys of an operation's receipt; never raises."""
+    with contextlib.suppress(Exception):
+        record = services.store.get(operation)
+        if "fingerprint" not in record:
+            return
+        for name, value in values.items():
+            if value is None:
+                record.pop(name, None)
+            else:
+                record[name] = value
+        services.store.put(record)
+
+
+def _redo_one(tx: Tx, index: int, item: dict, plan: dict, mapping: dict) -> tuple[dict, str]:
+    """Run one redo step with its refs remapped: ``(envelope, the operation_id it ran
+    under)``. The undone call's own id while its arguments are unchanged (a failure puts
+    its committed receipt back, so it can be redone again); else ``<id>-redo<n>``. An
+    accepted preview runs its previewed calls again as a new preview it accepts."""
+    services = tx.services
+    operation = str(item["operation_id"])
+    if "calls" in plan:
+        calls = preview.translate(plan["calls"], mapping)
+        _unmapped(tx, index, item, calls, mapping)
+        preview_id = preview.stash(tx, calls)
+        run_as = _run_as(services, operation)
+        envelope = tx.call(
+            "nx_finish_preview", {"preview_id": preview_id, "action": "accept"},
+            operation_id=run_as,
+        )  # fmt: skip
+    else:
+        arguments = preview.translate(plan["arguments"], mapping)
+        _unmapped(tx, index, item, arguments, mapping)
+        run_as = operation if arguments == plan["arguments"] else _run_as(services, operation)
+        saved = copy.deepcopy(services.store.get(operation)) if run_as == operation else None
+        envelope = tx.call(item["method"], arguments, operation_id=run_as)
+        if not envelope.get("ok") and saved is not None and "fingerprint" in saved:
+            error = envelope.get("error") or {}
+            saved["last_redo_error"] = {"code": error.get("code"), "message": error.get("message")}
+            with contextlib.suppress(Exception):
+                services.store.put(saved)  # still committed and reverted: redo it again
+    if not envelope.get("ok"):
+        error = envelope.get("error") or {}
+        raise NXError(
+            str(error.get("code") or "NX_ERROR"),
+            f"Redo step {index} ({item['method']}, {operation}) failed: "
+            + str(error.get("message") or ""),
+            hint=error.get("hint") or "Pass skip to pass over this step",
+            details={
+                "step": index,
+                "operation_id": operation,
+                "run_as": run_as,
+                "step_outcome": envelope.get("mutation_outcome"),
+                "step_field": error.get("field"),
+            },
+        )
+    return envelope, run_as
+
+
+def _unmapped(tx: Tx, index: int, item: dict, value, mapping: dict) -> None:
+    """Refuse a step whose ref an earlier step should have made again but did not
+    return (its new ref is unknown)."""
+    for ref in dict.fromkeys(preview.refs_in(value)):
+        if ref not in mapping.values() and _stale(tx, ref):
+            fail(
+                "NX_STALE_REFERENCE",
+                f"Redo step {index} ({item['method']}, {item['operation_id']}) names {ref}: "
+                "the earlier redone steps made its object again, but their results do not "
+                "say which object it is now",
+                field="/steps",
+                hint=f"Call {item['method']} yourself with the refs the redone steps "
+                "returned (results), or pass skip to pass over it",
+                details={"step": index, "ref": ref, "operation_id": item["operation_id"]},
+            )

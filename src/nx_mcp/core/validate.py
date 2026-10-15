@@ -36,7 +36,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Annotated, Any, Literal, Union
 
-from nx_mcp.core.errors import NXError
+from nx_mcp.core.errors import NXError, article
 from nx_mcp.core.references import PREFIX
 from nx_mcp.core.types import (
     CANONICAL,
@@ -309,6 +309,7 @@ _NUMBER = r"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?"
 _PERCENT = re.compile(r"^\s*(" + _NUMBER + r")\s*%\s*$")
 _TIMES = re.compile(r"^\s*(?:(" + _NUMBER + r")\s*[x×]|[x×]\s*(" + _NUMBER + r"))\s*$", re.I)
 _FACTOR_WORDS = frozenset({"factor", "scale", "zoom", "multiplier"})
+_NAME = re.compile(r"^\s*[A-Za-z_]\w*\s*$")
 
 
 def ratio_of(name, markers) -> Ratio | None:
@@ -343,6 +344,14 @@ def ratio_value(value, ratio: Ratio | None):
     if match:
         return float(match.group(1) or match.group(2))
     return value
+
+
+def scalar_ratio(value, name, markers):
+    """A unitless quantity (a factor) also takes ``'200%'`` and ``'2x'`` when its name or
+    ``Doc`` says so (:func:`ratio_of`); a bare name (``x2``) stays an expression name."""
+    if not isinstance(value, str) or _NAME.match(value):
+        return value
+    return ratio_value(value, ratio_of(name, markers))
 
 
 def _one_option_field(hint):
@@ -410,12 +419,26 @@ def suggest_field(name: str, fields) -> str | None:
     return near[0] if near else None
 
 
+# Keys every call may carry beside the tool's own arguments (the kernel and the sidecar
+# take them out before gate 1 sees the arguments).
+CALL_KEYS = ("part", "operation_id", "intent")
+
+
 def unknown_field(path, name: str, fields) -> NXError:
-    """``/x: unknown field; did you mean 'y'? Fields: y, z`` with ``details.accepted``."""
+    """``/x: unknown field; did you mean 'y'? Fields: y, z`` with ``details.accepted``. At
+    the top level the call keys (``part``, ``operation_id``, ``intent``) count too."""
     fields = [str(f) for f in fields]
-    near = suggest_field(name, fields)
-    if not fields:
-        message = "unknown field; this takes no arguments"
+    top = not path
+    near = suggest_field(name, [*fields, *CALL_KEYS] if top else fields)
+    if not fields and top:
+        message = (
+            "unknown field; this tool takes no arguments of its own, only the call keys "
+            + ", ".join(CALL_KEYS)
+        )
+        if near:
+            message += f" (did you mean {near!r}?)"
+    elif not fields:
+        message = "unknown field; this takes no fields"
     elif near:
         message = f"unknown field; did you mean {near!r}? Fields: {', '.join(fields)}"
     else:
@@ -614,6 +637,8 @@ _QUANTITY_FORMS = {
     "sheet_length": "a sheet length (10 or '10 mm')",
     "angle": "an angle (90, '90 deg' or an expression)",
     "count": "a whole number or an expression",
+    "scalar": "a number or an expression",
+    "mass": "a mass (12 for kg, or '12 kg'/'26 lb')",
 }
 
 
@@ -638,7 +663,8 @@ def form_text(hint) -> str | None:
     if base is str:
         if RefKind in markers:
             kinds = markers[RefKind].kinds
-            return f"a {'/'.join(kinds) or 'any'} ref like {ref_example(kinds)}"
+            what = "/".join(kinds) or "any"
+            return f"{article(what)} {what} ref like {ref_example(kinds)}"
         return "a string"
     if base is bool:
         return "true or false"
@@ -797,6 +823,9 @@ class _Walker:
 
     def _quantity(self, value, markers, path):
         dim = markers[Quantity].dim
+        if dim == "scalar" and self.level >= NATURAL and isinstance(value, str):
+            name = path[-1] if path and isinstance(path[-1], str) else None
+            value = scalar_ratio(value, name, markers)  # a factor's '200%', '2x'
         try:
             formula = quantity_formula(value, dim)
         except ValueError as error:
@@ -1041,10 +1070,13 @@ def _format_message(value: str, markers) -> str:
             if "component" in kinds
             else "an earlier result, nx_list_objects or nx_find_geometry"
         )
-        anchored = not kinds or bool({"feature", "body", "sketch"} & set(kinds))
+        anchored = not kinds or bool({"feature", "body", "sketch", "component"} & set(kinds))
         anchor = " or a result row's anchor ('@<part>:EXTRUDE(2)')" if anchored else ""
+        if not anchored and {"face", "edge"} & set(kinds):
+            anchor = " or an nx_create_anchor anchor ('@<part>:face=<handle>')"
+        what = "/".join(kinds) or "object"
         return (
-            f"expected a {'/'.join(kinds) or 'object'} ref like {ref_example(kinds)} (from "
+            f"expected {article(what)} {what} ref like {ref_example(kinds)} (from "
             f"{source}){anchor}, got {value!r}; display names are not refs"
         )
     doc = markers.get(Doc)
@@ -1076,6 +1108,7 @@ def validate(
     variant: str | None = None,
     required_by: Mapping[str, tuple] | None = None,
     shown: Mapping[str, tuple] | None = None,
+    tool: str | None = None,
 ) -> Checked:
     """Validate ``args`` against ``params`` (``{name: Param}`` from the catalogue).
 
@@ -1083,7 +1116,8 @@ def validate(
     ``params``; the handler receives them. Every invalid, unknown and missing field is
     reported in one error (:func:`combine`). ``required_by`` maps a value of the
     ``variant`` field to the fields that variant needs (``ToolSpec.required_by``);
-    ``shown`` maps a field to the options its error lists (the variants on offer).
+    ``shown`` maps a field to the options its error lists (the variants on offer);
+    ``tool`` names the tool whose variant schema a missing variant field's hint points at.
     """
     if not isinstance(args, dict):
         raise _bad([], "arguments must be an object")
@@ -1109,21 +1143,32 @@ def validate(
         and required_by
         and not any(error_rows(e)[0]["field"] == "/" + variant for e in errors)
     ):
-        errors.extend(variant_needs(params, walker.out.args, variant, required_by))
+        # A field the call gives but that failed its own check is not "required": its own
+        # error already says what is wrong with it.
+        given = {name for name, value in args.items() if value is not None}
+        errors.extend(
+            e
+            for e in variant_needs(params, walker.out.args, variant, required_by, tool)
+            if error_rows(e)[0]["field"].lstrip("/") not in given
+        )
     if errors:
         raise combine(errors)
     walker.out.args = {n: walker.out.args[n] for n in params if n in walker.out.args}
     return walker.out
 
 
-def variant_needs(params, args: Mapping, variant: str, required_by: Mapping) -> list:
-    """Errors for the fields the call's variant needs that ``args`` leaves out (None)."""
+def variant_needs(
+    params, args: Mapping, variant: str, required_by: Mapping, tool: str | None = None
+) -> list:
+    """Errors for the fields the call's variant needs that ``args`` leaves out (None); with
+    ``tool``, the hint names the variant's schema (``nx_get_tool_schemas tool#variant``)."""
     value = args.get(variant)
     if value is None and variant in params and not params[variant].required:
         value = params[variant].default
     needs = required_by.get(value, ()) if isinstance(value, str) else ()
+    hint = f"nx_get_tool_schemas {tool}#{value} lists the fields" if tool else None
     return [
-        _bad([name], f"required when {variant} is {value!r}")
+        _bad([name], f"required when {variant} is {value!r}", hint=hint)
         for name in needs
         if args.get(name) is None
     ]

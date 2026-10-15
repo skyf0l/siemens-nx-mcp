@@ -155,6 +155,9 @@ class Study(Object):
         self.optimized = [body]
         self.owner.bodies = [b for b in self.owner.bodies if b is not self.copy] + [body]
         self.designs[0].Results = results(self.nx, len(self.GetAllSubcases()))
+        # NX 2406 adds the result's mass as a feature expression after the target's.
+        mass = repr(body.volume * self.nx.density)
+        self.owner.expressions.append(NS(RightHandSide=mass, Units=NS(Name="Kilogram")))
 
     def RunAnalysis(self):  # NX 2406 refuses it on a topology study
         raise NXException(3520201, "Operation cannot be performed while in a task environment")
@@ -182,16 +185,20 @@ class SubcaseList(list):
 
 def results(nx, count):
     """Analysis body results: one subcase result per load case; ``nx.case_peaks[i]`` (else
-    ``nx.peaks``) maps a result type name to its max magnitude, at ``nx.peak_at``."""
+    ``nx.peaks``) maps a result type name to its max magnitude, at ``nx.peak_at`` (part
+    units; the stress peak's location 1e-6 of them, as NX 2406 gives it)."""
+
+    def peak(peaks, kind):
+        name = str(kind).rsplit(".", 1)[-1].rstrip(">")
+        scale = 1e-6 if name == "StressVonMises" else 1.0
+        at = NS(**{k: v * scale for k, v in zip("XYZ", nx.peak_at, strict=True)})
+        return at, peaks[name]
 
     def case(i):
         peaks = nx.case_peaks[i] if i < len(nx.case_peaks) else nx.peaks
         return NS(
             HasResults=lambda kind: True,
-            GetMaxMagnitudeAndLocation=lambda kind: (
-                NS(**dict(zip("XYZ", nx.peak_at, strict=True))),
-                peaks[str(kind).rsplit(".", 1)[-1].rstrip(">")],
-            ),
+            GetMaxMagnitudeAndLocation=lambda kind: peak(peaks, kind),
         )
 
     return NS(GetSubcaseResults=lambda: [case(i) for i in range(count)])
@@ -285,8 +292,9 @@ def _commit(nx, kind):
         elif kind == "AnalysisLoadBuilder":
             faces = _faces(b)
             made = NS(
-                Type=_set(b, "Type"), GetFaces=lambda: list(faces), builder=b, Tag=Object().Tag
-            )
+                Type=_set(b, "Type"), GetFaces=lambda: list(faces), builder=b, Tag=Object().Tag,
+                Force=b.Force, Pressure=b.Pressure, FaceVector=_set(b, "FaceVector"),
+            )  # fmt: skip
         elif kind == "OptimizationConstraintBuilder":
             made = NS(Type=_set(b, "Type"), Mass=NS(Value=float(b.Mass.RightHandSide)))
         elif kind == "SceneryBodyBuilder":
@@ -515,6 +523,7 @@ def topo_nx(units="mm", licensed=True):
 
     nx.part.MaterialManager = NS(
         PhysicalMaterials=NS(
+            GetMaterialsFromLibrary=lambda _lib: list(library),
             GetLoadedLibraryMaterial=lambda _lib, name: nx.loaded_materials.get(name),
             LoadFromNxmatmllibrary=load,
             AskMaterialOfObject=lambda body: nx.body_material,
@@ -523,7 +532,14 @@ def topo_nx(units="mm", licensed=True):
     nx.part.Planes = NS(CreatePlane=lambda o, n, _u: NS(kind="plane", origin=o, normal=n))
     nx.uf.Modeling.AskMinimumDist = lambda a, b, *_r: (nx.gap, [0, 0, 0], [0, 0, 0])
     # facts.face_point: a face's point is its declared origin, inside the face.
-    nx.uf.Modeling.AskFaceProps = lambda tag, uv: (list(nx.face_data[tag][1]),)
+    nx.uf.Modeling.AskFaceProps = lambda tag, uv: (
+        list(nx.face_data[tag][1]),
+        [0] * 3,
+        [0] * 3,
+        [0] * 3,
+        [0] * 3,
+        list(nx.face_data[tag][2]),
+    )
     nx.uf.Modeling.AskPointContainment = lambda p, tag: 1
     return nx
 

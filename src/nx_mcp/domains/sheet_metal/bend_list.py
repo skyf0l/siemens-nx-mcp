@@ -18,7 +18,8 @@ NX 2406 findings encoded here:
   returned as ``sequence``. ``EditBendItem`` + commit renumbers them (not offered: no
   bend can be named by reference).
 - Allowance = rad(angle) * (radius + K * thickness): the flat bend strip's width.
-  Deduction = 2 * (radius + thickness) * tan(angle / 2) - allowance.
+  Deduction = 2 * (radius + thickness) * tan(angle / 2) - allowance; a hem (NX reports
+  180.0000000001 degrees) has no outside setback, so its deduction is null.
 - ``CleanUpUtilityBuilder`` (Clean-Up Utility) adds an unparameterized BREP copy of the
   solid beside the original (kept visible), with each sharp corner replaced by a bend of
   inner radius 0.01 * thickness; the copy is not a sheet-metal body. Convert to Sheet
@@ -39,7 +40,7 @@ from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Offset, PageLimit, PathTo, RefTo
 from nx_mcp.domains.sheet_metal import common
 from nx_mcp.domains.sheet_metal.export import flat_pattern_feature
-from nx_mcp.kit import builders, files, geom, licenses, result
+from nx_mcp.kit import builders, files, geom, licenses, result, switching
 
 LICENSE = ("nx_sheet_metal",)
 FlatPatternArg = Annotated[
@@ -60,7 +61,7 @@ class BendItem(TypedDict):
     length: float | None
     neutral_factor: float
     allowance: float
-    deduction: float
+    deduction: float | None
 
 
 class SequenceItem(TypedDict):
@@ -78,20 +79,25 @@ class BendListData(TypedDict):
     page: dict[str, Any]
 
 
+NO_SHEET_METAL_HINT = (
+    "Convert a constant-thickness solid with nx_create_sheet_metal_feature(operation=convert) "
+    "or start one with operation=tab"
+)
+
+
 def _body(tx, ref):
     if ref is not None:
         return common.sheet_body(tx, ref)
     found = [
         b for b in tx.part.Bodies if common.is_sheet_metal(tx, b) and not common.is_flat_pattern(b)
     ]
+    if not found:
+        fail("NX_NOT_FOUND", f"{switching.file_name(tx.part)} has no sheet-metal body",
+             field="/body", hint=NO_SHEET_METAL_HINT)  # fmt: skip
     if len(found) != 1:
-        fail(
-            "NX_TARGET_REQUIRED" if found else "NX_NOT_FOUND",
-            "Give body: the work part has "
-            + (f"{len(found)} sheet-metal bodies" if found else "no sheet-metal body"),
-            field="/body",
-            details={"candidates": [tx.ref(b, "body") for b in found]} if found else None,
-        )
+        fail("NX_TARGET_REQUIRED", f"Give body: the work part has {len(found)} sheet-metal "
+             "bodies", field="/body",
+             details={"candidates": [tx.ref(b, "body") for b in found]})  # fmt: skip
     return found[0]
 
 
@@ -110,22 +116,12 @@ def _directions(tx, feature) -> dict[Any, str]:
     return out
 
 
-def _formed_body(tx, feature):
-    """The formed (bent) body a Flat Pattern's centre lines point at, or None."""
-    for method in ("GetBendUpCenterLines", "GetBendDownCenterLines"):
-        for data in getattr(feature, method)():
-            face = getattr(data, "FormedBodyObject", None)
-            if face is not None:
-                return face.GetBody()
-    return None
-
-
 def _flat_pattern(tx, ref, body):
     """The Flat Pattern feature to use (``ref``, else the first one of ``body``) or None."""
     if ref is not None:
         feature = flat_pattern_feature(tx, ref)
         licenses.require(tx, LICENSE, "Reading a Flat Pattern needs a sheet-metal license")
-        formed = _formed_body(tx, feature)
+        formed = common.formed_body(feature)
         if formed is not None and not _same(formed, body):
             fail("NX_WRONG_OWNER", "This Flat Pattern belongs to another body",
                  field="/flat_pattern")  # fmt: skip
@@ -134,7 +130,7 @@ def _flat_pattern(tx, ref, body):
         return None
     for feature in tx.part.Features:
         if str(getattr(feature, "FeatureType", "")) == "FLAT_PATTERN" and _same(
-            _formed_body(tx, feature), body
+            common.formed_body(feature), body
         ):
             return feature
     return None
@@ -200,7 +196,13 @@ def allowance(angle: float, radius: float, k: float, thickness: float) -> float:
     return math.radians(angle) * (radius + k * thickness)
 
 
-def deduction(angle: float, radius: float, k: float, thickness: float) -> float:
+HEM_ANGLE = 179.9  # degrees: from here on tan(angle / 2) has no meaningful setback
+
+
+def deduction(angle: float, radius: float, k: float, thickness: float) -> float | None:
+    """The bend deduction, or None for a hem (about 180 degrees: no outside setback)."""
+    if angle >= HEM_ANGLE:
+        return None
     setback = (radius + thickness) * math.tan(math.radians(angle) / 2.0)
     return 2.0 * setback - allowance(angle, radius, k, thickness)
 
@@ -261,7 +263,7 @@ def nx_get_bend_list(
 ) -> BendListData:
     """List the bends of a sheet-metal body with angle, radius, length, K, allowance and up/down.
     Per bend: angle (deg), inner radius, bend line length, K factor, allowance (flat strip
-    width), deduction. Up/down is relative to a Flat Pattern's upward face (direction_from),
+    width), deduction (null for 180-degree hems). Up/down is relative to a Flat Pattern's upward face (direction_from),
     else the top layer; sequence: NX's bend list IDs and names of that Flat Pattern. CSV:
     nx_export_bend_list."""
     with tx.checks():
@@ -279,7 +281,7 @@ def nx_get_bend_list(
 
 
 COLUMNS = ("index", "direction", "angle", "radius", "length", "neutral_factor", "allowance",
-           "deduction", "state", "face")  # fmt: skip
+           "deduction", "state")  # fmt: skip
 
 
 def _cell(value):
@@ -293,9 +295,8 @@ def csv_text(items: list[BendItem], sequence: list[SequenceItem], thickness, uni
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\r\n")
     writer.writerow(COLUMNS)
-    for item in items:
+    for item in items:  # no face ref: it means nothing outside this NX session
         row: dict[str, Any] = dict(item)
-        row["face"] = item["face"].get("id", "")
         writer.writerow([_cell(row[c]) for c in COLUMNS])
     writer.writerow([])
     writer.writerow(["thickness", _cell(thickness)])
@@ -337,13 +338,15 @@ def nx_export_bend_list(
     overwrite: bool = False,
 ) -> ExportData:
     """Write a sheet-metal body's bend list to an Excel-friendly .csv file. Lines: the
-    nx_get_bend_list rows (all of them), thickness, units, then the sequence IDs. The model
-    is not changed; overwrite replaces a file."""
+    nx_get_bend_list rows (all of them, without face refs; a hem's deduction is empty),
+    thickness, units, then the sequence IDs. The model is not changed; overwrite replaces a
+    file."""
     target = Path(path)
     replacing = target.exists()
     if replacing and not overwrite:
         fail("NX_ALREADY_EXISTS", "/path: a file already exists there; set overwrite=true to "
-             "replace it", field="/path", details={"path": path})  # fmt: skip
+             "replace it", field="/path",
+             details={"path": files.relative(path, tx.workspace.root)})  # fmt: skip
     with tx.checks():
         found, feature, items, sequence = bend_list(tx, body, flat_pattern)
         t = common.thickness(tx, found)

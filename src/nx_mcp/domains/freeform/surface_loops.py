@@ -42,12 +42,15 @@ def loops_of(tx, objs, tol, field="/boundary"):
                     if best is None or gap < best[0]:
                         best = (gap, k, s)
             if best is None or best[0] > tol:
+                # open_at: the loop's loose end; to: the nearest end it could meet (the
+                # loop's own start when no curve is left), gap: their distance.
+                to = start if best is None else list(ends[best[1]][best[2]])
                 fail(
                     "NX_WRONG_GEOMETRY",
                     "The boundary curves do not form closed loops",
                     field=field,
                     hint="List every curve or edge round each loop, end to end",
-                    details={"open_at": here, "gap": None if best is None else best[0]},
+                    details={"open_at": list(here), "to": list(to), "gap": geom.dist(here, to)},
                 )
             _gap, k, s = best
             free.remove(k)

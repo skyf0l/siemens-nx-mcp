@@ -1,0 +1,43 @@
+{
+ "covers": {
+  "nx_create_topology_environment": ["scenery", "acceleration"],
+  "nx_create_topology_condition": ["keep_out"]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_primitive", "setup": true, "save": "bar",
+   "args": {"shape": "block", "length": 100, "width": 20, "height": 30}},
+  {"call": "nx_create_primitive", "setup": true, "save": "early",
+   "args": {"shape": "block", "origin": [-10, 0, 0], "length": 10, "width": 20, "height": 30}},
+  {"call": "nx_set_material", "setup": true, "args": {"material": "Steel"}},
+  {"call": "nx_create_topology_study", "save": "st",
+   "args": {"design_space": "$bar.data.bodies.0.id", "mass_fraction": 0.4, "quality": 9},
+   "expect": {"mutation_outcome": "committed", "data.mass_fraction": 0.4}},
+  {"call": "nx_create_primitive", "setup": true, "save": "late",
+   "args": {"shape": "block", "origin": [100, 0, 0], "length": 10, "width": 20, "height": 30}},
+  {"call": "nx_set_material", "setup": true,
+   "args": {"bodies": ["$late.data.bodies.0.id"], "material": "Steel"}},
+  {"call": "nx_create_topology_environment",
+   "args": {"study": "$st.data.study.id", "kind": "scenery", "bodies": ["$late.data.bodies.0.id"]},
+   "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/bodies/0",
+              "error.message": {"matches": "after the study"},
+              "mutation_outcome": "not_started"}},
+  {"call": "nx_create_topology_condition",
+   "args": {"study": "$st.data.study.id", "kind": "keep_out", "bodies": ["$late.data.bodies.0.id"]},
+   "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/bodies/0",
+              "mutation_outcome": "not_started"}},
+  {"call": "nx_create_topology_environment",
+   "args": {"study": "$st.data.study.id", "kind": "scenery", "bodies": ["$early.data.bodies.0.id"]},
+   "expect": {"mutation_outcome": "committed", "data.scenery": {"count": 1}}},
+  {"call": "nx_create_topology_environment",
+   "args": {"study": "$st.data.study.id", "kind": "acceleration", "magnitude": 1},
+   "expect": {"mutation_outcome": "committed", "data.acceleration.g": {"close": 1, "tol": 1e-6},
+              "data.acceleration.direction": {"close": [0, 0, -1], "tol": 1e-9}}},
+  {"call": "nx_get_topology_study", "args": {"study": "$st.data.study.id"},
+   "expect": {"data.items.0.scenery": {"count": 1},
+              "data.items.0.acceleration.g": {"close": 1, "tol": 1e-6}}},
+  {"call": "nx_check_model", "args": {}, "expect": {"data.healthy": true}}
+ ]
+}

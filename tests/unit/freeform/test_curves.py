@@ -92,6 +92,17 @@ def test_periodic_poles_may_wrap():
     assert ok.ok and ok.data["periodic"] is True, ok
 
 
+def test_periodic_drops_a_repeated_start_point():
+    nx = freeform_nx()
+    square = [[0, 0, 60], [20, 0, 60], [20, 20, 60], [0, 20, 60]]
+    ok = run(nx, "nx_create_spline", points=[*square, [0, 0, 60]], periodic=True)
+    assert ok.ok, ok.error
+    assert len(nx.last("StudioSplineBuilderEx").ConstraintManager.Append.calls) == 4
+    assert any("left out" in w["message"] for w in ok.warnings)
+    plain = run(nx, "nx_create_spline", points=[*square, [0, 0, 60]])
+    assert len(nx.last("StudioSplineBuilderEx").ConstraintManager.Append.calls) == 5, plain
+
+
 def edit(nx, f, value):
     """Call the definition hook as nx_edit_feature does, with a real Tx over the fake."""
     from nx_mcp.core.tx import Tx

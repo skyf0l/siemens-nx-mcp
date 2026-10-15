@@ -491,3 +491,84 @@ def test_rib_refusal_without_a_known_cause_keeps_the_orientation_hint():
     bad = run(nx, "nx_create_rib", sketch=sk.ref, body=body.ref, thickness=2)
     assert "cause" not in (bad.error["details"] or {})
     assert "orientation parallel" in bad.error["hint"]
+
+
+# ---- checks before NX: rib refs, tube path chain, helix on a face -------------------
+
+
+def segment(nx, a, b):
+    """A straight curve from ``a`` to ``b`` that UF Eval can evaluate."""
+    c = line(nx, math.dist(a, b))
+    d = [(q - p) / math.dist(a, b) for p, q in zip(a, b, strict=True)]
+    c.at = lambda t: ([p + (q - p) * t for p, q in zip(a, b, strict=True)], d)
+    nx.evaluable[int(c.Tag)] = c
+    return c
+
+
+def eval_nx():
+    nx = modeling_nx()
+    nx.evaluable = {}
+    nx.uf.Eval = NS(
+        Initialize=lambda tag: nx.evaluable[int(tag)],
+        AskLimits=lambda h: (0.0, 1.0),
+        EvaluateUnitVectors=lambda h, t: h.at(t),
+        EvaluateClosestPoint=lambda h, p: (0.0,),
+        Free=lambda h: None,
+    )
+    return nx
+
+
+def test_rib_wrong_kind_refs_are_not_started():
+    nx = rib_nx()
+    body = nx.block(10, 10, 10)
+    sk = nx.sketch()
+    bad = run(nx, "nx_create_rib", sketch=body.ref, body=body.ref, thickness=1)
+    assert bad.error["code"] == "NX_WRONG_KIND" and bad.error["field"] == "/sketch", bad
+    assert bad.mutation_outcome == "not_started"
+    bad = run(nx, "nx_create_rib", sketch=sk.ref, body=sk.ref, thickness=1)
+    assert bad.mutation_outcome == "not_started" and bad.error["field"] == "/body", bad
+
+
+def test_rib_without_combine_in_pieces_warns():
+    nx = rib_nx()
+    body = nx.block(40, 20, 10)
+    sk = nx.sketch(origin=(0, 0, 10))
+    nx.on_commit("RibBuilder", lambda b: feature(nx, "RIB", [
+        body, new_body(nx, [19, 2, 2, 21, 8, 10]), new_body(nx, [19, 12, 2, 21, 18, 10])]))  # fmt: skip
+    ok = run(nx, "nx_create_rib", sketch=sk.ref, body=body.ref, thickness=2, combine=False,
+             flip=True)  # fmt: skip
+    assert ok.ok, ok
+    assert any("2 pieces" in w["message"] for w in ok.warnings), ok.warnings
+
+
+def test_tube_path_with_a_gap_is_refused_with_its_place():
+    nx = eval_nx()
+    a = segment(nx, (0, 0, 0), (50, 0, 0))
+    b = segment(nx, (60, 0, 0), (100, 0, 0))
+    bad = run(nx, "nx_create_tube", path=[a.ref, b.ref], outer_diameter=4)
+    assert bad.error["code"] == "NX_WRONG_GEOMETRY" and bad.error["field"] == "/path", bad
+    assert bad.error["details"]["gap"] == pytest.approx(10.0)
+    assert bad.mutation_outcome == "not_started" and not nx.builders
+    c = segment(nx, (50, 0, 0), (50, 30, 0))
+    branch = run(nx, "nx_create_tube", path=[a.ref, c.ref, segment(nx, (50, 0, 0), (90, 0, 0)).ref],
+                 outer_diameter=4)  # fmt: skip
+    assert "branches" in branch.error["message"] and branch.mutation_outcome == "not_started"
+
+
+def test_tube_gap_from_nx_names_the_path():
+    nx = modeling_nx()
+    c = line(nx, 10.0)
+    nx.refuse("TubeBuilder", code=1070008, message="Gaps in string or multiple loops.")
+    bad = run(nx, "nx_create_tube", path=[c.ref], outer_diameter=3)
+    assert bad.error["field"] == "/path" and "end to end" in bad.error["hint"]
+
+
+def test_helix_on_a_cylinder_face_starts_at_the_face_end():
+    nx = helix_nx(lambda nx: helix_curve(nx, 12, 4, 2, origin=(100, 0, 0)))
+    face = nx.face(normal=(0, 0, 1), origin=(100, 0, 15), kind="cylinder")
+    low, high = nx.edge((110, 0, 0), (110, 0, 0)), nx.edge((110, 0, 30), (110, 0, 30))
+    face.GetEdges = lambda: [low, high]
+    ok = run(nx, "nx_create_helix", axis=face.ref, radius=12, pitch=4, turns=2)
+    assert ok.ok, ok
+    assert ok.data["axis"]["origin"] == pytest.approx([100, 0, 0])
+    assert ok.data["start"] == pytest.approx([112, 0, 0])

@@ -68,23 +68,24 @@ def png_size(path) -> tuple[int, int] | None:
     return int(width), int(height)
 
 
-def _exists(target, field):
+def _exists(target, field, root=None):
     fail(
         "NX_ALREADY_EXISTS",
         f"{Path(target).name} already exists; files are never overwritten",
         field=field,
-        details={"path": str(target)},
+        details={"path": relative(target, root) if root is not None else str(target)},
     )
 
 
-def write_new(target, data: bytes, *, field: str | None = "/path") -> Path:
-    """Create ``target`` with ``data`` exclusively; a partial file is removed on error."""
+def write_new(target, data: bytes, *, field: str | None = "/path", root=None) -> Path:
+    """Create ``target`` with ``data`` exclusively; a partial file is removed on error.
+    With ``root`` (the workspace) an error names the path relative to it."""
     target = Path(target)
     target.parent.mkdir(parents=True, exist_ok=True)
     try:
         stream = target.open("xb")
     except FileExistsError:
-        _exists(target, field)
+        _exists(target, field, root)
     try:
         with stream:
             stream.write(data)

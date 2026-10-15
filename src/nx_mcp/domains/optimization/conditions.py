@@ -53,6 +53,7 @@ class ConditionData(TypedDict):
     supports: int
     loads: int
     load_case: str | None
+    condition: common.Condition | None
 
 
 def _check(kind, faces, bodies, thickness, magnitude, direction, planes, size, load_case):
@@ -127,6 +128,34 @@ def _new_case(tx, study, name):
     made = _named(study, name)
     readback.expect(len(made) == 1, "load_case", f"NX made no load case {name!r}")
     return made[0]
+
+
+def _same_faces(item, tags) -> bool:
+    try:
+        return {int(f.Tag) for f in list(item.GetFaces() or [])} == tags
+    except Exception:
+        return False
+
+
+def _duplicate(tx, study, kind, faces, load_case) -> None:
+    """A support of the same type on the same faces is refused (NX would hold two; the
+    solve is the same); a second load there adds to the first, so it is only noted."""
+    role = "support" if kind in SUPPORTS else "load"
+    tags = {int(f.Tag) for f in faces}
+    for i, item in enumerate(common.all_of(study, common.GETTERS[role])):
+        if common.condition_type(tx, item, role) != kind or not _same_faces(item, tags):
+            continue
+        if role == "load":
+            tx.warn("NX_NOTE", f"A {kind} on the same faces exists already (loads[{i}]): "
+                    "the two add up")  # fmt: skip
+            return
+        row = common.condition_row(tx, study, item, role)
+        if load_case is None or load_case.strip().casefold() in (
+            c.casefold() for c in row["load_cases"]
+        ):
+            fail("NX_ALREADY_EXISTS", f"The study has a {kind} support on these faces",
+                 field="/faces", details={"supports_index": i, "existing": row},
+                 hint="nx_get_topology_study lists the supports")  # fmt: skip
 
 
 def _holds(case, item) -> bool:
@@ -293,8 +322,9 @@ def nx_create_topology_condition(
     | None = None,
 ) -> ConditionData:
     """Add a support, load, keep-in/out region or shape constraint to a topology study.
-    Pressure acts along the face normal; keep-in grows thickness into the body. Gravity,
-    scenery bodies, bonds: nx_create_topology_environment."""
+    Pressure acts along the face normal; keep-in grows thickness into the body; region
+    bodies must be made before the study. Returns the new support or load as read back.
+    Gravity, scenery bodies, bonds: nx_create_topology_environment."""
     _check(kind, faces, bodies, thickness, magnitude, direction, planes, size, load_case)
     with tx.checks():
         feature = common.feature_of(tx, study)
@@ -310,13 +340,17 @@ def nx_create_topology_condition(
             if int(other.Tag) == int(body.Tag):
                 fail("NX_INVALID_ARGUMENT", "Pass bodies other than the design space",
                      field=f"/bodies/{i}")  # fmt: skip
+        common.after_study(tx, feature, others, "/bodies")
+        if kind in SUPPORTS or kind in ("force", "pressure"):
+            _duplicate(tx, found, kind, picked, load_case)
         vector = select.direction(tx, direction, "/direction") if direction is not None else None
         common.require_license(tx)
         before = (
             len(common.all_of(found, "GetAllAnalysisConstraints")),
             len(common.all_of(found, "GetAllAnalysisLoads")),
         )
-    with common.task(tx, feature) as active:
+    made = None
+    with common.task(tx, feature, cycle_field="/bodies" if others else None) as active:
         current = common.active_study(active)
         design = common.all_of(current, "GetAllDesignSpaces")[0]
         if kind in SUPPORTS or kind in ("force", "pressure"):
@@ -330,9 +364,10 @@ def nx_create_topology_condition(
             readback.expect(len(fresh) == 1, "committed", "NX made no " + kind, count=len(fresh))
             with native():
                 _join(tx, current, fresh[0], load_case)
+            made = fresh[0]
         elif kind in REGIONS:
-            made = _regions(tx, current, design, kind, picked, others, thickness)
-            readback.expect(all(m is not None for m in made), "committed")
+            regions = _regions(tx, current, design, kind, picked, others, thickness)
+            readback.expect(all(m is not None for m in regions), "committed")
         else:
             shown = [_plane(tx, p, f"/planes/{i}") for i, p in enumerate(planes or [])]
             _shape(tx, current, design, kind, shown, size, vector)
@@ -341,6 +376,13 @@ def nx_create_topology_condition(
     loads = len(common.all_of(found, "GetAllAnalysisLoads"))
     want = (before[0] + (kind in SUPPORTS), before[1] + (kind in ("force", "pressure")))
     readback.expect((supports, loads) == want, "count", supports=supports, loads=loads)
+    role = "support" if kind in SUPPORTS else "load"
+    condition = None
+    if made is not None:
+        same = [
+            x for x in common.all_of(found, common.GETTERS[role]) if int(x.Tag) == int(made.Tag)
+        ]
+        condition = common.condition_row(tx, found, same[0] if same else made, role)
     return {
         "study": tx.ref(feature, kind="feature"),
         "kind": kind,
@@ -348,4 +390,5 @@ def nx_create_topology_condition(
         "supports": supports,
         "loads": loads,
         "load_case": load_case,
+        "condition": condition,
     }

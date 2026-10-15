@@ -145,3 +145,27 @@ def test_a_frame_nx_did_not_draw_fails_the_read_back():
     nx.sheet_obj.Open()
     bad = run(nx, "nx_set_sheet_borders")
     assert bad.error["code"] == "NX_VERIFICATION_FAILED" and bad.mutation_outcome == "rolled_back"
+
+
+def test_omitted_switches_keep_the_current_frame_on_a_replace():
+    nx = borders_nx()
+    nx.sheet_obj.Open()
+    off = run(nx, "nx_set_sheet_borders", zones=False)
+    assert off.ok and off.data["zones"] is False and off.data["borders"] is True
+    ok = run(nx, "nx_set_sheet_borders", margins=[100, 10, 140, 10])
+    assert ok.ok, ok
+    assert ok.data["replaced"] is True and ok.data["zones"] is False and ok.data["columns"] == []
+    frameless = run(nx, "nx_set_sheet_borders", borders=False)
+    assert frameless.ok and frameless.data["borders"] is False and frameless.data["zones"] is False
+
+
+def test_views_left_outside_the_new_inner_frame_are_warned():
+    nx = borders_nx()
+    nx.sheet_obj.Open()
+    view = nx.make_view(nx.sheet_obj, pos=(100, 150))
+    inside = run(nx, "nx_set_sheet_borders")
+    assert inside.ok and not [w for w in inside.warnings if w["code"] == "NX_VIEW_OVERLAP"]
+    moved = run(nx, "nx_set_sheet_borders", margins=[100, 10, 140, 10])
+    assert moved.ok, moved
+    warned = [w for w in moved.warnings if w["code"] == "NX_VIEW_OVERLAP"]
+    assert len(warned) == 1 and view.Name in warned[0]["message"]

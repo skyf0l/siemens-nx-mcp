@@ -97,7 +97,7 @@ async def test_the_ref_less_core_tools_list_part_within_budget(tmp_path, every_t
             assert tool.inputSchema["additionalProperties"] is False
             assert properties["part"] == {
                 "type": "string",
-                "description": "Target part's file name; needed when 2+ parts are loaded",
+                "description": "Target part's file name when 2+ are loaded",
             }
         elif tool.name != "nx_open_part":
             assert "part" not in properties, tool.name

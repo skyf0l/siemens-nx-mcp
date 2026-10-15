@@ -66,6 +66,6 @@
     {"call": "nx_resolve_reference", "args": {"selector": "{\"kind\": \"face\"}"},
      "expect": {"error.field": "/selector", "error.category": "invalid_argument"}},
     {"call": "nx_resolve_reference", "args": {"anchor": "@other/part.prt:face=RMx R1"},
-     "expect": {"error.code": "NX_WRONG_OWNER"}}
+     "expect": {"error.code": "NX_NOT_FOUND", "error.field": "/anchor", "error.message": {"matches": "is not loaded"}}}
   ]
 }

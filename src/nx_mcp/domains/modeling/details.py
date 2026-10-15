@@ -17,10 +17,10 @@ from __future__ import annotations
 
 import functools
 import math
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Literal, TypedDict, cast
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
     Angle,
@@ -35,7 +35,7 @@ from nx_mcp.core.types import (
     forbid_extra,
 )
 from nx_mcp.domains.modeling import common
-from nx_mcp.kit import args, builders, curve, expr, geom, measure, select, units
+from nx_mcp.kit import args, builders, curve, expr, geom, measure, readback, result, select, units
 
 EdgeList = Annotated[list[EdgeRef], Items(1, 200)]
 FaceList = Annotated[list[FaceRef], Items(1, 200)]
@@ -204,6 +204,11 @@ def nx_create_blend(
 ChamferMethod = Literal["symmetric", "two_offsets", "offset_angle"]
 
 
+class ChamferData(common.FeatureData, total=False):
+    offset_face: Annotated[result.Row, Doc("The face offset runs along (first edge)")]
+    offset2_face: Annotated[result.Row, Doc("The other face (offset2, or offset x tan angle)")]
+
+
 def chamfer_method(method, offset2, angle) -> ChamferMethod:
     """The chamfer method: ``method`` as given, or inferred from the fields when omitted
     (``angle`` -> offset_angle, ``offset2`` -> two_offsets, else symmetric)."""
@@ -242,10 +247,10 @@ def nx_create_chamfer(
     angle: Angle | None = None,
     reverse: Annotated[bool, Doc("Swap which face takes offset (asymmetric methods)")] = False,
     chain: ChainFlag = False,
-) -> common.FeatureData:
+) -> ChamferData:
     """Chamfer edges of one body by a symmetric offset, two offsets (offset2), or an offset
-    and angle (0..90 deg). NX picks the first face from the edge direction; reverse swaps the
-    faces."""
+    and angle (0..90 deg). NX picks the face that takes offset from the edge direction;
+    offset_face reports it (a straight edge between planar faces); reverse swaps them."""
     if float(offset) <= 0:
         fail("NX_INVALID_ARGUMENT", "offset must be positive", field="/offset")
     chosen = chamfer_method(method, offset2, angle)
@@ -288,6 +293,7 @@ def nx_create_chamfer(
     selected, body = _edges(tx, edges)
     selected = chain_edges(tx, selected, body, chain, "chamfer")
     before = measure.volume(tx, body)
+    sides = _edge_sides(tx, selected[0]) if chosen != "symmetric" else None
     options = tx.nx.Features.ChamferBuilder.ChamferOption
     with builders.build(tx, tx.part.Features.CreateChamferBuilder, None) as b:
         b.Tolerance = units.part_tolerance(tx)
@@ -303,14 +309,71 @@ def nx_create_chamfer(
         expr.drive(b.FirstOffsetExp, offset)  # an expression value keeps the chamfer driven
         b.ReverseOffsets = bool(reverse)
         feature = b.commit()
-    out = common.result_of(tx, feature, [body])
+    out = cast(ChamferData, common.result_of(tx, feature, [body]))
     common.changed(before, out["volume"], "less")
+    if sides is not None:
+        if chosen == "offset_angle":
+            second = float(offset) * math.tan(math.radians(angle_value))
+        pair = _offset_faces(tx, sides, float(offset), second)
+        if pair is not None:
+            out["offset_face"], out["offset2_face"] = pair
     return out
+
+
+def _edge_sides(tx, edge):
+    """``(start, unit direction, [face, face])`` of a straight edge between two planar
+    faces, else None: what the chamfer read-back measures."""
+    try:
+        if edge.SolidEdgeType != tx.nx.Edge.EdgeType.Linear:
+            return None
+        faces = list(edge.GetFaces())
+        start, end = (geom.xyz(p) for p in edge.GetVertices())
+        if len(faces) != 2 or geom.dist(start, end) <= geom.tol(start, end):
+            return None
+        if any(select.face_data(tx, f)[0] != select.FACE_PLANE for f in faces):
+            return None
+        return start, geom.unit(geom.sub(end, start)), faces
+    except Exception:  # noqa: BLE001 - no edge data: nothing reported
+        return None
+
+
+def _set_back(tx, face, start, direction) -> float | None:
+    """How far the chamfer moved ``face``'s boundary from the old edge line: the distance
+    to its nearest straight edge parallel to that line."""
+    best = None
+    for e in face.GetEdges():
+        a, b = (geom.xyz(p) for p in e.GetVertices())
+        run = geom.sub(b, a)
+        if geom.norm(run) <= geom.tol(a, b) or not geom.parallel(run, direction, 1e-6):
+            continue
+        off = geom.sub(a, start)
+        gap = geom.norm(geom.sub(off, geom.scale(direction, geom.dot(off, direction))))
+        best = gap if best is None else min(best, gap)
+    return best
+
+
+def _offset_faces(tx, sides, first, second) -> tuple | None:
+    """``(offset face row, offset2 face row)`` measured after the chamfer, or None when
+    unclear."""
+    start, direction, faces = sides
+    try:
+        gaps = [_set_back(tx, f, start, direction) for f in faces]
+    except Exception:  # noqa: BLE001 - a face NX replaced: nothing reported
+        return None
+    if None in gaps:
+        return None
+    tol = max(1e-4, 1e-3 * max(first, second))
+    for i in (0, 1):
+        if abs(gaps[i] - first) <= tol and abs(gaps[1 - i] - second) <= tol:
+            return tx.ref(faces[i], kind="face"), tx.ref(faces[1 - i], kind="face")
+    return None
 
 
 class ThicknessZone(TypedDict):
     faces: FaceList
-    thickness: Annotated[Length, Doc("This zone's wall thickness, > 0")]
+    thickness: Annotated[
+        Length, Doc("This zone's wall thickness, > 0 (stored negated for an inward shell)")
+    ]
 
 
 forbid_extra(ThicknessZone)
@@ -321,6 +384,36 @@ def _own_faces(faces, target, field):
         if int(f.GetBody().Tag) != int(target.Tag):
             fail("NX_WRONG_OWNER", "The faces must belong to body", field=f"{field}/{i}",
                  hint="Find the faces with nx_find_geometry owner=<body>")  # fmt: skip
+
+
+def _zone_set(tx, faces, thickness, outward: bool):
+    """One alternate-thickness zone: its faces and a length expression in part units (an
+    empty unit name made a unitless expression)."""
+    collector = builders.collector(tx, faces, "Face")
+    rhs = _zone_rhs(thickness, outward)
+    unit = expr.UNIT_NAMES.get(units.part_units(tx)) or ""
+    try:
+        return tx.part.CreateExpressionCollectorSet(collector, rhs, unit, 0)
+    except Exception:  # noqa: BLE001 - a unit name NX does not take: unitless as before
+        return tx.part.CreateExpressionCollectorSet(collector, rhs, "", 0)
+
+
+def _too_thick(tx, error, target, thickness, outward) -> None:
+    """Explain an inward shell NX refuses because the wall leaves no cavity."""
+    if error.code != "NX_BUILD_FAILED" or outward:
+        return
+    try:
+        low, high = measure.bounds(tx, target)
+    except Exception:  # noqa: BLE001 - no bounds: NX's message stands
+        return
+    smallest = min(high[k] - low[k] for k in range(3))
+    if float(thickness) >= smallest / 2:
+        error.field = error.field or "/thickness"
+        error.hint = (
+            f"thickness {float(thickness):g} leaves no cavity in a body {smallest:g} thick at "
+            f"its thinnest; use less than {smallest / 2:g} (or outward)"
+        )
+        error.details = {**(error.details or {}), "smallest_extent": smallest}
 
 
 def _zone_rhs(thickness, outward: bool) -> str:
@@ -386,22 +479,20 @@ def nx_create_shell(
         _own_faces(faces, target, "/remove_faces")
         zones = _zones(tx, alternate, target, faces)
     before = measure.volume(tx, target)
-    with builders.build(tx, tx.part.Features.CreateShellBuilder, None) as b:
-        b.Tolerance = units.part_tolerance(tx)
-        b.Body = target
-        expr.drive(b.DefaultThickness, thickness)  # an expression keeps the wall driven
-        b.DefaultThicknessFlip = not outward
-        if faces:
-            b.RemovedFacesCollector = builders.collector(tx, faces, "Face")
-        for zone_faces, zone_thickness in zones:
-            group = tx.part.CreateExpressionCollectorSet(
-                builders.collector(tx, zone_faces, "Face"),
-                _zone_rhs(zone_thickness, outward),
-                "",
-                0,
-            )
-            b.FaceThicknesses.Append(group)
-        feature = b.commit()
+    try:
+        with builders.build(tx, tx.part.Features.CreateShellBuilder, None) as b:
+            b.Tolerance = units.part_tolerance(tx)
+            b.Body = target
+            expr.drive(b.DefaultThickness, thickness)  # an expression keeps the wall driven
+            b.DefaultThicknessFlip = not outward
+            if faces:
+                b.RemovedFacesCollector = builders.collector(tx, faces, "Face")
+            for zone_faces, zone_thickness in zones:
+                b.FaceThicknesses.Append(_zone_set(tx, zone_faces, zone_thickness, outward))
+            feature = b.commit()
+    except NXError as error:
+        _too_thick(tx, error, target, thickness, outward)
+        raise
     out = common.result_of(tx, feature, [target])
     common.changed(before, out["volume"], "differs" if outward else "less")
     return out
@@ -425,27 +516,31 @@ def nx_create_draft(
     direction: Direction,
     angle: Angle,
 ) -> common.FeatureData:
-    """Draft faces about a stationary face; a positive angle tapers them inward along the draw
-    direction. A negative angle tapers outward."""
-    if not 0 < abs(float(angle)) < 89:
+    """Draft (taper) wall faces about a stationary face along the draw (pull) direction. A
+    positive angle tapers them inward, a negative one outward. The walls must run roughly
+    along the direction (a face leaning over 45 deg off it is refused); each planar wall's
+    angle is read back."""
+    a = float(angle)
+    if not 0 < abs(a) < 89:
         fail(
             "NX_INVALID_ARGUMENT",
             "The draft angle must be non-zero and within -89..89 degrees",
             field="/angle",
             hint="Send e.g. 'angle': 5 or '3 deg'; negative tapers outward",
         )
-    selected = select.faces(tx, faces, "/faces")
-    fixed = select.one(tx, stationary_face, "face", field="/stationary_face")
-    body = fixed.GetBody()
-    for i, f in enumerate(selected):
-        if int(f.Tag) == int(fixed.Tag):
-            fail("NX_INVALID_ARGUMENT", "Exclude the stationary face", field=f"/faces/{i}",
-                 hint="faces are the walls to taper; stationary_face stays put")  # fmt: skip
-        if int(f.GetBody().Tag) != int(body.Tag):
-            fail(
-                "NX_WRONG_OWNER", "Faces must share the stationary face's body", field=f"/faces/{i}"
-            )
-    vector = select.direction(tx, common.principal(direction), "/direction")
+    with tx.checks():  # lookups and refusals: nothing changed yet (not_started)
+        selected = select.faces(tx, faces, "/faces")
+        fixed = select.one(tx, stationary_face, "face", field="/stationary_face")
+        body = fixed.GetBody()
+        for i, f in enumerate(selected):
+            if int(f.Tag) == int(fixed.Tag):
+                fail("NX_INVALID_ARGUMENT", "Exclude the stationary face", field=f"/faces/{i}",
+                     hint="faces are the walls to taper; stationary_face stays put")  # fmt: skip
+            if int(f.GetBody().Tag) != int(body.Tag):
+                fail("NX_WRONG_OWNER", "Faces must share the stationary face's body",
+                     field=f"/faces/{i}")  # fmt: skip
+        vector = select.direction(tx, common.principal(direction), "/direction")
+        walls = _draft_walls(tx, selected, vector)
     before = measure.volume(tx, body)
     part = tx.part
     with builders.build(tx, part.Features.CreateDraftBuilder, None) as b:
@@ -462,4 +557,76 @@ def nx_create_draft(
         feature = b.commit()
     out = common.result_of(tx, feature, [body])
     common.changed(before, out["volume"], "differs")
+    _drafted_angles(tx, feature, walls, vector, abs(a))
+    if abs(out["volume"] - before) > DRAFT_VOLUME_SHARE * before:
+        tx.warn(
+            "NX_UPDATE_WARNING",
+            f"The draft changed the body's volume by {out['volume'] - before:+.6g} "
+            f"({100 * (out['volume'] - before) / before:+.3g}%): check the shape "
+            "(nx_measure_bounds); undo if the walls did not just tilt",
+        )
     return out
+
+
+# A face within this many degrees of square to the pull direction is not a wall of it.
+WALL_DEGREES = 45.0
+# Read-back tolerance of a drafted planar wall's angle, degrees.
+DRAFT_ANGLE_TOL = 0.05
+# A draft changing the body's volume by more than this share gets a warning.
+DRAFT_VOLUME_SHARE = 0.25
+
+
+def _draft_walls(tx, selected, vector) -> list:
+    """The planar walls of ``selected`` (their index and frame), refusing a face that is no
+    wall of the pull direction: a plane within ``WALL_DEGREES`` of square to it, or a
+    cylinder whose axis leans further than that from it. Such a draft collapses the body."""
+    walls = []
+    for i, face in enumerate(selected):
+        frame = readback.face_frame(tx, face)
+        if frame is None:
+            continue
+        if frame["type"] == readback.PLANE:  # degrees off running along the direction
+            lean = readback.draft_angle(frame["dir"], vector)
+        elif frame["type"] == readback.CYLINDER:  # its axis: 0 when along the direction
+            lean = 90.0 - readback.draft_angle(frame["dir"], vector)
+        else:
+            continue
+        if lean > WALL_DEGREES:
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"faces[{i}] leans {lean:.3g} deg off the draw direction: it is not a wall of "
+                "that pull, and drafting it would collapse the body",
+                field="/direction",
+                hint="direction is the pull (draw) direction: the walls to taper run along it "
+                "and the stationary face is roughly square to it (e.g. 'z' for vertical walls "
+                "standing on an XY floor)",
+                details={"face": i, "lean": lean},
+            )
+        if frame["type"] == readback.PLANE:
+            walls.append((i, face))
+    return walls
+
+
+def _drafted_angles(tx, feature, walls, vector, angle: float) -> None:
+    """Read back the draft angle of each planar wall NX kept (else of the feature's own
+    planar faces): at least one must lie at ``angle`` to the pull direction."""
+    found = []
+    for _i, face in walls:
+        frame = readback.face_frame(tx, face)
+        if frame is not None and frame["type"] == readback.PLANE:
+            found.append(readback.draft_angle(frame["dir"], vector))
+    if not found and hasattr(feature, "GetFaces"):
+        for face in feature.GetFaces():
+            frame = readback.face_frame(tx, face)
+            if frame is not None and frame["type"] == readback.PLANE:
+                found.append(readback.draft_angle(frame["dir"], vector))
+    if not found:
+        return  # cylinders or cones only: the volume read-back stands
+    off = [x for x in found if abs(x - angle) > DRAFT_ANGLE_TOL]
+    readback.expect(
+        len(off) < len(found),
+        "angle",
+        f"No drafted wall lies at {angle:g} deg to the draw direction (NX gave "
+        f"{', '.join(f'{x:.4g}' for x in found[:5])} deg)",
+        angles=found,
+    )

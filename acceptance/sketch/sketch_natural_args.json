@@ -32,7 +32,7 @@
                 "data.curves.0.end": {"close": [20, 5], "tol": 1e-9}}},
     {"call": "nx_check_sketch", "args": {"sketch": "$side.data.sketch.id"},
      "expect": {"data.state": "under_constrained", "data.trials": {"count": 0},
-                "data.note": {"contains": "nothing to relieve"}}},
+                "data.note": {"contains": "under-constrained"}, "data.free": {"count": 1}}},
     {"call": "nx_finish_sketch", "setup": true, "args": {}},
     {"call": "nx_create_sketch", "save": "one",
      "args": {"placement": {"principal": "Yz", "origin": [100, 0, 0]}, "finish": true, "curves": [

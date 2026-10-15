@@ -293,6 +293,95 @@
    }
   },
   {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "pback",
+   "args": {
+    "points": [
+     [
+      -10,
+      50,
+      0
+     ],
+     [
+      40,
+      50,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_swept_volume",
+   "intent": "A path starting 10 behind the tool axis is refused with the shift that fixes it",
+   "args": {
+    "tool": "$cyl.data.bodies.0.id",
+    "path": [
+     "$pback.data.curve.id"
+    ],
+    "targets": [
+     "$s1.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "ok": false,
+    "error.field": "/path/0",
+    "error.details.lead": {
+     "close": -10,
+     "tol": 1e-06
+    },
+    "error.details.shift": {
+     "close": [
+      10,
+      0,
+      0
+     ],
+     "tol": 1e-06
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "s4",
+   "args": {
+    "shape": "block",
+    "origin": [
+     -10,
+     40,
+     -10
+    ],
+    "length": 70,
+    "width": 20,
+    "height": 30
+   }
+  },
+  {
+   "call": "nx_create_swept_volume",
+   "intent": "Intersect with a block enclosing the whole sweep: NX refuses, the hint says to use a block the sweep crosses",
+   "args": {
+    "tool": "$cyl.data.bodies.0.id",
+    "path": [
+     "$p50.data.curve.id"
+    ],
+    "targets": [
+     "$s4.data.bodies.0.id"
+    ],
+    "operation": "intersect"
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_BUILD_FAILED",
+    "error.hint": {
+     "contains": "crosses"
+    },
+    "mutation_outcome": "rolled_back"
+   }
+  },
+  {
    "call": "nx_check_model",
    "args": {},
    "expect": {

@@ -320,8 +320,11 @@ def _verdict(registered, process, call, age, found, reloading=None) -> dict:
             "state": "blocked_by_dialog",
             "message": f"A modal NX dialog (“{title}”) waits for the engineer"
             + (f"; NX holds {_doing(call)}" if call else ""),
-            "hint": "Ask the engineer to answer the NX dialog (the agent never clicks it); "
-            "nx_get_status shows when NX is free",
+            "hint": dialogs.hint_for(
+                found[0].get("title"),
+                "Ask the engineer to answer the NX dialog (the agent never clicks it)",
+            )
+            + "; nx_get_status shows when NX is free",
         }
     hung = process.get("responding") is False
     if call:

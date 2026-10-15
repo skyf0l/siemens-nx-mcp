@@ -25,10 +25,11 @@ a conic passes through its points (five points) or through its ends and its shou
 
 from __future__ import annotations
 
+import re
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Length, Point3, Range, Text
 from nx_mcp.domains.freeform import curves_common as cc
@@ -36,6 +37,8 @@ from nx_mcp.kit import args, builders, curve, expr, geom, readback, units
 
 AXES = ("x", "y", "z")
 PARAMETER = "t"
+IDENTIFIER = re.compile(r"(?<![\w.])[A-Za-z_]\w*")
+CONSTANTS = ("pi", "PI", "Pi")
 
 
 class _Ramp(TypedDict):
@@ -77,6 +80,13 @@ def _value(law, at_end):
     return 0.0 if law is None else float(law)
 
 
+def _varies(law) -> bool:
+    """Whether a law changes with t: a formula, or a ramp whose ends differ."""
+    if not isinstance(law, dict):
+        return False
+    return "formula" in law or not geom.close(law["start"], law["end"], 1e-9)
+
+
 def _free_name(tx, base):
     """``base``, else ``base_1``, ``base_2``... (the first name no expression has)."""
     name, i = base, 0
@@ -101,6 +111,44 @@ def _parameter(tx, created):
     return found
 
 
+def _unknown_names(tx, formula) -> list[str]:
+    """Names in ``formula`` that are neither ``t``, a function call nor an expression."""
+    names = []
+    for match in IDENTIFIER.finditer(formula):
+        word = match.group(0)
+        after = formula[match.end() :].lstrip()
+        if word in (PARAMETER, *CONSTANTS) or after.startswith("(") or word in names:
+            continue
+        if expr.find(tx, word) is None:
+            names.append(word)
+    return names
+
+
+def _formula(tx, name, formula, axis):
+    """The ``name = formula`` expression of one axis; a bad formula names the axis field,
+    the formula and its unknown names."""
+    field = f"/{axis}/formula"
+    try:
+        return expr.create(tx, name, formula, units.part_units(tx))
+    except NXError as error:
+        if error.code != "NX_INVALID_FORMULA":
+            raise
+        unknown = _unknown_names(tx, formula)
+        reason = (
+            f"names {', '.join(unknown)}: neither t nor an expression of the part"
+            if unknown
+            else "is not a valid NX formula"
+        )
+        error.message = f"{axis} formula {formula!r} {reason}"
+        error.field = field
+        error.hint = (
+            "Write the law in t (0..1), part units and degrees, e.g. '20*sin(360*t)'; "
+            "other names must be expressions (nx_list_objects kind 'expression')"
+        )
+        error.details = {**(error.details or {}), "formula": formula, "unknown": unknown}
+        raise
+
+
 def _set_law(tx, law_builder, law, axis, created):
     types = tx.nx.GeometricUtilities.LawBuilder.Type
     if not isinstance(law, dict):
@@ -110,7 +158,7 @@ def _set_law(tx, law_builder, law, axis, created):
     if "formula" in law:
         _parameter(tx, created)
         name = _free_name(tx, f"{axis}t")
-        function = expr.create(tx, name, law["formula"], units.part_units(tx))
+        function = _formula(tx, name, law["formula"], axis)
         created.append(name)
         law_builder.LawType = types.ByEquation
         law_builder.Parameter = PARAMETER
@@ -151,11 +199,15 @@ def nx_create_law_curve(
     listed in expressions). At least one law must vary. Returns the curve, its ends and
     the expected ends."""
     laws = {"x": x, "y": y, "z": z}
-    if not any(isinstance(v, dict) for v in laws.values()):
+    if not any(_varies(v) for v in laws.values()):
+        ramp = next((a for a, v in laws.items() if isinstance(v, dict)), None)
         fail(
             "NX_INVALID_ARGUMENT",
-            "Constant x, y and z make a point: give {start, end} or {formula} for one",
-            field="/x",
+            f"{ramp}: start equals end, a constant law; constant x, y and z make a point"
+            if ramp
+            else "Constant x, y and z make a point: give {start, end} or {formula} for one",
+            field=f"/{ramp or 'x'}",
+            hint="Give one law different start and end values, or a formula of t",
         )
     cc.licensed(tx)
     created: list[str] = []
@@ -166,6 +218,15 @@ def nx_create_law_curve(
         feature = b.commit()
     curves = cc.output_curves(tx, feature)
     data = cc.describe(tx, feature, curves)
+    if data["length"] <= cc.gap_tolerance(tx):
+        formulas = [a for a, v in laws.items() if isinstance(v, dict) and "formula" in v]
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "The laws make a point (length 0): a formula does not vary with t",
+            field=f"/{formulas[0]}/formula" if formulas else "/x",
+            hint="Use t in the formula (t runs from 0 to 1), e.g. '100*t'",
+            details={"length": data["length"]},
+        )
     first, last = data["curves"][0]["start"], data["curves"][-1]["end"]
     want0 = [_value(laws[a], False) for a in AXES]
     want1 = [_value(laws[a], True) for a in AXES]
@@ -219,11 +280,39 @@ def _conic_plane(points, field):
     a = points[0]
     far = max(points, key=lambda p: geom.dist(p, a))
     third = max(points, key=lambda p: geom.norm(geom.cross(geom.sub(far, a), geom.sub(p, a))))
-    normal = geom.plane_through([a, far, third], field)
+    try:
+        normal = geom.plane_through([a, far, third], field)
+    except NXError as error:
+        error.message = (
+            "The five points are collinear: no conic passes through them"
+            if len(points) == 5
+            else "start, end and anchor are collinear: put the anchor off the start-end line"
+        )
+        raise
     size = max(geom.dist(p, a) for p in points)
     if max(abs(geom.dot(geom.sub(p, a), normal)) for p in points) > 1e-6 * max(size, 1.0):
         fail("NX_INVALID_ARGUMENT", "The points are not in one plane", field=field)
     return a, normal
+
+
+ORDER_HINT = "Order the points along one convex arc: start, three inside in order, end"
+
+
+def _convex(points, normal, field):
+    """Refuse five points that do not run round one convex arc in order (a conic arc and
+    its chord bound a convex region, so the closed row turns one way at every point)."""
+    turns = []
+    for i in range(len(points)):
+        a, b, c = points[i - 1], points[i], points[(i + 1) % len(points)]
+        turn = geom.dot(geom.cross(geom.sub(b, a), geom.sub(c, b)), normal)
+        size = geom.dist(a, b) * geom.dist(b, c)
+        turns.append(0.0 if abs(turn) <= 1e-9 * size else turn)
+    if any(t > 0 for t in turns) and any(t < 0 for t in turns):
+        major = 1.0 if sum(t > 0 for t in turns) >= sum(t < 0 for t in turns) else -1.0
+        bad = next(i for i, t in enumerate(turns) if t * major < 0)
+        fail("NX_INVALID_ARGUMENT", f"No conic arc passes through these points in order: the "
+             f"row turns the other way at point {bad}", field=f"{field}/{bad}",
+             hint=ORDER_HINT)  # fmt: skip
 
 
 @tool(
@@ -279,6 +368,7 @@ def nx_create_general_conic(
             pts = [args.vec3(p) for p in args.required(points, "points")]
             _distinct(pts, "/points")
             origin, normal = _conic_plane(pts, "/points")
+            _convex(pts, normal, "/points")
         else:
             args.need(start=start, end=end, anchor=anchor, rho=rho)
             pts = [args.vec3(p) for p in (start, end, anchor)]
@@ -311,6 +401,10 @@ def nx_create_general_conic(
         shoulder = geom.add(middle, geom.scale(geom.sub(pts[2], middle), float(rho)))  # type: ignore[arg-type]
         through = [pts[0], pts[1], shoulder]
     gap = max(min(curve.point_distance(tx, c, p)[0] for c in curves) for p in through)
+    if method == "five_points" and gap > cc.gap_tolerance(tx, *through):
+        fail("NX_INVALID_ARGUMENT", f"No single conic arc passes through these five points in "
+             f"order (NX's arc misses one by {gap:.4g})", field="/points", hint=ORDER_HINT,
+             details={"gap": gap})  # fmt: skip
     readback.expect(
         gap <= cc.gap_tolerance(tx, *through), "points", "The conic misses a point", gap=gap
     )

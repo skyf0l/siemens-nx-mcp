@@ -53,7 +53,8 @@ def names(nx):
 
 
 def checkpoints(nx):
-    return {r["label"]: r for r in run(nx, "nx_list_checkpoints").data["checkpoints"]}
+    listed = run(nx, "nx_list_checkpoints", include_expired=True).data["checkpoints"]
+    return {r["label"]: r for r in listed}
 
 
 def test_create_without_display_keeps_the_work_part_display_part_and_marks(nx):

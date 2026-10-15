@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/freeform/curve_law.json",
-  "scenario_sha256": "c31f814ed09b61f18b13f62ed5a06bed8a7f505a070ce4e30ce286537cdd7388",
+  "scenario_sha256": "a309a831a6ea81200d06659dbda72e9cce41d8c11b3e2f20fa4dae1e176c88b7",
   "domain": "freeform",
   "covers": {
     "nx_create_law_curve": [],
@@ -13,12 +13,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_law_curve": "6fe73a1c61106f7dca07e99d9535c613bdfa2899e070cf2b9200699901111ab6",
-    "nx_create_general_conic": "6fe73a1c61106f7dca07e99d9535c613bdfa2899e070cf2b9200699901111ab6"
+    "nx_create_law_curve": "8a3be2981f1a5d6094bfb1157a56137f9101f0f1cb10190bab89b1e0d89c780b",
+    "nx_create_general_conic": "8a3be2981f1a5d6094bfb1157a56137f9101f0f1cb10190bab89b1e0d89c780b"
   },
-  "recorded": "2026-10-13T12:09:56Z",
+  "recorded": "2026-10-15T10:59:45Z",
   "passed": true,
-  "checks": 34,
+  "checks": 42,
   "failed_checks": 0,
   "steps": [
     {
@@ -100,6 +100,20 @@
     },
     {
       "index": 12,
+      "call": "nx_create_law_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 13,
+      "call": "nx_create_law_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 14,
       "call": "nx_check_model",
       "setup": false,
       "passed": true,

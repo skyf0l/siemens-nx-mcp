@@ -40,10 +40,10 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import MM_PER_IN, QUANTITY_MAX, Aliases, Doc, RefTo, Text
+from nx_mcp.core.types import MM_PER_IN, QUANTITY_MAX, Aliases, Doc, Formula, RefTo, Text
 from nx_mcp.domains.assembly import common, structure
 from nx_mcp.domains.assembly.common import ComponentId, ComponentRow
-from nx_mcp.kit import display, geom, model, positioning, readback, result, select
+from nx_mcp.kit import curve, display, expr, geom, model, positioning, readback, result, select
 from nx_mcp.kit import pose as kpose
 
 TYPES, NAMES = positioning.TYPES, positioning.NAMES
@@ -77,12 +77,12 @@ Alignment = Literal["infer", "same", "opposite"]
 # A number, or a unit string checked against the constraint type by ``_value``.
 Value = Annotated[
     float | Annotated[str, Text(QUANTITY_MAX)],
-    Doc("Part units or '10 mm' (<0: other side); angle: deg or '0.5 rad'"),
+    Doc("Part units, '10 mm' or an expression (<0: other side); angle: deg or '0.5 rad'"),
 ]
 # The create form: only distance and angle take it, and they need it.
 CreateValue = Annotated[
     float | Annotated[str, Text(QUANTITY_MAX)],
-    Doc("distance/angle only (required there): part units or '10 mm' (<0: other side); angle deg"),
+    Doc("distance/angle only (required): part units, '10 mm' or an expression (<0: other side)"),
 ]
 _QUANTITY = re.compile(
     r"^\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?)\s*(mm|in|deg|rad|\u00b0)?\s*$", re.IGNORECASE
@@ -116,6 +116,7 @@ class ConstraintData(TypedDict, total=False):
     offset: float
     references: list[ConstraintReference]
     moved: list[ComponentRow]
+    measured: float
 
 
 _cls = positioning.cls
@@ -182,7 +183,8 @@ def record(tx, constraint) -> ConstraintData:
             kind = tx.kind_of(geometry)
             if kind in ("face", "edge", "component"):
                 item["geometry"] = tx.ref(geometry, kind)
-        out["references"].append(item)
+        if item:  # pattern constraints hold references with neither
+            out["references"].append(item)
     if constraint.ConstraintType in (cls.Type.Touch, cls.Type.Distance):
         with contextlib.suppress(Exception):
             placed = face_offset(tx, constraint)
@@ -261,11 +263,17 @@ def _others(tx, constraint, moving=None) -> list[dict]:
     return rows
 
 
-def _unsatisfied(tx, constraint, message, moving=None):
+def _unsatisfied(tx, constraint, message, moving=None, requested=None):
+    """Fail NX_CONSTRAINT_UNSATISFIED; ``details.type`` is the requested type (an edit: the
+    constraint's), ``details.nx_type`` NX's name for it when that differs (a touch NX
+    co-aligned reads as align)."""
     details: dict = {}
     hints = ["Check the geometry pair and the fixed components; it was rolled back"]
     with contextlib.suppress(Exception):
-        details = {"status": status_name(tx, constraint), "type": kind_name(tx, constraint)}
+        nx_type = kind_name(tx, constraint)
+        details = {"status": status_name(tx, constraint), "type": requested or nx_type}
+        if nx_type != details["type"]:
+            details["nx_type"] = nx_type
         alignment = result.enum_name(constraint.ConstraintAlignment, _cls(tx).Alignment)
         if alignment in ("CoAlign", "ContraAlign") and details["type"] in ("touch", "distance"):
             hints.append(
@@ -318,9 +326,13 @@ def _value(tx, type, value, field="/value"):
     angle = type == "angle"
     if isinstance(value, str):
         match = _QUANTITY.match(value)
-        if match is None:
-            fail("NX_INVALID_ARGUMENT", f"value {value!r} is not a number with a unit",
-                 field=field, hint="Send a number, or '10 mm', '0.5 in', '45 deg', '0.5 rad'")  # fmt: skip
+        if match is None:  # an expression name or formula, kept driving the constraint
+            number = tx.services.evaluate_formula(
+                value.strip(), "angle" if angle else "length",
+                "deg" if angle else (tx.units.get("length") or "mm"), field=field, scratch=True,
+            )  # fmt: skip
+            _limits(number, angle, field)
+            return Formula(float(number), value.strip())
         number, unit = float(match.group(1)), (match.group(2) or "").lower()
         if unit and (unit in ("mm", "in")) == angle:
             want = "an angle (deg or rad)" if angle else "a length (mm or in)"
@@ -331,11 +343,32 @@ def _value(tx, type, value, field="/value"):
             number = number * MM_PER_IN if unit == "in" else number / MM_PER_IN
     else:
         number = float(value)
+    _limits(number, angle, field)
+    return number
+
+
+def _limits(number, angle, field) -> None:
     if not math.isfinite(number) or abs(number) > VALUE_MAX:
         fail("NX_INVALID_ARGUMENT", f"value must be within +-{VALUE_MAX:g}", field=field)
     if angle and not 0 <= number <= 180:
         fail("NX_INVALID_ARGUMENT", "An angle is 0 to 180 degrees", field=field)
-    return number
+
+
+def _gap(tx, constraint, out) -> None:
+    """``measured``: the minimum distance between a distance constraint's two geometries,
+    with a note when it differs from the value (NX measures a cylindrical or spherical
+    face from its far side)."""
+    if constraint.ConstraintType != _cls(tx).Type.Distance or "value" not in out:
+        return
+    with contextlib.suppress(Exception):
+        first, second = (ref.GetGeometry() for ref in constraint.GetReferences())
+        gap = curve.min_distance(tx, first, second)[0]
+        out["measured"] = 0.0 if abs(gap) < 1e-9 else gap
+        value = abs(float(out["value"]))
+        if abs(gap - value) > 1e-6 * max(1.0, value):
+            tx.warn("NX_NOTE", f"The geometries are {gap:.6g} apart at the closest, value is "
+                    f"{value:g}: NX measures a cylindrical or spherical face from its far "
+                    "side; for a centre distance constrain its axis or a datum")  # fmt: skip
 
 
 def _geometry(tx, ref, owner, field, type):
@@ -521,7 +554,8 @@ def nx_create_assembly_constraint(
     """Constrain a direct component to a sibling (touch is the mate) or fix it; it must solve.
     Concentric: circular edges (or a cylinder's edge nearest the other) made coaxial AND
     coplanar; bolt in hole: align_lock axes + touch. Fit: equal-radius faces; center_1_2:
-    between two target geometries."""
+    between two target geometries. A distance from a cylinder face is to its far side;
+    measured gives the closest gap."""
     given = {
         "geometry": geometry, "target_component": target_component,
         "target_geometry": target_geometry, "geometry2": geometry2,
@@ -566,18 +600,20 @@ def nx_create_assembly_constraint(
             for owner, obj in refs:
                 constraint.CreateConstraintReference(owner, obj, _uses_axis(tx, type, obj), False)
             if number is not None:
-                constraint.SetExpression(repr(number))
+                constraint.SetExpression(expr.rhs(number))
             net.AddConstraint(constraint)
         solve(tx, net)
         if not solved(tx, constraint):
             _unsatisfied(
-                tx, constraint, "The assembly solver did not satisfy the constraint", moving
-            )
+                tx, constraint, "The assembly solver did not satisfy the constraint", moving,
+                requested=type,
+            )  # fmt: skip
     out = record(tx, constraint)
     readback.expect(out["type"] == type, "type", actual=out["type"])
     if number is not None:
         readback.expect_close(out.get("value", float("nan")), number, "value")
     _check_overlap(tx, constraint)
+    _gap(tx, constraint, out)
     _over_constrained(tx, constraint, moving)
     out["moved"] = moved(tx, before)
     return out
@@ -618,7 +654,7 @@ def nx_edit_assembly_constraint(
     with network(tx) as (_positioner, net):
         with native(default="NX_BUILD_FAILED"):
             if number is not None:
-                obj.SetExpression(repr(number))
+                obj.SetExpression(expr.rhs(number))
             if suppressed is not None:
                 obj.Suppressed = suppressed
             if alignment is not None:
@@ -634,5 +670,6 @@ def nx_edit_assembly_constraint(
         readback.expect_close(out.get("value", float("nan")), number, "value")
     if not obj.Suppressed:
         _check_overlap(tx, obj)
+        _gap(tx, obj, out)
     out["moved"] = moved(tx, before)
     return out

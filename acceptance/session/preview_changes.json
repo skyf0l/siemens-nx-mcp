@@ -143,13 +143,13 @@
    "call": "nx_preview_changes",
    "intent": "Acceptance: a tool that is not previewable is refused before anything runs",
    "args": {"operations": [
-    {"tool": "nx_delete_objects", "arguments": {"objects": ["$feat2.data.items.0.id"]}}
+    {"tool": "nx_create_checkpoint", "arguments": {"label": "not in a preview"}}
    ]},
    "expect": {
     "ok": false,
     "error.code": "NX_UNSUPPORTED_OPTION",
     "error.field": "/operations/0/tool",
-    "error.details.previewable": {"contains": "nx_create_extrude"},
+    "error.details.previewable": {"contains": "nx_delete_objects"},
     "mutation_outcome": "not_started"
    }
   },
@@ -197,6 +197,26 @@
    "args": {"preview_id": "$p4.data.preview_id", "action": "discard"},
    "expect": {"ok": false, "error.code": "NX_STALE_PREVIEW", "error.details.finished": "accepted",
               "error.message": {"matches": "already accepted"}, "mutation_outcome": "not_started"}
+  },
+  {
+   "call": "nx_list_objects",
+   "save": "feat3",
+   "intent": "Acceptance: the accepted rename named the extrude PREVIEW_EXT",
+   "args": {"kind": "feature", "name_contains": "PREVIEW_EXT"},
+   "expect": {"page.total": 1}
+  },
+  {
+   "call": "nx_preview_changes",
+   "intent": "Acceptance: a delete can be previewed: the extrude and its body go, then come back (the edited extrude is 40 x 20 x 15)",
+   "args": {"operations": [
+    {"tool": "nx_delete_objects", "arguments": {"objects": ["$feat3.data.items.0.id"]}}
+   ]},
+   "expect": {"ok": true, "data.delta.bodies": -1, "data.delta.volume": {"close": -12000, "tol": 1e-3}}
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {"scope": "part"},
+   "expect": {"data.volume": {"close": 12000, "tol": 1e-3}}
   }
  ]
 }

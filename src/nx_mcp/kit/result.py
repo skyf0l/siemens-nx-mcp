@@ -1,4 +1,4 @@
-"""Result rows, pages, measured values, names and native enum names."""
+"""Result rows, pages, measured values (:func:`denoise`), names and native enum names."""
 
 from __future__ import annotations
 
@@ -42,6 +42,30 @@ def measured(value, dim="length"):
     if not math.isfinite(number):
         fail("NX_INCOMPLETE_RESULT", f"NX returned no finite {dim}", details={"value": str(value)})
     return number
+
+
+DIGITS = 12  # significant digits a read-back keeps (NX's doubles carry ~15, noise below)
+
+
+def denoise(value, scale: float = 1.0, digits: int = DIGITS):
+    """A read-back without float noise: every float rounded to ``digits`` significant
+    digits (``50.00000000000001`` -> 50.0, ``76.19999999999999`` -> 76.2), and a float
+    smaller than ``scale * 10**-digits`` is 0.0 (``7.2e-32`` beside lengths of about 1).
+    ``scale`` is the size of the values compared (a body's extent for its coordinates).
+    Lists, tuples (as lists) and dicts are cleaned item by item; other values pass."""
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            return value
+        if abs(value) < abs(float(scale or 1.0)) * 10.0 ** (-digits):
+            return 0.0
+        return float(f"{value:.{digits}g}")
+    if isinstance(value, dict):
+        return {k: denoise(v, scale, digits) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [denoise(v, scale, digits) for v in value]
+    return value
 
 
 def rename(tx, obj, name):

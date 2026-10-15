@@ -92,7 +92,11 @@
      "count": 1
     },
     "warnings": {
-     "count": 0
+     "count": 1
+    },
+    "warnings.0.code": "NX_UPDATE_WARNING",
+    "warnings.0.message": {
+     "contains": "hidden_font invisible"
     }
    }
   },

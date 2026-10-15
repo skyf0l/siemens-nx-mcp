@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 
+from nx_mcp.core import target as targets
 from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.types import REF_PATTERN
 from nx_mcp.core.validate import match_option
@@ -51,16 +52,84 @@ def principal(value, options, aliases=None):
     return match_option(value, tuple(options), aliases or {})
 
 
-def resolve(tx, ref, *kinds, field=None, work_part=False):
-    """``tx.resolve`` whose stale, wrong-kind and wrong-owner errors name ``field``."""
+def resolve(tx, ref, *kinds, field=None, work_part=False, tree=False, prototypes=False):
+    """``tx.resolve`` whose stale, wrong-kind and wrong-owner errors name ``field``.
+
+    ``tree``: the object must belong to the work part or its assembly tree (an
+    occurrence a component of the work part shows), else ``NX_WRONG_OWNER`` (see
+    :func:`in_tree`; ``prototypes`` also takes objects of a part a component uses)."""
     try:
-        return (
-            tx.resolve(ref, *kinds, work_part=work_part) if work_part else tx.resolve(ref, *kinds)
-        )
+        obj = tx.resolve(ref, *kinds, work_part=work_part) if work_part else tx.resolve(ref, *kinds)
     except NXError as error:
         if field and getattr(error, "field", None) is None:
             error.field = field
         raise
+    if tree:
+        in_tree(tx, obj, field, ref=ref, prototypes=prototypes)
+    return obj
+
+
+def in_tree(tx, obj, field=None, *, ref=None, prototypes=False):
+    """``obj`` when it belongs to the work part or to its assembly tree: an object of the
+    work part, or an occurrence that the work assembly owns (a body a component shows);
+    ``prototypes`` also takes an object of a part a component of the work part uses (the
+    caller maps it to the occurrence). Anything else, such as a body of another loaded part
+    that the work part does not use, is ``NX_WRONG_OWNER``: measuring or checking it
+    against the work part's objects would mix unrelated coordinates."""
+    services = tx.services
+    work = services.work_part()
+    owner = services.owning_part(obj)
+    if work is not None and owner is not None and targets.same(services, owner, work):
+        return obj
+    if (
+        prototypes
+        and work is not None
+        and owner is not None
+        and targets.uses_part(services, work, owner)
+    ):
+        return obj
+    name = targets.file_name(owner) if owner is not None else "another part"
+    here = targets.file_name(work) if work is not None else "the work part"
+    fail(
+        "NX_WRONG_OWNER",
+        f"{ref or 'The object'} belongs to {name}, which is not in {here}'s assembly",
+        field=field,
+        hint=f"Pass objects of {here} or of its components (nx_list_components; "
+        "nx_find_geometry with a component owner gives the occurrences)"
+        + (f", or call with part='{name}' and refs of that part only" if owner is not None else ""),
+        details={"ref": ref, "part": name},
+    )
+
+
+def component_bodies(tx, component, field=None) -> list:
+    """The bodies a component shows: its occurrence bodies (and its children's), else, for
+    a deformed component (NX moves its geometry into assembly bodies), the bodies its
+    deformation made. A component that shows none is ``NX_NOT_FOUND``."""
+    from nx_mcp.kit import bodies, deform
+
+    found = bodies.of(tx, component, field)
+    if not found:
+        found = deform.bodies_of(tx, component)
+    if not found:
+        name = str(getattr(component, "Name", "") or "the component")
+        fail(
+            "NX_NOT_FOUND",
+            f"{name} shows no bodies (an empty or unloaded part, or a reference set without "
+            "bodies)",
+            field=field,
+            hint="Pass bodies (nx_list_objects kind body); a deformed component's bodies come "
+            "from nx_set_component_deformation",
+        )
+    return found
+
+
+def many_in_tree(tx, refs, *kinds, field="/objects", prototypes=False) -> list:
+    """Resolve every ref of ``refs`` (``kinds``) within the work part's assembly tree
+    (:func:`in_tree`); errors name the item (``/objects/2``)."""
+    return [
+        resolve(tx, ref, *kinds, field=f"{field}/{i}", tree=True, prototypes=prototypes)
+        for i, ref in enumerate(refs)
+    ]
 
 
 def owned_by_work_part(tx, obj):
@@ -93,7 +162,11 @@ def _many(tx, refs, kind, field):
         obj = one(tx, ref, kind, field=f"{field}/{i}" if field else None)
         tag = int(obj.Tag)
         if tag in seen:
-            fail("NX_INVALID_ARGUMENT", f"{kind} {ref} is listed twice", field=field)
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"{kind} {ref} is listed twice",
+                field=f"{field}/{i}" if field else None,
+            )
         seen.add(tag)
         result.append(obj)
     return result
@@ -134,16 +207,45 @@ def _is_edge(obj):
 
 
 def planar(tx, ref, field="/reference", occurrences=False):
-    """``(obj, origin, unit normal)`` of a planar face or datum plane of the work part;
+    """``(obj, origin, unit normal)`` of a planar face or datum plane of the work part (a
+    datum plane feature ref ``f:..`` stands for its datum plane, as results return it);
     ``occurrences`` also takes one of a component in the work part's assembly (its
     origin and normal are then in the assembly's coordinates)."""
     if occurrences:
-        obj = resolve(tx, ref, "datum_plane", "face", field=field)
+        obj = datum_of(tx, resolve(tx, ref, "datum_plane", "face", "feature", field=field), field)
         if not getattr(obj, "IsOccurrence", False):
             owned(tx, obj, field, "datum plane")
     else:
-        obj = one(tx, ref, "datum_plane", "face", field=field)
+        obj = resolve(tx, ref, "datum_plane", "face", "feature", field=field)
+        obj = owned(tx, datum_of(tx, obj, field), field, "datum plane")
     return (obj, *_plane_of(tx, obj, field))
+
+
+def datum_of(tx, obj, field=None, what="DatumPlane"):
+    """The datum plane (``what="DatumAxis"``: axis) a datum feature makes, for a feature;
+    any other object as it is. A feature that makes none is ``NX_WRONG_KIND``."""
+    try:
+        is_feature = tx.kind_of(obj) == "feature"
+    except Exception:
+        is_feature = False
+    if not is_feature:
+        return obj
+    datum = getattr(obj, what, None)
+    if datum is None:
+        noun = "datum plane" if what == "DatumPlane" else "datum axis"
+        try:
+            fail(
+                "NX_WRONG_KIND",
+                f"The feature is not a {noun} feature",
+                field=field,
+                hint=f"Pass a {noun}, its feature, or a planar face"
+                if what == "DatumPlane"
+                else f"Pass a {noun}, its feature, a linear edge or a round face",
+            )
+        except NXError as error:
+            error.unchanged = True  # a refusal that read NX only (as tx.checks())
+            raise
+    return datum
 
 
 def _plane_of(tx, obj, field):

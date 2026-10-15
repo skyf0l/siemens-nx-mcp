@@ -772,8 +772,9 @@ def _wire(nx, fake):
     nx.uf.Disp = NS(RegenerateDisplay=lambda: nx.regenerated.append(1))
     asm.Tracelines = Collection()
 
-    def create_traceline(ex, p0, _d0, p1, _d1, *_rest):
+    def create_traceline(ex, p0, d0, p1, d1, *_rest):
         line = Traceline(fake, ex, p0, p1)
+        line.StartDirection, line.EndDirection = d0, d1
         asm.Tracelines.append(line)
         return line
 

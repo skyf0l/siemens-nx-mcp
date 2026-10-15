@@ -457,15 +457,16 @@ def test_a_component_source_links_every_solid_body_it_shows(w):
     assert out.error["code"] == "NX_NOT_FOUND" and out.mutation_outcome == "not_started"
 
 
-def test_a_wrong_context_names_the_part_to_make_work(w):
+def test_a_wrong_context_names_the_target_argument(w):
     body = w.body(w.a)
     w.occurrence(body)
     w.nx.session.Parts.Work = w.asm
     out = link(w, kind="body", sources=[body.ref])
     assert out.error["code"] == "NX_WRONG_PART_CONTEXT", out
+    assert out.error["field"] == "/target"
     targets = out.error["details"]["targets"]
     assert [t["component"] for t in targets] == [w.A.ref, w.B.ref]
-    assert f"nx_activate_part(part='{targets[0]['part']}', display=false)" in out.error["hint"]
+    assert f"target='{targets[0]['component']}'" in out.error["hint"]
     w.nx.session.Parts.Work = w.b
     mine = w.body(w.b)
     out = link(w, kind="body", sources=[mine.ref])
@@ -547,3 +548,20 @@ def test_a_link_targets_the_assembly_that_holds_its_components(w):
     assert wave._link_part(s, {"sources": [w.occurrence(body) and body.ref]}) is w.asm  # shown
     w.nx.session.Parts.Display = None
     assert wave._link_part(s, {"sources": [body.ref]}) is None  # the usual rules
+
+
+def test_extract_of_a_component_body_points_to_the_wave_link(w):
+    occurrence = w.occurrence(w.body(w.a))
+    occurrence.ref = w.nx.ref_of(occurrence, "body")
+    out = run(w.nx, "nx_create_extract", kind="body", objects=[occurrence.ref])
+    assert out.error["code"] == "NX_WRONG_OWNER" and out.error["field"] == "/objects/0", out
+    assert "nx_create_wave_link" in out.error["hint"] and out.mutation_outcome == "not_started"
+    assert not any(b.kind == "ExtractFaceBuilder" for b in w.nx.builders)
+
+
+def test_a_source_of_the_receiving_part_names_that_part(w):
+    mine = w.body(w.b)
+    w.occurrence(mine, w.B)
+    out = link(w, kind="body", sources=[mine.ref], component=w.B.ref)
+    assert out.error["field"] == "/sources/0", out
+    assert "b.prt" in out.error["message"] and "target" in out.error["hint"]

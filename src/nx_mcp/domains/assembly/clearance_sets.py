@@ -22,12 +22,14 @@ NX 2406 findings (live):
 
 from __future__ import annotations
 
+import contextlib
 import math
 import typing
 from typing import Annotated, Literal, TypedDict, cast
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
+from nx_mcp.core.target import file_name
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Length, Name, RefTo, Text
 from nx_mcp.domains.assembly import common, structure
@@ -83,7 +85,8 @@ class SetRow(TypedDict):
 class Interference(TypedDict, total=False):
     objects: list[ObjectRow]
     type: str  # hard, soft, touching or containment
-    new: bool  # first found in this run
+    new: bool  # not found with this type in the previous run
+    previous_type: str  # a pair found in the previous run with another type
     points: list[list[float]]
     distance: float  # soft: gap between the points
     depth: float  # hard: NX's penetration depth estimate along direction
@@ -99,6 +102,15 @@ class ClearanceData(TypedDict):
     summary: RunSummary | None
     interferences: list[Interference]
     truncated: bool
+
+
+class ClearedPair(TypedDict):
+    objects: list[ObjectRow]
+    previous_type: str  # its type in the previous run
+
+
+class RunData(ClearanceData, total=False):
+    cleared: list[ClearedPair]  # pairs of the previous run that no longer interfere
 
 
 class ClearanceSetList(TypedDict):
@@ -221,7 +233,7 @@ def _interference(tx, first, second, data, names) -> Interference:
     p1, p2 = _point(data[3]), _point(data[4])
     row: Interference = {
         "objects": [_object_row(tx, first, names), _object_row(tx, second, names)],
-        "type": TYPES.get(kind_name, kind_name),
+        "type": _type(tx, data),
         "new": bool(data[1]),
         "points": [p1, p2],
     }
@@ -266,10 +278,53 @@ def _overlaps(tx, cs, hard) -> dict[int, tuple[float, dict]]:
     return out
 
 
-def _results(tx, cs, overlap: bool) -> tuple[RunSummary | None, list[Interference], bool]:
+def _key(first, second) -> frozenset:
+    return frozenset((int(first.Tag), int(second.Tag)))
+
+
+def _type(tx, data) -> str:
+    kind_name = result.enum_name(data[0], tx.nx.Assemblies.ClearanceSet.InterferenceType,
+                                 list(TYPES))  # fmt: skip
+    return TYPES.get(kind_name, kind_name)
+
+
+def _previous(tx, cs) -> dict | None:
+    """``{pair key: (first, second, type)}`` of the stored run (before a re-run), None
+    before the first run or when the run listed more pairs than are read."""
+    if _summary(tx, cs) is None:
+        return None
+    found = _pairs(tx, cs)
+    if len(found) > MAX_LISTED:
+        return None
+    return {_key(f, s): (f, s, _type(tx, d)) for f, s, d in found}
+
+
+def _cleared(tx, previous, found, rows, names) -> list[ClearedPair]:
+    """Mark rows whose type changed since ``previous`` (``previous_type``) and return the
+    pairs of ``previous`` that this run no longer reports."""
+    current = set()
+    for (first, second, _data), row in zip(found, rows, strict=True):
+        key = _key(first, second)
+        current.add(key)
+        was = previous.get(key)
+        if was is not None and was[2] != row["type"]:
+            row["previous_type"] = was[2]
+    out: list[ClearedPair] = []
+    for key, (first, second, kind) in previous.items():
+        if key in current:
+            continue
+        with contextlib.suppress(Exception):  # an object deleted since cannot interfere
+            objects = [_object_row(tx, first, names), _object_row(tx, second, names)]
+            out.append({"objects": objects, "previous_type": kind})
+    return out
+
+
+def _results(
+    tx, cs, overlap: bool, previous: dict | None = None
+) -> tuple[RunSummary | None, list[Interference], bool, list[ClearedPair] | None]:
     summary = _summary(tx, cs)
     if summary is None:
-        return None, [], False
+        return None, [], False, None
     names = structure.paths(tx.part)
     found = _pairs(tx, cs)
     truncated = len(found) > MAX_LISTED
@@ -277,6 +332,9 @@ def _results(tx, cs, overlap: bool) -> tuple[RunSummary | None, list[Interferenc
     rows = [_interference(tx, f, s, d, names) for f, s, d in found]
     order = sorted(range(len(rows)), key=lambda i: _order(rows[i]))
     found, rows = [found[i] for i in order], [rows[i] for i in order]
+    cleared = None
+    if previous is not None and not truncated:
+        cleared = _cleared(tx, previous, found, rows, names)
     if overlap:
         hard = [(i, f, s) for i, (f, s, _d) in enumerate(found) if rows[i]["type"] == "hard"]
         if len(hard) > MAX_OVERLAPS:
@@ -285,7 +343,7 @@ def _results(tx, cs, overlap: bool) -> tuple[RunSummary | None, list[Interferenc
         for i, (volume, box) in _overlaps(tx, cs, hard[:MAX_OVERLAPS]).items():
             rows[i]["overlap_volume"] = volume
             rows[i]["overlap_box"] = box
-    return summary, rows, truncated
+    return summary, rows, truncated, cleared
 
 
 def _run(tx, cs) -> None:
@@ -338,14 +396,19 @@ def _members(tx, refs, between, field) -> list:
     return out
 
 
-def _data(tx, cs, *, ran: bool, overlap: bool) -> ClearanceData:
-    summary, rows, truncated = _results(tx, cs, overlap) if ran else (None, [], False)
-    return {
+def _data(tx, cs, *, ran: bool, overlap: bool, previous: dict | None = None) -> RunData:
+    summary, rows, truncated, cleared = (
+        _results(tx, cs, overlap, previous) if ran else (None, [], False, None)
+    )
+    out: RunData = {
         "clearance_set": _set_row(tx, cs),
         "summary": summary,
         "interferences": rows,
         "truncated": truncated,
     }
+    if cleared is not None:
+        out["cleared"] = cleared
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -397,7 +460,10 @@ def nx_create_clearance_set(
         fail("NX_INVALID_ARGUMENT", "against needs objects (collection one)", field="/objects")
     with tx.checks():
         if any(_name(s).casefold() == name.strip().casefold() for s in _sets(tx)):
-            fail("NX_ALREADY_EXISTS", f"A clearance set {name!r} already exists", field="/name",
+            existing = next(_name(s) for s in _sets(tx)
+                            if _name(s).casefold() == name.strip().casefold())  # fmt: skip
+            fail("NX_ALREADY_EXISTS", f"A clearance set {existing!r} already exists",
+                 field="/name", details={"existing": existing},
                  hint="Re-run it with nx_run_clearance_set or pick another name")  # fmt: skip
         first = _members(tx, objects, between, "/objects") if objects is not None else None
         second = _members(tx, against, between, "/against") if against is not None else None
@@ -462,9 +528,11 @@ def nx_create_clearance_set(
     keywords=(
         "rerun clearance analysis",
         "run clearance set",
+        "run interference check",
         "update clearance results",
         "clearance after move",
         "clash rerun",
+        "cleared pairs",
     ),  # fmt: skip
     requires=("work_part", "assembly", "no_active_sketch"),
     cost="long",
@@ -475,14 +543,16 @@ def nx_run_clearance_set(
     *,
     name: SetName,
     overlap: Annotated[bool, Doc(OVERLAP_DOC)] = True,
-) -> ClearanceData:
-    """Run a stored clearance set again and return its interferences, e.g. after a move. new
-    marks pairs first found in this run; summary.version counts the runs."""
+) -> RunData:
+    """Run a stored clearance set again and return its interferences, e.g. after a move. new:
+    not found with that type in the previous run (previous_type: the type then); cleared:
+    previous pairs gone now; summary.version counts runs."""
     with tx.checks():
         cs = _find(tx, name)
         _license(tx)
+    previous = _previous(tx, cs)
     _run(tx, cs)
-    return _data(tx, cs, ran=True, overlap=overlap)
+    return _data(tx, cs, ran=True, overlap=overlap, previous=previous)
 
 
 @tool(
@@ -495,13 +565,17 @@ def nx_run_clearance_set(
         "stored clash sets",
         "clearance results",
     ),
-    requires=("work_part", "assembly"),
+    requires=("work_part",),
     cost="light",
     example={},
 )
 def nx_list_clearance_sets(tx: Tx) -> ClearanceSetList:
     """List the work assembly's clearance sets: settings and the counts of their last run
     (null before the first). nx_run_clearance_set returns the pairs."""
+    if structure.root(tx.part) is None:
+        tx.warn("NX_NOTE", f"{file_name(tx.part)} has no components yet, so no clearance sets; "
+                "add components with nx_create_component")  # fmt: skip
+        return {"items": []}
     _license(tx)
     return {"items": [_set_row(tx, cs) for cs in _sets(tx)]}
 

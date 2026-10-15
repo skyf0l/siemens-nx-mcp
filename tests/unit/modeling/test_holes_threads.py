@@ -111,6 +111,8 @@ def hole_nx():
 
 def test_simple_holes_configure_the_hole_package_and_read_back():
     nx, block, top, B = hole_nx()
+    tip = 3 / math.tan(math.radians(59))
+    nx.removed = 2 * (math.pi * 9 * 10 + math.pi * 9 * tip / 3)  # both holes inside
     ok = run(
         nx, "nx_create_hole", face=top.ref, positions=[[10, 10, 20], [30, 10, 20]], form="simple",
         diameter=6, depth={"type": "distance", "value": 10},
@@ -119,9 +121,9 @@ def test_simple_holes_configure_the_hole_package_and_read_back():
     b = next(x for x in nx.builders if x.kind == "HolePackageBuilder" and x.commits)
     assert b.Type is B.Types.GeneralHole and b.DepthOption is B.HoleDepthOptions.ToCylinderBottom
     assert b.BooleanOperation.SetTargetBodies.calls[0][0][0] == [block]
-    assert ok.data["removed"] == 100 and ok.data["direction"] == [0, 0, -1]
-    tip = 3 / math.tan(math.radians(59))
+    assert ok.data["removed"] == pytest.approx(nx.removed) and ok.data["direction"] == [0, 0, -1]
     assert ok.data["nominal"] == pytest.approx(2 * (math.pi * 9 * 10 + math.pi * 9 * tip / 3))
+    assert ok.data["diameter"] == 6 and ok.data["depth"] == 10 and not ok.warnings
     assert nx.live_builders == 0
 
 
@@ -362,6 +364,20 @@ def test_thread_name_errors_offer_the_close_names(table):
     near = run(nx, "nx_list_thread_sizes", standard="Metric Coarse", size="M6 x 1.5")
     assert near.error["code"] == "NX_NOT_FOUND"
     assert near.error["details"]["close_matches"][0] == "M6 x 1.0"
+    between = run(nx, "nx_list_thread_sizes", size="M7")
+    assert between.error["details"]["close_matches"] == ["M6 x 1.0", "M8 x 1.25"], between
+    loose = run(nx, "nx_list_thread_sizes", standard="ISO metric")
+    assert loose.ok and any("Metric Coarse" in w["message"] for w in loose.warnings), loose
+    exact = run(nx, "nx_list_thread_sizes", standard="metric coarse")
+    assert exact.ok and not exact.warnings
+
+
+def test_thread_on_a_threaded_span_says_so(table):
+    nx, body, cyl, start = thread_nx()
+    nx.refuse("ThreadBuilder", code=671153, message="Threads overlapped.")
+    bad = run(nx, "nx_create_thread", face=cyl.ref, start_face=start.ref, length=8,
+              spec={"size": "M6"})  # fmt: skip
+    assert bad.error["nx_code"] == 671153 and "already carries a thread" in bad.error["hint"]
 
 
 def committed(nx, kind):
@@ -427,8 +443,10 @@ def test_thread_build_failure_explains_the_nx_refusal(table):
     nx.refuse("ThreadBuilder", code=671154, message="Invalid thread axis direction.")
     bad = run(nx, "nx_create_thread", face=cyl.ref, start_face=start.ref, length=8,
               spec={"size": "M6"}, reverse=True)  # fmt: skip
-    assert bad.error["nx_code"] == 671154 and "reverse false" in bad.error["hint"]
+    assert bad.error["nx_code"] == 671154 and "both" in bad.error["hint"]
     assert bad.mutation_outcome == "rolled_back"
+    tried = [b.ReverseThreadDirection for b in nx.builders if b.kind == "ThreadBuilder"]
+    assert tried == [True, False]  # the other sense was tried before failing
 
 
 def test_thread_spec_without_size_says_what_to_send(table):
@@ -447,7 +465,7 @@ def test_custom_internal_spec_off_the_table_or_the_bore_is_noted(table):
     nx.uf.Modeling.AskFaceData = lambda tag: (
         (*list(ask(tag))[:6], -1) if tag == cyl.Tag else ask(tag)
     )
-    cyl.radius = 3.3  # the 6.6 clearance bore of the benchmark: major 7 / minor 6.6 on it
+    cyl.radius = 3.3  # a 6.6 clearance bore: major 7 / minor 6.6 on it
     odd = run(nx, "nx_create_thread", face=cyl.ref, start_face=start.ref, length=8,
               spec={"pitch": 1, "major_diameter": 7, "minor_diameter": 6.6})  # fmt: skip
     assert odd.ok, odd

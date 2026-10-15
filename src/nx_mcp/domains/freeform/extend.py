@@ -32,10 +32,11 @@ from __future__ import annotations
 from typing import Annotated, Literal
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Angle, Doc, EdgeRef, FaceRef, Items, Length, RefTo, Vec3
+from nx_mcp.core.types import Angle, Doc, EdgeRef, FaceRef, Items, Length, Point3, RefTo, Vec3
 from nx_mcp.domains.freeform import common
+from nx_mcp.domains.freeform import curves_common as cc
 from nx_mcp.kit import bodies as kbodies
 from nx_mcp.kit import (
     builders,
@@ -63,6 +64,12 @@ SHAPES = {
 }
 OUTPUTS = {"extend": "ExtendOriginalSheet", "new_face": "ExtendasNewFace",
            "new_sheet": "ExtendasNewSheet"}  # fmt: skip
+# NX 2406 "Unable to perform Boolean.": an until limit the extension never reaches.
+NOT_REACHED = 670033
+UNTIL_HINT = (
+    "until faces and planes must lie across the sheet's extension beyond the edges (not "
+    "parallel to the sheet, not behind the edges)"
+)
 
 
 def _license(tx, feature):
@@ -99,6 +106,39 @@ def _sheet_edges(tx, refs, field):
 def _total_area(tx, bodies):
     faces = [f for b in bodies for f in b.GetFaces()]
     return measure.area(tx, faces) if faces else 0.0
+
+
+def _plane_of(tx, obj):
+    """``(origin, unit normal)`` of a datum plane or planar face, else None."""
+    if hasattr(obj, "Normal") and hasattr(obj, "Origin"):
+        return geom.xyz(obj.Origin), geom.unit(geom.xyz(obj.Normal))
+    kind, point, normal = select.face_data(tx, obj)
+    return (point, geom.unit(normal)) if kind == select.FACE_PLANE else None
+
+
+def _reachable(tx, edges, limits, refs) -> None:
+    """Refuse an until plane that the extension of a planar sheet's edges runs parallel to
+    (it never reaches it; NX answers "Unable to perform Boolean")."""
+    runs = []  # (edge midpoint, extension line direction up to sign) of planar sheets
+    for edge in edges:
+        sheet = select.face_data(tx, list(edge.GetFaces())[0])
+        if sheet[0] != select.FACE_PLANE:
+            return  # a curved sheet extends along its curvature: NX decides
+        with curve.evaluator(tx, edge) as e:
+            middle, tangent = e.at(0.5)
+        runs.append((middle, geom.unit(geom.cross(tangent, sheet[2]))))
+    tol = 10 * units.part_tolerance(tx)
+    for i, obj in enumerate(limits):
+        plane = _plane_of(tx, obj)
+        if plane is None:
+            continue
+        origin, normal = plane
+        if all(
+            abs(geom.dot(d, normal)) <= 1e-6 and abs(geom.dot(geom.sub(m, origin), normal)) > tol
+            for m, d in runs
+        ):
+            fail("NX_INVALID_ARGUMENT", f"The extension never reaches {refs[i]}: the sheet "
+                 "runs parallel to it", field=f"/until/{i}", hint=UNTIL_HINT)  # fmt: skip
 
 
 def _limit_rules(tx, objects):
@@ -195,6 +235,7 @@ def nx_create_sheet_extension(
                 select.one(tx, ref, "face", "datum_plane", field=f"/until/{i}")
                 for i, ref in enumerate(until)
             ]
+            _reachable(tx, targets, limits, until)
         if to_edges is not None:
             tools, others = _sheet_edges(tx, to_edges, "/to_edges")
             mine = {int(b.Tag) for b in owners}
@@ -231,7 +272,13 @@ def nx_create_sheet_extension(
             else:
                 b.LimitMethod = E.Limit.UntilSelected
                 b.LimitTools.ReplaceRules(_limit_rules(tx, limits), False)
-            feature = b.commit()
+            try:
+                feature = b.commit()
+            except NXError as error:
+                if error.nx_code == NOT_REACHED and method == "until":
+                    error.field = "/until"
+                    error.hint = UNTIL_HINT
+                raise
     bodies = _new_bodies(part, before, feature)
     out = common.result_of(tx, feature, bodies)
     kbodies.expect_sound(tx, bodies)
@@ -271,6 +318,9 @@ class LawData(common.SheetData):
     base_length: float
     expected_area: float | None  # straight base, one angle: base_length x mean length
     gap: float  # largest distance of a base midpoint from the result
+    base_start: Point3  # where length and angle apply (end_length/end_angle at base_end)
+    base_end: Point3
+    side: list[float] | None  # unit vector from the base middle towards the sheet
 
 
 def _straight(tx, obj) -> bool:
@@ -278,6 +328,26 @@ def _straight(tx, obj) -> bool:
     return abs(measure.length(tx, [obj]) - geom.dist(start, end)) <= 1e-6 * max(
         1.0, geom.dist(start, end)
     )
+
+
+def _across(tx, objs, vector) -> None:
+    """Refuse a reference vector along a base curve: NX builds no surface there."""
+    for i, obj in enumerate(objs):
+        with curve.evaluator(tx, obj) as e:
+            tangents = [e.at(k / 4)[1] for k in range(5)]
+        if all(abs(geom.dot(geom.unit(t), vector)) >= 1 - 1e-6 for t in tangents):
+            fail("NX_INVALID_ARGUMENT", f"direction runs along base/{i}: give a direction "
+                 "across the base", field="/direction",
+                 hint="e.g. the sheet normal or [0, 0, 1] for a base in the XY plane")  # fmt: skip
+
+
+def _base_end(tx, objs, start):
+    """The other free end of the chained base (``start`` when the base is closed)."""
+    ends = [p for o in objs for p in curve.ends(tx, o)]
+    limit = 10 * units.part_tolerance(tx) + geom.tol(*ends)
+    free = [p for p in ends if sum(geom.dist(p, q) <= limit for q in ends) == 1]
+    far = [p for p in free if geom.dist(p, start) > limit]
+    return far[0] if far else start
 
 
 def _law(tx, law, start, end):
@@ -332,8 +402,9 @@ def nx_create_law_extension(
     end_angle: Annotated[Angle, Doc("Angle at the base end (linear law)")] | None = None,
 ) -> LawData:
     """Grow a new sheet from curves or sheet edges at a length and angle (flange, skirt).
-    The angle is from reference faces (0 continues the sheet, 90 is along its normal) or from
-    direction. end_length/end_angle vary length/angle linearly along the base."""
+    The angle is from reference faces (0 continues the sheet, 90 along the face normal, -90
+    against it) or from direction. end_length/end_angle vary length/angle linearly from
+    base_start to base_end. Returns base_start, base_end and side (where the sheet went)."""
     if reference == "faces" and direction is not None:
         fail("NX_INVALID_ARGUMENT", "direction is for reference vector", field="/direction")
     if reference == "vector" and faces is not None:
@@ -351,7 +422,15 @@ def nx_create_law_extension(
         ]
         if len({int(o.Tag) for o in objs}) != len(objs):
             fail("NX_INVALID_ARGUMENT", "A base curve is listed twice", field="/base")
+        problem = cc.chain_problem(tx, objs) if len(objs) > 1 else None
+        if problem is not None:
+            index, kind, details = problem
+            fail("NX_INVALID_ARGUMENT", f"base/{index} does not chain end to end with the other "
+                 f"base curves ({kind})", field=f"/base/{index}", details=details,
+                 hint="List base curves that meet end to end in one string")  # fmt: skip
         vector = None if direction is None else geom.unit(direction, "/direction")
+        if vector is not None:
+            _across(tx, objs, vector)
         refs = []
         if reference == "faces":
             if faces is not None:
@@ -393,4 +472,21 @@ def nx_create_law_extension(
         expected = base_length * sum(lengths) / len(lengths)
         readback.expect_close(out["area"], expected, "area", tol=1e-3 * expected)
     return {**out, "reference": reference, "base_length": base_length,
-            "expected_area": expected, "gap": gap}  # fmt: skip
+            "expected_area": expected, "gap": gap, "base_start": cc.clean(start),
+            "base_end": cc.clean(_base_end(tx, objs, start)),
+            "side": _grown(tx, objs, out["bounds"])}  # fmt: skip
+
+
+def _grown(tx, objs, bounds) -> list[float] | None:
+    """Unit vector from the middle of the base towards the middle of the new sheet (its
+    bounds centre), across the base: the side the extension went."""
+    with curve.evaluator(tx, objs[len(objs) // 2]) as e:
+        middle, tangent = e.at(0.5)
+    centre = geom.scale(geom.add(bounds["min"], bounds["max"]), 0.5)
+    away = geom.sub(centre, middle)
+    t = geom.unit(tangent)
+    across = geom.sub(away, geom.scale(t, geom.dot(away, t)))
+    size = geom.norm(across)
+    if size <= 1e-9 * max(1.0, geom.norm(away)):
+        return None
+    return cc.clean([v / size for v in across])

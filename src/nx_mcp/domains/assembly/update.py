@@ -10,18 +10,28 @@ dimensions and annotations are reported: they need re-association.
 from __future__ import annotations
 
 import contextlib
-from typing import TypedDict
+from typing import Annotated, TypedDict
 
 from nx_mcp.core.catalogue import hooks, tool
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import counted, fail
 from nx_mcp.core.tx import Tx
+from nx_mcp.core.types import Doc
 from nx_mcp.domains.assembly import common, constraints, exploded
+from nx_mcp.domains.assembly.common import ComponentRow
 from nx_mcp.domains.assembly.constraints import ConstraintData
-from nx_mcp.kit import drawing, model, result
+from nx_mcp.kit import deform, drawing, model, result
+
+
+class ConstraintCounts(TypedDict):
+    total: int
+    solved: int
+    suppressed: int
 
 
 class UpdateData(TypedDict):
-    constraints: list[ConstraintData]
+    constraint_counts: ConstraintCounts
+    constraints: list[ConstraintData]  # not solved (suppressed), or all with all_constraints
+    moved: list[ComponentRow]  # direct components whose pose changed
     traces: list[result.Row]
     refreshed: list[result.Row]
     views: list[result.Row]
@@ -52,11 +62,16 @@ def _retained(tx, part) -> list:
     invalidates="deleted",
     example={},
 )
-def nx_update_assembly(tx: Tx) -> UpdateData:
+def nx_update_assembly(
+    tx: Tx,
+    *,
+    all_constraints: Annotated[bool, Doc("List every constraint, solved ones too")] = False,
+) -> UpdateData:
     """Propagate prototype edits through the assembly and its documentation. Solves the
-    unsuppressed constraints (all are listed), refreshes traces, parts lists and views, lists
-    retained dimensions."""
+    unsuppressed constraints (counted; unsolved ones listed), reports moved components,
+    refreshes traces, parts lists and views, lists retained dimensions."""
     part = tx.part
+    before = constraints.poses(part)
     explosions = list(getattr(part.ComponentAssembly, "Explosions", None) or [])
     if explosions or list(getattr(part, "DrawingSheets", None) or []):
         common.explosion_context(tx)  # traces and sheets are refreshed on the display part
@@ -69,11 +84,13 @@ def nx_update_assembly(tx: Tx) -> UpdateData:
             if failed:
                 fail(
                     "NX_CONSTRAINT_UNSATISFIED",
-                    f"{len(failed)} assembly constraint(s) do not solve; nothing was updated",
+                    f"{counted(len(failed), 'assembly constraint')} not solved; nothing was updated",
                     hint="Fix or suppress them with nx_edit_assembly_constraint",
                     details={"constraints": [constraints.record(tx, c) for c in failed][:20]},
                 )
     model.update(tx)
+    for message in deform.range_messages(tx, part):  # a formula may drive one past its range
+        tx.warn("NX_UPDATE_WARNING", message)
     traces = []
     for ex in explosions:
         tx.checkpoint()
@@ -95,8 +112,17 @@ def nx_update_assembly(tx: Tx) -> UpdateData:
                     view.UpdateAutomaticViewBound()
         views.extend(tx.ref(v, "drawing_view") for v in owned)
     retained = _retained(tx, part)
+    rows = [constraints.record(tx, c) for c in every]
+    solved = sum(r.get("status") == "Solved" for r in rows)
+    listed = rows if all_constraints else [r for r in rows if r.get("status") != "Solved"]
     return {
-        "constraints": [constraints.record(tx, c) for c in every],  # suppressed ones too
+        "constraint_counts": {
+            "total": len(rows),
+            "solved": solved,
+            "suppressed": sum(bool(r.get("suppressed")) for r in rows),
+        },
+        "constraints": listed,
+        "moved": constraints.moved(tx, before),
         "traces": [tx.ref(line, "traceline") for line in traces],
         "refreshed": refreshed,
         "views": views,

@@ -121,3 +121,13 @@ def test_paste_subtract_that_keeps_the_inside_is_refused():
     same = run(nx, "nx_create_face_paste", target=nx.ref_of(t, "body"),
                tools=[nx.ref_of(t, "body")])  # fmt: skip
     assert same.error["field"] == "/tools/0" and same.mutation_outcome == "not_started"
+
+
+def test_paste_refuses_a_solid_tool_before_nx():
+    nx, t, sheet = paste_setup()
+    solid = new_body(nx, [105, 5, 10, 115, 15, 18])
+    bad = run(nx, "nx_create_face_paste", target=nx.ref_of(t, "body"),
+              tools=[nx.ref_of(sheet, "body"), nx.ref_of(solid, "body")])  # fmt: skip
+    assert bad.error["code"] == "NX_WRONG_GEOMETRY" and bad.error["field"] == "/tools/1", bad
+    assert bad.mutation_outcome == "not_started" and "face_copy" in bad.error["hint"]
+    assert not [b for b in nx.builders if b.kind == "PasteFaceBuilder"]

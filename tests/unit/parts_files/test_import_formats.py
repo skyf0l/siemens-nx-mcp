@@ -280,6 +280,24 @@ def test_dxf_curves_into_the_work_part(fx, root, ugii):
     assert ok.data["sketch"] is None and ok.data["file_units"] == "mm"
 
 
+def test_dxf_units_other_than_the_parts_are_refused_or_make_the_new_part(fx, root, ugii):
+    """NX 2406 takes DXF numbers in the part's units: an inch DXF into an mm part would come
+    in 25.4 times small, so it is refused before NX; a new part takes the file's units."""
+    put(root, "p.dxf", r12(units=0))
+    bad = call(fx, importing.nx_import_model, part="w", path="p.dxf", options={"units": "in"})
+    assert bad.error["code"] == "NX_UNSUPPORTED_OPTION", bad
+    assert bad.error["field"] == "/options/units" and bad.mutation_outcome == "not_started"
+    assert bad.error["retry"] == "after_fix" and "new_part" in bad.error["hint"]
+    assert not fx.importers
+    same = call(fx, importing.nx_import_model, part="w", path="p.dxf", options={"units": "mm"})
+    assert same.ok, same
+    ok = call(fx, importing.nx_import_model, part="w", path="p.dxf", options={"units": "in"},
+              target="new_part", new_part_path="imp/inch.prt")  # fmt: skip
+    assert ok.ok and ok.data["file_units"] == "in", ok
+    made = next(p for p in fx.session.Parts if p.Name == "inch")
+    assert made.PartUnits == fx.nx.BasePart.Units.Inches
+
+
 def test_dxf_into_a_sketch_maps_file_xy_to_sketch_xy(fx, root, ugii):
     put(root, "p.dxf", r12())
     sk = fx.sketch(origin=(0, 0, 50), x_axis=(1, 0, 0), y_axis=(0, 0, 1))
@@ -434,7 +452,14 @@ def test_stl_into_a_new_part(fx, root, ugii):
     ok = call(fx, importing.nx_import_model, part="w", path="a.stl", format="stl", target="new_part",
               new_part_path="imp/mesh.prt")  # fmt: skip
     assert ok.ok and ok.data["target"] == "new_part" and ok.data["facet_bodies"] == 1, ok
-    assert Path(fx.session.Parts.Work.FullPath) == root / "imp" / "mesh.prt"
+    assert ok.data["part"]["id"] == fx.ref_of(asked(fx, "mesh"), "part")
+    # two agent parts: the new one keeps its own tab, the tab active before comes back
+    assert fx.session.Parts.Display.Name == "w" and fx.session.Parts.Work.Name == "w"
+    assert any('"part": "mesh.prt"' in w["message"] for w in ok.warnings), ok.warnings
+
+
+def asked(nx, name):
+    return next(p for p in nx.session.Parts if p.Name == name)
 
 
 def test_an_import_into_a_new_part_gives_the_engineers_tab_back(fx, root, ugii):

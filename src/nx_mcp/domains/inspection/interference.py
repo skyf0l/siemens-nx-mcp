@@ -28,13 +28,14 @@ from pathlib import Path
 from typing import Annotated, Any, TypedDict
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import NXError, classify, fail, native
+from nx_mcp.core.errors import NXError, classify, counted, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Length, PathTo, PlaneByNormal, Range, RefTo
 from nx_mcp.domains.inspection import common, health
 from nx_mcp.kit import bodies as kbodies
 from nx_mcp.kit import capture as kcapture
-from nx_mcp.kit import files, geom, measure, result
+from nx_mcp.kit import display as kdisplay
+from nx_mcp.kit import files, geom, measure, result, select
 
 DEFAULT_PAIRS = 100
 MAX_PAIRS = 10000
@@ -46,8 +47,10 @@ MAX_CLOSEUPS = 8
 FLAGGED = ("penetration", "contact", "below_clearance")
 SKIPPED_REASON = (
     "not checked: their bounding boxes are farther apart than the clearance ({clearance:g}), "
-    "so they cannot touch; include_clear=true checks and lists every pair"
+    "so they cannot touch; {how}"
 )
+CHECK_ALL = "include_clear=true checks and lists every pair"
+REPORT_CHECK_ALL = "nx_check_interference with include_clear=true checks and lists every pair"
 Objects = Annotated[list[Annotated[str, RefTo("body", "feature", "component")]], Items(2, 500)]
 MaxPairs = Annotated[int, Range(ge=1, le=MAX_PAIRS), Doc("Native pair checks allowed")]
 Clearance = Annotated[Length, Doc("Minimum clearance, part units; 0 = interference only")]
@@ -144,7 +147,10 @@ def _overlap(tx, a, b):
                 check.Destroy()
 
 
-def analyze(tx, found, pairs, *, clearance, max_pairs, include_clear, include_contact, sheets=()):
+def analyze(
+    tx, found, pairs, *, clearance, max_pairs, include_clear, include_contact, sheets=(),
+    check_all=CHECK_ALL,
+):  # fmt: skip
     """Classify body pairs: penetration, contact, below_clearance or clear."""
     with native():
         boxes = {
@@ -202,7 +208,7 @@ def analyze(tx, found, pairs, *, clearance, max_pairs, include_clear, include_co
         "skipped_sheet_bodies": list(sheets),
     }
     if skipped:
-        out["skipped_reason"] = SKIPPED_REASON.format(clearance=clearance)
+        out["skipped_reason"] = SKIPPED_REASON.format(clearance=clearance, how=check_all)
     return out
 
 
@@ -221,8 +227,8 @@ def _groups(tx, objects):
         if not found:
             fail(
                 "NX_WRONG_GEOMETRY",
-                f"Interference needs solid bodies; the model has only {len(sheets)} sheet "
-                "body(ies)",
+                "Interference needs solid bodies; the model has only "
+                f"{counted(len(sheets), 'sheet body')}",
                 field="/objects",
                 details={"sheet_bodies": sheets[:20]},
             )
@@ -230,7 +236,7 @@ def _groups(tx, objects):
     else:
         groups = []
         for i, ref in enumerate(objects):
-            obj = tx.resolve(ref, *common.TARGET_KINDS)
+            obj = select.resolve(tx, ref, *common.TARGET_KINDS, field=f"/objects/{i}", tree=True)
             group = kbodies.require(kbodies.of(tx, obj), field=f"/objects/{i}")
             bad = [tx.ref(b, kind="body") for b in group if _is_sheet(b)]
             if bad:
@@ -270,7 +276,16 @@ def _groups(tx, objects):
         if a.get("objects")
         else "Interference in the assembly"
     ),
-    keywords=("clash", "collision", "clearance check", "interference", "overlap", "collisions"),
+    keywords=(
+        "clash",
+        "collision",
+        "clearance check",
+        "interference",
+        "overlap",
+        "clearance between components",
+        "gap check",
+        "component clearance",
+    ),
     requires=("work_part",),
     cost="long",
     example={"objects": ["o:4", "o:5"], "clearance": 1},
@@ -357,14 +372,45 @@ def _closeup(tx, folder, name, pair_bodies, everything):
                     body.Unhighlight()
 
 
+def misses(box, origin, normal) -> bool:
+    """True when the plane through ``origin`` with ``normal`` passes beside the box
+    ``(low, high)``: every corner lies on one side."""
+    low, high = box
+    sides = [
+        geom.dot(geom.sub([(high if (m >> i) & 1 else low)[i] for i in range(3)], origin), normal)
+        for m in range(8)
+    ]
+    return min(sides) > 0 or max(sides) < 0
+
+
+def _tilted(normal) -> list[float]:
+    """A look-from direction 30 degrees off the plane normal, toward world +Z (or +Y when
+    the normal is vertical): the cut face is seen in front, with depth."""
+    up = [0.0, 1.0, 0.0] if abs(normal[2]) > 0.9 else [0.0, 0.0, 1.0]
+    side = geom.unit(geom.sub(up, geom.scale(normal, geom.dot(up, normal))))
+    angle = math.radians(30)
+    return geom.unit(
+        geom.add(geom.scale(normal, math.cos(angle)), geom.scale(side, math.sin(angle)))
+    )
+
+
 def _section(tx, folder, name, plane):
     part, view = _view(tx)
     types = tx.nx.Display.DynamicSectionTypes
     origin = [float(v) for v in plane["origin"]]
     normal = geom.unit(plane["normal"], "/section_planes")
+    # The clip keeps the side behind the normal: look at the cut face from the front.
+    try:
+        kdisplay.pivot(tx, view, kdisplay.rotation_from(_tilted(normal)))
+    except Exception as error:  # the capture keeps the current camera
+        tx.warn("NX_NOTE", f"{name}: the camera could not turn to the cut face ({error})")
     with temporary(tx):
         with native():
-            builder = part.DynamicSections.CreateSectionBuilder(view)
+            # A new section (DynamicSection.Null): CreateSectionBuilder(view) alone edits the
+            # view's active section, which may be the engineer's (NX 2406).
+            builder = part.DynamicSections.CreateSectionBuilder(
+                tx.nx.Display.DynamicSection.Null, view
+            )
         try:
             with native():
                 builder.Type = types.Type.OnePlane
@@ -396,10 +442,45 @@ def _captures(tx, folder, checks, planes, everything, by_id):
         tx.checkpoint()
         pair_bodies = [by_id[row["id"]] for row in pair["objects"]]
         images.append(_closeup(tx, folder, f"pair-{i}.png", pair_bodies, everything))
+    box = measure.bounds(tx, everything) if planes and everything else None
     for i, plane in enumerate(planes, 1):
         tx.checkpoint()
+        normal = geom.unit(plane["normal"], f"/section_planes/{i - 1}/normal")
+        if box is not None and misses(box, plane["origin"], normal):
+            low, high = ([round(v, 6) for v in corner] for corner in box)
+            tx.warn("NX_NOTE", f"section_planes/{i - 1} misses the model (bounds {low} to "
+                    f"{high}): no section-{i}.png")  # fmt: skip
+            continue
         images.append(_section(tx, folder, f"section-{i}.png", plane))
     return images
+
+
+def _summary_html(checks) -> str:
+    """The counts and one table row per reported pair (closeups link the flagged ones)."""
+    esc = html.escape
+    counts = "".join(
+        f"<tr><th>{esc(str(k))}</th><td>{int(v)}</td></tr>" for k, v in checks["counts"].items()
+    )
+    rows, flagged = [], 0
+    for pair in checks["pairs"]:
+        names = " / ".join(esc(str(o.get("name") or o.get("id"))) for o in pair["objects"])
+        kind = esc(pair["classification"])
+        if pair["classification"] in FLAGGED and flagged < MAX_CLOSEUPS:
+            flagged += 1
+            kind = f'<a href="pair-{flagged}.png">{kind}</a>'
+        volume = pair.get("overlap_volume")
+        rows.append(
+            f"<tr><td>{names}</td><td>{kind}</td><td>{pair['distance']:.6g}</td>"
+            f"<td>{'' if volume is None else f'{volume:.6g}'}</td></tr>"
+        )
+    table = (
+        "<table><tr><th>Pair</th><th>Classification</th><th>Distance</th>"
+        f"<th>Overlap volume</th></tr>{''.join(rows)}</table>"
+        if rows
+        else "<p>No pair is in contact, penetrating or below the clearance.</p>"
+    )
+    note = f"<p>{esc(checks['skipped_reason'])}</p>" if checks.get("skipped_reason") else ""
+    return f"<h2>Counts</h2><table>{counts}</table><h2>Pairs</h2>{table}{note}"
 
 
 def _write_zip(tx, path, folder, report, images):
@@ -411,8 +492,10 @@ def _write_zip(tx, path, folder, report, images):
     )
     page = (
         '<!doctype html><meta charset="utf-8"><title>NX inspection</title>'
-        f"<h1>NX inspection report</h1><p>Units: {html.escape(report['units'])}</p>"
-        f"<pre>{html.escape(json.dumps(report['interference'], indent=2))}</pre>{figures}"
+        "<style>table{border-collapse:collapse}td,th{border:1px solid #999;padding:2px 6px}"
+        "</style><h1>NX inspection report</h1>"
+        f"<p>Units: {html.escape(report['units'])}</p>{_summary_html(report['interference'])}"
+        f"{figures}"
     )
     (folder / "index.html").write_text(page, encoding="utf-8")
     members = [folder / "report.json", folder / "index.html", *images]
@@ -448,7 +531,8 @@ def nx_export_inspection_report(
     capture: bool = True,
 ) -> ReportData:
     """Write a .zip of interference and clearance results (index.html, report.json, PNG
-    captures, SHA-256 manifest). No objects: every solid, sheets skipped."""
+    captures, SHA-256 manifest). No objects: every solid, sheets skipped. Section captures
+    look at the cut face; a plane beside the model is skipped with a note."""
     planes = list(section_planes or [])
     clearance = float(clearance)  # the kernel converted the quantity to part units
     # Argument rules, lookups, refusals and measurements: no file yet (not_started).
@@ -470,6 +554,7 @@ def nx_export_inspection_report(
             include_clear=False,
             include_contact=True,
             sheets=sheets,
+            check_all=REPORT_CHECK_ALL,
         )
     units = tx.units.get("length") or "mm"
     report: dict[str, Any] = {

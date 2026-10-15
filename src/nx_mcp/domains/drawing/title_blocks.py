@@ -164,6 +164,23 @@ def check_attributes(tx, part, edits):
                      field=f"/cells/{i}", hint="Set it first with nx_set_attributes")  # fmt: skip
 
 
+def _by_label(cells, by_label, label, field):
+    """The cell of ``label``: the exact label, else the one label equal ignoring case and
+    spacing; several such labels are ambiguous; None when no label matches."""
+    if label in by_label:
+        return by_label[label]
+
+    def key(text):
+        return " ".join(str(text).split()).casefold()
+
+    found = [c for c in cells if key(c["label"]) == key(label)]
+    if len(found) > 1:
+        fail("NX_AMBIGUOUS_REFERENCE", f"Several title-block cells are labelled {label!r} "
+             "ignoring case: give the exact label", field=field,
+             details={"candidates": [c["label"] for c in found]})  # fmt: skip
+    return found[0] if found else None
+
+
 def resolve_edits(cells, edits):
     """``[(cell, edit)]`` for each edit; refuses unknown, repeated and locked cells."""
     by_label = {c["label"]: c for c in cells}
@@ -172,12 +189,15 @@ def resolve_edits(cells, edits):
     for i, edit in enumerate(edits):
         field = f"/cells/{i}"
         if "label" in edit:
-            cell = by_label.get(edit["label"])
+            cell = _by_label(cells, by_label, edit["label"], field)
         else:
             cell = by_place.get((edit.get("section", 0), edit["row"], edit["column"]))
         if cell is None:
-            fail("NX_NOT_FOUND", "No such title-block cell", field=field,
-                 hint="Read the cells with nx_get_drawing_table",
+            where = (f"labelled {edit['label']!r}" if "label" in edit else
+                     f"at section {edit.get('section', 0)}, row {edit['row']}, "
+                     f"column {edit['column']}")  # fmt: skip
+            fail("NX_NOT_FOUND", f"No title-block cell {where}", field=field,
+                 hint="Read the cells with nx_get_drawing_table; details.labels lists them",
                  details={"labels": [c["label"] for c in cells][:60]})  # fmt: skip
         if cell["label"] in seen:
             fail("NX_INVALID_ARGUMENT", f"Cell {cell['label']!r} is edited twice", field=field)

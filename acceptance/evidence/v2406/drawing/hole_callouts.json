@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/hole_callouts.json",
-  "scenario_sha256": "0755d84217913780c34dd2f04cff745ebf37176e93b2d0300c8e3fcb4a7cd8ee",
+  "scenario_sha256": "cf3b1bbb207bab714da1a0188a6b02aedb3ae4f245ebfc0c811a7aacea49a44f",
   "domain": "drawing",
   "covers": {
     "nx_create_drawing_dimension": [
@@ -11,11 +11,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_drawing_dimension": "8651746931d38990280d8a4732397f4462a181f01ffa2814efcefb6435abf1e1"
+    "nx_create_drawing_dimension": "f5b66bd494d014ab7e6a39c1de97dbf827fcc71e676c549c2a3d83be8ad13836"
   },
-  "recorded": "2026-10-13T07:31:02Z",
+  "recorded": "2026-10-15T10:55:24Z",
   "passed": true,
-  "checks": 37,
+  "checks": 41,
   "failed_checks": 0,
   "steps": [
     {
@@ -241,6 +241,13 @@
       "setup": false,
       "passed": true,
       "checks": 2
+    },
+    {
+      "index": 33,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 4
     }
   ]
 }

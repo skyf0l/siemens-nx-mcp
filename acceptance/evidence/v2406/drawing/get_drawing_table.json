@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/get_drawing_table.json",
-  "scenario_sha256": "3689a4cd8313344eb51e385fd964181286c0229340f2e431e326d3de05a93b91",
+  "scenario_sha256": "e080969a41fbb094763227195422ffb4c1ca086f2464261e4af6b951a3a75bb7",
   "domain": "drawing",
   "covers": {
     "nx_get_drawing_table": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_get_drawing_table": "def923e992d04f6636b93a3fc04659b40e31244aa8286a8f26853a7bb98498df"
+    "nx_get_drawing_table": "fea9422a7aa735389325c1c896e35c625403ef5266552eb039bc2abda284f5d0"
   },
-  "recorded": "2026-10-13T14:52:41Z",
+  "recorded": "2026-10-15T12:00:08Z",
   "passed": true,
-  "checks": 11,
+  "checks": 21,
   "failed_checks": 0,
   "steps": [
     {
@@ -60,13 +60,48 @@
     },
     {
       "index": 7,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_create_drawing_table",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_get_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 10,
+      "call": "nx_create_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 11,
+      "call": "nx_get_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 12,
       "call": "nx_get_drawing_table",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 8,
+      "index": 13,
       "call": "nx_close_part",
       "setup": true,
       "passed": true,

@@ -1,0 +1,349 @@
+{
+  "format": 2,
+  "scenario": "acceptance/sketch/sketch_safety.json",
+  "scenario_sha256": "5e9a3a1840edf988418a4b34c1bfe1de6d4f8a0cc1a0d16c965ee39b8076cdd0",
+  "domain": "sketch",
+  "covers": {
+    "nx_create_sketch_corner": [
+      "fillet",
+      "chamfer"
+    ],
+    "nx_create_sketch_constraints": [
+      "horizontal",
+      "collinear"
+    ],
+    "nx_create_sketch_dimensions": [
+      "length"
+    ],
+    "nx_create_sketch_copy": [
+      "offset"
+    ],
+    "nx_create_sketch_projection": [
+      "project",
+      "intersect"
+    ]
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_create_sketch_corner": "394632038081c999965c31c2e06f1e54967720e8b5805ce9a895d1f65176747b",
+    "nx_create_sketch_constraints": "d34c83bba253fbffdf9b42cb9b4270e6f35f87980698ce52ea2ddaaf489d64a5",
+    "nx_create_sketch_dimensions": "d34c83bba253fbffdf9b42cb9b4270e6f35f87980698ce52ea2ddaaf489d64a5",
+    "nx_create_sketch_copy": "394632038081c999965c31c2e06f1e54967720e8b5805ce9a895d1f65176747b",
+    "nx_create_sketch_projection": "394632038081c999965c31c2e06f1e54967720e8b5805ce9a895d1f65176747b"
+  },
+  "recorded": "2026-10-15T11:35:24Z",
+  "passed": true,
+  "checks": 84,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 4,
+      "call": "nx_create_sketch_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 5,
+      "call": "nx_create_sketch_corner",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 6,
+      "call": "nx_create_sketch_corner",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 7,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_create_sketch_corner",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 9,
+      "call": "nx_create_sketch_corner",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 10,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 11,
+      "call": "nx_create_sketch_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 12,
+      "call": "nx_create_sketch_constraints",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 13,
+      "call": "nx_create_sketch_constraints",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 14,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 15,
+      "call": "nx_create_sketch_constraints",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 16,
+      "call": "nx_create_sketch_dimensions",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 17,
+      "call": "nx_create_sketch_dimensions",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 18,
+      "call": "nx_edit_sketch_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 19,
+      "call": "nx_get_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 20,
+      "call": "nx_get_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 21,
+      "call": "nx_check_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 22,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 23,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 24,
+      "call": "nx_create_sketch_constraints",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 25,
+      "call": "nx_create_sketch_dimensions",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 26,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 27,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 28,
+      "call": "nx_create_sketch_copy",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 29,
+      "call": "nx_create_sketch_copy",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 30,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 31,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 32,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 33,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 34,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 35,
+      "call": "nx_create_sketch_projection",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 36,
+      "call": "nx_create_sketch_projection",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 37,
+      "call": "nx_get_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 38,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 39,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 40,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 41,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 42,
+      "call": "nx_create_sketch_projection",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 43,
+      "call": "nx_get_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 44,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    }
+  ]
+}

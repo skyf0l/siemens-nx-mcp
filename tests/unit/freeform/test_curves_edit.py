@@ -92,6 +92,27 @@ def test_join_keeps_the_length_and_explains_gaps():
     assert nx.live_builders == 0
 
 
+def test_join_refuses_gaps_and_branches_before_nx():
+    nx = curves_nx()
+    a = curve(nx, [0, 0, 0], [50, 0, 0])
+    far = curve(nx, [86, 0, 0], [120, 0, 0])
+    gap = run(nx, "nx_create_joined_curve", curves=[a.ref, far.ref])
+    assert gap.error["code"] == "NX_WRONG_GEOMETRY" and gap.error["field"] == "/curves/1"
+    assert gap.error["details"]["gap"] == pytest.approx(36) and "bridge" in gap.error["hint"]
+    assert gap.mutation_outcome == "not_started" and not nx.builders
+    up = curve(nx, [50, 0, 0], [50, 40, 0])
+    side = curve(nx, [50, 0, 0], [80, -10, 0])
+    branch = run(nx, "nx_create_joined_curve", curves=[a.ref, up.ref, side.ref])
+    assert branch.error["details"]["branch_at"] == [50, 0, 0]
+    assert branch.error["details"]["curves"] == [0, 1, 2]
+    loop = [curve(nx, [0, 0, 0], [10, 0, 0]), curve(nx, [10, 10, 0], [10, 0, 0]),
+            curve(nx, [10, 10, 0], [0, 0, 0])]  # fmt: skip
+    nx.on_commit(JOIN, lambda b: made(nx, "JOIN_CURVE", [[[0, 0, 0], [10, 0, 0], [10, 10, 0],
+                                                         [0, 0, 0]]]))  # fmt: skip
+    closed = run(nx, "nx_create_joined_curve", curves=[c.ref for c in loop])
+    assert closed.ok, closed.error
+
+
 def test_mirror_checks_symmetry_about_the_plane():
     nx = curves_nx()
     b = curve(nx, [100, 30, 0], [150, 30, 0])
@@ -164,13 +185,18 @@ def test_divide_into_equal_segments_and_at_points():
     three = [[[70, 0, 0], [100, 0, 0]], [[0, 0, 0], [20, 0, 0]], [[20, 0, 0], [70, 0, 0]]]
     nx.on_commit(TRIM, lambda b: made(nx, "TRIM_CURVE2", three))
     at = run(
-        nx, "nx_create_trim_curve", curve=line.ref, method="divide", at=[[20, 3, 0], [70, 0, 0]]
+        nx, "nx_create_trim_curve", curve=line.ref, method="divide", at=[[20, 0, 0], [70, 0, 0]]
     )
     assert at.ok and at.data["count"] == 3, at.error
     assert [c["length"] for c in at.data["curves"]] == pytest.approx([20, 50, 30])
     assert [c["start"][0] for c in at.data["curves"]] == pytest.approx([0, 20, 70])
     end = run(nx, "nx_create_trim_curve", curve=line.ref, method="divide", at=[[0, 0, 0]])
     assert end.error["field"] == "/at"
+    off = run(nx, "nx_create_trim_curve", curve=line.ref, method="divide",
+              at=[[20, 0, 0], [60, 7.3, 0]])  # fmt: skip
+    assert off.error["field"] == "/at/1" and off.mutation_outcome == "not_started"
+    assert off.error["details"]["distance"] == pytest.approx(7.3)
+    assert off.error["details"]["nearest"] == pytest.approx([60, 0, 0])
     uneven = run(nx, "nx_create_trim_curve", curve=line.ref, method="divide", segments=3)
     assert uneven.error["details"]["check"] == "segments"
 
@@ -194,3 +220,32 @@ def test_trim_argument_checks():
     nx.refuse(TRIM, 670001, "No divide location found.")
     native = run(nx, "nx_create_trim_curve", curve=line.ref, method="divide", segments=2)
     assert native.error["code"] == "NX_BUILD_FAILED" and nx.live_builders == 0
+
+
+def test_bridge_tangent_magnitudes():
+    nx = curves_nx()
+    a = curve(nx, [0, 0, 0], [50, 0, 0])
+    b = curve(nx, [100, 30, 0], [150, 30, 0])
+    path = [[50, 0, 0], [60, 0, 0], [90, 30, 0], [100, 30, 0]]
+    nx.on_commit(BRIDGE, lambda bld: made(nx, "BRIDGE_CURVE", [path]))
+    sides = {"start": {"curve": a.ref, "end": "end"}, "end": {"curve": b.ref, "end": "start"}}
+    ok = run(nx, "nx_create_bridge_curve", **sides, start_magnitude=2.5)
+    assert ok.ok, ok.error
+    bld = nx.last(BRIDGE)
+    kinds = nx.nx.Features.BridgeCurveBuilderEx.ShapeControlMethods
+    assert bld.ShapeControlMethod is kinds.TangentMagnitude
+    assert bld.TangentMagnitude.StartTangentMagnitude.RightHandSide == "2.5"
+    assert ok.data["start_magnitude"] == 2.5 and ok.data["end_magnitude"] == 1.0
+    g0 = run(nx, "nx_create_bridge_curve", **sides, end_continuity="G0", end_magnitude=2)
+    assert g0.error["field"] == "/end_magnitude" and g0.mutation_outcome == "not_started"
+
+
+def test_trim_takes_an_edge():
+    nx = curves_nx()
+    rim = fakes.edge(nx, [0, 0, 0], [100, 0, 0])
+    rim.GetLength = lambda: 100.0
+    nx.on_commit(TRIM, lambda b: made(nx, "TRIM_CURVE2", [[[0, 0, 0], [30, 0, 0]]]))
+    ok = run(nx, "nx_create_trim_curve", curve=rim.ref,
+             planes=[{"origin": [30, 0, 0], "normal": [1, 0, 0]}], keep=[10, 0, 0])  # fmt: skip
+    assert ok.ok and ok.data["length"] == pytest.approx(30), ok.error
+    assert nx.last(TRIM).CurveToTrim.AddToSection.calls[0][0][0] == [("EdgeDumb", [rim])]

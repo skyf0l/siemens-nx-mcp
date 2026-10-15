@@ -16,7 +16,7 @@ from __future__ import annotations
 import math
 
 from nx_mcp.core.errors import fail, native
-from nx_mcp.kit import bodies, explode, facts, geom
+from nx_mcp.kit import bodies, explode, facts, geom, parts, select
 
 # Principal radii at or beyond this many part units mean a straight (flat) direction.
 FLAT_RADIUS = 1e8
@@ -41,12 +41,25 @@ def target_bodies(tx, refs, scope="auto", field="/bodies"):
     return found
 
 
+def part_name(part) -> str:
+    """A part's file name (``Leaf``, else its path's last part), for messages."""
+    leaf = str(getattr(part, "Leaf", "") or "")
+    if leaf:
+        return leaf
+    path = str(getattr(part, "FullPath", "") or "")
+    return path.replace("\\", "/").rsplit("/", 1)[-1] or "the part"
+
+
 def _target_bodies(tx, refs, scope, field):
     if refs is None:
-        return bodies.require(bodies.scope(tx, scope), field=field)
+        found = bodies.require(bodies.scope(tx, scope), field=field)
+        if scope == "assembly" and not parts.components(tx.part):
+            tx.warn("NX_NOTE", f"{part_name(tx.part)} has no components; scope assembly measured "
+                    "its own bodies")  # fmt: skip
+        return found
     found, seen = [], set()
     for i, ref in enumerate(refs):
-        obj = tx.resolve(ref, *TARGET_KINDS)
+        obj = select.resolve(tx, ref, *TARGET_KINDS, field=f"{field}/{i}", tree=True)
         for body in bodies.of(tx, obj):
             if int(body.Tag) not in seen:
                 seen.add(int(body.Tag))

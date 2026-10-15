@@ -11,6 +11,9 @@ NX 2406 findings encoded here:
   region's centre, an area fill's is [0, 0]: the box centre is reported instead.
 - Crosshatch patterns are the names of NX's ``xhatch.chx`` (``Iron/General Use`` default,
   45 degrees, spacing 5 in part units); area fill takes an ``AreaFillMaterial``.
+- A patterned area fill (concrete, sand, ...) draws whole pattern elements: its box stops
+  short of the boundary (a 30 mm circle of concrete: 29.3 x 29.3), so it is checked to lie
+  inside the region instead of matching it.
 """
 
 from __future__ import annotations
@@ -60,6 +63,7 @@ Material = Literal[
 IDENTITY = {"origin": [0.0, 0.0, 0.0], "x_axis": [1.0, 0.0, 0.0], "y_axis": [0.0, 1.0, 0.0],
             "normal": [0.0, 0.0, 1.0]}  # fmt: skip
 DEFAULT_ANGLE = {"crosshatch": 45.0, "area_fill": 0.0}
+PATTERN_COVER = 0.5  # a patterned fill's box spans at least half the region on each axis
 
 
 class HatchData(TypedDict, total=False):
@@ -142,6 +146,19 @@ def _read(tx, hatch):
             "scale": float(r.Scale),
             "boundaries": int(r.Boundary.CurveBoundaries.Length),
         }
+
+
+def fills(bounds, region, tol, patterned=False):
+    """True when a hatch's box fills the boundary's region: the same box for a crosshatch
+    or a solid fill; a patterned area fill (concrete, sand, ...) draws whole pattern
+    cells, so its box only lies inside the region and covers part of each axis."""
+    if not patterned:
+        return all(abs(a - b) <= tol for a, b in zip(bounds, region, strict=True))
+    inside = all(bounds[i] >= region[i] - tol and bounds[i + 2] <= region[i + 2] + tol
+                 for i in (0, 1))  # fmt: skip
+    covered = all(bounds[i + 2] - bounds[i] >= PATTERN_COVER * (region[i + 2] - region[i])
+                  for i in (0, 1))  # fmt: skip
+    return inside and covered
 
 
 def _close_angle(got, want):
@@ -252,8 +269,9 @@ def nx_create_hatch(
         region = [*sh.to_sheet(box[0:2]), *sh.to_sheet(box[2:4])]
         if bounds is not None:
             tol = 1e-3 * max(1.0, *map(abs, region))
+            patterned = type == "area_fill" and material != "solid"
             readback.expect(
-                all(abs(a - b) <= tol for a, b in zip(bounds, region, strict=True)),
+                fills(bounds, region, tol, patterned),
                 "bounds",
                 "The hatch does not fill the boundary's region",
                 bounds=bounds,

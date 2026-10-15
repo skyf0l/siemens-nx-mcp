@@ -38,8 +38,51 @@ class BlendCornerData(TypedDict):
     bodies: list[result.Row]
     volume: float
     corner: list[float]  # [x, y, z] the edges met at (gone after the blend)
-    blend_faces: int  # faces of the blend, corner patch included
+    blend_faces: int  # every face of the feature: blends, setback zones and corner patch
     area: float  # the blend faces' total area
+    blend_ends: Annotated[
+        list[float | None],
+        Doc("Per edge: distance from the vertex where its plain round blend face ends"),
+    ]
+
+
+def _edge_dirs(picked, corner) -> list[list[float] | None]:
+    """Per edge, the unit direction from the vertex to its far end, read before the blend
+    consumes the edges; None for an edge NX cannot read."""
+    out: list[list[float] | None] = []
+    for edge in picked:
+        try:
+            far = max((geom.xyz(p) for p in edge.GetVertices()),
+                      key=lambda p: geom.dist(p, corner))  # fmt: skip
+            out.append(geom.unit(geom.sub(far, corner)))
+        except Exception:  # an edge NX cannot read: no end reported
+            out.append(None)
+    return out
+
+
+def _blend_ends(tx, faces, corner, dirs) -> list[float | None]:
+    """Per edge (its direction from the vertex, :func:`_edge_dirs`), how far from the vertex
+    its plain (cylindrical) blend face ends, read from the face's vertices; None where no
+    such face is found."""
+    frames = [(face, readback.face_frame(tx, face)) for face in faces]
+    out: list[float | None] = []
+    for d in dirs:
+        try:
+            if d is None:
+                raise ValueError("no direction")
+            reach = []
+            for face, frame in frames:
+                if frame is None or frame["type"] != readback.CYLINDER:
+                    continue
+                if not geom.parallel(frame["dir"], d, 1e-6):
+                    continue
+                for e in face.GetEdges():
+                    reach += [geom.dot(geom.sub(geom.xyz(v), corner), d) for v in e.GetVertices()]
+            near = [t for t in reach if t > 0]
+            out.append(min(near) if near else None)
+        except Exception:  # an edge or face NX cannot read: no end reported
+            out.append(None)
+    return out
 
 
 def _corner(tx, picked) -> tuple[list[float], list[bool]]:
@@ -87,7 +130,7 @@ def nx_create_blend_corner(
     radius: Annotated[Length, Doc("Blend radius of every edge, > 0")],
     setback: Annotated[
         Length,
-        Doc("Distance along each edge from the vertex where the corner patch starts; > radius"),
+        Doc("Setback along each edge from the vertex, > radius (blend_ends: where blends end)"),
     ],
     setback_faces: Annotated[
         Literal["with_corner", "separate"],
@@ -95,9 +138,10 @@ def nx_create_blend_corner(
     ] = "with_corner",
 ) -> BlendCornerData:
     """Blend the edges meeting at a corner and set the blends back for a smooth corner patch.
-    Every edge gets radius; each blend stops setback from the vertex (along the edge) and
-    NX fills the corner where the blends meet (a cube corner: R5, setback 12). Edges
-    already blended: delete or edit that blend first. Plain blends: nx_create_blend."""
+    Every edge gets radius and a setback measured along it from the vertex; NX fills the
+    corner with a patch, and each plain round blend ends about setback + radius from the
+    vertex (blend_ends gives it per edge; cube corner R5, setback 12: 17). Edges already
+    blended: delete or edit that blend first. Plain blends: nx_create_blend."""
     r, s = float(radius), float(setback)
     if r <= 0:
         fail("NX_INVALID_ARGUMENT", "radius must be positive", field="/radius")
@@ -114,6 +158,7 @@ def nx_create_blend_corner(
                 fail("NX_INVALID_ARGUMENT", f"setback {s:g} is not shorter than edge {i} "
                      f"({length:g})", field="/setback", hint=SETBACK_HINT)  # fmt: skip
     before = measure.volume(tx, body)
+    dirs = _edge_dirs(picked, corner)  # the blend consumes the edges
     part = tx.part
     E = tx.nx.Features.EdgeBlendBuilder
     try:
@@ -143,4 +188,5 @@ def nx_create_blend_corner(
         "corner": corner,
         "blend_faces": len(faces),
         "area": measure.area(tx, faces),
+        "blend_ends": _blend_ends(tx, faces, corner, dirs),
     }

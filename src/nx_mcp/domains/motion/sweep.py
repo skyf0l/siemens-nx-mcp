@@ -41,10 +41,13 @@ from nx_mcp.core.types import (
     Axis,
     Doc,
     Items,
+    Length,
     Point3,
     Range,
     RefTo,
+    Text,
     Vec3,
+    convert_quantity,
     forbid_extra,
 )
 from nx_mcp.kit import bodies, geom, kinematics, select, units
@@ -76,9 +79,8 @@ ComponentId = Annotated[str, RefTo("component", doc="Component id 'o:N' (nx_list
 Moving = Annotated[list[ComponentId], Items(1, 20), Doc("Components moving together")]
 ConstraintId = Annotated[str, RefTo("assembly_constraint", doc="Angle/distance constraint 'ac:N'")]
 Value = Annotated[
-    float,
-    Range(ge=-VALUE_MAX, le=VALUE_MAX),
-    Doc("Degrees, or part units (slider, distance)"),
+    float | Annotated[str, Text(40)],
+    Doc("Degrees or part units (slider, distance); or '90 deg', '10 mm'"),
 ]
 PairSide = Annotated[str, RefTo("component", "body", doc="Component 'o:N' or body 'b:N'")]
 
@@ -172,6 +174,20 @@ def _side(tx, ref, field):
     return obj, found
 
 
+def _value(tx, raw, dim, field) -> float:
+    """``raw`` (a number, or a unit string of ``dim``) in degrees or part units."""
+    to = "deg" if dim == "angle" else units.part_units(tx)
+    try:
+        value = float(convert_quantity(raw, dim, to))
+    except ValueError as error:
+        what = "an angle" if dim == "angle" else "a length"
+        fail("NX_INVALID_ARGUMENT", f"{what}: {error}", field=field,
+             hint="A number (degrees or part units), or '90 deg' / '10 mm'")  # fmt: skip
+    if not math.isfinite(value) or abs(value) > VALUE_MAX:
+        fail("NX_INVALID_ARGUMENT", f"must be within +-{VALUE_MAX:g}", field=field)
+    return value
+
+
 def _check_values(joint, start, end, steps):
     if not (math.isfinite(start) and math.isfinite(end)) or abs(end - start) <= 1e-9:
         fail("NX_INVALID_ARGUMENT", "start and end must differ", field="/end")
@@ -213,11 +229,12 @@ def nx_run_motion_sweep(
     constraint: ConstraintId | None = None,
     track: Annotated[list[Track], Items(0, 10), Doc("Points/angles to follow")] | None = None,
     pairs: Annotated[list[Pair], Items(0, 10), Doc("Clearance pairs")] | None = None,
-    min_clearance: Annotated[float, Range(ge=0), Doc("Required gap; 0: contact")] = 0,
+    min_clearance: Annotated[Length, Range(ge=0), Doc("Required gap; 0: contact")] = 0,
 ) -> SweepData:
     """Sweep a hinge, slider or driven assembly constraint through its range of motion.
     Per step: tracked points, angles, pair gaps; first contact and limit. Put back after."""
-    _check_values(joint, start, end, steps)
+    if not 1 <= steps <= MAX_STEPS:
+        fail("NX_INVALID_ARGUMENT", f"steps is 1 to {MAX_STEPS}", field="/steps")
     needed = ("constraint",) if joint == "constraint" else ("moving", "axis")
     for name, given in zip(
         ("moving", "axis", "constraint"), (moving, axis, constraint), strict=True
@@ -239,6 +256,11 @@ def nx_run_motion_sweep(
         root = part.ComponentAssembly.RootComponent
         children = list(root.GetChildren()) if root is not None else []
         group, origin, direction, driven, unit = [], None, None, None, "deg"
+        begin = finish = 0.0
+        if joint != "constraint":
+            dim = "angle" if joint == "revolute" else "length"
+            begin, finish = _value(tx, start, dim, "/start"), _value(tx, end, dim, "/end")
+            _check_values(joint, begin, finish, steps)
         if joint in ("revolute", "slider"):
             seen = set()
             for i, ref in enumerate(moving or []):
@@ -253,8 +275,12 @@ def nx_run_motion_sweep(
         else:
             driven = select.resolve(tx, constraint, "assembly_constraint", field="/constraint")
             cls = tx.nx.Positioning.Constraint
+            if driven.ConstraintType in (cls.Type.Angle, cls.Type.Distance):
+                dim = "angle" if driven.ConstraintType == cls.Type.Angle else "length"
+                begin, finish = _value(tx, start, dim, "/start"), _value(tx, end, dim, "/end")
+                _check_values(joint, begin, finish, steps)
             if driven.ConstraintType == cls.Type.Angle:
-                if not (0 <= start <= 180 and 0 <= end <= 180):
+                if not (0 <= begin <= 180 and 0 <= finish <= 180):
                     fail("NX_INVALID_ARGUMENT", "An angle constraint takes 0 to 180 degrees",
                          field="/end", hint="Split a wider swing over a revolute sweep")  # fmt: skip
             elif driven.ConstraintType == cls.Type.Distance:
@@ -279,7 +305,7 @@ def nx_run_motion_sweep(
     contact = units.part_tolerance(tx, CONTACT_MM)
     threshold = max(min_gap, contact)
     design = {int(c.Tag): (c, kinematics.pose(c)) for c in children}
-    values = [start + (end - start) * i / steps for i in range(steps + 1)]
+    values = [begin + (finish - begin) * i / steps for i in range(steps + 1)]
     group_start = [kinematics.pose(c) for c in group]
 
     def apply(value: float, mark) -> list:
@@ -362,7 +388,7 @@ def nx_run_motion_sweep(
                 refined[k] = (good + bad) / 2.0
     _restored(tx, design)
     if not samples:
-        fail("NX_CONSTRAINT_UNSATISFIED", f"The assembly does not solve at start={start}",
+        fail("NX_CONSTRAINT_UNSATISFIED", f"The assembly does not solve at start={begin:g}",
              field="/start", details={"stopped": stopped})  # fmt: skip
     return _result(tx, joint, unit, values, samples, stopped, moved, tracked_points,
                    tracked_angles, sides, refined, contact, min_gap, threshold, design)  # fmt: skip

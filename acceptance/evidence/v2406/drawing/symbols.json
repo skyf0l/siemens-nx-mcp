@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/symbols.json",
-  "scenario_sha256": "cbfe7ad4b575297204f90edf9f66757e3c94fef26fd0c9b098d0eca910e787ff",
+  "scenario_sha256": "e2c28f28c24ad3eb6fa0b9e2fe51fc65fee5402187f4d2c13590f306e03cf31f",
   "domain": "drawing",
   "covers": {
     "nx_create_sheet_symbol": [
@@ -15,11 +15,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_sheet_symbol": "13a5ed4c8d7f2df9e8603819d395cc2af9928ee46cdb7fad1133ef1df9dd63bb"
+    "nx_create_sheet_symbol": "65ffe10e07a853ce3fc97948bc78c1d39c6b5d7f52baaeafb54ace224c461302"
   },
-  "recorded": "2026-10-13T12:18:17Z",
+  "recorded": "2026-10-15T10:56:12Z",
   "passed": true,
-  "checks": 47,
+  "checks": 52,
   "failed_checks": 0,
   "steps": [
     {
@@ -139,14 +139,14 @@
       "call": "nx_create_sheet_symbol",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 18,
       "call": "nx_create_sheet_symbol",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 19,
@@ -209,10 +209,17 @@
       "call": "nx_create_sheet_symbol",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 28,
+      "call": "nx_create_sheet_symbol",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 29,
       "call": "nx_close_part",
       "setup": true,
       "passed": true,

@@ -4,6 +4,7 @@ import pytest
 
 from nx_mcp.core import catalogue, summary
 from tests.kit import run
+from tests.kit.objects import Feature
 from tests.unit.sketch.fakes import CT, Constraint, sketch_nx
 
 
@@ -78,6 +79,15 @@ def test_sketch_on_face_with_x_direction_uses_a_coincident_plane():
     assert wrong.error["category"] == "wrong_kind"
 
 
+def test_sketch_on_a_feature_without_datum_plane_is_refused_before_building():
+    nx = sketch_nx()
+    body = nx.block(10, 10, 5)
+    extrude = nx.ref_of(Feature("EXTRUDE(1)", [body]), "feature")
+    bad = run(nx, "nx_create_sketch", placement={"on": extrude})
+    assert bad.error["code"] == "NX_WRONG_KIND" and bad.error["field"] == "/placement/on"
+    assert bad.mutation_outcome == "not_started" and nx.builders == []
+
+
 def test_path_sketch_checks_the_origin_on_the_path():
     nx = sketch_nx()
     edge = nx.model_edge((0, 0, 0), (10, 0, 0))
@@ -130,6 +140,7 @@ def test_get_sketch_reads_geometry_constraints_and_status_without_leaving_it_act
         "fully_constrained": False,
         "dof": None,
         "free_curves": 1,
+        "dof_note": "the computed freedom disagrees with NX's count of free curves",
     }
     assert all("dof" not in r for r in rows)
     assert nx.session.ActiveSketch is None and nx.undo_marks == []
@@ -236,7 +247,7 @@ def test_one_call_sketch_checks_each_item_against_its_curve_type(curves, field):
 
 
 # ---------------------------------------------------------------------------
-# Natural argument spellings (b02 usability)
+# Natural argument spellings
 
 
 @pytest.mark.parametrize(
@@ -335,7 +346,8 @@ def test_check_sketch_says_when_there_is_nothing_to_relieve():
     nx.line(sk, (0, 0, 0), (10, 0, 0))
     ok = run(nx, "nx_check_sketch", sketch=sk.ref)
     assert ok.ok and ok.data["trials"] == [], ok
-    assert "nothing to relieve" in ok.data["note"]
+    assert "under-constrained" in ok.data["note"] and ok.data["relieving"] == []
+    assert [f["curve"] for f in ok.data["free"]] == [nx.cref(sk.geometry[0])]
 
 
 def test_one_call_sketch_accepts_any_case_curve_types_and_diameters():

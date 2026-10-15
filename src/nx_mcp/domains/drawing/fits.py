@@ -47,6 +47,11 @@ SHAFT_LOWER = {
 HOLE_DELTA_MAX = {"K": 8, "M": 8, "N": 8, "P": 7}
 
 CLASS = re.compile(r"^(JS|js|[A-Za-z])(\d{1,2})$")
+CLASS_HINT = {
+    "hole": "Use a hole class D E F G H JS K M N P with grade 5-11 (K M N up to 8, P up to "
+    "7), e.g. H7",
+    "shaft": "Use a shaft class d e f g h js k m n p with grade 5-11, e.g. g6",
+}
 
 
 def size_range(size_mm):

@@ -49,6 +49,20 @@ def _points(values, field):
     return points
 
 
+def _open_periodic(tx, points, periodic):
+    """The points of a periodic spline without a repeated start point at the end (NX
+    refuses a closing point, "Cannot compute bcurve": periodic closes the curve itself)."""
+    if not periodic or len(points) <= 3:
+        return points
+    with tx.checks():
+        limit = max(units.part_tolerance(tx), geom.tol(points[0]))
+    if geom.dist(points[0], points[-1]) <= limit:
+        tx.warn("NX_NOTE", "periodic closes the curve itself: the last point repeated the "
+                "first and was left out")  # fmt: skip
+        return points[:-1]
+    return points
+
+
 def _degree(points, degree):
     """The given degree, or the default 3 capped at points - 1."""
     return min(DEFAULT_DEGREE, len(points) - 1) if degree is None else int(degree)
@@ -129,7 +143,16 @@ def _verify(tx, spline, points, method, degree, periodic) -> _Shape:
         "through_points": "Spline through {points}",
         "poles": "Spline with {points} as poles",
     },
-    keywords=("spline", "studio spline", "3d curve", "through points", "control poles", "nurbs"),
+    keywords=(
+        "spline",
+        "studio spline",
+        "3d curve",
+        "through points",
+        "control poles",
+        "nurbs",
+        "3d line between points",
+        "polyline",
+    ),
     requires=("work_part", "no_active_sketch"),
     variants="method",
     cost="heavy",
@@ -142,11 +165,12 @@ def nx_create_spline(
     points: Annotated[list[Point3], Items(2, 1000)],
     method: Literal["through_points", "poles"] = "through_points",
     degree: Annotated[int, Range(ge=1, le=7), Doc("Default min(3, points-1)")] | None = None,
-    periodic: Annotated[bool, Doc("Closed curve")] = False,
+    periodic: Annotated[bool, Doc("Closed curve; do not repeat the first point")] = False,
 ) -> SplineData:
-    """Create a 3D Studio Spline through the points or with them as control poles. Edit
+    """Create a 3D Studio Spline through the points or with them as control poles. Two
+    points (degree 1) make a straight 3D line; degree 1 through more points a polyline. Edit
     with nx_edit_feature definition {spline: {points, method, degree, periodic}}."""
-    values = _points(points, "/points")
+    values = _open_periodic(tx, _points(points, "/points"), periodic)
     degree = _degree(values, degree)
     _check_degree(values, degree, "/degree")
     with builders.build(tx, tx.part.Features.CreateStudioSplineBuilderEx, None) as b:
@@ -216,6 +240,7 @@ def edit_spline(tx, feature, value):
             method = "poles" if b.Type == types.ByPoles else "through_points"
         degree = int(b.Degree) if degree is None else degree
         periodic = bool(b.IsPeriodic) if periodic is None else periodic
+        points = _open_periodic(tx, points, periodic)
         _check_degree(points, degree, "/definition/spline/degree")
         _configure(tx, b, points, method, degree, periodic)
         b.commit(validate=True)

@@ -10,11 +10,17 @@ is switched to it for its step (gates 3t and 4s); NX's undo is session-wide, so 
 mark covers every part. A failure after a child ran always rolls back (never
 ``not_started``, even when the failing child refused inside ``tx.checks()``).
 
-Gate order: 1 schema, 2 workspace paths, 3 variant inference and evidence/version,
-4 ``requires``,
+Gate order: 1 schema, 3t target part, 3r references (every ref argument, list items
+included, is live and of a kind its field takes, else refused ``not_started`` with its
+JSON pointer as ``field``), 2 workspace paths, 3 variant inference (in the target part)
+and evidence/version, 4 ``requires``,
 5 engineer control hold (the host, before the kernel runs), 6 part ownership,
-7 receipt, 8 undo mark, 9 unit conversion, 10 handler, 11 read-back, 12 reference
-invalidation, 13 annotation refresh, 14 result projection, 15 error mapping.
+7 receipt, 8 undo mark, 9 unit conversion, 10 handler, 11 read-back (new NX feature
+errors and warnings since the call began come back as warnings naming the feature), 12
+reference invalidation, 13 annotation refresh, 14 result projection, 15 error mapping
+(an update failure names its failing features; a read-back mismatch that NX explained
+with feature alerts, or that left the measured value unchanged, is ``geometry_failed``).
+A committed call that changed nothing and said so (``NX_NO_EFFECT``) is ``not_applicable``.
 Nothing else applies gates. Around 8-15 a non-read call's loads become barriers in the
 undo history and dropped undo marks get their reason (``core/marks.py``); a committed
 changing call stamps the parts it worked in (``core/busy.py``). Gate 4's
@@ -33,7 +39,7 @@ import copy
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 
 from nx_mcp.core import busy, evidence, parking, switching
 from nx_mcp.core import marks as undo_marks
@@ -42,7 +48,13 @@ from nx_mcp.core.errors import CATEGORIES, NXError, classify, fail
 from nx_mcp.core.receipts import ANY_PART, Receipts, new_operation_id
 from nx_mcp.core.references import GENERIC_NAME as _GENERIC
 from nx_mcp.core.tx import Services, Tx, check_owned
-from nx_mcp.core.types import SHEET_KINDS, convert_quantity, expand_kinds
+from nx_mcp.core.types import (
+    SHEET_KINDS,
+    convert_quantity,
+    expand_kinds,
+    suffix_kinds,
+    suffix_of,
+)
 from nx_mcp.core.validate import (
     Checked,
     at_child,
@@ -122,19 +134,23 @@ def offered_variants(spec, services) -> tuple | None:
     return None
 
 
-def _gate_variant(spec, checked: Checked, services: Services) -> None:  # gate 3 (first)
+def _gate_variant(spec, checked: Checked, services: Services, target=None) -> None:  # gate 3
     """An omitted variant of a ``variant_from`` tool, taken from the object its ref names
     (``nx_edit_drawing_table`` without ``kind``: the table's kind); then the fields that
-    variant needs (``required_by``)."""
+    variant needs (``required_by``). The resolver reads the call's target part (gate 3t),
+    which need not be the work part yet (gate 4s comes later)."""
     if spec.variant_from is None or checked.args.get(spec.variants) is not None:
         return
     name, resolver = spec.variant_from
     ref = checked.args.get(name)
     value = None
     if isinstance(ref, str):
+        previous = services.bound
         try:
             obj = services.references.resolve(ref, ())  # the resolver tells kinds apart
             if resolver is not None:
+                if target is not None and target.part is not None:
+                    services.bound = target.part  # tx.part is the target part
                 value = resolver(Tx(services, spec, operation_id=None), obj)
             else:
                 value = getattr(services.references.entry(ref), "kind", None)
@@ -143,6 +159,8 @@ def _gate_variant(spec, checked: Checked, services: Services) -> None:  # gate 3
             raise
         except Exception:
             value = None  # the resolver cannot tell: the variant must be given
+        finally:
+            services.bound = previous
     values = spec.variant_values()
     if value not in values:
         field = "/" + spec.variants
@@ -154,7 +172,7 @@ def _gate_variant(spec, checked: Checked, services: Services) -> None:  # gate 3
             field=field,
         )
     checked.args[spec.variants] = value
-    errors = variant_needs(spec.params, checked.args, spec.variants, spec.required_by)
+    errors = variant_needs(spec.params, checked.args, spec.variants, spec.required_by, spec.name)
     if errors:
         raise combine(errors)
 
@@ -202,14 +220,16 @@ def _free_name(resolved: Path) -> Path:
 
 
 def _gate_paths(spec, checked: Checked, services: Services, target=None) -> None:  # gate 2
-    """Workspace checks of every path argument. A path without a suffix gets the
-    marker's first one (``parts/plate`` -> ``parts/plate.prt``). ``save`` paths compare
-    against the call's target part (gate 3t), else the work part."""
+    """Workspace checks of every path argument, by the sidecar's rules (both process
+    boundaries refuse the same paths, every refusal fixable: ``retry: after_fix``): a
+    folder where a file is wanted is refused; a path without a suffix takes, for a
+    ``read`` path, the one existing file of an allowed suffix, for a new file the only
+    allowed kind or the one its format option names (``format: 'iges'`` -> ``.iges``),
+    else it is refused; a suffix the tool does not take is ``NX_UNSUPPORTED_FILE_TYPE``.
+    ``save`` paths compare against the call's target part (gate 3t), else the work part."""
     for path, marker in checked.paths:
         field = pointer(path)
         value = get_at(checked.args, path)
-        if marker.suffixes and isinstance(value, str) and value and not Path(value).suffix:
-            value = value.rstrip("/" + chr(92)) + marker.suffixes[0]
         try:
             resolved = Path(services.workspace.resolve(value))
         except Exception as error:
@@ -220,16 +240,7 @@ def _gate_paths(spec, checked: Checked, services: Services, target=None) -> None
                 field=field,
                 details={"path": _given(services, value)},
             ) from None
-        if marker.suffixes and resolved.suffix.lower() not in marker.suffixes:
-            expected = "/".join(marker.suffixes)
-            fail(
-                "NX_UNSUPPORTED_FILE_TYPE",
-                f"{field}: expected a {expected} file, e.g. 'parts/name{marker.suffixes[0]}' "
-                f"(got '{resolved.suffix}')",
-                field=field,
-                hint=f"End the path with {marker.suffixes[0]}, or leave the suffix out",
-                details={"path": _relative(services, resolved), "expected": list(marker.suffixes)},
-            )
+        resolved = _suffixed(spec, checked.args, field, str(value), resolved, marker, services)
         if marker.mode == "read" and not resolved.is_file():
             fail(
                 "NX_FILE_NOT_FOUND",
@@ -278,6 +289,125 @@ def _gate_paths(spec, checked: Checked, services: Services, target=None) -> None
         set_at(checked.args, path, str(resolved))
 
 
+def _gate_refs(spec, checked: Checked, services: Services) -> None:  # gate 3r
+    """Every reference in a list field names a live object of a kind the field takes
+    (``RefTo``): a stale, unknown or wrong-kind item is refused before the receipt and the
+    undo mark (``not_started``), with its JSON pointer (``/objects/2``); a tool explains a
+    wrong kind through its ``@kind_hint`` hook. A single ref is left to the handler, which
+    checks the call's other arguments first and explains the ref in the tool's terms (a
+    call whose refs all fail is refused at gate 3t). Values that are not refs (a name a
+    field also takes) and batch placeholders (``$0.data.body``, checked once filled in) are
+    skipped."""
+    references = getattr(services, "references", None)
+    if references is None or spec.runs != "nx":
+        return
+    for path, kinds in checked.refs:
+        value = get_at(checked.args, path)
+        if not (path and isinstance(path[-1], int)) or not targets.is_ref(value):
+            continue
+        try:
+            references.resolve(value, kinds)
+        except NXError as error:
+            error.field = error.field or pointer(path)
+            if error.code == "NX_WRONG_KIND":
+                _explain_kind(spec, services, value, kinds, error)
+            setattr(error, "unchanged", True)  # noqa: B010 (nothing ran: not_started)
+            raise
+
+
+def _explain_kind(spec, services: Services, ref: str, kinds, error: NXError) -> None:
+    """The hint of a wrong-kind list item: the tool's ``@kind_hint`` hook, else for a body
+    where a feature is wanted, the feature that made it. Never raises."""
+    from nx_mcp.core import catalogue
+
+    hook = catalogue.hooks("kind_hint").get(spec.name)
+    with contextlib.suppress(Exception):
+        if hook is not None:
+            hook(Tx(services, spec, operation_id=None), ref, error, error.field)
+            return
+        if error.details.get("kind") == "body" and "feature" in expand_kinds(kinds):
+            body = services.references.resolve(ref, ())
+            made = [services.references.row(f, "feature")["id"] for f in body.GetFeatures()]
+            error.hint = "A body is not a feature: pass the feature that made it" + (
+                f" ({made[0]}; nx_list_objects kind feature lists them)" if made else ""
+            )
+            if made:
+                error.details["features"] = made[:20]
+
+
+SLASHES = ("/", chr(92))
+
+
+def _folder_error(field: str, shown: str) -> NoReturn:
+    fail(
+        "NX_WRONG_KIND",
+        f"{field}: '{shown}' is a folder; give a file path",
+        field=field,
+        hint="Name a file inside it, e.g. '" + shown.rstrip("/") + "/name.<suffix>'; "
+        "nx_list_files shows what it holds",
+        details={"path": shown},
+    )
+
+
+def _suffixed(spec, args, field, given: str, resolved: Path, marker, services) -> Path:
+    """Gate 2's suffix and folder rules (the sidecar's ``_path_problem``): the path to use,
+    a suffix added where one is certain, or a fixable refusal."""
+    mode, suffixes = marker.mode, tuple(marker.suffixes)
+    shown = _relative(services, resolved)
+    if mode == "dir" or not suffixes:
+        if mode != "dir" and given.endswith(SLASHES):
+            _folder_error(field, shown)
+        return resolved
+    if given.endswith(SLASHES) or resolved.is_dir():
+        _folder_error(field, shown)
+    expected = "/".join(suffixes)
+    if not resolved.suffix:
+        groups = suffix_kinds(suffixes)
+        if mode == "read":
+            found = [resolved.with_name(resolved.name + s) for s in suffixes]
+            found = [f for f in found if f.is_file()]
+            if len(found) == 1 or len(groups) == 1:
+                return found[0] if found else resolved.with_name(resolved.name + suffixes[0])
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"{field}: '{shown}' has no file suffix; name the file with its suffix "
+                f"({expected})",
+                field=field,
+                hint="Check the file name with nx_list_files on its folder",
+                details={"path": shown, "expected": list(suffixes)},
+            )
+        if len(groups) == 1:
+            return resolved.with_name(resolved.name + suffixes[0])
+        named = suffix_of(spec.variant_of(args), suffixes) if spec is not None else None
+        if named is not None:
+            return resolved.with_name(resolved.name + named)
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"{field}: '{shown}' needs a file suffix: one of {expected}",
+            field=field,
+            hint=f"End the path with the suffix of the file you mean, e.g. '{shown}{suffixes[0]}'",
+            details={"path": shown, "expected": list(suffixes)},
+        )
+    if resolved.suffix.lower() in suffixes:
+        return resolved
+    suffix = resolved.suffix.lower()
+    if mode == "read":
+        hint = f"Name an existing {expected} file; nx_list_files shows the folder"
+    elif len(suffix_kinds(suffixes)) == 1:
+        hint = f"End the path with {suffixes[0]}, or leave the suffix out"
+    else:
+        hint = f"End the path with one of {expected}"
+    fail(
+        "NX_UNSUPPORTED_FILE_TYPE",
+        f"{field}: {getattr(spec, 'name', 'the tool')} takes a {expected} file, not {suffix} "
+        f"('{shown}')",
+        field=field,
+        hint=hint,
+        retry="after_fix",
+        details={"path": shown, "expected": list(suffixes)},
+    )
+
+
 def _gate_evidence(spec, checked: Checked, services: Services) -> None:  # gate 3
     refusal = evidence.check(
         spec, evidence.build_key(services.build), checked.args, dev=bool(services.dev)
@@ -295,7 +425,9 @@ def _remember_license(spec, args, services: Services, error) -> None:
         evidence.remember_license(spec, services.build, args, error)
 
 
-def _gate_requires(spec, services: Services) -> None:  # gate 4
+def _gate_requires(spec, services: Services, *, explicit: bool = False) -> None:  # gate 4
+    """The tool's ``requires``. ``explicit``: the call named its part (``part``), so a
+    part-level refusal (not an assembly) points at ``/part``."""
     if not spec.requires:
         return
     state = services.state()
@@ -317,6 +449,15 @@ def _gate_requires(spec, services: Services) -> None:  # gate 4
             ok = bool(state.get(item))
         if not ok:
             code, message, hint = REQUIRE_FAILURES[item]
+            if item == "assembly":
+                with contextlib.suppress(Exception):
+                    name = targets.file_name(services.work_part())
+                    message = f"{name} has no components yet, so it is not an assembly"
+                    hint = (
+                        "Add a component with nx_create_component, or name the assembly with "
+                        "part (nx_list_parts lists the loaded parts)"
+                    )
+                fail(code, message, hint=hint, field="/part" if explicit else None)
             fail(code, message, hint=hint)
 
 
@@ -367,7 +508,8 @@ def sheet_target(spec, args: dict, refs, services: Services) -> tuple:
     """``(sheet, units)``: the drawing sheet a sheet tool's arguments name, and its units.
 
     In order: the first reference argument that is a drawing sheet or a view on
-    one (``services.sheet_of``); for a tool that creates a sheet, its top-level
+    one (``services.sheet_of``); a ``sheet`` or ``view`` argument given by name; for a
+    tool that creates a sheet, its top-level
     ``units`` argument (``(None, "mm")``); the work part's current sheet. Returns
     ``(None, None)`` when nothing names a sheet. Never raises: an unresolvable
     reference is left to the handler, which reports it.
@@ -384,6 +526,9 @@ def sheet_target(spec, args: dict, refs, services: Services) -> tuple:
                 return sheet, services.sheet_units(sheet)
         except Exception:
             continue
+    named = _named_sheet(spec, args, services)
+    if named is not None:
+        return named, services.sheet_units(named)
     units = args.get("units")
     if "units" in spec.params and units in ("mm", "in"):
         return None, units
@@ -394,6 +539,37 @@ def sheet_target(spec, args: dict, refs, services: Services) -> tuple:
     except Exception:
         pass
     return None, None
+
+
+# Arguments that may name a drawing sheet or view by its name instead of a ref.
+SHEET_NAME_ARGS = (("sheet", "DrawingSheets"), ("view", "DraftingViews"))
+
+
+def _named_sheet(spec, args: dict, services: Services):
+    """The drawing sheet a ``sheet`` or ``view`` argument names by its name (any case; a
+    view 'TOP@1' or 'top'), in the work part; None when none does or it is ambiguous (the
+    handler reports a bad name)."""
+    with contextlib.suppress(Exception):
+        part = services.work_part()
+        for name, collection in SHEET_NAME_ARGS:
+            text = args.get(name) if name in spec.params else None
+            if not isinstance(text, str) or not text.strip() or ":" in text:
+                continue  # a ref was looked up above
+            wanted = text.strip().casefold()
+            found = [
+                obj
+                for obj in getattr(part, collection, None) or []
+                if str(getattr(obj, "Name", "")).casefold() == wanted
+                or (
+                    name == "view"
+                    and str(getattr(obj, "Name", "")).casefold().split("@")[0] == wanted
+                )
+            ]
+            if len(found) == 1:
+                sheet = services.sheet_of(found[0])
+                if sheet is not None:
+                    return sheet
+    return None
 
 
 def _gate_units(spec, checked: Checked, services: Services, tx: Tx) -> dict:  # gate 9
@@ -420,8 +596,10 @@ def _gate_units(spec, checked: Checked, services: Services, tx: Tx) -> dict:  # 
             target = sheet_units or length or "mm"
         elif dim == "angle":
             target = "deg"
-        elif dim == "count":
+        elif dim in ("count", "scalar"):
             target = "unitless"
+        elif dim == "mass":
+            target = "kg"
         else:
             target = length or "mm"
         where = pointer(path)
@@ -447,21 +625,58 @@ def _gate_units(spec, checked: Checked, services: Services, tx: Tx) -> dict:  # 
 
 
 def _resolve_placeholders(checked: Checked, prior: list) -> None:
+    """Fill ``"$<i>.<path>"`` from child ``i``'s result envelope; ``$0.<key>`` with a key
+    that is not an envelope key means ``$0.data.<key>`` (``$0.sketch``). An error lists the
+    keys there are."""
     for path, text in checked.placeholders:
         index, *keys = text[1:].split(".")
+        value: Any = None
         try:
             value = prior[int(index)]
+            data = value.get("data") if isinstance(value, dict) else None
+            if keys and keys[0] not in value and isinstance(data, dict) and keys[0] in data:
+                keys = ["data", *keys]  # "$0.sketch" is "$0.data.sketch"
             for key in keys:
                 value = value[int(key)] if isinstance(value, list) else value[key]
         except (TypeError, IndexError, KeyError, ValueError):
+            available = _placeholder_keys(prior, index, keys)
             fail(
                 "NX_INVALID_ARGUMENT",
-                f"{pointer(path)}: {text} does not name an earlier result",
+                f"{pointer(path)}: {text} does not name an earlier result"
+                + (f"; there: {', '.join(available)}" if available else ""),
                 field=pointer(path),
+                hint="Name an earlier step and a key of its result, e.g. '$0.data.feature' "
+                "(the step's data keys are listed in the message)",
+                details={"available": available},
             )
         if isinstance(value, dict) and "id" in value:
             value = value["id"]
         set_at(checked.args, path, value)
+
+
+def _placeholder_keys(prior: list, index: str, keys: list) -> list[str]:
+    """The keys a placeholder could take at the point where it failed: the step's data
+    keys (``$0.<key>``), or the keys at the deepest level it reached."""
+    try:
+        node: Any = prior[int(index)]
+    except (TypeError, IndexError, ValueError):
+        return [f"${i}" for i in range(len(prior))]
+    data = node.get("data") if isinstance(node, dict) else None
+    level = data if isinstance(data, dict) else node
+    for key in keys[1:] if keys[:1] == ["data"] else keys:
+        nxt = None
+        if isinstance(level, dict):
+            nxt = level.get(key)
+        elif isinstance(level, list) and key.isdigit() and int(key) < len(level):
+            nxt = level[int(key)]
+        if not isinstance(nxt, (dict, list)):
+            break
+        level = nxt
+    if isinstance(level, dict):
+        return sorted(str(k) for k in level)[:30]
+    if isinstance(level, list):
+        return [str(i) for i in range(min(len(level), 30))]
+    return []
 
 
 def _internal(row) -> bool:
@@ -501,6 +716,8 @@ def _changes(
     if retired and stale_of is not None:
         with contextlib.suppress(Exception):
             stale.extend(r for r in stale_of(retired, floor) if r not in stale)
+    if tx is not None and tx.children:  # a batch or an accepted preview: its steps' rows
+        _merge_children(tx.children, created, modified, deleted, stale, floor)
     changes: dict = {
         "created": created,
         "modified": modified,
@@ -517,6 +734,50 @@ def _changes(
         changes["references"] = "listed"
         changes["stale_kinds"] = ["face", "edge"]
     return changes
+
+
+def _number(row) -> int | None:
+    """The number of a row's short ref (``c:825493`` -> 825493), else None."""
+    ref = str(row.get("id") or "") if isinstance(row, dict) else ""
+    head, _, tail = ref.partition(":")
+    return int(tail) if head and tail.isdigit() else None
+
+
+def _merge_children(children, created, modified, deleted, stale, floor) -> None:
+    """Add the rows of a batch's or preview's steps to the call's own ``changes``: what a
+    step created and no later step deleted, what a step changed, and what a step deleted
+    or made stale that existed before the call (a step's own invalidation already retired
+    those refs, so the call's snapshot comparison alone misses them)."""
+    seen = {r.get("id") for rows in (created, modified, deleted) for r in rows}
+    gone_ids = {
+        r.get("id")
+        for child in children
+        for r in (child.get("changes") or {}).get("deleted") or []
+        if isinstance(r, dict)
+    }
+
+    def older(row) -> bool:
+        number = _number(row)
+        return floor is None or (number is not None and number < floor)
+
+    for child in children:
+        changes = child.get("changes") or {}
+        for key, rows in (("created", created), ("modified", modified), ("deleted", deleted)):
+            for row in changes.get(key) or []:
+                if not isinstance(row, dict) or not row.get("id") or row["id"] in seen:
+                    continue
+                if key == "created" and row["id"] in gone_ids:
+                    continue  # made and deleted inside the call
+                if key == "deleted" and not older(row):
+                    continue
+                if key == "modified" and row["id"] in gone_ids:
+                    continue
+                rows.append(row)
+                seen.add(row["id"])
+        for ref in changes.get("stale_refs") or []:
+            number = _number({"id": ref})
+            if ref not in stale and (floor is None or (number is not None and number < floor)):
+                stale.append(ref)
 
 
 def _readback(spec, services: Services, part, before: dict, mark) -> dict:  # gate 11
@@ -543,6 +804,213 @@ def _readback_parts(spec, services: Services, tx: Tx, part, before: dict, mark) 
         before.update(extra_before)
         after.update(_readback(spec, services, extra, extra_before, mark))
     return before, after
+
+
+# ---------------------------------------------------------------------------
+# NX feature alerts (gate 11 and gate 15)
+
+# NXOpen ``Feature.GetFeature<kind>Messages`` readers of the alerts a call compares.
+ALERT_READERS = (("error", "GetFeatureErrorMessages"), ("warning", "GetFeatureWarningMessages"))
+# Parts with more features skip the comparison (two reads per feature before and after).
+ALERT_FEATURES_MAX = 4000
+ALERTS_LISTED = 10
+
+
+def feature_messages(feature, kinds=("error", "warning")) -> list[tuple[str, str]]:
+    """``[(kind, message)]`` NX attaches to ``feature`` (``error``, ``warning``,
+    ``information``), in order without repeats; ``[]`` where NX cannot say. Never raises."""
+    readers = dict(ALERT_READERS, information="GetFeatureInformationalMessages")
+    out: list[tuple[str, str]] = []
+    for kind in kinds:
+        read = getattr(feature, readers[kind], None)
+        try:
+            messages = list(read() or []) if callable(read) else []
+        except Exception:  # a feature NX cannot answer for has no alerts to report
+            messages = []
+        for message in messages:
+            text = str(message).strip()
+            if text and (kind, text) not in out:
+                out.append((kind, text))
+    return out
+
+
+def feature_alerts(services, part) -> dict | None:
+    """``{tag: (feature, frozenset((kind, message)))}`` of the user-visible features of
+    ``part`` that report errors or warnings; None when they cannot be read (no part, more
+    than ``ALERT_FEATURES_MAX`` features). Services may supply ``feature_alerts(part)``."""
+    hook = getattr(services, "feature_alerts", None)
+    if callable(hook):
+        try:
+            return hook(part)
+        except Exception:
+            return None
+    try:
+        features = list(part.Features)
+    except Exception:
+        return None
+    if len(features) > ALERT_FEATURES_MAX:
+        return None
+    out: dict = {}
+    for feature in features:
+        if getattr(feature, "IsInternal", False):
+            continue
+        pairs = frozenset(feature_messages(feature))
+        if pairs:
+            with contextlib.suppress(Exception):
+                out[int(feature.Tag)] = (feature, pairs)
+    return out
+
+
+def _feature_row(services, feature) -> dict:
+    try:
+        return dict(services.references.row(feature, "feature"))
+    except Exception:
+        name = str(getattr(feature, "JournalIdentifier", "") or getattr(feature, "Name", ""))
+        return {"kind": "feature", "name": name}
+
+
+def new_alerts(services, part, before: dict | None) -> list[dict]:
+    """``[{feature: row, kind, message}]``: the feature errors and warnings of ``part``
+    that were not there before the call (``before`` from :func:`feature_alerts`), at most
+    ``ALERTS_LISTED``. ``[]`` when ``before`` is None."""
+    if before is None or part is None:
+        return []
+    after = feature_alerts(services, part)
+    if not after:
+        return []
+    out: list[dict] = []
+    for tag, (feature, pairs) in after.items():
+        old = before.get(tag, (None, frozenset()))[1]
+        fresh = sorted(pairs - old)
+        if not fresh:
+            continue
+        row = _feature_row(services, feature)
+        out.extend({"feature": row, "kind": kind, "message": text} for kind, text in fresh)
+        if len(out) >= ALERTS_LISTED:
+            break
+    return out[:ALERTS_LISTED]
+
+
+def _alert_text(alert: dict) -> str:
+    row = alert["feature"]
+    who = row.get("name") or "a feature"
+    if row.get("id"):
+        who += f" ({row['id']})"
+    return f"{who}: {alert['message']}"
+
+
+def _alert_warning(alert: dict) -> dict:
+    """A result warning for a new NX feature alert: the feature row is ``object``."""
+    word = "error" if alert["kind"] == "error" else "warning"
+    return {
+        "code": "NX_UPDATE_WARNING",
+        "message": f"NX reports a new feature {word}: {_alert_text(alert)}",
+        "object": alert["feature"],
+    }
+
+
+def update_failures(services) -> list[dict]:
+    """``[{feature: row, message, nx_code}]`` of NX's update error list (``UpdateManager.
+    ErrorList``): after "Update undo happened" it names the feature whose update failed
+    (NX 2406 measured: the blend, when a block edit left its edge too short). Read before
+    the rollback clears the list; ``[]`` where NX cannot say."""
+    out: list[dict] = []
+    with contextlib.suppress(Exception):
+        errors = services.session.UpdateManager.ErrorList
+        for i in range(min(int(errors.Length), ALERTS_LISTED)):
+            with contextlib.suppress(Exception):
+                info = errors.GetErrorInfo(i)
+                obj = info.ErrorObject
+                row = _feature_row(services, obj) if obj is not None else {}
+                if not row.get("name"):
+                    row["name"] = str(getattr(info, "ErrorObjectDescription", "") or "")
+                item: dict[str, Any] = {
+                    "feature": row,
+                    "message": str(info.Description or "").strip(),
+                }
+                with contextlib.suppress(Exception):
+                    item["nx_code"] = int(info.ErrorCode)
+                out.append(item)
+    return out
+
+
+def _unchanged_measure(details: dict) -> bool:
+    """A read-back failure whose measured value did not move (``NX left the volume 0 ->
+    0``): NX built nothing that counts for the request."""
+    actual = (details or {}).get("actual")
+    if not isinstance(actual, dict) or not {"before", "after"} <= set(actual):
+        return False
+    try:
+        old, new = float(actual["before"]), float(actual["after"])
+    except (TypeError, ValueError):
+        return False
+    return abs(new - old) <= 1e-9 * max(1.0, abs(old))
+
+
+def explain_failure(services, part, before_alerts: dict | None, error: NXError) -> NXError:
+    """Gate 15, before the rollback: say what NX reported about the failed call.
+
+    An update failure names its failing features (``details.failed_features``: NX's update
+    error list, else new feature errors). A read-back mismatch (``NX_VERIFICATION_FAILED``)
+    that NX explained with new feature alerts, or that left the measured value unchanged,
+    is ``NX_BUILD_FAILED`` (``geometry_failed``, fix the input) instead of a report to the
+    engineer. Never raises."""
+    try:
+        alerts = new_alerts(services, part, before_alerts)
+        if error.code == "NX_UPDATE_FAILED" and "failed_features" not in error.details:
+            failed = update_failures(services) or [
+                {"feature": a["feature"], "message": a["message"]}
+                for a in alerts
+                if a["kind"] == "error"
+            ]
+            if failed:
+                error.details["failed_features"] = failed
+                names = ", ".join(_alert_text(f) for f in failed[:3])
+                error.message = f"{error.message.rstrip('.')}. Failing: {names}"
+                error.hint = error.hint or (
+                    "The model was rolled back. Change the input so the features in "
+                    "details.failed_features can rebuild (or edit them first); do not "
+                    "repeat unchanged"
+                )
+            return error
+        if error.code != "NX_VERIFICATION_FAILED":
+            if alerts:
+                error.details.setdefault("nx_alerts", alerts)
+            return error
+        if not alerts and not _unchanged_measure(error.details):
+            return error
+        said = "; ".join(_alert_text(a) for a in alerts[:3])
+        message = f"NX did not build what was asked: {error.message}"
+        if said:
+            message += f" (NX: {said})"
+        details = {**error.details, "verification": error.message}
+        if alerts:
+            details["nx_alerts"] = alerts
+        return NXError(
+            "NX_BUILD_FAILED",
+            message,
+            field=error.field,
+            hint="The model was rolled back. Check the input NX's message or the check "
+            "names (a closed profile, faces that meet, a valid order) and change it; do "
+            "not repeat unchanged",
+            nx_code=error.nx_code,
+            details=details,
+        )
+    except Exception:
+        return error
+
+
+def _no_effect(tx: Tx, changes: dict | None) -> bool:
+    """A committed call that warned ``NX_NO_EFFECT`` and changed nothing (no created,
+    modified or deleted object, no stale ref, no file): ``not_applicable``, not
+    ``committed``."""
+    if not any(w.get("code") == "NX_NO_EFFECT" for w in tx.warnings):
+        return False
+    if tx.files.published or tx.changed or tx.children:
+        return False
+    if changes is None:
+        return True
+    return not any(changes.get(k) for k in ("created", "modified", "deleted", "stale_refs"))
 
 
 def _extra_unchanged(services: Services, tx: Tx | None) -> bool:
@@ -617,6 +1085,7 @@ def run(spec, args, ctx: Context) -> dict:
     floor: int | None = None
     observer = None
     watched = None
+    alerts: dict | None = None  # NX feature alerts before the handler (gate 11)
     bound: switching.Bound | None = None
     handler_started = handler_done = False
     args, keys = targets.split_call_keys(spec, args)  # part/expires_at in arguments
@@ -650,13 +1119,14 @@ def run(spec, args, ctx: Context) -> dict:
             replay = receipts.replay(spec.name, raw_args, operation_id, file_key)
             if replay is not None:
                 return replay
+        _gate_refs(spec, checked, services)  # 3r
         _gate_paths(spec, checked, services, target)  # 2
-        _gate_variant(spec, checked, services)  # 3
+        _gate_variant(spec, checked, services, target)  # 3
         _gate_evidence(spec, checked, services)  # 3
         bound = switching.enter(  # 4s: the target becomes current (core/switching.py)
             spec, checked.args, target, services, explicit=part_text is not None
         )
-        _gate_requires(spec, services)  # 4
+        _gate_requires(spec, services, explicit=part_text is not None)  # 4
         flags = _gate_ownership(spec, services, checked.args)  # 6
         part = services.work_part()
         if spec.effect != "read":  # 7
@@ -669,12 +1139,15 @@ def run(spec, args, ctx: Context) -> dict:
             )
             if replay is not None:
                 return replay
+            if record is not None and caller is not None:  # who sent it (cancel, status)
+                record["caller"] = caller["id"]
         if spec.effect != "read":  # loads and dropped undo marks (core/marks.py)
             watched = undo_marks.watch(services)
             census = targets.census(services)  # the agent's loaded parts (gate 14 note)
         if spec.effect == "model":  # 8
             phases.lap("gates")
             before = services.snapshot(part) if part is not None else {}
+            alerts = feature_alerts(services, part)
             floor = _ref_floor(services)
             mark = services.set_mark("NX MCP: " + spec.label)
             phases.lap("snapshot")
@@ -711,6 +1184,9 @@ def run(spec, args, ctx: Context) -> dict:
         changes = None
         if spec.effect == "model":
             seen, after = _readback_parts(spec, services, tx, part, before, mark)  # 11
+            for alert in new_alerts(services, part, alerts):  # NX's new feature alerts
+                if not any(alert["message"] in str(w.get("message")) for w in tx.warnings):
+                    tx.warnings.append(_alert_warning(alert))
             phases.lap("readback")
             retired = services.invalidate(seen, after, spec.invalidates == "topology")  # 12
             phases.lap("invalidate")
@@ -723,11 +1199,18 @@ def run(spec, args, ctx: Context) -> dict:
             if tx.references == "part_invalidated":  # the handler invalidated the part
                 changes["references"] = tx.references
                 changes.pop("stale_kinds", None)
+            if tx.outcome is None and _no_effect(tx, changes):  # changed nothing, said so
+                tx.outcome = "not_applicable"
+                with contextlib.suppress(Exception):
+                    services.delete_mark(mark)
+            tx.changes = changes  # the undo-history entry's notes read it (core/marks.py)
             if tx.outcome != "not_applicable":  # a discarded preview: no mark to undo
                 _record(services, tx, mark, part, operation_id, spec.name)
         elif tx.changed:  # a file or session tool reporting the objects it changed
             changes = {"created": [], "modified": list(tx.changed), "deleted": []}
             changes["references"] = "preserved"
+        elif spec.effect != "read" and tx.outcome is None and _no_effect(tx, None):
+            tx.outcome = "not_applicable"
         undo_marks.settle(services, watched, spec, operation_id, tx)
         note = targets.load_note(services, census)
         if note is not None:  # the call brought the agent's loaded parts to two
@@ -766,6 +1249,8 @@ def run(spec, args, ctx: Context) -> dict:
     except BaseException as exc:  # 15 (SystemExit/KeyboardInterrupt from a handler too)
         error = classify(exc)
         _remember_license(spec, raw_args, services, error)
+        if spec.effect == "model" and handler_started and part is not None:
+            error = explain_failure(services, part, alerts, error)  # before the rollback
         touched = bool(
             handler_started
             and (
@@ -1088,8 +1573,9 @@ def run_child(
             target = targets.resolve(  # refs an earlier step returned: that step's part
                 spec, checked, services, part=None, parent=_root(parent).target
             )
+        _gate_refs(spec, checked, services)  # 3r
         _gate_paths(spec, checked, services, target)  # 2
-        _gate_variant(spec, checked, services)  # 3
+        _gate_variant(spec, checked, services, target)  # 3
         _gate_evidence(spec, checked, services)  # 3
         if target is not None and spec.effect == "model":
             parent.touch_part(target.part)  # before the switch: the parent's rollback
@@ -1103,7 +1589,7 @@ def run_child(
         )
         for code, message in bound.notes:
             parent.warn(code, message)
-        _gate_requires(spec, services)  # 4
+        _gate_requires(spec, services, explicit=part_text is not None)  # 4
         flags = _gate_ownership(spec, services, checked.args)  # 6
         part = services.work_part()
         before = services.snapshot(part) if part is not None else {}

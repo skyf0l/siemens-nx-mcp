@@ -280,6 +280,17 @@ def test_percent_fraction_and_factor_strings():
     assert refused(params(share=T.Percent), {"share": "2x"}).field == "/share"  # no factor
 
 
+def test_a_factor_that_also_takes_an_expression_reads_percent_and_times():
+    factor = Param("factor", Annotated[T.ScalarValue, T.Range(gt=0)], None, True)
+    assert validate({"factor": factor}, {"factor": "200%"}).args["factor"] == 2.0
+    assert validate({"factor": factor}, {"factor": "1.5x"}).args["factor"] == 1.5
+    # a bare name stays an expression name, a formula stays a formula
+    assert validate({"factor": factor}, {"factor": "x2"}).args["factor"] == "x2"
+    assert validate({"factor": factor}, {"factor": "k*2"}).args["factor"] == "k*2"
+    other = Param("depth_value", T.ScalarValue, None, True)  # not a factor: no percent
+    assert refused({"depth_value": other}, {"depth_value": "50%"}).field == "/depth_value"
+
+
 def test_json_array_strings_for_points_and_lists():
     spec = params(p=T.Point3, refs=Annotated[list[T.BodyRef], T.Items(1, 3)])
     out = validate(spec, {"p": "[1, 2.5, -3]", "refs": '["b:1", "b:2"]'}).args

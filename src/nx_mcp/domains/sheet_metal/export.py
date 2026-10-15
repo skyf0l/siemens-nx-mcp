@@ -7,9 +7,11 @@ NX 2406 findings encoded here:
   neutral-axis length, so it checks the bend allowance.
 - DXF revision, inner and outer mold lines are DXF-only; GEO ignores them, so they are
   refused for GEO. The default revision is R2018 (``AC1032``).
-- Nothing is written where a file exists; the file appears only after its contents
-  were read back (entity counts, extents).
-- ``extents`` are the file's own ``[dx, dy]``; a tester saw them in the other order than
+- An existing file is replaced only with ``overwrite``; the file appears only after its
+  contents were read back (entity counts, extents).
+- ``ExportFlatPatternBuilder`` has no layer option: NX writes every entity on the
+  flat-pattern curves' layer and tells bend lines apart by colour only.
+- ``extents`` are the file's own ``[dx, dy]``; NX 2406 can write them in the other order than
   the feature's ``flat_extents`` (``[along edge, across]``) for one flat pattern, so the
   docstring promises only the file's axes (``flat_pattern_axes`` checks it live).
 - Without ``format`` the path's suffix picks it (``.dxf`` or ``.geo``).
@@ -17,6 +19,7 @@ NX 2406 findings encoded here:
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
@@ -85,6 +88,7 @@ class ExportData(TypedDict):
     max: list[float] | None
     area: float | None
     thickness: float | None
+    overwritten: bool
 
 
 def flat_pattern_feature(tx, ref, field="/flat_pattern"):
@@ -114,7 +118,7 @@ def nx_export_flat_pattern(
     tx: Tx,
     *,
     flat_pattern: Annotated[str, RefTo("feature", doc="Ref f:N: Flat Pattern")],
-    path: Annotated[str, PathTo("new", ".dxf", ".geo")],
+    path: Annotated[str, PathTo("replace", ".dxf", ".geo")],
     format: Annotated[Literal["dxf", "geo"], Doc("Default: path suffix")]  # noqa: A002
     | None = None,
     dxf: DxfOptions | None = None,
@@ -123,9 +127,11 @@ def nx_export_flat_pattern(
     ]
     | None = None,
     tolerance: Length | None = None,
+    overwrite: bool = False,
 ) -> ExportData:
-    """Export a Flat Pattern feature to a new DXF or Trumpf GEO file. Returns checksum,
-    entity counts and developed extents [dx, dy] in file axes; GEO adds area and thickness."""
+    """Export a Flat Pattern feature to a DXF or Trumpf GEO file (overwrite replaces one).
+    Returns checksum, entity counts and developed extents [dx, dy] in file axes; GEO adds
+    area and thickness."""
     if format is None:
         format = "geo" if str(path).lower().endswith(".geo") else "dxf"  # noqa: A001
     if not str(path).lower().endswith("." + format):
@@ -135,6 +141,12 @@ def nx_export_flat_pattern(
     chosen = DEFAULT_INCLUDE if include is None else args.distinct("/include", include, "options")
     if tolerance is not None and float(tolerance) <= 0:
         fail("NX_INVALID_ARGUMENT", "tolerance must be positive", field="/tolerance")
+    target = Path(path)
+    replacing = target.exists()
+    if replacing and not overwrite:
+        fail("NX_ALREADY_EXISTS", "/path: a file already exists there; set overwrite=true to "
+             "replace it", field="/path",
+             details={"path": files.relative(path, tx.workspace.root)})  # fmt: skip
     options = dxf or {}
     revision = options.get("revision", "r2018") if format == "dxf" else None
     mold = options.get("mold")
@@ -143,7 +155,7 @@ def nx_export_flat_pattern(
         manager = common.manager(tx)
     tol = float(tolerance) if tolerance is not None else units.part_tolerance(tx, 0.01)
     sm = common.namespace(tx).ExportFlatPatternBuilder
-    temp = tx.files.stage(path)
+    temp = tx.files.stage(target, replace=overwrite)
     with builders.build(tx, manager.CreateExportFlatPatternBuilder) as b:
         b.FlatPattern.Value = feature
         b.OutputFile = str(temp)
@@ -183,4 +195,5 @@ def nx_export_flat_pattern(
         "max": facts["max"],
         "area": facts.get("area"),
         "thickness": facts.get("thickness"),
+        "overwritten": replacing,
     }

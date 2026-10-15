@@ -36,10 +36,10 @@ from nx_mcp.core import catalogue, errors, evidence, target
 from nx_mcp.core.errors import NXError
 from nx_mcp.core.receipts import OPERATION_ID_HINT, new_operation_id, operation_id_problem
 from nx_mcp.core.types import REF_PATTERN, RefKind
-from nx_mcp.core.validate import child_problems, combine, is_union, unwrap
+from nx_mcp.core.validate import child_problems, combine, is_union, unknown_field, unwrap
 from nx_mcp.kit.snapshots import claim
 from nx_mcp.sidecar import schema
-from nx_mcp.workspace import WorkspaceViolation
+from nx_mcp.workspace import WorkspaceViolation, kinds, relative, scrub, suffix_of
 
 if TYPE_CHECKING:
     from nx_mcp.sidecar.local import SidecarServices
@@ -153,6 +153,49 @@ def _takes_refs(spec, pointer: str) -> bool:
     return any(RefKind in unwrap(form)[1] for form in forms)
 
 
+def _scrubbed(value, root):
+    """``value`` (an envelope) with workspace paths in its strings made relative."""
+    if isinstance(value, str):
+        return scrub(value, root)
+    if isinstance(value, dict):
+        return {k: _scrubbed(v, root) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_scrubbed(v, root) for v in value]
+    return value
+
+
+def _folder_error(field: str, shown: str) -> NXError:
+    return NXError(
+        "NX_WRONG_KIND",
+        f"{field}: '{shown}' is a folder; give a file path",
+        field=field,
+        hint="Name a file inside it, e.g. '" + shown.rstrip("/") + "/name.<suffix>'; "
+        "nx_list_files shows what it holds",
+        details={"path": shown},
+    )
+
+
+def _tools_taking(name: str, suffix: str, *, reads: bool) -> list[str]:
+    """Catalogue tools other than ``name`` whose path arguments read (``reads``) or write
+    a ``suffix`` file: what a wrong-suffix error points to (a .step given to
+    nx_open_part: nx_import_model)."""
+    found = []
+    for spec in catalogue.load().values():
+        if spec.name == name:
+            continue
+        for _pointer, mode, suffixes in spec.paths:
+            if suffix in suffixes and (mode == "read") == reads:
+                found.append(spec.name)
+                break
+    # Tools that take few suffixes are the specific ones (nx_import_model before upload).
+    return sorted(found, key=lambda n: (len(_suffixes_of(n)), n))
+
+
+def _suffixes_of(name: str) -> set:
+    spec = catalogue.get(name)
+    return {s for _p, _m, suffixes in (spec.paths if spec else ()) for s in suffixes}
+
+
 def _is_ref(value) -> bool:
     return isinstance(value, dict) and isinstance(value.get("id"), str) and "kind" in value
 
@@ -188,19 +231,19 @@ def _ends(rows: list) -> list:
     return rows if len(rows) <= COMPACT_REF_ROWS else [rows[0], rows[-1]]
 
 
-def _cut_note(total: int, kept: int) -> dict:
+def _cut_note(total: int, kept: int, first_last: bool = True) -> dict:
     note: dict[str, Any] = {"total": total, "returned": kept}
-    if total > COMPACT_REF_ROWS and kept == 2:
+    if first_last and total > COMPACT_REF_ROWS and kept == 2:
         note["shown"] = "first_last"
     return note
 
 
 def _terse_changes(envelope: dict, omitted: dict) -> dict | None:
-    """Compact ``changes``, which never repeat an object ``data`` shows (no object is
-    listed twice; dropping those rows loses nothing). Of the other rows, created and
-    modified keep none when ``data`` names the call's main objects at its top level (its
-    feature, body or sketch: the rest are its parts and NX helpers), else the rows that are
-    not NX helpers; deleted keeps its rows (invalid references). A kept list of more than
+    """Compact ``changes``. Created and modified keep their rows even when ``data`` shows
+    the objects (an agent reads ``changes`` alone to learn what a call changed): when
+    ``data`` names the call's main objects at its top level (its feature, body or sketch),
+    those rows, else the rows that are not NX helpers. Deleted drops the rows ``data``
+    shows (no loss) and keeps the others (invalid references). A kept list of more than
     COMPACT_REF_ROWS shows its first and last row. ``counts`` gives every row of a cut list
     by kind, and the full rows stay in the result store (``nx_get_result``)."""
     changes = envelope.get("changes")
@@ -214,19 +257,20 @@ def _terse_changes(envelope: dict, omitted: dict) -> dict | None:
         rows = changes.get(key)
         if not isinstance(rows, list) or not rows:
             continue
-        unseen = [r for r in rows if not (_is_ref(r) and r["id"] in shown)]
-        lossless[key] = terse[key] = unseen
         if key == "deleted":
-            keep = _ends(unseen)
-        elif any(_is_ref(r) and r["id"] in top for r in rows):
-            keep = []
+            unseen = [r for r in rows if not (_is_ref(r) and r["id"] in shown)]
+            lossless[key] = terse[key] = candidates = unseen
         else:
-            names = [r for r in unseen if not HELPER_NAME.match(str(r.get("name") or ""))]
-            keep = _ends(names)
+            unseen = rows
+            candidates = [r for r in rows if _is_ref(r) and r["id"] in top]
+            if not candidates:
+                candidates = [r for r in rows if not HELPER_NAME.match(str(r.get("name") or ""))]
+        keep = _ends(candidates)
         if len(keep) < len(unseen):
             kinds = Counter(str(r.get("kind")) for r in rows if isinstance(r, dict))
             counts[key] = dict(sorted(kinds.items()))
-            notes[f"/changes/{key}"] = _cut_note(len(rows), len(keep))
+            ends = len(candidates) > COMPACT_REF_ROWS
+            notes[f"/changes/{key}"] = _cut_note(len(rows), len(keep), ends)
             terse[key] = keep
     if counts:
         terse["counts"] = counts
@@ -561,7 +605,11 @@ class CatalogueProxy:
             return NXError(
                 "NX_MODAL_DIALOG_OPEN",
                 message,
-                hint="Ask the engineer to answer the NX dialog (the agent never clicks it); "
+                hint=dialogs.hint_for(
+                    first.title,
+                    "Ask the engineer to answer the NX dialog (the agent never clicks it)",
+                )
+                + "; "
                 + then,
                 details={**details, "dialogs": [d.row() for d in found], "seen_from": "sidecar"},
             )
@@ -688,6 +736,18 @@ class CatalogueProxy:
         """Gate 1. ``args`` becomes its canonical form (natural spellings resolved, as
         ``core.validate`` gives the handler), so the evidence gate and NX see the variant
         and values that run."""
+        unknown = sorted(k for k in args if k not in spec.params)
+        if unknown:
+            # Unknown fields offer the call keys too ('part' when 2+ parts are loaded):
+            # "takes no arguments" would be false for a tool that takes ``part``.
+            fields = [*spec.params, *schema.call_fields(spec)]
+            found = [unknown_field([], name, fields) for name in unknown]
+            try:
+                spec.check({k: v for k, v in args.items() if k in spec.params},
+                           shown=self._offered(spec))  # fmt: skip
+            except NXError as precise:
+                found.append(precise)
+            return combine(found)
         try:
             # The precise messages, every invalid field at once; a variant error lists
             # only the variants this build offers.
@@ -716,24 +776,101 @@ class CatalogueProxy:
         return None
 
     def _resolve_paths(self, spec, args: dict) -> NXError | None:
-        for pointer, _mode, _suffixes in spec.paths:
+        """Gate 2 (sidecar side): each path argument resolved inside the workspace, after
+        the suffix and folder rules of :meth:`_path_problem`."""
+        for pointer, mode, suffixes in spec.paths:
             refs = _takes_refs(spec, pointer)
             for container, key in _walk_paths(args, pointer):
                 value = container[key]
                 if refs and re.match(REF_PATTERN, value):
                     continue  # 'p:3' in a ref|path union names an object, not a file
+                field = pointer.replace("*", str(key)) if "*" in pointer else pointer
                 try:
-                    container[key] = str(self.workspace.resolve(value))
+                    resolved = self.workspace.resolve(value)
                 except WorkspaceViolation as error:
                     reserved = ".nx-mcp" in str(value).replace("\\", "/").casefold().split("/")
-                    field = pointer.replace("*", str(key)) if "*" in pointer else pointer
                     return NXError(
                         "NX_PATH_RESERVED" if reserved else "NX_PATH_OUTSIDE_WORKSPACE",
                         f"{field}: {error}",
                         field=field,
                         details={"path": value},
                     )
+                checked = self._path_problem(spec, args, field, value, resolved, mode, suffixes)
+                if isinstance(checked, NXError):
+                    return checked
+                container[key] = str(checked)
         return None
+
+    def _path_problem(self, spec, args, field, given, resolved, mode, suffixes):
+        """The path to send (a suffix added) or the NXError of gate 2's suffix and folder
+        rules; every refusal is fixable (``retry: after_fix``):
+
+        - a folder (an existing one, or a path ending in ``/``) where a file is wanted;
+        - no suffix: a ``read`` path takes the one existing file of an allowed suffix;
+          a new file takes the only allowed kind, or the one its format option names
+          (``format: 'iges'`` -> ``.iges``); with several kinds and no format it is
+          refused (never a text file silently named ``.prt``);
+        - a suffix the tool does not take: the hint names the tools that do."""
+        root = self.workspace.root
+        shown = relative(root, resolved)
+        text = str(given)
+        if mode == "dir" or not suffixes:
+            if mode != "dir" and text.endswith(("/", "\\")):
+                return _folder_error(field, shown)
+            return resolved
+        if text.endswith(("/", "\\")) or resolved.is_dir():
+            return _folder_error(field, shown)
+        expected = "/".join(suffixes)
+        if not resolved.suffix:
+            groups = kinds(suffixes)
+            if mode == "read":
+                found = [resolved.with_name(resolved.name + s) for s in suffixes]
+                found = [f for f in found if f.is_file()]
+                if len(found) == 1 or len(groups) == 1:
+                    return found[0] if found else resolved.with_name(resolved.name + suffixes[0])
+                return NXError(
+                    "NX_INVALID_ARGUMENT",
+                    f"{field}: '{shown}' has no file suffix; name the file with its suffix "
+                    f"({expected})",
+                    field=field,
+                    hint="Check the file name with nx_list_files on its folder",
+                    details={"path": shown, "expected": list(suffixes)},
+                )
+            if len(groups) == 1:
+                return resolved.with_name(resolved.name + suffixes[0])
+            named = suffix_of(spec.variant_of(args), suffixes)
+            if named is not None:
+                return resolved.with_name(resolved.name + named)
+            return NXError(
+                "NX_INVALID_ARGUMENT",
+                f"{field}: '{shown}' needs a file suffix: one of {expected}",
+                field=field,
+                hint=f"End the path with the suffix of the file you mean, e.g. "
+                f"'{shown}{suffixes[0]}'",
+                details={"path": shown, "expected": list(suffixes)},
+            )
+        if resolved.suffix.lower() in suffixes:
+            return resolved
+        suffix = resolved.suffix.lower()
+        others = _tools_taking(spec.name, suffix, reads=mode == "read")
+        if others:
+            hint = f"A {suffix} file is {'read' if mode == 'read' else 'written'} by " + (
+                " or ".join(others[:2])
+            )
+        elif mode == "read":
+            hint = f"Name an existing {expected} file; nx_list_files shows the folder"
+        elif len(kinds(suffixes)) == 1:
+            hint = f"End the path with {suffixes[0]}, or leave the suffix out"
+        else:
+            hint = f"End the path with one of {expected}"
+        return NXError(
+            "NX_UNSUPPORTED_FILE_TYPE",
+            f"{field}: {spec.name} takes a {expected} file, not {suffix} ('{shown}')",
+            field=field,
+            hint=hint,
+            retry="after_fix",
+            details={"path": shown, "expected": list(suffixes)},
+        )
 
     async def call(
         self, spec, arguments: dict | None, *, intent: str | None = None, detail: str = "compact"
@@ -777,6 +914,7 @@ class CatalogueProxy:
         params = dict(args)
         if spec.runs == "sidecar":  # Workspace tools never reach NX (sidecar/local.py).
             envelope = await asyncio.to_thread(self._local, spec, params, operation_id)
+            envelope = self._relative_paths(spec, envelope)
             if detail == "compact":
                 envelope = _project(envelope, self.store)
             return result(envelope, extra=self._attachments(envelope))
@@ -854,9 +992,22 @@ class CatalogueProxy:
                     "not_applicable" if spec.effect == "read" else "unknown",
                     operation_id=operation_id,
                 )
+        envelope = self._relative_paths(spec, envelope)
         if detail == "compact":
             envelope = _project(envelope, self.store)
         return result(envelope, extra=self._attachments(envelope))
+
+    def _relative_paths(self, spec, envelope: dict) -> dict:
+        """The envelope with every absolute path inside the workspace written relative to
+        it (``workspace.scrub``: results and error messages never show the host's
+        folders). nx_get_status keeps the workspace root it reports."""
+        root = getattr(self.workspace, "root", None)
+        if root is None or spec.name == "nx_get_status":
+            return envelope
+        try:
+            return _scrubbed(envelope, root)
+        except Exception:
+            return envelope  # a courtesy: never fails the finished call
 
     async def _send(self, method: str, params: dict) -> dict:
         """``bridge.call`` with the ``caller`` key (always the sidecar's: an agent's own

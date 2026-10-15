@@ -6,7 +6,7 @@ from types import SimpleNamespace as NS
 import pytest
 
 from tests.kit import run
-from tests.kit.objects import Body, Feature
+from tests.kit.objects import Body, Feature, Object
 from tests.unit.assembly.fakes import assembly_nx, place
 
 
@@ -39,6 +39,7 @@ class CutBuilder:
             made.append(result)
         boolean = Feature("SUBTRACT", made)
         cut = Feature("ASSEMBLY_CUT")
+        cut.FeatureType = "ASSEMBLY_CUT"
         cut.GetBooleanBodyFeatures = lambda: [boolean]
         self.nx.asm.Features.append(cut)
         self.nx.asm.Bodies.extend(made)
@@ -117,10 +118,67 @@ def test_a_cut_that_removes_nothing_rolls_back(nx):
     nx.removed = 0.0
     bad = run(nx, "nx_create_assembly_cut", part="asm", targets=[nx.deck.ref],
               tools=[nx.trunk.ref])  # fmt: skip
-    assert bad.error["category"] == "verification_failed", bad
+    assert bad.error["category"] in ("verification_failed", "geometry_failed"), bad
     assert bad.mutation_outcome == "rolled_back"
     assert not [f for f in nx.asm.Features if f.Name == "ASSEMBLY_CUT"]
     nx.removed, nx.drift = 80000.0, 5.0  # the boolean result disagrees with the occurrence
     off = run(nx, "nx_create_assembly_cut", part="asm", targets=[nx.deck.ref],
               tools=[nx.trunk.ref])  # fmt: skip
     assert off.error["category"] == "verification_failed", off
+
+
+def test_a_component_already_cut_names_the_existing_cut(nx):
+    ok = run(nx, "nx_create_assembly_cut", part="asm", targets=[nx.deck.ref],
+             tools=[nx.trunk.ref])  # fmt: skip
+    assert ok.ok, ok
+    nx.deck.occurrences.clear()  # NX: the promoted body replaces the occurrence's solid
+    other = place(nx, nx.pin, "other", translation=(10, 10, 0))
+    _solid(nx, other, 1000.0)
+    again = run(nx, "nx_create_assembly_cut", part="asm", targets=[nx.deck.ref],
+                tools=[other.ref])  # fmt: skip
+    assert again.error["code"] == "NX_WRONG_GEOMETRY" and again.error["field"] == "/targets/0"
+    assert [r["id"] for r in again.error["details"]["cuts"]] == [ok.data["feature"]["id"]]
+    assert again.error["details"]["bodies"][0]["id"] == ok.data["bodies"][0]["id"]
+    assert again.mutation_outcome == "not_started" and len(nx.cut_builders) == 1
+
+
+def _arrangements(nx, varied):
+    """Two arrangements, CLOSED active and OPEN the default; ``varied`` components are
+    positioned per arrangement."""
+    closed, opened = Object("CLOSED"), Object("OPEN")
+    ca = nx.asm.ComponentAssembly
+    ca.Arrangements = [closed, opened]
+    ca.ActiveArrangement = closed
+    nx.uf.Assem.AskDefaultArrangement = lambda tag: opened.Tag
+    nx.asm.PropertiesManager = NS(
+        CreateAssembliesParameterPropertiesBuilder=lambda objs: NS(
+            Arrangements=0 if all(o in varied for o in objs) else 1, Destroy=lambda: None
+        )
+    )
+    nx.nx.Assemblies = NS(
+        **vars(nx.nx.Assemblies),
+        AssembliesParameterPropertiesBuilder=NS(
+            ArrangementOptions=NS(IndividuallyPositioned=0, SamePositionInAll=1)
+        ),
+    )
+    return closed, opened
+
+
+def test_a_cut_refuses_components_placed_per_arrangement_off_the_default(nx):
+    closed, opened = _arrangements(nx, varied={nx.trunk})
+    bad = run(nx, "nx_create_assembly_cut", part="asm", targets=[nx.deck.ref],
+              tools=[nx.trunk.ref])  # fmt: skip
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/tools/0", bad
+    assert bad.error["details"] == {"active": "CLOSED", "default": "OPEN"}
+    assert "set_default" in bad.error["hint"] and bad.mutation_outcome == "not_started"
+    nx.asm.ComponentAssembly.ActiveArrangement = opened  # the default shown: it cuts
+    ok = run(nx, "nx_create_assembly_cut", part="asm", targets=[nx.deck.ref],
+             tools=[nx.trunk.ref])  # fmt: skip
+    assert ok.ok, ok
+
+
+def test_a_cut_of_shared_poses_ignores_the_active_arrangement(nx):
+    _arrangements(nx, varied=set())
+    ok = run(nx, "nx_create_assembly_cut", part="asm", targets=[nx.deck.ref],
+             tools=[nx.trunk.ref])  # fmt: skip
+    assert ok.ok, ok

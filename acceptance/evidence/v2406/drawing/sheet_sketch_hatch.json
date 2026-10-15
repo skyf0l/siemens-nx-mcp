@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/sheet_sketch_hatch.json",
-  "scenario_sha256": "3b2e72f1285bcf34121aedabb6823b05c09283f7086cbf3d43ebc3ea3435b760",
+  "scenario_sha256": "0c33ab6f3560a1f469e12aa959dc8891b03ce921cd7b6dcde7aee2b0ec0e8969",
   "domain": "drawing",
   "covers": {
     "nx_create_sheet_sketch": [
@@ -17,11 +17,11 @@
   "nx_build": "2406.9160",
   "sources": {
     "nx_create_sheet_sketch": "4898e6f6a5825a816e93d90d26b3893aaa8af59eb99c36dc60a8c7358563bdc5",
-    "nx_create_hatch": "49fd43ba770e65f2a41db355179fdc97b5ac393869208be16a5039876fdfcac2"
+    "nx_create_hatch": "123db217035a8c6c67e0e15f98ce304bee567f288acde41f35ecb9f00d5e6b52"
   },
-  "recorded": "2026-10-13T07:31:38Z",
+  "recorded": "2026-10-15T11:56:29Z",
   "passed": true,
-  "checks": 44,
+  "checks": 53,
   "failed_checks": 0,
   "steps": [
     {
@@ -64,7 +64,7 @@
       "call": "nx_create_hatch",
       "setup": false,
       "passed": true,
-      "checks": 6
+      "checks": 7
     },
     {
       "index": 7,
@@ -85,38 +85,52 @@
       "call": "nx_create_hatch",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 10,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 11,
       "call": "nx_create_hatch",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 11,
+      "index": 12,
+      "call": "nx_create_hatch",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 13,
       "call": "nx_create_sheet_sketch",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 12,
+      "index": 14,
       "call": "nx_create_note",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 13,
+      "index": 15,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 14,
+      "index": 16,
       "call": "nx_close_part",
       "setup": true,
       "passed": true,

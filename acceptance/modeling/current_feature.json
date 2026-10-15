@@ -294,7 +294,7 @@
     },
     "warnings.0.code": "NX_NOTE",
     "warnings.0.message": {
-     "contains": "1 body(ies) of the now inactive features"
+     "contains": "removed 1 body of the now inactive features"
     }
    }
   },

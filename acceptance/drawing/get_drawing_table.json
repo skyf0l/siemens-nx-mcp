@@ -121,6 +121,95 @@
    }
   },
   {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh2",
+   "args": {
+    "name": "SHT2",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "setup": true,
+   "save": "rev2",
+   "args": {
+    "kind": "revision",
+    "sheet": "$sh2.data.sheet.id",
+    "position": [
+     250,
+     290
+    ],
+    "rows": [
+     [
+      "A",
+      "First"
+     ]
+    ],
+    "widths": [
+     10,
+     60
+    ]
+   }
+  },
+  {
+   "call": "nx_get_drawing_table",
+   "args": {
+    "sheet": "$sh2.data.sheet.id"
+   },
+   "expect": {
+    "ok": true,
+    "data.table": null,
+    "data.tables": {
+     "count": 1
+    },
+    "data.tables.0.id": "$rev2.data.table.id",
+    "data.tables.0.type": "revision"
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "save": "tb2",
+   "args": {
+    "kind": "title_block",
+    "sheet": "$sh.data.sheet.id",
+    "position": [
+     410,
+     60
+    ],
+    "rows": [
+     [
+      "CHECKED",
+      "X"
+     ]
+    ],
+    "widths": [
+     30,
+     50
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "warnings.0.message": {
+     "contains": "already had a title block"
+    }
+   }
+  },
+  {
+   "call": "nx_get_drawing_table",
+   "args": {
+    "sheet": "$sh.data.sheet.id"
+   },
+   "expect": {
+    "error.code": "NX_AMBIGUOUS_REFERENCE",
+    "error.details.candidates": {
+     "count": 2
+    },
+    "mutation_outcome": "not_applicable"
+   }
+  },
+  {
    "call": "nx_get_drawing_table",
    "args": {
     "table": "$sh.data.sheet.id"

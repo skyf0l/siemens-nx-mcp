@@ -92,3 +92,27 @@ def test_progress_keeps_the_announced_total(tmp_path):
     receipts.progress(record, 0, 5)
     receipts.progress(record, 2)
     assert store.get("op_progress1")["progress"]["total"] == 5
+
+
+def test_a_replace_waits_while_windows_holds_the_earlier_file(tmp_path, monkeypatch):
+    from nx_mcp.core import tx as tx_module
+
+    real, calls = tx_module.os.replace, []
+
+    def held(src, dst):
+        calls.append(dst)
+        if len(calls) < 3:
+            raise PermissionError(13, "Access is denied")
+        real(src, dst)
+
+    monkeypatch.setattr(tx_module.os, "replace", held)
+    monkeypatch.setattr(tx_module.time, "sleep", lambda _s: None)
+    (tmp_path / "new").write_text("b")
+    (tmp_path / "old").write_text("a")
+    tx_module.replace_file(tmp_path / "new", tmp_path / "old")
+    assert (tmp_path / "old").read_text() == "b" and len(calls) == 3
+    monkeypatch.setattr(tx_module, "REPLACE_TRIES", 2)
+    calls.clear()
+    (tmp_path / "new").write_text("c")
+    with pytest.raises(PermissionError):
+        tx_module.replace_file(tmp_path / "new", tmp_path / "old")

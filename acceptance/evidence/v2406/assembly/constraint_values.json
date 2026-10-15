@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/constraint_values.json",
-  "scenario_sha256": "9b3de11296f1b899dfc8147b7a4b0425203d475f344fd7740b62ff44edfbdca8",
+  "scenario_sha256": "bd384e3a837525f9ca193e538442ca93810ce3f08d439cff9b8241f0c81a7cee",
   "domain": "assembly",
   "covers": {
     "nx_create_assembly_constraint": [
@@ -9,17 +9,21 @@
       "angle",
       "touch"
     ],
-    "nx_edit_assembly_constraint": []
+    "nx_edit_assembly_constraint": [],
+    "nx_set_component_pose": [
+      "relative"
+    ]
   },
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_assembly_constraint": "ffd0feaf22ce875ed76e4128e0a8ba805512f747a067835fbf26f6b94424a3ba",
-    "nx_edit_assembly_constraint": "ffd0feaf22ce875ed76e4128e0a8ba805512f747a067835fbf26f6b94424a3ba"
+    "nx_create_assembly_constraint": "f14bcdb3c20629d367673601cff404a372b566155da3f96a59f0c4e4dc9b9f7d",
+    "nx_edit_assembly_constraint": "f14bcdb3c20629d367673601cff404a372b566155da3f96a59f0c4e4dc9b9f7d",
+    "nx_set_component_pose": "4f96e0b1a7d772e785977e9defdf11fb178ff2e8b84bd33b365428a2de430ce7"
   },
-  "recorded": "2026-10-13T07:25:31Z",
+  "recorded": "2026-10-15T10:57:43Z",
   "passed": true,
-  "checks": 38,
+  "checks": 58,
   "failed_checks": 0,
   "steps": [
     {
@@ -125,7 +129,7 @@
       "call": "nx_create_assembly_constraint",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 5
     },
     {
       "index": 16,
@@ -161,6 +165,62 @@
       "setup": false,
       "passed": true,
       "checks": 2
+    },
+    {
+      "index": 21,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 22,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 23,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 24,
+      "call": "nx_create_assembly_constraint",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 25,
+      "call": "nx_edit_assembly_constraint",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 26,
+      "call": "nx_edit_assembly_constraint",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 27,
+      "call": "nx_set_component_pose",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 28,
+      "call": "nx_set_component_pose",
+      "setup": false,
+      "passed": true,
+      "checks": 3
     }
   ]
 }

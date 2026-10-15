@@ -1,0 +1,50 @@
+{
+ "covers": {"nx_create_thread": [], "nx_create_hole": ["simple"], "nx_create_measurement": ["body"], "nx_list_materials": [],
+            "nx_set_material": []},
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+  {"call": "nx_create_primitive", "setup": true, "save": "c", "args": {"shape": "cylinder", "diameter": 20, "height": 30}},
+  {"call": "nx_find_geometry", "setup": true, "save": "side", "args": {"owner": "$c.data.bodies.0.id", "geometry_type": "cylinder", "limit": 1}},
+  {"call": "nx_find_geometry", "setup": true, "save": "top", "args": {"owner": "$c.data.bodies.0.id", "geometry_type": "plane", "normal": [0, 0, 1], "limit": 1}},
+  {"call": "nx_create_thread",
+   "args": {"face": "$side.data.items.0.id", "spec": {"size": "M20"}, "start_face": "$top.data.items.0.id", "length": 15, "detailed": true},
+   "expect": {"mutation_outcome": "committed", "data.length": {"close": 15, "tol": 1e-06}, "data.major_diameter": {"close": 20, "tol": 1e-06}}},
+
+  {"call": "nx_create_primitive", "setup": true, "save": "h", "args": {"origin": [100, 0, 0], "length": 60, "width": 40, "height": 20}},
+  {"call": "nx_find_geometry", "setup": true, "save": "htop", "args": {"owner": "$h.data.bodies.0.id", "geometry_type": "plane", "normal": [0, 0, 1], "limit": 1}},
+  {"call": "nx_create_hole", "args": {"face": "$htop.data.items.0.id", "positions": [[115, 15, 20]], "diameter": 6, "depth": 30},
+   "expect": {"data.nominal": null, "data.depth": {"close": 30, "tol": 1e-09}, "data.diameter": {"close": 6, "tol": 1e-09},
+              "warnings.0.message": {"matches": "breaks through"}}},
+  {"call": "nx_create_hole", "args": {"face": "$htop.data.items.0.id", "positions": [[140, 20, 20]], "diameter": 6, "depth": 10},
+   "expect": {"data.nominal": {"close": 299.73227258219697, "tol": 0.01}, "data.removed": {"close": 299.73227258219697, "tol": 0.01}}},
+
+  {"call": "nx_create_measurement", "args": {"kind": "body", "bodies": ["$h.data.bodies.0.id"]},
+   "expect": {"data.expressions": {"count": 5}, "mutation_outcome": "committed"}},
+
+  {"call": "nx_set_material", "args": {"bodies": ["$h.data.bodies.0.id"], "material": {"custom": {"name": "Steel", "density": 5000}}},
+   "expect": {"error.code": "NX_ALREADY_EXISTS", "error.field": "/material/custom/name", "mutation_outcome": "not_started"}},
+  {"call": "nx_list_materials", "args": {"query": "stainless"},
+   "expect": {"data.items.0.name": {"matches": "(?i)ss|stainless|s/steel"}}},
+
+  {"call": "nx_create_primitive", "setup": true, "save": "e", "args": {"origin": [300, 0, 0], "length": 40, "width": 20, "height": 10}},
+  {"call": "nx_create_primitive", "setup": true, "save": "far", "args": {"shape": "sphere", "origin": [800, 800, 800], "diameter": 10}},
+  {"call": "nx_create_emboss_body", "args": {"target": "$e.data.bodies.0.id", "tool_body": "$far.data.bodies.0.id"},
+   "expect": {"error.code": "NX_WRONG_GEOMETRY", "error.field": "/tool_body", "mutation_outcome": "not_started"}},
+
+  {"call": "nx_create_primitive", "setup": true, "save": "f", "args": {"origin": [400, 0, 0], "length": 10, "width": 20, "height": 30}},
+  {"call": "nx_find_geometry", "setup": true, "save": "etop", "args": {"owner": "$e.data.bodies.0.id", "geometry_type": "plane", "normal": [0, 0, 1], "limit": 1}},
+  {"call": "nx_find_geometry", "setup": true, "save": "fwall", "args": {"owner": "$f.data.bodies.0.id", "geometry_type": "plane", "normal": [-1, 0, 0], "limit": 1}},
+  {"call": "nx_create_face_blend", "args": {"faces1": ["$etop.data.items.0.id"], "faces2": ["$fwall.data.items.0.id"], "radius": 5},
+   "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/faces2", "mutation_outcome": "not_started"}},
+
+  {"call": "nx_create_sketch", "setup": true, "save": "sec",
+   "args": {"placement": "xy", "curves": [{"type": "rectangle", "corner1": [500, 0], "corner2": [510, 5]}], "finish": true}},
+  {"call": "nx_create_sketch", "setup": true, "save": "gd",
+   "args": {"placement": "xz", "curves": [{"type": "line", "start": [505, 0], "end": [505, 100]}], "finish": true}},
+  {"call": "nx_create_sweep_along_guide", "args": {"section": "$sec.data.sketch.id", "guide": "$gd.data.sketch.id", "first_offset": 2, "second_offset": 2},
+   "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/second_offset", "mutation_outcome": "not_started"}},
+  {"call": "nx_check_model", "args": {}, "expect": {"data.healthy": true}}
+ ]
+}

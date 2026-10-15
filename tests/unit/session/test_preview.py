@@ -91,7 +91,7 @@ def test_non_previewable_or_failing_steps_are_refused_or_rolled_back():
     body = nx.block(1, 1, 1)
     refused = run(
         nx, "nx_preview_changes",
-        operations=[extrude(sk.ref), {"tool": "nx_delete_objects", "arguments": {"objects": [body.ref]}}],
+        operations=[extrude(sk.ref), {"tool": "nx_create_checkpoint", "arguments": {"label": "x"}}],
     )  # fmt: skip
     assert refused.error["code"] == "NX_UNSUPPORTED_OPTION"
     assert refused.error["field"] == "/operations/1/tool"

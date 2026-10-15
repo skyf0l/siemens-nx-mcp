@@ -1,17 +1,162 @@
 {
- "covers": {"nx_create_refit_face": []},
+ "covers": {
+  "nx_create_refit_face": []
+ },
  "fixture": null,
  "part": "new",
  "steps": [
-  {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
-  {"call": "nx_create_spline", "setup": true, "save": "l1", "args": {"points": [[0, 0, 0], [50, 0, 0]], "method": "through_points", "degree": 1}},
-  {"call": "nx_create_spline", "setup": true, "save": "l2", "args": {"points": [[0, 20, 5], [50, 20, -5]], "method": "through_points", "degree": 1}},
-  {"call": "nx_create_ruled", "setup": true, "save": "hp", "args": {"first": "$l1.data.curve.id", "second": "$l2.data.curve.id"}},
-  {"call": "nx_find_geometry", "setup": true, "save": "hf", "args": {"owner": "$hp.data.bodies.0.id", "kind": "face"}},
-  {"call": "nx_create_refit_face", "intent": "A twisted ruled B-surface refit within 0.01: same shape and area 1016.88", "args": {"face": "$hf.data.items.0.id", "tolerance": 0.01}, "expect": {"mutation_outcome": "committed", "data.faces": 1, "data.area": {"close": 1016.8822, "tol": 0.05}, "data.deviation": {"close": 0.005, "tol": 0.0051}, "data.bounds.min": {"close": [0, 0, -5], "tol": 0.02}, "data.bounds.max": {"close": [50, 20, 5], "tol": 0.02}}},
-  {"call": "nx_create_primitive", "setup": true, "save": "blk", "args": {"shape": "block", "origin": [0, 50, 0], "length": 10, "width": 10, "height": 10}},
-  {"call": "nx_find_geometry", "setup": true, "save": "flat", "args": {"owner": "$blk.data.bodies.0.id", "kind": "face", "normal": "+z"}},
-  {"call": "nx_create_refit_face", "intent": "A plane is refused before NX", "args": {"face": "$flat.data.items.0.id"}, "expect": {"error.code": "NX_WRONG_GEOMETRY", "mutation_outcome": "not_started", "error.field": "/face"}},
-  {"call": "nx_check_model", "args": {}, "expect": {"data.healthy": true}}
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "l1",
+   "args": {
+    "points": [
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      50,
+      0,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "l2",
+   "args": {
+    "points": [
+     [
+      0,
+      20,
+      5
+     ],
+     [
+      50,
+      20,
+      -5
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_ruled",
+   "setup": true,
+   "save": "hp",
+   "args": {
+    "first": "$l1.data.curve.id",
+    "second": "$l2.data.curve.id"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "hf",
+   "args": {
+    "owner": "$hp.data.bodies.0.id",
+    "kind": "face"
+   }
+  },
+  {
+   "call": "nx_create_refit_face",
+   "intent": "A twisted ruled B-surface refit within 0.01: same shape and area 1016.88",
+   "args": {
+    "face": "$hf.data.items.0.id",
+    "tolerance": 0.01
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.faces": 1,
+    "data.area": {
+     "close": 1016.8822,
+     "tol": 0.05
+    },
+    "data.deviation": {
+     "close": 0.005,
+     "tol": 0.0051
+    },
+    "data.bounds.min": {
+     "close": [
+      0,
+      0,
+      -5
+     ],
+     "tol": 0.02
+    },
+    "data.bounds.max": {
+     "close": [
+      50,
+      20,
+      5
+     ],
+     "tol": 0.02
+    },
+    "data.area_before": {
+     "close": 1016.8822,
+     "tol": 0.05
+    }
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "shape": "block",
+    "origin": [
+     0,
+     50,
+     0
+    ],
+    "length": 10,
+    "width": 10,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "flat",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "normal": "+z"
+   }
+  },
+  {
+   "call": "nx_create_refit_face",
+   "intent": "A plane is refused before NX",
+   "args": {
+    "face": "$flat.data.items.0.id"
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "mutation_outcome": "not_started",
+    "error.field": "/face"
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
+  }
  ]
 }

@@ -56,10 +56,29 @@
     "data.state": "committed",
     "data.tool": "nx_create_part",
     "data.mutation_outcome": "committed",
-    "data.result.data.units": "mm",
+    "data.result": null,
+    "data.omitted": {"contains": "result"},
     "data.cancel_requested": false,
     "data.error": null
    }
+  },
+  {
+   "call": "nx_get_operation",
+   "args": {"operation": "$made.operation_id", "full": true},
+   "intent": "Acceptance: the committed result only on request",
+   "expect": {"data.state": "committed", "data.result.data.units": "mm", "data.arguments.units": "mm"}
+  },
+  {"call": "nx_set_attributes", "save": "attr", "args": {"attributes": {"SO_CHECK": "A"}},
+   "expect": {"mutation_outcome": "committed"}},
+  {"call": "nx_undo_operation", "save": "un", "args": {},
+   "expect": {"mutation_outcome": "committed", "data.undone.0": "$attr.operation_id"}},
+  {
+   "call": "nx_get_operation",
+   "args": {"operation": "$attr.operation_id", "full": true},
+   "intent": "Acceptance: an undone operation reports reverted and flags its result stale",
+   "expect": {"data.state": "reverted", "data.mutation_outcome": "committed",
+              "data.reverted_by": "$un.operation_id", "data.result_stale": true,
+              "data.arguments.attributes.SO_CHECK": "A"}
   },
   {
    "call": "nx_get_operation",

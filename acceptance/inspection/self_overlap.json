@@ -25,6 +25,6 @@
                 "data.issues.0.kind": "self_intersection", "data.issues.0.message": {"matches": "^26 faces cut other faces"}}},
     {"call": "nx_get_model_summary", "args": {},
      "intent": "Acceptance: the summary's health leaves out the self-overlap check (nx_check_model runs it): healthy",
-     "expect": {"data.health": {"healthy": true, "errors": 0, "warnings": 0}, "data.counts.bodies": 2}}
+     "expect": {"data.health": {"healthy": true, "errors": 0, "warnings": 0, "scope": "part", "parts_checked": 1}, "data.counts.bodies": 2}}
   ]
 }

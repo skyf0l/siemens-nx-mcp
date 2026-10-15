@@ -2,7 +2,8 @@
  "covers": {
   "nx_set_component_mass": [],
   "nx_create_component_group": [],
-  "nx_list_component_groups": []
+  "nx_list_component_groups": [],
+  "nx_edit_component_group": []
  },
  "fixture": null,
  "part": "new",
@@ -204,6 +205,43 @@
      550,
      480
     ]
+   }
+  },
+  {
+   "call": "nx_set_component_mass",
+   "args": {
+    "part": "$part",
+    "component": "$BATTERY.data.component.id",
+    "mass": 70
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.mass": {
+     "close": 70,
+     "tol": 1e-06
+    },
+    "data.center_of_gravity": {
+     "close": [
+      1600,
+      550,
+      480
+     ],
+     "tol": 1e-06
+    },
+    "data.previous.mass": {
+     "close": 60,
+     "tol": 1e-06
+    },
+    "warnings.0.code": "NX_NOTE"
+   }
+  },
+  {
+   "call": "nx_set_component_mass",
+   "setup": true,
+   "args": {
+    "part": "$part",
+    "component": "$BATTERY.data.component.id",
+    "mass": 60
    }
   },
   {
@@ -496,6 +534,162 @@
       "code": "NX_NOTE"
      }
     }
+   }
+  },
+  {
+   "call": "nx_set_component_mass",
+   "setup": true,
+   "args": {
+    "part": "$part",
+    "component": "$ENGINE.data.component.id",
+    "mass": 350,
+    "level": "part"
+   }
+  },
+  {
+   "call": "nx_set_component_mass",
+   "args": {
+    "part": "$part",
+    "component": "$ENGINE.data.component.id",
+    "clear": true
+   },
+   "expect": {
+    "data.cleared": false,
+    "warnings.0.code": "NX_NO_EFFECT",
+    "warnings.0.message": {
+     "matches": "level='part'"
+    }
+   }
+  },
+  {
+   "call": "nx_measure_assembly_mass",
+   "args": {
+    "part": "$part",
+    "components": [
+     "$ENGINE.data.component.id"
+    ]
+   },
+   "expect": {
+    "data.total.mass": {
+     "close": 350,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_component_mass",
+   "setup": true,
+   "args": {
+    "part": "$part",
+    "component": "$ENGINE.data.component.id",
+    "level": "part",
+    "clear": true
+   }
+  },
+  {
+   "call": "nx_list_component_groups",
+   "args": {
+    "part": "$part",
+    "include_system": true,
+    "with_members": false
+   },
+   "expect": {
+    "data.items": {
+     "contains": {
+      "system": true,
+      "count": 2
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_edit_component_group",
+   "args": {
+    "part": "$part",
+    "name": "electrical",
+    "new_name": "Power"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.previous_name": "Electrical",
+    "data.group.name": "Power",
+    "data.group.count": 1
+   }
+  },
+  {
+   "call": "nx_undo_operation",
+   "args": {
+    "part": "$part",
+    "mode": "compensate"
+   },
+   "expect": {
+    "ok": true,
+    "data.compensated": true,
+    "data.restored.0": {
+     "matches": "renamed back to Electrical"
+    }
+   }
+  },
+  {
+   "call": "nx_edit_component_group",
+   "setup": true,
+   "args": {
+    "part": "$part",
+    "name": "Electrical",
+    "new_name": "Power"
+   }
+  },
+  {
+   "call": "nx_edit_component_group",
+   "args": {
+    "part": "$part",
+    "name": "Power",
+    "new_name": "propulsion"
+   },
+   "expect": {
+    "error.code": "NX_ALREADY_EXISTS",
+    "error.field": "/new_name",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_component_group",
+   "args": {
+    "part": "$part",
+    "name": "AllComponents",
+    "delete": true
+   },
+   "expect": {
+    "error.field": "/name",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_component_group",
+   "args": {
+    "part": "$part",
+    "name": "POWER",
+    "delete": true
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.deleted": "Power",
+    "data.remaining": [
+     "Propulsion"
+    ]
+   }
+  },
+  {
+   "call": "nx_list_component_groups",
+   "args": {
+    "part": "$part"
+   },
+   "expect": {
+    "data.items": {
+     "count": 1
+    },
+    "data.items.0.name": "Propulsion",
+    "data.items.0.count": 2
    }
   }
  ]

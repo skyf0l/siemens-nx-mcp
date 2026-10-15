@@ -1,26 +1,25 @@
 {
   "nx_analyze_topology_study": {
     "v2406": {
-      "checks": 36,
-      "recorded": "2026-10-13T07:00:48Z",
+      "checks": 39,
+      "recorded": "2026-10-15T11:09:10Z",
       "scenario": "acceptance/optimization/strength.json",
-      "scenario_sha256": "4627a095bb775052b0a6f004c9ddc7801679ebcf6f6d512a7604ab1e3c39d0f5",
-      "source_sha256": "1cfac9c09ad21cd87af97e412731bdb4fb3046314dadf72fd4bb438d6e0910c8",
+      "scenario_sha256": "237d52683803d10ea8e62fed21c9cc6cd01b65b3b887aec3d932cfc8606f1ba4",
+      "source_sha256": "c641dec75ac0cfac9c754767cdf0be6c46279d9cabf049470dde85ad6492abc8",
       "variants": []
     }
   },
   "nx_create_topology_condition": {
     "v2406": {
-      "checks": 36,
-      "recorded": "2026-10-13T07:00:48Z",
-      "scenario": "acceptance/optimization/strength.json",
-      "scenario_sha256": "4627a095bb775052b0a6f004c9ddc7801679ebcf6f6d512a7604ab1e3c39d0f5",
-      "source_sha256": "6731afdb9481651c4a2334ae63883df004c141ba5f85320a18cda665e8939033",
+      "checks": 17,
+      "recorded": "2026-10-15T11:09:12Z",
+      "scenario": "acceptance/optimization/timeline.json",
+      "scenario_sha256": "bd616e75b436c304593a0f9438bf8fc6fce86a921236757c5adfbfc6b8d0697f",
+      "source_sha256": "013a72b50e2db830767061a81ebd08a42ea6205dfb8cf1ff386888d87177f5f0",
       "variants": [
         "extrude",
         "fixed",
         "force",
-        "keep_in",
         "keep_out",
         "member_size",
         "pinned",
@@ -31,11 +30,11 @@
   },
   "nx_create_topology_environment": {
     "v2406": {
-      "checks": 36,
-      "recorded": "2026-10-13T07:00:48Z",
-      "scenario": "acceptance/optimization/strength.json",
-      "scenario_sha256": "4627a095bb775052b0a6f004c9ddc7801679ebcf6f6d512a7604ab1e3c39d0f5",
-      "source_sha256": "9aefa43c4c5ac1ad1365fab5d7b77033ac8b232d9128e4b8e0dc1263719d5e00",
+      "checks": 17,
+      "recorded": "2026-10-15T11:09:12Z",
+      "scenario": "acceptance/optimization/timeline.json",
+      "scenario_sha256": "bd616e75b436c304593a0f9438bf8fc6fce86a921236757c5adfbfc6b8d0697f",
+      "source_sha256": "d46e73926144d53827daf3df4ee7888e74185d44e78db47b97a4fff26c38ff99",
       "variants": [
         "acceleration",
         "connection",
@@ -43,43 +42,33 @@
       ]
     }
   },
-  "nx_create_topology_study": {
-    "v2406": {
-      "checks": 48,
-      "recorded": "2026-10-13T07:36:28Z",
-      "scenario": "acceptance/optimization/bracket.json",
-      "scenario_sha256": "7e622d4fdfa722a3d728f7ebb874f1266519721ed2080c5ceb3e0f00a858251c",
-      "source_sha256": "e1c734530d3f1d1a5dc01ef52ff980233acf6fe6b50dd5a153ead8987eca5a2a",
-      "variants": []
-    }
-  },
   "nx_get_topology_study": {
     "v2406": {
-      "checks": 44,
-      "recorded": "2026-10-13T06:58:37Z",
+      "checks": 45,
+      "recorded": "2026-10-15T11:07:02Z",
       "scenario": "acceptance/optimization/environment.json",
-      "scenario_sha256": "af4ec229be7f789eb9716aa4ad03ce95c4ee3da239314353d661e9fa15cb9585",
-      "source_sha256": "da3b6f2c790e0f0c08a8236db222f0b64a988bbf685dd603071dc0d09443fb57",
+      "scenario_sha256": "71b17ccc6ed6587d16a6bc8e7b22886b64e09df73e7481b9bb067fd5c9617264",
+      "source_sha256": "ff72fdca083977669fc6b7c717f40617320f7546d6d3a24ca17dae3428f6e094",
       "variants": []
     }
   },
   "nx_run_topology_study": {
     "v2406": {
       "checks": 82,
-      "recorded": "2026-10-14T14:07:13Z",
+      "recorded": "2026-10-15T11:06:58Z",
       "scenario": "acceptance/optimization/contour.json",
       "scenario_sha256": "611be748e50688f8a92657a686fc05fae39c7ad0f91fe0b73fc320dac735cd13",
-      "source_sha256": "9fa54822e575162800431d7c9b4c25e06a0b22aacf0a5383ed048fadd8989080",
+      "source_sha256": "ad1d7580d0b3855ec034c01e2c3676794ac258ad18c466230fd5d2581074d8b5",
       "variants": []
     }
   },
   "nx_set_topology_contour": {
     "v2406": {
       "checks": 82,
-      "recorded": "2026-10-14T14:07:13Z",
+      "recorded": "2026-10-15T11:06:58Z",
       "scenario": "acceptance/optimization/contour.json",
       "scenario_sha256": "611be748e50688f8a92657a686fc05fae39c7ad0f91fe0b73fc320dac735cd13",
-      "source_sha256": "9c6be77ce89fe7c38b6bb1baf76767eb8115cacc94916d5e49687433d3b6987d",
+      "source_sha256": "1c4ac61a650fca6022b0961213490b96b7e549af48305eec84011157ca61bf1a",
       "variants": []
     }
   }

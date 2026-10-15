@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/sheet_metal/louver.json",
-  "scenario_sha256": "e7b3801b7235b645162c8575c4f307fd83b9a2270dfcb00b9d1fef4fcfec57e1",
+  "scenario_sha256": "86cfecd5de6e41bf779875afe894c4d6c076227451f347e00c6ac290580876d1",
   "domain": "sheet_metal",
   "covers": {
     "nx_create_sheet_metal_feature": [
@@ -11,12 +11,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_sheet_metal_feature": "0cb86ec2b1b68627b15937d5f5b1ee2110821e242858eae414b284fbcb25da32"
+    "nx_create_sheet_metal_feature": "bf3fd67fcbf3614ac852a3481d8b19132a27603a0e2d699d391486c90c3c3fcf"
   },
-  "recorded": "2026-10-14T14:02:36Z",
-  "passed": false,
-  "checks": 3,
-  "failed_checks": 4,
+  "recorded": "2026-10-15T11:26:44Z",
+  "passed": true,
+  "checks": 18,
+  "failed_checks": 0,
   "steps": [
     {
       "index": 1,
@@ -92,18 +92,64 @@
       "index": 11,
       "call": "nx_create_sheet_metal_feature",
       "setup": false,
-      "passed": false,
-      "checks": 3,
-      "error": {
-        "code": "NX_BUILD_FAILED",
-        "message": "Cannot create feature. Try changing input selections or values."
-      },
-      "failures": [
-        "unexpected error NX_BUILD_FAILED: Cannot create feature. Try changing input selections or values.",
-        "mutation_outcome: equals 'committed' failed (actual 'rolled_back')",
-        "data.thickness: missing (wanted {'close': 2, 'tol': 1e-09})",
-        "data.bend_count: missing (wanted 0)"
-      ]
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 12,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 13,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 14,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 15,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 16,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 17,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 18,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 19,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 3
     }
   ]
 }

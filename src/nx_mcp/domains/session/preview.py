@@ -211,6 +211,11 @@ def _delta(before: ModelState, after: ModelState) -> dict:
 # Input refs: the rollback invalidates the part's refs, so the objects are kept
 
 
+def refs_in(value) -> list[str]:
+    """The short refs (``f:12``) anywhere in ``value`` (arguments or a result)."""
+    return _refs(value, [])
+
+
 def _refs(value, found: list[str]) -> list[str]:
     if isinstance(value, str) and SHORT_REF.match(value):
         found.append(value)
@@ -239,6 +244,11 @@ def _live_inputs(tx, operations) -> dict:
                 error.field = error.field or f"/operations/{index}/arguments"
                 raise
     return out
+
+
+def translate(value, mapping: dict):
+    """``value`` with every string ``mapping`` names replaced (old ref -> new ref)."""
+    return _translate(value, mapping)
 
 
 def _translate(value, mapping: dict):
@@ -338,7 +348,8 @@ def nx_preview_changes(
 ) -> PreviewData:
     """Apply 1-25 previewable calls temporarily, report what changed, then roll them back.
     Reports volume, bounds, counts, health, each step's changes and an optional image.
-    Keep it with nx_finish_preview(accept) while nothing else changed; step refs are stale."""
+    "$0.data.feature" names step 0's result key. Keep it with nx_finish_preview(accept)
+    while nothing else changed; step refs are stale. The session keeps the 20 newest."""
     services = tx.services
     with tx.checks():  # a refused step changes nothing
         _preflight(operations, mode="preview", services=services)
@@ -394,6 +405,29 @@ def nx_preview_changes(
     }
 
 
+def stash(tx, operations: list) -> str:
+    """Store ``operations`` (previewable calls in the work part) as a preview that
+    ``nx_finish_preview`` accepts while nothing changes the part: what
+    ``nx_redo_operation`` runs to repeat an undone accept. Returns its preview_id."""
+    services = tx.services
+    _preflight(operations, mode="preview", services=services)
+    objects = _live_inputs(tx, operations)
+    part_key = services.part_key(tx.part)
+    fingerprint = _fingerprint(tx, _state(tx), _expressions(tx))
+    preview_id = "preview_" + uuid.uuid4().hex
+    store = _store(services)
+    store[preview_id] = {
+        "operations": copy.deepcopy(operations),
+        "objects": objects,
+        "part": part_key,
+        "revision": services.part_revision(part_key),
+        "fingerprint": fingerprint,
+    }
+    while len(store) > KEEP:
+        _finish(services, store.popitem(last=False)[0], "evicted")
+    return preview_id
+
+
 def _preview_part(services, args) -> Any:
     """Gate 3t: the part a preview was made in; ANY for a finished, unknown or closed-part
     preview (the handler says what happened to it, never NX_AMBIGUOUS_PART)."""
@@ -447,10 +481,15 @@ def nx_finish_preview(
     total = len(preview["operations"])
     tx.checkpoint(done=0, total=total)
     results: list[StepResult] = []
+    calls = []
     for index, step in enumerate(preview["operations"]):
-        child = tx.run(step["tool"], _translate(step["arguments"], mapping), mode="preview")
+        arguments = _translate(step["arguments"], mapping)
+        calls.append({"tool": step["tool"], "arguments": copy.deepcopy(arguments)})
+        child = tx.run(step["tool"], arguments, mode="preview")
         results.append({"index": index, **child})
     tx.checkpoint(done=total)
+    # nx_redo_operation of this accept runs these calls again (never the consumed preview)
+    tx.history_note = {**(tx.history_note or {}), "redo_calls": calls}
     store.pop(preview_id, None)  # applied: consumed
     _finish(services, preview_id, "accepted")
     return {

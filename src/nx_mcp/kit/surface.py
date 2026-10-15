@@ -104,16 +104,19 @@ def edge_continuity(tx, edge, face, other_edge, other_face, samples=9):
     faces, ``angle`` (degrees) and ``curvature`` (1/part unit) are the largest
     normal angle and shape-operator difference over the resolved samples; they are
     None without faces or when no sample resolved. ``unresolved`` counts singular
-    samples.
+    samples. ``gap_at``, ``angle_at`` and ``curvature_at`` locate each worst sample:
+    ``{point, parameter}`` on ``edge`` (``parameter`` normalised 0..1), None when that
+    value is None.
     """
     if not isinstance(samples, int) or samples < 1:
         raise ValueError("samples must be a positive integer")
     gaps, angles, curvatures, unresolved = [], [], [], 0
     with curve.evaluator(tx, edge) as source, curve.evaluator(tx, other_edge) as target:
         for i in range(samples):
-            point = source.at((i + 0.5) / samples)[0]
+            t = (i + 0.5) / samples
+            point = source.at(t)[0]
             closest = target.closest(point)[0]
-            gaps.append(geom.dist(point, closest))
+            gaps.append((geom.dist(point, closest), point, t))
             if face is None or other_face is None:
                 continue
             try:
@@ -126,12 +129,19 @@ def edge_continuity(tx, edge, face, other_edge, other_face, samples=9):
             if not (math.isfinite(angle) and math.isfinite(k)):
                 unresolved += 1
                 continue
-            angles.append(angle)
-            curvatures.append(k)
+            angles.append((angle, point, t))
+            curvatures.append((k, point, t))
+    worst = {
+        name: max(values, key=lambda v: v[0]) if values else None
+        for name, values in (("gap", gaps), ("angle", angles), ("curvature", curvatures))
+    }
+    out = {name: None if w is None else w[0] for name, w in worst.items()}
     return {
-        "gap": max(gaps),
-        "angle": max(angles) if angles else None,
-        "curvature": max(curvatures) if curvatures else None,
+        **out,
         "samples": samples,
         "unresolved": unresolved,
+        **{
+            f"{name}_at": None if w is None else {"point": list(w[1]), "parameter": w[2]}
+            for name, w in worst.items()
+        },
     }

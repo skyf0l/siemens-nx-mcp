@@ -1,0 +1,146 @@
+{
+ "covers": {
+  "nx_set_feature_order": [],
+  "nx_update_model": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "shape": "block",
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "length": 40,
+    "width": 20,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_create_datum_plane",
+   "setup": true,
+   "save": "dp1",
+   "args": {
+    "method": "point_normal",
+    "origin": [
+     0,
+     0,
+     50
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_create_datum_plane",
+   "setup": true,
+   "save": "dp2",
+   "args": {
+    "method": "point_normal",
+    "origin": [
+     0,
+     0,
+     60
+    ],
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_set_feature_suppression",
+   "setup": true,
+   "args": {
+    "features": [
+     "$dp2.data.feature.id"
+    ],
+    "suppressed": true
+   }
+  },
+  {
+   "call": "nx_set_current_feature",
+   "setup": true,
+   "args": {
+    "feature": "$blk.data.feature.id"
+   }
+  },
+  {
+   "call": "nx_update_model",
+   "args": {},
+   "intent": "inactive counts the rolled-back features that are not suppressed",
+   "expect": {
+    "data.suppressed": 1,
+    "data.inactive": 1,
+    "data.errors": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_set_feature_order",
+   "args": {
+    "feature": "$dp1.data.feature.id",
+    "before": "$blk.data.feature.id"
+   },
+   "expect": {
+    "data.moved": true,
+    "data.activated": {
+     "count": 1
+    },
+    "data.activated.0.id": "$dp1.data.feature.id",
+    "data.current.id": "$blk.data.feature.id",
+    "warnings": {
+     "contains": {
+      "code": "NX_NOTE"
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_set_current_feature",
+   "setup": true,
+   "args": {}
+  },
+  {
+   "call": "nx_update_model",
+   "args": {},
+   "expect": {
+    "data.suppressed": 1,
+    "data.inactive": 0
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$blk.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 8000,
+     "tol": 1e-06
+    }
+   }
+  }
+ ]
+}

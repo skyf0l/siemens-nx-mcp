@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import counted, fail, plural
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Range, RefTo, Text
 from nx_mcp.core.validate import match_option
@@ -102,7 +102,7 @@ def _visibility_summary(a, say):
     kinds = [*(a.get("types") or []), *(["datum"] if a.get("datums") else [])]
     if kinds:
         where = " in the assembly" if a.get("scope") == "assembly" else ""
-        what.append("all " + ", ".join(f"{k}s" for k in dict.fromkeys(kinds)) + where)
+        what.append("all " + ", ".join(plural(k) for k in dict.fromkeys(kinds)) + where)
     return f"{str(a.get('mode', 'show')).capitalize()} {' and '.join(what) or 'all'}"
 
 
@@ -113,12 +113,12 @@ def _visibility_summary(a, say):
     summary=_visibility_summary,
     keywords=(
         "hide",
+        "hide body",
         "show",
+        "show only",
         "isolate",
         "blank",
-        "datum visibility",
         "hide sketches",
-        "hide curves",
         "hide by type",
     ),
     requires=("work_part",),
@@ -144,7 +144,7 @@ def nx_set_visibility(
     Component objects change in the assembly only (their part stays unmodified);
     scope=assembly adds every component's objects of those types. mode=show alone shows
     all hidden bodies and components. Isolate: objects only; hides all other bodies and
-    components. Undo: nx_restore_display(restore_id)."""
+    components. Types with nothing to change are a no-op. Undo: nx_restore_display(restore_id)."""
     kinds = list(dict.fromkeys([*(types or []), *(["datum"] if datums else [])]))
     _check_visibility(mode, objects, kinds, scope)
     partial: list[str] = []
@@ -159,9 +159,9 @@ def nx_set_visibility(
                 found = {k: found[k] + shown[k] for k in kinds}
             by_type = {k: len(found[k]) for k in kinds}
             values += [o for k in kinds for o in found[k]]
-            if not values:
-                fail("NX_NOT_FOUND", "No " + ", ".join(f"{k}s" for k in kinds) + " to change",
-                     field="/types" if types else "/datums")  # fmt: skip
+            if not values:  # hiding every sketch of a part that has none: nothing to do
+                tx.warn("NX_NOTE", "The part has no " + ", ".join(plural(k) for k in kinds)
+                        + ": nothing changed")  # fmt: skip
         elif objects is None:  # mode=show alone: every hidden body and component
             everything = bodies.scope(tx, "assembly") + [c for c, _ in parts.components(part)]
             values = [o for o in everything if o.IsBlanked]
@@ -194,7 +194,7 @@ def nx_set_visibility(
         out["by_type"] = by_type
     if partial:
         out["partial"] = partial
-        tx.warn("NX_NOTE", f"{len(partial)} components are not fully loaded, only their "
+        tx.warn("NX_NOTE", f"{counted(len(partial), 'component')} not fully loaded, only their "
                 f"bodies changed: {', '.join(partial[:5])}. {parts.LOAD_HINT}")  # fmt: skip
     return out
 
@@ -297,10 +297,11 @@ def nx_set_appearance(
     color: ColorIndex | ColorName | ColorRgb | ColorText | None = None,
     transparency: Percent | None = None,
 ) -> AppearanceData:
-    """Set the colour and/or transparency (0 opaque, 100 clear) of objects. color: index
-    1-216, a basic name, a colour-table name, '#RRGGBB' or [r,g,b] (nearest table colour,
-    see color_match). A body is coloured whole (all its faces); components and features
-    colour their bodies. Persists when saved; undo: nx_restore_display(restore_id)."""
+    """Set the colour and/or transparency (0 opaque, 100 clear; bodies and faces only) of
+    objects. color: index 1-216, a basic name, a colour-table name, '#RRGGBB' or [r,g,b]
+    (nearest table colour, see color_match). A body is coloured whole (all its faces);
+    components and features colour their bodies. Persists when saved; undo:
+    nx_restore_display(restore_id)."""
     if color is None and transparency is None:
         fail("NX_INVALID_ARGUMENT", "Give color or transparency", field="/color")
     spec = _color(color)
@@ -309,7 +310,12 @@ def nx_set_appearance(
         part = display.shown_part(tx, work=True)
         values = targets(tx, objects, expand=True)
         if transparency is not None and any(kind_of(tx, v) not in ("body", "face") for v in values):
-            fail("NX_WRONG_KIND", "Transparency applies to bodies and faces", field="/objects")
+            fail(
+                "NX_WRONG_KIND",
+                "Transparency applies to bodies and faces",
+                field="/objects",
+                hint="Drop transparency for edges, curves and datums, or pass their body",
+            )
         index, match = display.color_from(tx, part, spec) if spec else (None, None)
         tx.display.keep(values, appearance=True)  # reads only: a refusal is not_started
     display.apply_appearance(tx, values, index, transparency)
@@ -444,12 +450,46 @@ def nx_set_highlight(
     objects: Annotated[list[Annotated[str, RefTo(*TARGET_KINDS)]], Items(0, 1000)],
 ) -> HighlightData:
     """Replace the agent's highlights with these objects (NX selection highlight, no colour
-    change); an empty list clears them."""
+    change); an empty list clears them. Seen live in the NX window on the displayed part
+    only, never in nx_capture_view images: colour objects for a capture
+    (nx_set_appearance)."""
     with tx.checks():
-        display.shown_part(tx, work=True)
+        part = display.shown_part(tx, work=True)
         values = targets(tx, objects) if objects else []
     tx.display.keep_highlights()
     tx.services.restore_display(None, [], values)  # makes the agent's highlights exactly these
     now = {int(o.Tag) for o in tx.services.highlights()}
     readback.expect(now == {int(v.Tag) for v in values}, "highlighted", count=len(now))
+    _highlight_notes(tx, part, values)
     return {"highlighted": [tx.ref(v, kind_of(tx, v)) for v in values], "count": len(values)}
+
+
+def _hidden_owner(obj) -> bool:
+    """Whether ``obj`` or the body it lies on is blanked (a face or edge of a hidden body)."""
+    if bool(getattr(obj, "IsBlanked", False)):
+        return True
+    body = None
+    for getter in ("GetBody", "Body"):
+        found = getattr(obj, getter, None)
+        try:
+            body = found() if callable(found) else found
+        except Exception:  # noqa: BLE001 - no owning body to ask
+            body = None
+        if body is not None:
+            break
+    return bool(getattr(body, "IsBlanked", False)) if body is not None else False
+
+
+def _highlight_notes(tx, part, values) -> None:
+    """Say when highlights cannot be seen: hidden objects, or a part not displayed (the
+    call showed it and the engineer's display came back)."""
+    if not values:
+        return
+    hidden = [tx.ref(v, kind_of(tx, v))["id"] for v in values if _hidden_owner(v)]
+    if hidden:
+        tx.warn("NX_NOTE", f"{', '.join(hidden[:10])} are hidden (or lie on a hidden body): "
+                "their highlight does not show")  # fmt: skip
+    bound = getattr(tx, "bound", None)
+    if getattr(bound, "mode", None) == "display" and getattr(bound, "switched", False):
+        tx.warn("NX_NOTE", "The part was shown for this call only: its highlights show when "
+                "it is displayed again (nx_activate_part)")  # fmt: skip

@@ -164,7 +164,11 @@ def test_delete_exact_ids(tmp_path):
     assert preview.data["selected_count"] == 1 and preview.data["missing"] == [missing]
     assert side(tmp_path, rs.nx_get_result, result_id=a).ok
     done = side(tmp_path, rs.nx_delete_results, result_ids=[a], dry_run=False)
-    assert done.ok and done.data["applied"] and done.data["snapshot_count"] == 2
+    assert done.ok and done.data["applied"] and done.data["snapshot_count"] == 1
+    assert done.data["workspace_snapshot_count"] == 2 and done.data["bytes_after_cleanup"] == 0
+    again = side(tmp_path, rs.nx_delete_results, result_ids=[a, missing], dry_run=False)
+    assert again.data["already_deleted"] == [a] and again.data["missing"] == [missing]
+    assert again.mutation_outcome == "not_applicable"
     deleted = side(tmp_path, rs.nx_get_result, result_id=a).error
     assert deleted["code"] == "NX_RESULT_EXPIRED" and deleted["details"]["state"] == "deleted"
     assert side(tmp_path, rs.nx_get_result, result_id=b).ok
@@ -222,3 +226,25 @@ async def test_proxy_claims_the_bridge_snapshots_it_receives(tmp_path, monkeypat
     proxy = CatalogueProxy(bridge, Workspace(tmp_path), ResultStore(tmp_path), build="v2406")
     await proxy.call(status.nx_get_status.spec, {})
     assert full["id"] in claimed()
+
+
+def test_result_ids_refuse_the_options_they_would_ignore(tmp_path):
+    a = stored(tmp_path, {"a": 1})
+    for args, field in (({"max_age_seconds": "1s"}, "/max_age_seconds"),
+                        ({"max_bytes": 10}, "/max_bytes"),
+                        ({"all_agents": True}, "/all_agents")):  # fmt: skip
+        bad = side(tmp_path, rs.nx_delete_results, result_ids=[a], **args)
+        assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == field, args
+        assert "would be ignored" in bad.error["message"] and bad.mutation_outcome == "not_started"
+    assert side(tmp_path, rs.nx_get_result, result_id=a).ok
+
+
+def test_counts_mean_the_scope_and_the_workspace_count_is_always_there(tmp_path):
+    stored(tmp_path, {"mine": 1})
+    folder = tmp_path / ".nx-mcp" / "agent-results"
+    (folder / ("result_" + "a" * 32 + ".json")).write_text('{"theirs": 1}', encoding="utf-8")
+    own = side(tmp_path, rs.nx_delete_results).data
+    assert own["scope"] == "own" and own["snapshot_count"] == 1
+    assert own["workspace_snapshot_count"] == 2
+    every = side(tmp_path, rs.nx_delete_results, all_agents=True).data
+    assert every["snapshot_count"] == 2 and every["workspace_snapshot_count"] == 2

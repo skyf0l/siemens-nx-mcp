@@ -88,3 +88,27 @@ def test_edge_refusals_before_nx():
                       along=nx.ref_of(top, "face"))  # fmt: skip
     assert along_move.error["field"] == "/along"
     assert not [b for b in nx.builders if b.kind in ("MoveEdgeBuilder", "OffsetEdgeBuilder")]
+
+
+def test_an_offset_that_eats_the_face_says_the_distance_is_too_large():
+    from tests.kit.objects import NXException
+
+    nx, t, edge, top, _ = setup()
+    nx.refuse("OffsetEdgeBuilder", code=630003, message="Operation forbidden on suppressed object")
+    bad = edit(nx, edge, action="offset", distance=-200)
+    assert bad.error["code"] == "NX_BUILD_FAILED" and bad.error["field"] == "/distance", bad
+    assert "smaller distance" in bad.error["hint"] and bad.error["retry"] == "after_fix"
+    # NX may commit and leave a dead edge behind: reading it raises the same code.
+    nx.errors.clear()
+
+    def eaten(b):
+        def dead():
+            raise NXException(630003, "Operation forbidden on suppressed object")
+
+        edge.GetVertices = dead
+        return feature(nx, "OFFSET_EDGE", [t])
+
+    nx.on_commit("OffsetEdgeBuilder", eaten)
+    late = edit(nx, edge, action="offset", distance=-200, along=nx.ref_of(top, "face"))
+    assert late.error["code"] == "NX_BUILD_FAILED" and late.error["field"] == "/distance", late
+    assert late.mutation_outcome == "rolled_back"

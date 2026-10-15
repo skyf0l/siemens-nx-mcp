@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/session/preview_changes.json",
-  "scenario_sha256": "fc89db252710b7ffe35fd230757fa2d5d34a0cc68c5d1ae8f7eb6f28ef5c50cb",
+  "scenario_sha256": "fea65918d3e23d705e211f036aa95c78346d95a37d2b30a49c3e33941f08f9ac",
   "domain": "session",
   "covers": {
     "nx_preview_changes": [],
@@ -13,12 +13,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_preview_changes": "00a983cf57663b8585aa2ff345e2fb1899741b54e0fe23f77001420f29a71988",
-    "nx_finish_preview": "00a983cf57663b8585aa2ff345e2fb1899741b54e0fe23f77001420f29a71988"
+    "nx_preview_changes": "387ffd38e169c0505e33149b1362babe410a44592ff2934d4d6351f1bce50474",
+    "nx_finish_preview": "387ffd38e169c0505e33149b1362babe410a44592ff2934d4d6351f1bce50474"
   },
-  "recorded": "2026-10-11T19:35:02Z",
+  "recorded": "2026-10-15T12:44:43Z",
   "passed": true,
-  "checks": 72,
+  "checks": 77,
   "failed_checks": 0,
   "steps": [
     {
@@ -209,6 +209,27 @@
       "setup": false,
       "passed": true,
       "checks": 5
+    },
+    {
+      "index": 28,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 29,
+      "call": "nx_preview_changes",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 30,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
     }
   ]
 }

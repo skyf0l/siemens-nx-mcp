@@ -97,7 +97,9 @@ def test_the_active_tab_closes_keeping_marks_and_the_previous_tab_comes_back(nx)
     assert undo.ok and undo.data["compensated"] is True, undo  # across the close
     assert any("no longer reaches it" in w["message"] for w in undo.warnings), undo.warnings
     assert "a" not in loaded(nx)  # never loaded again
-    listed = call(nx, NS(spec=catalogue.load()["nx_list_checkpoints"]), part="b")
+    listed = call(
+        nx, NS(spec=catalogue.load()["nx_list_checkpoints"]), part="b", include_expired=True
+    )
     (row,) = listed.data["checkpoints"]
     assert row["checkpoint_id"] == checkpoint.data["checkpoint_id"]
     # the close of another part does not end b's checkpoint; the undo of b's block did
@@ -207,14 +209,14 @@ def test_a_taken_file_name_suggests_a_unique_one_and_never_offers_the_part(nx, r
     clash = call(nx, tools.nx_create_part, path="other/A.prt")
     assert clash.error["code"] == "NX_NAME_CONFLICT", clash
     assert "taken" in clash.error["message"] and "activate" not in clash.error["message"]
-    assert clash.error["details"]["suggested_path"] == "other/A_2.prt"
-    assert "other/A_2.prt" in clash.error["hint"]
+    assert clash.error["details"]["suggested_path"] == "other/A-2.prt"
+    assert "other/A-2.prt" in clash.error["hint"]
     same = call(nx, tools.nx_create_part, path="mc/a.prt")
     assert same.error["code"] == "NX_ALREADY_EXISTS" and "activate" not in same.error["message"]
-    assert same.error["details"]["suggested_path"] == "mc/a_2.prt"
-    (root / "mc" / "a_2.prt").write_text("on disk")
+    assert same.error["details"]["suggested_path"] == "mc/a-2.prt"
+    (root / "mc" / "a-2.prt").write_text("on disk")
     again = call(nx, tools.nx_create_part, path="mc/a.prt")
-    assert again.error["details"]["suggested_path"] == "mc/a_3.prt"
+    assert again.error["details"]["suggested_path"] == "mc/a-3.prt"
 
 
 def test_the_tab_that_comes_back_after_a_close_is_shown_in_sheet_metal(nx, monkeypatch):

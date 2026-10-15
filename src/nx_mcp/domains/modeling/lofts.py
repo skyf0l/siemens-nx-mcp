@@ -27,7 +27,7 @@ NX 2406 lessons kept here:
 from __future__ import annotations
 
 import math
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail, native
@@ -375,6 +375,11 @@ def _tangent_ends(tx, sections, axis) -> dict[int, list]:
     return ends
 
 
+class LoftData(common.FeatureData, total=False):
+    area: Annotated[float, Doc("Sheet loft: the sheets' total area")]
+    start_points: Annotated[list[Point3], Doc("The section corners the loft started at")]
+
+
 @tool(
     effect="model",
     label="Loft through sections",
@@ -402,7 +407,7 @@ def nx_create_loft(
     ]
     | None = None,
     combine: Combine | None = None,
-) -> common.FeatureData:
+) -> LoftData:
     """Loft a body through 2-20 sections in order (NX Through Curves; Swept along guides). A
     section is a sketch, a curve or edge, or a list of curves and edges forming one chain.
     Closed sections start at matching corners: no twist."""
@@ -427,10 +432,13 @@ def nx_create_loft(
                     fail("NX_INVALID_ARGUMENT",
                          f"sections[{i}] is not one closed loop: it has no start to move",
                          field=f"/start_points/{i}")  # fmt: skip
+        if solid:
+            _refuse_open(tx, made_sections, loops)
         fills = [_guide(tx, g, f"/guides/{i}") for i, g in enumerate(guides or [])]
         axis = _axis(tx, made_sections)
         ends = _tangent_ends(tx, made_sections, axis) if tangent == "faces" else {}
-    targets_body = common.one_target(tx, combine, "loft")
+        starts = _snapped(tx, loops, axis, targets) if targets is not None else None
+        targets_body = common.one_target(tx, combine, "loft")
     before = measure.volume(tx, targets_body) if targets_body else 0.0
     swept = guides is not None
     factory = tx.part.Features.CreateSweptBuilder if swept else (
@@ -450,11 +458,65 @@ def nx_create_loft(
         "NX built a different body type than requested",
     )
     if combine is not None:
-        return common.combine_new(tx, feature, bodies, combine, targets_body[0], before)
-    out = common.result_of(tx, feature)
-    if solid:
-        common.changed(0.0, out["volume"], "positive")
-        _warn_twist(tx, made_sections, out["volume"])
+        made = cast(LoftData, common.combine_new(tx, feature, bodies, combine, targets_body[0],
+                                                 before))  # fmt: skip
+    else:
+        made = cast(LoftData, common.result_of(tx, feature))
+        if solid:
+            common.changed(0.0, made["volume"], "positive")
+            _warn_twist(tx, made_sections, made["volume"])
+        else:
+            faces = [f for b in bodies for f in b.GetFaces()]
+            made["area"] = measure.area(tx, faces) if faces else 0.0
+            readback.expect(made["area"] > 0, "area", "NX built sheets of no area")
+    if starts is not None:
+        made["start_points"] = starts
+    return made
+
+
+def _open_ends(pieces, tol) -> int:
+    """Curve ends of a section that meet no other end (an open chain has two)."""
+    ends = [p for _c, pts in pieces for p in (pts[0], pts[-1])]
+    free = 0
+    for i, p in enumerate(ends):
+        if not any(j != i and geom.dist(p, q) <= max(tol, geom.tol(p, q)) for j, q in
+                   enumerate(ends)):  # fmt: skip
+            free += 1
+    return free
+
+
+def _refuse_open(tx, sections, loops) -> None:
+    """Refuse, before NX, an open section in a solid loft (NX builds a sheet instead)."""
+    tol = units.part_tolerance(tx)
+    for i, (section, loop) in enumerate(zip(sections, loops, strict=True)):
+        if loop is not None:
+            continue
+        pieces = _pieces(tx, section.curves)
+        if pieces and _open_ends(pieces, tol):
+            fail(
+                "NX_WRONG_GEOMETRY",
+                f"sections[{i}] is open: a solid loft needs every section closed",
+                field=f"/sections/{i}",
+                hint="Close the section, or pass solid: false for a sheet loft",
+            )
+
+
+def _snapped(tx, loops, axis, targets) -> list:
+    """The section points the loft starts at for ``start_points``; a point off its section
+    is warned about (the loft starts at the section's nearest corner)."""
+    picked = plan(loops, axis, targets)
+    tol = max(10 * units.part_tolerance(tx), 1e-6)
+    out = []
+    for i, (p, target) in enumerate(zip(picked, targets, strict=True)):
+        start = [round(float(v), 9) for v in p["start"]]
+        gap = geom.dist(start, target)
+        if gap > tol:
+            tx.warn(
+                "NX_APPROXIMATED",
+                f"start_points[{i}] lies {gap:.6g} from its section: the loft starts at its "
+                f"nearest corner [{', '.join(f'{v:.6g}' for v in start)}]",
+            )
+        out.append(start)
     return out
 
 

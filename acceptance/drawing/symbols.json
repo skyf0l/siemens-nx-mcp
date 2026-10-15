@@ -320,6 +320,9 @@
     "data.symbol.height": {
      "close": 6,
      "tol": 1e-06
+    },
+    "warnings": {
+     "count": 0
     }
    }
   },
@@ -343,6 +346,9 @@
     },
     "data.symbol.objects": {
      "count": 2
+    },
+    "warnings": {
+     "count": 0
     }
    }
   },
@@ -496,6 +502,23 @@
    "expect": {
     "error.category": "invalid_argument",
     "error.field": "/text",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_sheet_symbol",
+   "args": {
+    "symbol": "id",
+    "text": "9",
+    "origin": [
+     300,
+     250
+    ],
+    "size": -3
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/size",
     "mutation_outcome": "not_started"
    }
   },

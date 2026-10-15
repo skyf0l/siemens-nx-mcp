@@ -21,6 +21,7 @@ from nx_mcp.domains.drawing.common import (
     sheet_of,
 )
 from nx_mcp.kit import drawing, readback, result
+from nx_mcp.kit import parts as kit_parts
 from nx_mcp.kit import units as kit_units
 
 SIZES = {
@@ -169,8 +170,11 @@ def nx_create_drawing_sheet(
         if name is None:
             taken = {s.Name.casefold() for s in existing}
             name = next(f"SHT{i}" for i in range(1, 1000) if f"sht{i}" not in taken)
-        elif any(s.Name.casefold() == name.casefold() for s in existing):
-            fail("NX_ALREADY_EXISTS", f"A drawing sheet named {name!r} exists", field="/name")
+        elif same := [s for s in existing if s.Name.casefold() == name.casefold()]:
+            fail("NX_ALREADY_EXISTS", f"A drawing sheet named {name!r} exists", field="/name",
+                 hint="Choose another name, or use the existing sheet in details.sheet "
+                 "(nx_activate_drawing_sheet opens it)",
+                 details={"sheet": tx.ref(same[0], "drawing_sheet")})  # fmt: skip
         path = _installed(installed) if installed else template_path
         before = {int(s.Tag) for s in existing}
         title_blocks = {int(t.Tag) for t in part.DraftingManager.TitleBlocks}
@@ -268,10 +272,20 @@ def nx_create_drawing_sheet(
         "units": actual_units,
         "scale": actual["scale"],
         "projection": actual["projection"],
-        "template": str(path) if path is not None else None,
+        "template": _shown_template(tx, path, installed),
         "title_block_added": bool(added),
         "title_block": tx.ref(added[0], "drawing_table") if added else None,
     }
+
+
+def _shown_template(tx, path, installed):
+    """The template as an agent can name it: an installed template's file name, a
+    workspace template's workspace-relative path (never a host path)."""
+    if path is None:
+        return None
+    if installed:
+        return Path(str(path)).name
+    return kit_parts.shown_path(tx, path)
 
 
 class SheetRow(result.Row, total=False):

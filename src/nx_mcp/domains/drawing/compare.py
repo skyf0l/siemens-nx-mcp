@@ -8,6 +8,8 @@ NX 2406 findings encoded here:
   ``Commit``. Commit would store a comparison report and change symbols in the part, so
   the builder is only read and destroyed: the compare changes nothing.
 - The deprecated ``CreateDrawingCompareSettingsBuilder`` is not used.
+- An earlier revision without drawing sheets fails while the builder is created (735029
+  "There are no drawing sheets in the selected part"): a wrong ``against``, nothing changed.
 """
 
 from __future__ import annotations
@@ -17,12 +19,13 @@ from pathlib import Path
 from typing import Annotated, TypedDict
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, PathTo
 from nx_mcp.kit import builders, licenses, parts
 
 MAX_LINES = 200
+NO_SHEETS = 735029  # NX: "There are no drawing sheets in the selected part."
 COUNTS = ("changes", "additions", "deletions")
 HEADER = {"Number of Sheets": "sheets", "Number of Views": "views",
           "Number of Annotations": "annotations"}  # fmt: skip
@@ -116,6 +119,8 @@ def read_report(summary_lines, change_lines, detail_lines):
         "drawing changes",
         "what changed in the drawing",
         "revision differences",
+        "drawing out of date",
+        "drawing revision changes",
     ),
     requires=("work_part", "no_active_sketch"),
     cost="heavy",
@@ -150,6 +155,8 @@ def nx_check_drawing_changes(
             summary = str(b.SummaryStatusLine or "").strip()
             lines = [_lines(b.GetSummary()), _lines(b.GetChangesSummary())]
             lines.append(_lines(b.GetDetailSummary()))
+    except NXError as error:
+        _refused(error)
     finally:
         _close_loaded(tx, before)
     if not summary:
@@ -166,6 +173,21 @@ def nx_check_drawing_changes(
         "details": details[:MAX_LINES],
         "truncated": len(details) > MAX_LINES,
     }
+
+
+def _refused(error):
+    """A compare NX refused: a read changes nothing, so no rollback wording; an earlier
+    revision without sheets is a wrong ``against``."""
+    if error.nx_code == NO_SHEETS:
+        fail("NX_INVALID_ARGUMENT", "against has no drawing sheets: " + error.message,
+             field="/against", nx_code=error.nx_code,
+             hint="Pass an earlier revision of this drawing: a saved .prt with drawing sheets")  # fmt: skip
+    if error.code == "NX_BUILD_FAILED":
+        fail("NX_EXPORT_FAILED", "NX could not compare the drawings: " + error.message,
+             field="/against", nx_code=error.nx_code, details=error.details,
+             hint="Nothing was changed (read only); check that against is an earlier "
+             "revision of this drawing")  # fmt: skip
+    raise error
 
 
 def _close_loaded(tx, before):

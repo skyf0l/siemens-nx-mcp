@@ -82,7 +82,10 @@ def test_undo_reverts_only_the_agents_last_operation(nx):
     assert not again.ok and not again.replayed and names(nx) == ["B(2)", "C(3)"]
     assert again.error["code"] == "NX_STALE_REFERENCE", again
     record = store.get("op_delete_b")
-    assert record["state"] == "failed" and record["previous"]["reverted_by"] == "op_undo_last"
+    if record["state"] == "failed":  # refused in the handler: the new receipt links the run
+        assert record["previous"]["reverted_by"] == "op_undo_last"
+    else:  # refused before the receipt (gate 3t): the reverted run stays as it was
+        assert record["state"] == "committed" and record["reverted_by"] == "op_undo_last"
 
 
 def test_undo_never_reaches_past_the_agents_history(nx):
@@ -127,10 +130,12 @@ def test_checkpoint_restore_undoes_everything_since(nx):
             "checkpoint_id": checkpoint,
             "label": "before b and c",
             "part_id": services(nx).part_key(nx.part),
+            "part": "work.prt",
             "available": True,
             "expired_reason": None,
             "operations_after": 2,
             "compensated": False,
+            "restorable": True,
         }
     ]
     ok = run(nx, "nx_restore_checkpoint", operation_id="op_restore", checkpoint_id=checkpoint)
@@ -158,7 +163,10 @@ def test_undo_drops_checkpoints_after_the_undone_operation(nx):
     delete(nx, a, "op_delete_a")
     late = run(nx, "nx_create_checkpoint").data["checkpoint_id"]
     assert run(nx, "nx_undo_operation").ok
-    rows = {r["checkpoint_id"]: r for r in run(nx, "nx_list_checkpoints").data["checkpoints"]}
+    rows = {
+        r["checkpoint_id"]: r
+        for r in run(nx, "nx_list_checkpoints", include_expired=True).data["checkpoints"]
+    }
     assert rows[early]["available"] is True and rows[early]["expired_reason"] is None
     assert rows[late]["available"] is False and rows[late]["expired_reason"] == "undone_past"
     refused = run(nx, "nx_restore_checkpoint", checkpoint_id=late)
@@ -274,7 +282,10 @@ def test_restore_by_label_takes_the_newest_restorable_checkpoint(nx):
     assert ok.data["checkpoint_id"] == second and ok.data["reverted"] == []
     ok = run(nx, "nx_restore_checkpoint", checkpoint_id=first)
     assert ok.ok and ok.data["reverted"] == ["op_del_a"] and len(names(nx)) == 3
-    rows = {r["checkpoint_id"]: r for r in run(nx, "nx_list_checkpoints").data["checkpoints"]}
+    rows = {
+        r["checkpoint_id"]: r
+        for r in run(nx, "nx_list_checkpoints", include_expired=True).data["checkpoints"]
+    }
     assert rows[second]["expired_reason"] == "undone_past"
     assert rows[first]["available"] is True
     ok = run(nx, "nx_restore_checkpoint", checkpoint_id="before cuts")  # only first is live

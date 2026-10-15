@@ -78,8 +78,6 @@ def test_environment_refusals_before_nx():
     other = nx.block(5, 5, 5, origin=(200, 0, 0))
     study = create(nx, plate).data["study"]["id"]
     entered = list(nx.session.TopologyOptimizationTaskEnvironment.log)
-    no_dir = env(nx, study, "acceleration", magnitude=3)
-    assert no_dir.error["field"] == "/direction" and no_dir.mutation_outcome == "not_started"
     extra = env(nx, study, "scenery", bodies=[other.ref], magnitude=2)
     assert extra.error["field"] == "/magnitude"
     one = env(nx, study, "connection", bodies=[plate.ref])

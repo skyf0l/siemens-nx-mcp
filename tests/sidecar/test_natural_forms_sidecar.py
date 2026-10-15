@@ -30,6 +30,8 @@ ADAPT = schema._Converter()
         (T.Fraction, "at", "50%", 0.5),
         (T.Factor, "scale", "2x", 2.0),
         (float, "zoom", "200%", 2.0),
+        (T.ScalarValue, "factor", "200%", 2.0),
+        (T.ScalarValue, "factor", "x2", "x2"),
         (T.Pose, None, {"axis": "z", "angle": "30deg"}, {"axis": "z", "angle": "30deg"}),
     ],
 )

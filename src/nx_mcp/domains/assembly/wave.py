@@ -31,6 +31,7 @@ from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail, native
+from nx_mcp.core.target import file_name
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import ComponentRef, Doc, FaceRef, Items, Point3, RefTo, Vec3
 from nx_mcp.domains.assembly import common, structure
@@ -204,21 +205,20 @@ def _target(tx):
         if targets:
             first = targets[0]
             hint = (
-                "Keep this assembly displayed and make the target component's part the "
-                f"work part, e.g. nx_activate_part(part='{first['part']}', display=false) "
-                f"for component {first['name'] or first['component']} (details.targets)"
+                "Name the receiving component with target (details.targets lists them), e.g. "
+                f"target='{first['component']}' for {first['name'] or first['component']}; "
+                "or make its part the work part with nx_activate_part(display=false)"
             )
         else:
             hint = (
-                "Display the assembly (nx_activate_part(part=<assembly ref>)), then make "
-                "the target component's part the work part with "
-                "nx_activate_part(part=<target part ref>, display=false)"
+                "Display the assembly (nx_activate_part(part=<assembly ref>)), then name the "
+                "receiving component with target='o:N' (nx_list_components)"
             )
         fail(
             "NX_WRONG_PART_CONTEXT",
-            "A WAVE link goes into the work part, which must be a component part of the "
-            "displayed assembly"
-            + (" (the work part is now the displayed part)" if work_component is None else ""),
+            "Name the component whose part receives the WAVE link with target (the work part "
+            "is not a component part of the displayed assembly)",
+            field="/target",
             hint=hint,
             details={"targets": targets} if targets else None,
         )
@@ -229,13 +229,16 @@ def _is_component(obj):
     return hasattr(obj, "FindOccurrence") and hasattr(obj, "Prototype")
 
 
-def _in_work_part(ref, field):
+def _in_work_part(ref, field, part):
+    """Refuse a source of ``part``, the part that receives the link."""
     fail(
         "NX_INVALID_ARGUMENT",
-        f"{ref} is in the work part; link from another component "
-        "(nx_create_extract copies inside a part)",
+        f"{ref} belongs to {file_name(part)}, the part that receives the link; a part "
+        "cannot WAVE-link its own geometry",
         field=field,
-        hint=CONTEXT_HINT,
+        hint="Link into a component of another part: name it with target, or make its part "
+        "the work part (nx_activate_part, display=false); nx_create_extract copies geometry "
+        "inside one part",
     )
 
 
@@ -317,7 +320,7 @@ def _source(tx, ref, kind, component, field, part):
             fail("NX_WRONG_OWNER", f"{ref} is not shown by the component", field=field)
         return [(obj, owner)]
     if display.same(getattr(obj, "OwningPart", None), part):
-        _in_work_part(ref, field)
+        _in_work_part(ref, field, part)
     if component is None:
         return [_showing(tx, ref, obj, field)]
     if not display.same(getattr(obj, "OwningPart", None), component.Prototype):
@@ -521,7 +524,7 @@ def nx_create_wave_link(
                     fail("NX_INVALID_ARGUMENT", f"{ref} is listed twice", field=field)
                 seen.add(int(occ.Tag))
                 if owner is None or display.same(getattr(owner, "Prototype", None), part):
-                    _in_work_part(ref, field)
+                    _in_work_part(ref, field, part)
                 occurrences.append(occ)
                 owners.append(owner)
                 refs.append(ref)
@@ -698,6 +701,12 @@ def nx_create_extract(
             hint="boundary is for kind 'region' only",
         )
     with tx.checks():
+        for i, ref in enumerate(objects):
+            obj = select.resolve(tx, ref, "body", "face", field=f"/objects/{i}")
+            if getattr(obj, "IsOccurrence", False):
+                fail("NX_WRONG_OWNER", f"{ref} is geometry of a component, not of the work part",
+                     field=f"/objects/{i}", hint="nx_create_wave_link copies a component's "
+                     "geometry into a part; nx_create_extract copies the work part's own")  # fmt: skip
         pick = select.bodies if kind == "body" else select.faces
         values = pick(tx, objects, "/objects")
         if kind == "face":

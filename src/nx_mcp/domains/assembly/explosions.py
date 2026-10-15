@@ -4,7 +4,7 @@ Exploded poses are absolute assembly poses; a placement gives one, or an offset 
 pose the component inherits (assembled, or carried by its exploded parent). Assembled
 poses never change (read back).
 Creating or editing an explosion shows it in the modeling work view unless
-``display=false`` (agents left it assembled after creating it): ``views`` reports
+``display=false`` (a hidden one looks assembled after its creation): ``views`` reports
 where it is shown. While a drawing sheet is open nothing is shown (a note says so):
 ``nx_set_explosion_display`` targets drawing views.
 See ``exploded.py`` for the NX 2406 post-transform and trace-refresh rules.
@@ -61,8 +61,8 @@ class Placement(_PlacementRequired, total=False):
     pose: Annotated[
         Pose,
         Doc(
-            "Instead of offset: absolute exploded pose; axis form: the unrotated part turned "
-            "about origin"
+            "Instead of offset: absolute pose. Axis form turns the part from the absolute "
+            "origin (not its assembled pose)"
         ),
     ]
 
@@ -355,7 +355,8 @@ class GetExplosionData(TypedDict):
     explosion: result.Row
     components: list[ExplodedRow]
     views: list[result.Row]
-    traces: list[result.Row]
+    model_views: list[result.Row]  # every modeling view of the part (model_view refs)
+    traces: list[dict[str, Any]]
     page: dict[str, Any]
 
 
@@ -365,7 +366,14 @@ class GetExplosionData(TypedDict):
     summary=lambda a, say: (
         f"Get explosion {say('explosion')}" if a.get("explosion") else "Get the explosion"
     ),
-    keywords=("explosion info", "exploded poses", "explosion components", "trace lines"),
+    keywords=(
+        "explosion info",
+        "exploded poses",
+        "explosion components",
+        "trace lines",
+        "list explosions",
+        "modeling views",
+    ),  # fmt: skip
     requires=("work_part", "assembly"),
     cost="light",
     example={"explosion": "ex:3"},
@@ -378,8 +386,8 @@ def nx_get_explosion(
     limit: PageLimit = 20,
 ) -> GetExplosionData:
     """Read the exploded and assembled poses of an explosion's components, paged, nested ones
-    included. Also lists the views showing it and its trace lines. Geometry reads stay at
-    assembled positions."""
+    included. Also lists the views showing it, the part's modeling views and its trace lines
+    (ends, edges, offsets). Geometry reads stay at assembled positions."""
     with tx.checks():
         ex = common.explosion(tx, explosion) if explosion is not None else _default(tx)
     selected, page = result.page(list(exploded.tree(ex).values()), offset, limit)
@@ -388,7 +396,8 @@ def nx_get_explosion(
         "explosion": tx.ref(ex, "explosion"),
         "components": [exploded.entry_row(tx, e) for e in selected],
         "views": exploded.views(tx, part, ex),
-        "traces": [tx.ref(line, "traceline") for line in exploded.traces(tx, part, ex)],
+        "model_views": [tx.ref(v, "modeling_view") for v in exploded.modeling_views(part)],
+        "traces": [exploded.trace_row(tx, line, ex) for line in exploded.traces(tx, part, ex)],
         "page": page,
     }
 
@@ -428,7 +437,10 @@ def nx_set_explosion_display(
     *,
     explosion: common.ExplosionId | None = None,
     drawing_view: DrawingViewRef | None = None,
-    model_view: Annotated[str, RefTo("modeling_view", doc="Modeling view 'mv:N'")] | None = None,
+    model_view: Annotated[
+        str, RefTo("modeling_view", doc="Modeling view 'mv:N' (nx_get_explosion model_views)")
+    ]
+    | None = None,
 ) -> DisplayData:
     """Show an explosion in a view, or the assembled (unexploded) state when explosion is
     omitted. The view is the modeling work view unless drawing_view or model_view names one;

@@ -150,3 +150,29 @@ def test_refit_face_refusals_before_nx(kind, args, field):
     bad = run(nx, "nx_create_refit_face", face=f.ref, **args)
     assert bad.error["field"] == field, bad
     assert not nx.builders
+
+
+def test_refit_face_reports_an_unchanged_face_and_a_changed_area():
+    nx, f = refit_nx()
+    ok = run(nx, "nx_create_refit_face", face=f.ref, tolerance=0.5)
+    assert ok.ok, ok.error
+    assert ok.data["area_before"] == pytest.approx(1000.0) and ok.data["changed"] is False
+    assert [w["code"] for w in ok.warnings] == ["NX_NOTE"]
+    assert "before" not in ok.data and "after" not in ok.data
+
+    def smoother(_b):
+        f.area = 999.0
+        return made(nx, "REFIT_SURFACE", [f.GetBody()])
+
+    nx.on_commit("RefitFaceBuilder", smoother)
+    simpler = run(nx, "nx_create_refit_face", face=f.ref, tolerance=0.5)
+    assert simpler.ok, simpler.error
+    assert simpler.data["area_before"] == pytest.approx(1000.0)
+    assert simpler.data["changed"] is True and not simpler.warnings
+
+
+def test_refit_face_moved_within_tolerance_is_changed():
+    nx, f = refit_nx(shift=0.005)
+    ok = run(nx, "nx_create_refit_face", face=f.ref, tolerance=0.01)
+    assert ok.ok, ok.error
+    assert ok.data["deviation"] == pytest.approx(0.005) and ok.data["changed"] is True

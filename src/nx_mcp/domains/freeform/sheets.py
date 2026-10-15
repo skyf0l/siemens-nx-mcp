@@ -20,10 +20,20 @@ from typing import Annotated, Literal
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import BodyRef, CurveRef, Doc, FaceRef, Items, Length, Point3, Vec3
-from nx_mcp.domains.freeform import common
+from nx_mcp.core.types import (
+    BodyRef,
+    Combine,
+    Doc,
+    FaceRef,
+    Items,
+    Length,
+    Point3,
+    RefTo,
+    Vec3,
+)
+from nx_mcp.domains.freeform import common, surface_loops
+from nx_mcp.kit import args, builders, curve, facts, geom, measure, readback, select, units
 from nx_mcp.kit import bodies as kbodies
-from nx_mcp.kit import builders, curve, geom, measure, readback, select, units
 
 # ---------------------------------------------------------------------------
 # Sew
@@ -32,6 +42,8 @@ from nx_mcp.kit import builders, curve, geom, measure, readback, select, units
 class SewData(common.SheetData):
     solid: bool
     volume: float | None
+    free_edges: int  # open boundary edges left on the result (0: closed)
+    closed: bool  # no open edge left (a closed sheet or a solid)
 
 
 def _sew_gaps(tx, body, others, refs):
@@ -82,7 +94,8 @@ def nx_create_sew(
     solid: Annotated[bool, Doc("Require a closed solid result")] = False,
 ) -> SewData:
     """Sew edge-sharing sheet bodies into the target sheet (tools are consumed). solid=true
-    requires a closed solid. Failures report each tool's gap in details.gaps."""
+    requires a closed solid. Returns free_edges and closed (a closed sheet: sew with solid
+    true for a solid). Failures report each tool's gap in details.gaps."""
     if target in tools:
         fail("NX_INVALID_ARGUMENT", "target cannot also be a tool", field="/tools")
     with tx.checks():
@@ -127,7 +140,11 @@ def nx_create_sew(
     volume = measure.volume(tx, bodies) if closed else None
     if volume is not None:
         readback.expect(volume > 0, "volume", "The sewn solid has no volume", volume=volume)
-    return {**out, "solid": closed, "volume": volume}
+    free = len(surface_loops.free_edges(bodies))
+    if not closed and free == 0:
+        tx.warn("NX_NOTE", "The sewn sheet is closed (no free edge): sew again with solid "
+                "true for a solid body")  # fmt: skip
+    return {**out, "solid": closed, "volume": volume, "free_edges": free, "closed": free == 0}
 
 
 # ---------------------------------------------------------------------------
@@ -137,6 +154,28 @@ def nx_create_sew(
 class ThickenData(common.SheetData):
     volume: float
     side: Literal["along_normal", "against_normal", "both_sides"]
+    volume_before: float | None  # combine: the targets' volume before
+
+
+# NX 2406 "Tool body completely outside target body.": the thickened solid misses a target.
+OUTSIDE_TARGET = 670030
+GROWS = {"unite": 1.0, "subtract": -1.0, "intersect": -1.0}
+
+
+def _targets(tx, combine):
+    """The solid target bodies of ``combine`` (``[]`` without it)."""
+    if combine is None:
+        return []
+    refs = combine["targets"]
+    if combine["operation"] == "unite" and len(refs) > 1:
+        fail("NX_INVALID_ARGUMENT", "unite takes one target body", field="/combine/targets",
+             hint="Unite the targets first (nx_create_boolean), then pass the result")  # fmt: skip
+    found = select.bodies(tx, refs, "/combine/targets")
+    for i, body in enumerate(found):
+        if common.is_sheet(body):
+            fail("NX_WRONG_GEOMETRY", "combine targets must be solid bodies",
+                 field=f"/combine/targets/{i}")  # fmt: skip
+    return found
 
 
 def _side(first, second):
@@ -187,10 +226,12 @@ def nx_create_thicken(
     thickness: Length | None = None,
     offset1: Length | None = None,
     offset2: Length | None = None,
+    combine: Annotated[Combine, Doc("Unite, subtract or intersect with solids; default new")]
+    | None = None,
 ) -> ThickenData:
     """Thicken sheet faces into a solid. thickness t means offset1=t, offset2=0; offsets
     are signed along the face normal (1 and -1: 2 thick, centred). side says where it
-    went."""
+    went. combine merges it with target solids in the same feature (volume_before: theirs)."""
     first, second = _offsets(thickness, offset1, offset2)
     if geom.close(first, second, 1e-9):
         field = "/thickness" if thickness is not None else "/offset2"
@@ -198,29 +239,46 @@ def nx_create_thicken(
     with tx.checks():
         selected = select.faces(tx, faces, "/faces")
         of_solid = sum(hasattr(f, "GetBody") and not common.is_sheet(f.GetBody()) for f in selected)
+        targets = _targets(tx, combine)
     part = tx.part
+    before = measure.volume(tx, targets) if targets else None
     with builders.build(tx, part.Features.CreateThickenBuilder, None) as b:
         builders.fill(tx, b.FaceCollector, selected, "Face")
         b.Tolerance = units.part_tolerance(tx)
         b.FirstOffset.RightHandSide = repr(first)
         b.SecondOffset.RightHandSide = repr(second)
-        feature = b.commit(validate=True)
-    out = common.result_of(tx, feature)
+        builders.boolean(tx, b.BooleanOperation, combine)
+        try:
+            feature = b.commit(validate=True)
+        except NXError as error:
+            if error.nx_code == OUTSIDE_TARGET:
+                error.field = "/combine/targets"
+                error.hint = "The thickened solid misses a target body: drop it from targets"
+            raise
     bodies = [b for b in common.feature_bodies(feature) if not common.is_sheet(b)]
+    if not bodies and targets:  # a combined feature may list no body: the targets changed
+        live = {int(x.Tag) for x in part.Bodies}
+        bodies = [t for t in targets if int(t.Tag) in live]
     readback.expect(bool(bodies), "solid", "NX built no solid")
+    out = common.result_of(tx, feature, bodies)
     kbodies.expect_sound(tx, bodies)
     note = kbodies.scale_note(tx, bodies)
     if note:
         tx.warn("NX_UPDATE_WARNING", note)
-    if of_solid:
+    if of_solid and combine is None:
         tx.warn("NX_NOTE", f"{of_solid} face(s) belong to a solid: the thickened solid is a "
-                "new body and the source solid is unchanged")  # fmt: skip
+                "new body and the source solid is unchanged (combine unites it)")  # fmt: skip
     volume = measure.volume(tx, bodies)
     readback.expect(volume > 0, "volume", "The thickened solid has no volume", volume=volume)
-    if len(selected) == 1 and select.face_data(tx, selected[0])[0] == select.FACE_PLANE:
+    if combine is not None and before is not None:
+        grew = GROWS[combine["operation"]] * (volume - before)
+        readback.expect(grew > 1e-6 * max(1.0, before),
+                        "combine", f"The {combine['operation']} left the targets unchanged",
+                        volume=volume, volume_before=before)  # fmt: skip
+    elif len(selected) == 1 and select.face_data(tx, selected[0])[0] == select.FACE_PLANE:
         wanted = measure.area(tx, selected) * abs(first - second)
         readback.expect_close(volume, wanted, "volume", tol=1e-6 * max(1.0, wanted))
-    return {**out, "volume": volume, "side": _side(first, second)}
+    return {**out, "volume": volume, "side": _side(first, second), "volume_before": before}
 
 
 # ---------------------------------------------------------------------------
@@ -246,6 +304,10 @@ def _trim_failure(tx, error, target, curves, refs, region_gap, vector):
             f"Projected {how}, the boundaries must split the sheet (cross it edge to edge "
             "or form a closed loop on it) and region_point must lie in one of the regions"
         )
+    if region_gap is not None and region_gap > tol:
+        error.field = "/region_point"
+    elif off:
+        error.field = f"/boundaries/{refs.index(off[0]['boundary'])}"
     return common.explain(
         error,
         hint,
@@ -253,6 +315,37 @@ def _trim_failure(tx, error, target, curves, refs, region_gap, vector):
         boundary_gaps=gaps,
         projection="vector" if vector is not None else "face_normal",
     )
+
+
+BoundaryRef = Annotated[
+    str,
+    RefTo("curve", "edge", "face", "datum_plane", "body",
+          doc="Curve, edge, face, datum plane or sheet body 'c:5'/'e:7'/'fc:9'/'d:2'/'b:4'"),
+]  # fmt: skip
+
+
+def _boundaries(tx, refs, target):
+    """``(objects, strings, faces, planes)``: the boundary objects resolved, then grouped
+    into curves and edges (one section), faces and bodies (their faces, one collector) and
+    datum planes."""
+    args.distinct("/boundaries", refs, "boundaries")
+    objs, strings, faces, planes = [], [], [], []
+    for i, ref in enumerate(refs):
+        field = f"/boundaries/{i}"
+        obj = select.one(tx, ref, "curve", "edge", "face", "datum_plane", "body", field=field)
+        objs.append(obj)
+        if facts.is_edge(obj) or not (hasattr(obj, "GetFaces") or hasattr(obj, "GetBody")):
+            if hasattr(obj, "Normal") and hasattr(obj, "Origin"):
+                planes.append(obj)
+            else:
+                strings.append(obj)
+        elif hasattr(obj, "GetBody"):
+            faces.append(obj)
+        else:
+            if int(obj.Tag) == int(target.Tag):
+                fail("NX_INVALID_ARGUMENT", "The sheet cannot trim itself", field=field)
+            faces.extend(obj.GetFaces())
+    return objs, strings, faces, planes
 
 
 @tool(
@@ -272,18 +365,20 @@ def nx_create_trim_sheet(
     tx: Tx,
     *,
     body: BodyRef,
-    boundaries: Annotated[list[CurveRef], Items(1, 100)],
+    boundaries: Annotated[
+        list[BoundaryRef], Items(1, 100), Doc("Curves, edges, faces, datum planes or sheets")
+    ],
     region_point: Annotated[Point3, Doc("A point on the region to keep or discard")],
     keep: Annotated[bool, Doc("false: discard the region")] = True,
     direction: Annotated[Vec3, Doc("Project boundaries along this vector")] | None = None,
 ) -> common.SheetData:
-    """Trim a sheet body with boundary curves, keeping or discarding the region at
-    region_point. Boundaries project along the face normals, or along direction (e.g.
-    [0,0,1] for curves off a curved sheet)."""
+    """Trim a sheet body by curves, edges, faces, datum planes or sheets, keeping or
+    discarding the region at region_point. Curves project along the face normals, or along
+    direction (e.g. [0,0,1] for curves off a curved sheet)."""
     given = [float(v) for v in region_point]
     with tx.checks():
         target = common.sheet(tx, body)
-        curves = select.curves(tx, boundaries, "/boundaries")
+        curves, strings, faces, planes = _boundaries(tx, boundaries, target)
         vector = None if direction is None else geom.unit(direction, "/direction")
     region_gap, point = curve.point_distance(tx, target, given)
     low, high = measure.bounds(tx, target)
@@ -292,7 +387,14 @@ def nx_create_trim_sheet(
     try:
         with builders.build(tx, part.Features.CreateTrimsheetBuilder, None) as b:
             b.TargetBodies.Add(target)
-            b.BoundaryObjects.Add(builders.curve_section(tx, curves))
+            if strings:
+                b.BoundaryObjects.Add(builders.curve_section(tx, strings))
+            if faces:
+                b.BoundaryObjects.Add(builders.collector(tx, faces, "Face"))
+            if planes:  # a datum plane added on its own is "Invalid trimming objects"
+                datums = part.ScCollectors.CreateCollector()
+                datums.ReplaceRules([part.ScRuleFactory.CreateRuleFaceDatum(planes)], False)
+                b.BoundaryObjects.Add(datums)
             if vector is not None:
                 projection = b.ProjectionDirection
                 methods = tx.nx.GeometricUtilities.ProjectionOptions.DirectionType

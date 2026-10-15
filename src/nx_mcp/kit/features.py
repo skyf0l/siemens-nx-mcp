@@ -59,6 +59,16 @@ MESSAGE_READERS = {
 }
 
 
+def diagnostics(tx, part=None) -> dict:
+    """``{tag: (feature, frozenset((kind, message)))}`` of the user-visible features of
+    ``part`` (default the work part) that report errors or warnings: the same reading the
+    kernel compares before and after every model call (new ones become call warnings).
+    ``{}`` where NX cannot say."""
+    from nx_mcp.core.kernel import feature_alerts
+
+    return feature_alerts(tx.services, part if part is not None else tx.part) or {}
+
+
 def alerts(feature, kinds=("warning",)) -> list[str]:
     """NX's own alerts on a committed ``feature``, of ``kinds`` (``error``, ``warning``,
     ``information``), in order without repeats; ``[]`` where NX cannot say.
@@ -67,15 +77,10 @@ def alerts(feature, kinds=("warning",)) -> list[str]:
     with several tools, one of which only touches the target, commits with "One or more
     tools did not intersect the target." (the tool is consumed all the same). Reading
     never raises: a tool reports these alerts as result warnings."""
+    from nx_mcp.core.kernel import feature_messages
+
     out: list[str] = []
-    for kind in kinds:
-        read = getattr(feature, MESSAGE_READERS[kind], None)
-        try:
-            messages = list(read() or []) if callable(read) else []
-        except Exception:  # a feature NX cannot answer for has no alerts to report
-            messages = []
-        for message in messages:
-            text = str(message).strip()
-            if text and text not in out:
-                out.append(text)
+    for _kind, text in feature_messages(feature, tuple(kinds)):
+        if text not in out:
+            out.append(text)
     return out

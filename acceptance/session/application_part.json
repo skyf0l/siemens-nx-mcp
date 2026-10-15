@@ -26,6 +26,10 @@
   {"call": "nx_activate_application", "args": {"application": "modeling", "part": "ap_front"},
    "intent": "Acceptance: part naming the displayed part acts there as before",
    "expect": {"ok": true, "data.application": "modeling", "data.previous": "modeling", "data.changed": false,
+              "part.file": "ap_front.prt"}},
+  {"call": "nx_activate_application", "args": {"application": "modeling"},
+   "intent": "Acceptance: without part the agent's displayed part is the target (two parts loaded, no ambiguity)",
+   "expect": {"ok": true, "data.application": "modeling", "data.changed": false,
               "part.file": "ap_front.prt"}}
  ]
 }

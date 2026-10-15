@@ -374,6 +374,43 @@
    }
   },
   {
+   "call": "nx_create_law_curve",
+   "intent": "z ramps from 3 to 3: every law is constant, refused before NX",
+   "args": {
+    "x": 5,
+    "y": "10 mm",
+    "z": {
+     "start": 3,
+     "end": 3
+    }
+   },
+   "expect": {
+    "ok": false,
+    "error.field": "/z",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_law_curve",
+   "intent": "A formula without t makes a point: refused and rolled back",
+   "args": {
+    "x": {
+     "formula": "5"
+    },
+    "y": 10
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/x/formula",
+    "error.details.length": {
+     "close": 0,
+     "tol": 0.01
+    },
+    "mutation_outcome": "rolled_back"
+   }
+  },
+  {
    "call": "nx_check_model",
    "args": {},
    "expect": {

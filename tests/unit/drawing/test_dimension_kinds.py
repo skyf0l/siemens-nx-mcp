@@ -442,14 +442,15 @@ def test_fit_request_refusals_happen_before_nx():
         ({"type": "fit"}, "invalid_argument", "/tolerance/hole"),
         ({"type": "fit", "hole": "H7", "upper": 0.1}, "invalid_argument", "/tolerance/upper"),
         ({"type": "bilateral", "shaft": "g6"}, "invalid_argument", "/tolerance/shaft"),
-        ({"type": "fit", "hole": "Z7"}, "unsupported", "/tolerance/hole"),
+        ({"type": "fit", "hole": "Z7"}, "invalid_argument", "/tolerance/hole"),
         ({"type": "fit", "hole": "7h"}, "invalid_argument", "/tolerance/hole"),
-        ({"type": "fit", "shaft": "r6"}, "unsupported", "/tolerance/shaft"),
+        ({"type": "fit", "shaft": "r6"}, "invalid_argument", "/tolerance/shaft"),
     ]
     for tolerance, category, field in cases:
         result = run(nx, "nx_edit_dimension", dimension=ref, tolerance=tolerance)
         assert result.error["category"] == category, (tolerance, result.error)
         assert result.error["field"] == field and result.mutation_outcome == "not_started"
+        assert result.error["retry"] == "after_fix", result.error
     inch = run(nx, "nx_edit_dimension", dimension=ref, format={"units": "in"},
                tolerance={"type": "fit", "hole": "H7"})  # fmt: skip
     assert inch.error["field"] == "/tolerance/type" and inch.mutation_outcome == "not_started"

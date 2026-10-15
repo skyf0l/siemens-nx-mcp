@@ -101,8 +101,9 @@ def nx_analyze_topology_study(tx: Tx, *, study: FeatureRef) -> AnalysisData:
         full = common.mass_of(design)
         with native():
             common.cover_subcases(current)
-            if full:
-                common.drive(tx, common.mass_expressions(active)[-1], KEEP * full, "mass")
+            target = common.target_expression(active)
+            if full and target is not None:
+                common.drive(tx, target, KEEP * full, "mass")
             current.RunOptimization()
             current.RetrieveOptimizationResults()
             bodies = list(current.GetOptimizedBodies() or [])

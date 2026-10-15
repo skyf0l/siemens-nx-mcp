@@ -194,7 +194,11 @@ def _component_rows(tx, comps) -> list:
 
 
 def _public(info) -> dict:
-    return {k: v for k, v in info.items() if not k.startswith("_")}
+    return {
+        k: common.tidy(v) if isinstance(v, float) else v
+        for k, v in info.items()
+        if not k.startswith("_")
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -216,8 +220,10 @@ def _layout(tx, layout):
         if any(second) and not all(second):
             fail("NX_INVALID_ARGUMENT", "A second direction needs direction2, count2 and spacing2",
                  field="/layout/linear")  # fmt: skip
-        if lin["spacing"] <= 0 or (all(second) and lin["spacing2"] <= 0):
-            fail("NX_INVALID_ARGUMENT", "Spacing must be positive", field="/layout/linear")
+        for key in ("spacing", "spacing2") if all(second) else ("spacing",):
+            if lin[key] <= 0:
+                fail("NX_INVALID_ARGUMENT", f"{key} must be positive",
+                     field=f"/layout/linear/{key}")  # fmt: skip
         out = {
             "kind": "linear",
             "count": int(lin["count"]),

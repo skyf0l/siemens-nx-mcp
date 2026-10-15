@@ -167,14 +167,23 @@ def test_an_omitted_sheet_is_the_open_or_only_sheet():
 def test_a_view_type_names_everything_it_still_needs_at_once():
     nx = views_nx()
     parent = make_view(nx, nx.sheet_obj, pos=(120, 200))
+
+    def missing(result):
+        assert result.mutation_outcome == "not_started"
+        return [e["field"] for e in result.error["details"].get("errors", [result.error])]
+
     bad = run(nx, "nx_create_drawing_view", type="section", parent=parent.ref)
-    assert bad.error["message"] == "A section view needs arrow_direction, position, cut"
-    assert bad.error["field"] == "/arrow_direction" and "cut_point" in bad.error["hint"]
+    assert missing(bad) == ["/cut"]  # gate 1: the variant's own fields (required_by)
+    edge = line_edge(nx, (0, 0, 20), (80, 0, 20))
+    rest = run(nx, "nx_create_drawing_view", type="section", parent=parent.ref, cut=edge.ref)
+    assert rest.error["field"] == "/arrow_direction" and "position" in rest.error["message"]
     stepped = run(nx, "nx_create_drawing_view", type="stepped_section", parent=parent.ref,
                   arrow_direction=[0, 1], position=[300, 100])  # fmt: skip
-    assert stepped.error["message"] == "A stepped section view needs cuts"
+    assert missing(stepped) == ["/cuts"]
     detail = run(nx, "nx_create_drawing_view", type="detail")
-    assert detail.error["message"] == "A detail view needs parent, center, radius, position"
+    assert missing(detail) == ["/center"]
+    projected = run(nx, "nx_create_drawing_view", type="projected", parent=parent.ref)
+    assert projected.error["field"] == "/orientation" and "direction" in projected.error["hint"]
 
 
 def test_projected_view_off_the_sheet_is_refused_before_nx():
@@ -222,7 +231,7 @@ def test_section_cut_rules_are_checked_before_nx():
 
 def test_edit_reports_an_aligned_axis_and_reads_back_scale_and_position():
     nx = views_nx()
-    view = make_view(nx, nx.sheet_obj, pos=(120, 200), native="ProjectedView", locked=1)
+    view = make_view(nx, nx.sheet_obj, pos=(120, 200), native="SectionView", locked=1)
     ok = run(nx, "nx_edit_drawing_view", view=view.ref, position=[150, 200], scale=1.5)
     assert ok.ok, ok
     assert ok.data["position"] == [150.0, 200.0] and ok.data["scale"] == 1.5
@@ -305,7 +314,7 @@ def test_edit_reports_style_spill_to_derived_views():
         return b
 
     nx.part.SettingsManager.CreateDrawingEditViewSettingsBuilder = spilling
-    styled = run(nx, "nx_edit_drawing_view", view=parent.ref, style={"hidden_font": 0})
+    styled = run(nx, "nx_edit_drawing_view", view=parent.ref, style={"hidden_font": "invisible"})
     assert styled.ok, styled
     spill = [w["message"] for w in styled.warnings if "also changed" in w["message"]]
     assert spill and "visible_font" in spill[0] and made.data["view"]["id"] in spill[0]
@@ -334,7 +343,73 @@ def test_rescaling_a_projected_view_that_keeps_its_parent_scale_points_at_the_pa
 
     nx.uf.Draw.SetViewScale = inherited
     bad = run(nx, "nx_edit_drawing_view", view=made.data["view"]["id"], scale="1:2")
-    assert bad.error["code"] == "NX_VERIFICATION_FAILED" and bad.mutation_outcome == "rolled_back"
-    assert "follows its parent's scale" in bad.error["message"]
+    assert bad.error["code"] == "NX_UNSUPPORTED_OPTION" and bad.mutation_outcome == "not_started"
+    assert "keeps its parent's scale" in bad.error["message"] and bad.error["field"] == "/scale"
     assert "Rescale the parent view" in bad.error["hint"]
     assert bad.error["details"]["parent"]["id"] == parent.ref
+    assert child.scale == 1.0  # NX was never asked
+
+
+def test_each_view_type_schema_requires_its_own_fields():
+    from nx_mcp.core import catalogue
+    from nx_mcp.sidecar import schema
+
+    spec = catalogue.get("nx_create_drawing_view")
+    needs = {
+        "section": {"cut"},  # parent, arrow_direction, position: refused by the tool
+        "half_section": {"cut"},
+        "revolved_section": {"cuts"},
+        "detail": {"center"},
+        "auxiliary": {"hinge"},
+        "broken": {"breaks"},
+        "break_out": {"center"},
+    }
+    for variant, fields in needs.items():
+        assert fields <= set(schema.variant_schema(spec, variant)["required"]), variant
+
+
+def test_a_multi_body_part_is_refused_with_its_body_count_and_a_way_out():
+    nx = views_nx()
+    second = nx.block(10, 10, 10)
+    bad = run(nx, "nx_create_drawing_view", type="base", orientation="top")
+    assert bad.error["code"] == "NX_UNSUPPORTED_OPTION" and bad.error["field"] == "/type"
+    assert "2" in bad.error["message"] and "nx_create_wave_link" in bad.error["hint"]
+    with_body = run(nx, "nx_create_drawing_view", type="base", orientation="top",
+                    body=nx.ref_of(second, "body"))  # fmt: skip
+    assert with_body.error["field"] == "/body" and "several" in with_body.error["message"]
+    assert with_body.mutation_outcome == "not_started"
+
+
+def test_line_fonts_are_names_both_ways():
+    from nx_mcp.domains.drawing import style
+
+    assert style.font_name(2) == "dashed" and style.font_name(0) == "invisible"
+    assert style.font_name("phantom") == "phantom" and style.font_name(9) == 9
+    nx = views_nx()
+    view = make_view(nx, nx.sheet_obj, pos=(120, 200))
+    ok = run(nx, "nx_edit_drawing_view", view=view.ref, style={"hidden_font": "phantom"})
+    assert ok.ok and ok.data["style"]["hidden_font"] == "phantom", ok
+    assert ok.data["style"]["visible_font"] == "solid"
+    for bad in ({"hidden_font": 2}, {"visible_font": "invisible"}, {"hidden_font": "wavy"}):
+        refused = run(nx, "nx_edit_drawing_view", view=view.ref, style=bad)
+        assert refused.error["category"] == "invalid_argument" and refused.mutation_outcome == (
+            "not_started"
+        ), bad
+
+
+def test_a_rescaled_free_view_keeps_its_border_centre_both_ways():
+    nx = views_nx()
+    view = make_view(nx, nx.sheet_obj, pos=(120, 200))
+
+    def set_scale(tag, s):  # NX keeps another point than the centre: the view drifts
+        v = nx.views[int(tag)]
+        v.pos[0] += 7.0 * (float(s) - v.scale)
+        v.scale = float(s)
+
+    nx.uf.Draw.SetViewScale = set_scale
+    before = run(nx, "nx_get_drawing_view", view=view.ref).data["center"]
+    up = run(nx, "nx_edit_drawing_view", view=view.ref, scale=2)
+    assert up.ok and up.data["center"] == pytest.approx(before), up
+    down = run(nx, "nx_edit_drawing_view", view=view.ref, scale=1)
+    assert down.ok and down.data["center"] == pytest.approx(before)
+    assert down.data["position"] == pytest.approx([120, 200])

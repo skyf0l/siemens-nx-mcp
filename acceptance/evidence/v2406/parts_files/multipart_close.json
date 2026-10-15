@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/multipart_close.json",
-  "scenario_sha256": "ffc271ff352caaf4bedff36eee1719f8b572e34d54572324e5e12382cef7effe",
+  "scenario_sha256": "5f4049a9117c36944c22750090dc4004818b8cc500ab60a1e5f1da7689645dc8",
   "domain": "parts_files",
   "covers": {
     "nx_close_part": [],
@@ -11,13 +11,13 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_close_part": "695386257ac06d11cc0cf699d94cf17ff5661803f1056a616d9bab2566c2462e",
-    "nx_activate_part": "695386257ac06d11cc0cf699d94cf17ff5661803f1056a616d9bab2566c2462e",
-    "nx_save_part": "695386257ac06d11cc0cf699d94cf17ff5661803f1056a616d9bab2566c2462e"
+    "nx_close_part": "2ac3280b33b70c05d36d7ba2a7a58adec9d42ab1f4674607af14c8dd4873587c",
+    "nx_activate_part": "2ac3280b33b70c05d36d7ba2a7a58adec9d42ab1f4674607af14c8dd4873587c",
+    "nx_save_part": "2ac3280b33b70c05d36d7ba2a7a58adec9d42ab1f4674607af14c8dd4873587c"
   },
-  "recorded": "2026-10-14T13:46:03Z",
+  "recorded": "2026-10-15T12:02:13Z",
   "passed": true,
-  "checks": 72,
+  "checks": 73,
   "failed_checks": 0,
   "steps": [
     {
@@ -197,49 +197,49 @@
     },
     {
       "index": 26,
-      "call": "nx_save_part",
-      "setup": false,
+      "call": "nx_set_attributes",
+      "setup": true,
       "passed": true,
-      "checks": 2
+      "checks": 0
     },
     {
       "index": 27,
       "call": "nx_save_part",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 2
     },
     {
       "index": 28,
+      "call": "nx_save_part",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 29,
       "call": "nx_close_part",
       "setup": false,
       "passed": true,
       "checks": 7
     },
     {
-      "index": 29,
+      "index": 30,
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 30,
+      "index": 31,
       "call": "engineer",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 31,
-      "call": "nx_activate_part",
-      "setup": false,
-      "passed": true,
-      "checks": 4
-    },
-    {
       "index": 32,
-      "call": "nx_save_part",
+      "call": "nx_activate_part",
       "setup": false,
       "passed": true,
       "checks": 4
@@ -249,35 +249,35 @@
       "call": "nx_save_part",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 4
     },
     {
       "index": 34,
+      "call": "nx_save_part",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 35,
       "call": "nx_create_part",
       "setup": false,
       "passed": true,
       "checks": 6
     },
     {
-      "index": 35,
+      "index": 36,
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 36,
+      "index": 37,
       "call": "nx_create_part",
       "setup": false,
       "passed": true,
       "checks": 5
-    },
-    {
-      "index": 37,
-      "call": "nx_close_part",
-      "setup": true,
-      "passed": true,
-      "checks": 0
     },
     {
       "index": 38,
@@ -288,34 +288,41 @@
     },
     {
       "index": 39,
-      "call": "nx_create_part",
+      "call": "nx_close_part",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 40,
-      "call": "nx_create_sketch",
+      "call": "nx_create_part",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 41,
-      "call": "nx_create_sheet_metal_feature",
+      "call": "nx_create_sketch",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
       "index": 42,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 43,
       "call": "nx_close_part",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 43,
+      "index": 44,
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,

@@ -262,12 +262,12 @@
    "expect": {
     "error.category": "invalid_argument",
     "mutation_outcome": "not_started",
-    "error.field": "/arrow_direction",
+    "error.field": "/cut",
     "error.message": {
-     "contains": "arrow_direction, position, cut"
+     "contains": "required when type is 'section'"
     },
     "error.hint": {
-     "contains": "cut_point"
+     "contains": "nx_create_drawing_view#section"
     }
    }
   },
@@ -344,9 +344,10 @@
      "count": 3
     },
     "changes.modified": {
-     "count": 3
+     "count": 4
     }
-   }
+   },
+   "intent": "Acceptance: the rescaled view and the 3 projected views that followed are reported modified"
   },
   {
    "call": "nx_get_drawing_view",
@@ -363,8 +364,8 @@
      "matches": "^v:"
     },
     "data.construction_geometry": false,
-    "data.style.visible_font": 0,
-    "data.style.hidden_font": 0
+    "data.style.visible_font": "invisible",
+    "data.style.hidden_font": "invisible"
    }
   },
   {
@@ -372,12 +373,12 @@
    "args": {
     "view": "$top.data.view.id",
     "style": {
-     "hidden_font": 0
+     "hidden_font": "invisible"
     }
    },
    "expect": {
     "mutation_outcome": "committed",
-    "data.style.hidden_font": 0
+    "data.style.hidden_font": "invisible"
    }
   },
   {
@@ -386,8 +387,8 @@
     "view": "$below.data.view.id"
    },
    "expect": {
-    "data.style.visible_font": 0,
-    "data.style.hidden_font": 0
+    "data.style.visible_font": "invisible",
+    "data.style.hidden_font": "invisible"
    }
   },
   {

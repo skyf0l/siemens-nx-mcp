@@ -515,6 +515,66 @@
    }
   },
   {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$rad.data.dimension.id",
+    "appended": {
+     "before": "2X",
+     "after": "TYP"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.appended.before": [
+     "2X"
+    ],
+    "data.appended.after": [
+     "TYP"
+    ],
+    "data.display": {
+     "matches": "^2X R.*TYP$"
+    },
+    "data.value": {
+     "close": 8,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_edit_dimension",
+   "args": {
+    "dimension": "$rad.data.dimension.id",
+    "appended": {
+     "before": ""
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.appended": {
+     "count": 1
+    },
+    "data.appended.after": [
+     "TYP"
+    ]
+   }
+  },
+  {
+   "call": "nx_edit_annotation",
+   "args": {
+    "annotation": "$rad.data.dimension.id",
+    "text": [
+     "8 REF"
+    ]
+   },
+   "expect": {
+    "error.field": "/text",
+    "error.hint": {
+     "contains": "nx_edit_dimension appended"
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
    "call": "nx_close_part",
    "setup": true,
    "args": {

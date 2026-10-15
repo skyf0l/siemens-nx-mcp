@@ -297,6 +297,40 @@ def test_clone_refuses_an_assembly_nx_cannot_load(nx, root):
     )
 
 
+def test_clone_of_part_family_members_points_to_zip(nx, root):
+    from types import SimpleNamespace as NS
+
+    _asm, blk, _plate = saved_assembly(nx)
+    nx.uf.Part = NS(IsFamilyInstance=lambda tag: tag == blk.Tag)
+    nx.uf.Clone.AddAssembly = lambda path: (NS(Failed=True, FileNames=["blk"], Statuses=[7]),)
+    bad = call(nx, assembly.nx_export_assembly, part="asm", path="c", format="clone", prefix="S_")
+    assert bad.error["code"] == "NX_UNSUPPORTED_OPTION" and bad.error["field"] == "/format", bad
+    assert bad.error["details"]["family_members"] == ["blk.prt"]
+    assert "zip" in bad.error["hint"] and not (root / "c").exists()
+
+
+def test_clone_reopens_the_copy_and_fails_when_a_component_does_not_load(nx, root):
+    from types import SimpleNamespace as NS
+
+    saved_assembly(nx)
+    nx.structure[str((root / "proj/asm.prt").resolve()).casefold()] = [
+        str(root / "proj/parts/blk.prt"), str(root / "proj/parts/plate.prt")
+    ]  # fmt: skip
+    opened = nx.session.Parts.OpenBase
+
+    def open_base(path):
+        part, _status = opened(path)
+        status = NS(NumberUnloadedParts=1, GetPartName=lambda i: "S_blk.prt",
+                    GetStatus=lambda i: 641044, Dispose=lambda: None)  # fmt: skip
+        return part, status
+
+    nx.session.Parts.OpenBase = open_base
+    bad = call(nx, assembly.nx_export_assembly, part="asm", path="c", format="clone", prefix="S_")
+    assert bad.error["code"] == "NX_VERIFICATION_FAILED", bad
+    assert bad.error["details"]["check"] == "clone_components"
+    assert not (root / "c").exists()
+
+
 def test_assembly_format_follows_the_path_and_prefix(nx, root):
     asm, blk, plate = saved_assembly(nx)
     nx.structure[str((root / "proj/asm.prt").resolve()).casefold()] = [
@@ -342,3 +376,49 @@ def test_profile_layer_errors_list_the_refs_of_the_source(nx, root):
     valid = bad.error["details"]["valid"]
     assert valid == [nx.ref_of(c, "curve") for c in sk.geometry]
     assert bad.error["details"]["valid_count"] == 2 and not (root / "s.dxf").exists()
+
+
+def test_profile_approximates_other_curves_within_the_tolerance(nx, root):
+    spline = nx.line((0, 0, 5), (8, 0, 5))
+    nx.curves[spline.Tag] = ("spline", [0, 0, 5], [8, 0, 5])
+    sk = sketch_with(nx, [nx.line((0, 0, 5), (0, 5, 5)), spline])
+    bad = call(nx, profile.nx_export_profile, source=sk.ref, path="s.dxf")
+    assert bad.error["code"] == "NX_UNSUPPORTED_GEOMETRY" and "tolerance" in bad.error["hint"]
+    assert bad.error["retry"] == "after_fix"
+    ok = call(nx, profile.nx_export_profile, source=sk.ref, path="s.dxf", tolerance=0.01)
+    assert ok.ok and ok.data["approximated"] == 1, ok
+    assert ok.data["entity_counts"] == {"LINE": 9}  # the line, the spline as 8 chords
+    assert [w["code"] for w in ok.warnings] == ["NX_APPROXIMATED"]
+
+
+def test_profile_origin_units_overwrite_and_unit_free_frame_axes(nx, root):
+    sk = sketch_with(nx, [nx.line((-40, -20, 5), (40, -20, 5)), nx.arc((0, 0, 5), 10.0)])
+    ok = call(nx, profile.nx_export_profile, source=sk.ref, path="o.dxf", origin="min_corner",
+              units="in")  # fmt: skip
+    assert ok.ok and ok.data["units"] == "in", ok
+    assert ok.data["frame"]["origin"] == pytest.approx([-40, -20, 5])
+    facts = __import__("nx_mcp.domains.parts_files.importing", fromlist=["x"]).dxf_facts(
+        (root / "o.dxf").read_bytes()
+    )
+    assert facts["units"] == "in" and facts["min"] == pytest.approx([0, 0, 0])
+    assert facts["max"] == pytest.approx([80 / 25.4, 30 / 25.4, 0])
+    again = call(nx, profile.nx_export_profile, source=sk.ref, path="o.dxf")
+    assert again.error["code"] == "NX_ALREADY_EXISTS" and again.mutation_outcome == "not_started"
+    assert again.error["details"]["suggested_path"] == "o-2.dxf"
+    replaced = call(nx, profile.nx_export_profile, source=sk.ref, path="o.dxf", overwrite=True,
+                    frame=[[0, 0, 5], [2, 0, 0], [0, 3, 0]])  # fmt: skip
+    assert replaced.ok and replaced.data["replaced"] is True, replaced
+    assert replaced.data["frame"]["x_axis"] == [1.0, 0.0, 0.0]
+    skew = call(nx, profile.nx_export_profile, source=sk.ref, path="p.dxf",
+                frame=[[0, 0, 5], [1, 0, 0], [1, 1, 0]])  # fmt: skip
+    assert "45 deg" in skew.error["message"] and "perpendicular" in skew.error["hint"]
+    off = call(nx, profile.nx_export_profile, source=sk.ref, path="p.dxf",
+               frame=[[0, 0, 15], [1, 0, 0], [0, 1, 0]])  # fmt: skip
+    assert "10 mm off the source plane" in off.error["message"]
+
+
+def test_profile_layer_refs_that_do_not_resolve_name_their_field(nx, root):
+    sk = sketch_with(nx, [nx.line((0, 0, 5), (5, 0, 5))])
+    bad = call(nx, profile.nx_export_profile, source=sk.ref, path="s.dxf",
+               layers=[[nx.ref_of(sk.geometry[0], "curve"), "A"], ["c:999999", "B"]])  # fmt: skip
+    assert bad.error["field"] == "/layers/1/0", bad

@@ -335,6 +335,27 @@
   {
    "call": "nx_set_view_sectioning",
    "args": {
+    "view": "$sec.data.view.id",
+    "objects": [
+     "$blk.data.bodies.0.id"
+    ],
+    "mode": "sectioned"
+   },
+   "intent": "Acceptance: a body asked to be cut is read back in cut by ref",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.cut": {
+     "count": 1
+    },
+    "data.cut.0.id": "$blk.data.bodies.0.id",
+    "warnings": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_set_view_sectioning",
+   "args": {
     "view": "$topv.data.view.id",
     "objects": [
      "$blk.data.bodies.0.id"

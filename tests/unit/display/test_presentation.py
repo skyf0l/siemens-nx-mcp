@@ -123,3 +123,52 @@ def test_not_json_is_refused(saved):
     broken.write_text("{not json", encoding="utf-8")
     bad = run(nx, "nx_restore_display", presentation=str(broken))
     assert bad.error["code"] == "NX_UNSUPPORTED_FILE_TYPE"
+
+
+def test_save_stores_a_workspace_path_and_overwrites_on_request(saved):
+    nx, _body, path, ok = saved
+    nx.part.FullPath = str(services(nx).root / "parts" / "work.prt")
+    again = run(nx, "nx_save_presentation", path=str(path), overwrite=True)
+    assert again.ok and again.data["path"] == "views/review.json", again.error
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["part_path"] == "parts/work.prt"
+    applied = run(nx, "nx_restore_display", presentation=str(path))
+    assert applied.ok, applied.error
+
+
+def test_overwrite_refuses_a_file_that_is_not_a_presentation(saved):
+    nx, _body, path, _ok = saved
+    other = path.with_name("notes.json")
+    other.write_text("{}", encoding="utf-8")
+    bad = run(nx, "nx_save_presentation", path=str(other), overwrite=True)
+    assert bad.error["code"] == "NX_UNSUPPORTED_FILE_TYPE" and bad.mutation_outcome == "not_started"
+
+
+def test_skip_missing_applies_what_is_left(saved):
+    nx, body, path, _ = saved
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["display"][0]["locator"]["journal_id"] = "GONE(9)"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    strict = run(nx, "nx_restore_display", presentation=str(path))
+    assert strict.error["code"] == "NX_STALE_REFERENCE" and "skip_missing" in strict.error["hint"]
+    body.faces[0].Color = 5
+    loose = run(nx, "nx_restore_display", presentation=str(path), skip_missing=True)
+    assert loose.ok, loose.error
+    assert loose.data["count"] == len(data["display"]) - 1
+    assert any("GONE(9)" in w["message"] for w in loose.warnings)
+    alone = run(nx, "nx_restore_display", restore_id="last", skip_missing=True)
+    assert alone.error["field"] == "/skip_missing"
+
+
+def test_a_part_of_the_same_file_name_takes_the_presentation(saved):
+    nx, _body, path, _ = saved
+    data = json.loads(path.read_text(encoding="utf-8"))
+    name = data["part_path"].rsplit("/", 1)[-1]
+    data["part_path"] = "elsewhere/" + name
+    path.write_text(json.dumps(data), encoding="utf-8")
+    ok = run(nx, "nx_restore_display", presentation=str(path))
+    assert ok.ok, ok.error
+    data["part_path"] = "elsewhere/other.prt"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    bad = run(nx, "nx_restore_display", presentation=str(path))
+    assert bad.error["code"] == "NX_WRONG_PART_CONTEXT"

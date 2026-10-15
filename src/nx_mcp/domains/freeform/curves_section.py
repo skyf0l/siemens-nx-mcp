@@ -242,8 +242,8 @@ def nx_create_intersection_curve(
     plane: Annotated[Plane, Doc("Instead of second: cut first with this plane")] | None = None,
 ) -> IntersectionData:
     """Create associative curves where the first faces meet the second faces or a plane.
-    Bodies stand for all their faces. Many parallel planes through bodies:
-    nx_create_section_curves."""
+    Bodies stand for all their faces. Returns each curve (length, ends) and gap, the largest
+    distance from either side. Many parallel planes through bodies: nx_create_section_curves."""
     args.exactly_one(second=second, plane=plane)
     with tx.checks():
         _objs, faces1 = cc.solids(tx, first, "/first")

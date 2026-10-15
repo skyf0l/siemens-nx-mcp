@@ -136,3 +136,61 @@ def test_services_without_the_apis_run_unguarded(tmp_path):
                    "test", Workspace(tmp_path / "ws"))  # fmt: skip
     s.dev_tools["nx_dev_python"] = lambda: {"done": True}
     assert dispatch.execute(s, "nx_dev_python", {})["done"]
+
+
+def test_sketch_region_shading_is_turned_off_for_every_call_and_stays_off(tmp_path):
+    """NX's "Large Sketch Performance" dialog asks about region shading of a sketch with
+    many curves; with shading off it never opens (during a call or after it)."""
+    s = services(tmp_path)
+    s.session.Preferences = NS(Sketch=NS(DisplayShadedRegions=True))
+    seen = []
+    s.dev_tools["nx_dev_python"] = lambda: (
+        seen.append(s.session.Preferences.Sketch.DisplayShadedRegions) or {}
+    )
+    dispatch.execute(s, "nx_dev_python", {})
+    assert seen == [False] and s.session.Preferences.Sketch.DisplayShadedRegions is False
+    assert quiet.prepare(s.session) is False  # already off: nothing to do
+    s.session.Preferences.Sketch.DisplayShadedRegions = True  # turned on again in NX
+    assert quiet.prepare(s.session) is True
+    assert s.session.Preferences.Sketch.DisplayShadedRegions is False
+
+
+def test_preparing_a_session_without_sketch_preferences_never_fails():
+    assert quiet.prepare(NS()) is False
+
+    class Locked:
+        @property
+        def DisplayShadedRegions(self):
+            raise RuntimeError("no license")
+
+    assert quiet.prepare(NS(Preferences=NS(Sketch=Locked()))) is False
+
+
+def test_a_task_environment_update_failure_is_an_update_error_not_a_dialog(tmp_path):
+    """A study's task environment updates the model when it exits (topology studies):
+    under the guard NX undoes a failing update and raises 670024, which the call reports
+    as NX_UPDATE_FAILED; with the engineer's NoOption NX would open its dialog instead."""
+    from nx_mcp.core.errors import native
+
+    s = services(tmp_path)
+    manager = s.session.UpdateManager
+    dialogs_opened = []
+
+    class NXException(Exception):
+        ErrorCode = 670024
+
+    def exit_task_environment():
+        if manager.action != FAILURE.Undo:
+            dialogs_opened.append("Error During Update")  # NX would wait for a person
+            return {}
+        raise NXException("Update undo happened.")
+
+    def tool():
+        with native():
+            return exit_task_environment()
+
+    s.dev_tools["nx_dev_python"] = tool
+    with pytest.raises(NXError) as error:
+        dispatch.execute(s, "nx_dev_python", {})
+    assert error.value.code == "NX_UPDATE_FAILED" and error.value.nx_code == 670024
+    assert dialogs_opened == [] and manager.action == FAILURE.NoOption

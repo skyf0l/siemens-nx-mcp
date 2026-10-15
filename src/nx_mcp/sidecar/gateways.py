@@ -92,6 +92,9 @@ ACTION_WORDS = frozenset(
 CHANGING = frozenset({"create", "set"})
 ACTION = 3
 SPELLING, MAX_SPELLINGS = 0.75, 4  # difflib cutoff and count of close spellings
+# A close spelling searched for a word no tool matches counts this share of a word typed
+# as such: tools matching the words as typed rank above those matching only a guess.
+FUZZY = 0.5
 # The empty-query overview names these first in each domain (others: alphabetical).
 KEY_TOOLS = {
     "assembly": ("nx_create_component", "nx_create_assembly_constraint", "nx_list_components"),
@@ -235,7 +238,9 @@ class Entry:
             w for text in (name.removeprefix("nx_"), label, *keywords) for w in _raw(text)
         }
 
-    def match(self, query: list[str], variants=(), rarity=None) -> tuple[float, list[int]]:
+    def match(
+        self, query: list[str], variants=(), rarity=None, fuzzy=frozenset()
+    ) -> tuple[float, list[int]]:
         """``(score, indices of the matched query words)``.
 
         Per matched word: its best field weight (``WEIGHTS``) times the kind of match (whole
@@ -245,7 +250,8 @@ class Entry:
         the query names (``NAME``), keyword or label phrases in the query (``PHRASE``, plus
         ``WHOLE`` when the query is one of them) and a word naming the tool's domain
         (``DOMAIN``). ``variants``: the tool's variant
-        values offered on this build (searchable too)."""
+        values offered on this build (searchable too). ``fuzzy``: query words that are
+        close spellings of a word no tool matched (they count ``FUZZY``)."""
         fields = dict(self.fields)
         fields["variant"] = {w for v in variants for w in words(v)}
         total = 0.0
@@ -271,7 +277,8 @@ class Entry:
                 if any(word in fields[f] for f in ("name", "keyword", "label")):
                     best += EXACT
                 matched.append(position)
-                total += best * (rarity(word) if rarity else 1.0)
+                weight = FUZZY if word in fuzzy else 1.0
+                total += best * weight * (rarity(word) if rarity else 1.0)
         if not matched:
             return 0.0, matched
         total *= 1 - COVERAGE + COVERAGE * len(matched) / len(query)
@@ -320,15 +327,22 @@ class Index:
     def respell(self, query: str) -> tuple[str, list[str]]:
         """``(query, spellings)``: the query with each word no tool matches replaced by its
         close spellings among tool names, labels and keywords (difflib); no spellings: the
-        query unchanged."""
+        query unchanged. When other words of the query match tools, only a typo's
+        spelling is searched (one letter added, dropped, changed or two swapped:
+        :func:`typo`): a real word no tool uses ('routing') is left out, not replaced by
+        another word ('rounding')."""
         kept: list[str] = []
         spellings: list[str] = []
         terms = sorted(self.terms)
-        for typed, word in query_words(query):
-            if self.tools(word) or word in ACTION_STEMS:
+        pairs = query_words(query)
+        known = [w for _, w in pairs if self.tools(w) or w in ACTION_STEMS]
+        for typed, word in pairs:
+            if word in known:
                 kept.append(typed)
             else:
                 close = difflib.get_close_matches(typed, terms, n=2, cutoff=SPELLING)
+                if known:
+                    close = [c for c in close if typo(typed, c)]
                 spellings += [c for c in close if c not in spellings]
         spellings = spellings[:MAX_SPELLINGS]
         return (" ".join(kept + spellings), spellings) if spellings else (query, [])
@@ -339,6 +353,25 @@ class Hit:
     entry: Entry
     score: float
     matched: tuple[str, ...]  # the query words the tool matched, as typed
+
+
+def typo(typed: str, term: str) -> bool:
+    """Whether ``term`` is ``typed`` with one typing slip: a letter added, dropped or
+    changed, or two neighbours swapped (optimal string alignment distance 1)."""
+    a, b = typed.casefold(), term.casefold()
+    if a == b or abs(len(a) - len(b)) > 1:
+        return False
+    previous2: list[int] = []
+    previous = list(range(len(b) + 1))
+    for i in range(1, len(a) + 1):
+        row = [i] + [0] * len(b)
+        for j in range(1, len(b) + 1):
+            cost = 0 if a[i - 1] == b[j - 1] else 1
+            row[j] = min(previous[j] + 1, row[j - 1] + 1, previous[j - 1] + cost)
+            if i > 1 and j > 1 and a[i - 1] == b[j - 2] and a[i - 2] == b[j - 1]:
+                row[j] = min(row[j], previous2[j - 2] + 1)
+        previous2, previous = previous, row
+    return previous[len(b)] <= 1
 
 
 def _match(word: str, token: str) -> bool:
@@ -375,16 +408,24 @@ def search(entries, query: str, domain=None, effect=None, variants=None) -> list
 
 
 def ranked(
-    entries, query: str, domain=None, effect=None, variants=None, index: Index | None = None
+    entries,
+    query: str,
+    domain=None,
+    effect=None,
+    variants=None,
+    index: Index | None = None,
+    fuzzy=(),
 ) -> tuple[list[Hit], bool]:
     """``(hits, partial)``, best score first: every tool matching at least one query word
     (a scored OR, see :meth:`Entry.match`); an exact tool name comes first. ``index``: word
     rarity over the whole catalogue (default: over ``entries``). ``partial``: no tool
-    matched every word. An empty query lists every tool by name."""
+    matched every word. An empty query lists every tool by name. ``fuzzy``: close
+    spellings searched for unknown words (:meth:`Index.respell`), which count less."""
     typed = query_words(query)
     wanted = [w for _, w in typed]
     index = index or Index(entries)
     rarity = {w: index.rarity(w) for w in wanted}
+    guesses = frozenset(stem(w) for w in fuzzy)
     exact = query.strip()
     hits = []
     for entry in entries:
@@ -396,7 +437,7 @@ def ranked(
             hits.append(Hit(entry, 0.0, ()))
         else:
             offered = variants(entry) if variants else ()
-            score, matched = entry.match(wanted, offered, rarity.__getitem__)
+            score, matched = entry.match(wanted, offered, rarity.__getitem__, guesses)
             if matched:
                 hits.append(Hit(entry, round(score, 3), tuple(typed[i][0] for i in matched)))
     hits.sort(key=lambda hit: (-hit.score, hit.entry.name))
@@ -459,8 +500,8 @@ class FindTools(_Strict):
         str,
         Field(
             max_length=120,
-            description="1-4 keywords for ONE task, e.g. 'revolve profile', 'save part'. Common "
-            "words are ignored. For several tasks pass queries.",
+            description="1-4 keywords for ONE task, e.g. 'revolve profile', 'save part'. For "
+            "several tasks pass queries.",
         ),
     ] = ""
     queries: Annotated[
@@ -520,9 +561,8 @@ MODELS: dict[str, type[BaseModel]] = {
 }
 DESCRIPTIONS = {
     "nx_find_tools": (
-        "Search NX tools by task (fillet finds blend); empty query: domain overview. Rows: "
-        "name, summary, effect, domain, matched. Then nx_get_tool_schemas and nx_invoke "
-        "(nx_invoke_read for effect read); not MCP tools."
+        "Search NX tools by task (fillet finds blend); empty query: domain overview. Then "
+        "nx_get_tool_schemas and nx_invoke (nx_invoke_read for effect read); not MCP tools."
     ),
     "nx_get_tool_schemas": (
         "Exact input schemas, examples, prerequisites and evidence for 1-10 tools; output "

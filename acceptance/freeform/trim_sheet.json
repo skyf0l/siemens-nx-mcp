@@ -706,6 +706,294 @@
    }
   },
   {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ep1",
+   "args": {
+    "points": [
+     [
+      0,
+      80,
+      0
+     ],
+     [
+      20,
+      80,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ep2",
+   "args": {
+    "points": [
+     [
+      0,
+      90,
+      0
+     ],
+     [
+      20,
+      90,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ec1",
+   "args": {
+    "points": [
+     [
+      0,
+      80,
+      0
+     ],
+     [
+      0,
+      90,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "ec2",
+   "args": {
+    "points": [
+     [
+      20,
+      80,
+      0
+     ],
+     [
+      20,
+      90,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "setup": true,
+   "save": "e",
+   "args": {
+    "primary": [
+     "$ep1.data.curve.id",
+     "$ep2.data.curve.id"
+    ],
+    "cross": [
+     "$ec1.data.curve.id",
+     "$ec2.data.curve.id"
+    ]
+   }
+  },
+  {
+   "call": "nx_create_datum_plane",
+   "setup": true,
+   "save": "dp",
+   "args": {
+    "method": "point_normal",
+    "origin": [
+     12,
+     0,
+     0
+    ],
+    "normal": [
+     1,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_create_trim_sheet",
+   "intent": "Trim by a datum plane at x 12, keeping x 0..12",
+   "args": {
+    "body": "$e.data.bodies.0.id",
+    "boundaries": [
+     "$dp.data.datum_plane.id"
+    ],
+    "region_point": [
+     5,
+     85,
+     0
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.bounds.max.0": {
+     "close": 12,
+     "tol": 0.001
+    },
+    "data.area": {
+     "close": 120,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "wp1",
+   "args": {
+    "points": [
+     [
+      6,
+      75,
+      -5
+     ],
+     [
+      6,
+      95,
+      -5
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "wp2",
+   "args": {
+    "points": [
+     [
+      6,
+      75,
+      5
+     ],
+     [
+      6,
+      95,
+      5
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "wc1",
+   "args": {
+    "points": [
+     [
+      6,
+      75,
+      -5
+     ],
+     [
+      6,
+      75,
+      5
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "wc2",
+   "args": {
+    "points": [
+     [
+      6,
+      95,
+      -5
+     ],
+     [
+      6,
+      95,
+      5
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_mesh_surface",
+   "setup": true,
+   "save": "wall",
+   "args": {
+    "primary": [
+     "$wp1.data.curve.id",
+     "$wp2.data.curve.id"
+    ],
+    "cross": [
+     "$wc1.data.curve.id",
+     "$wc2.data.curve.id"
+    ]
+   }
+  },
+  {
+   "call": "nx_create_trim_sheet",
+   "intent": "Trim by another sheet (a wall at x 6), keeping x 6..12",
+   "args": {
+    "body": "$e.data.bodies.0.id",
+    "boundaries": [
+     "$wall.data.bodies.0.id"
+    ],
+    "region_point": [
+     10,
+     85,
+     0
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.bounds.min.0": {
+     "close": 6,
+     "tol": 0.001
+    },
+    "data.area": {
+     "close": 60,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_trim_sheet",
+   "intent": "A region point far off the sheet is named in field",
+   "args": {
+    "body": "$b.data.bodies.0.id",
+    "boundaries": [
+     "$miss.data.curve.id"
+    ],
+    "region_point": [
+     500,
+     500,
+     0
+    ]
+   },
+   "expect": {
+    "ok": false,
+    "error.field": "/region_point",
+    "mutation_outcome": "rolled_back"
+   }
+  },
+  {
    "call": "nx_check_model",
    "args": {},
    "expect": {

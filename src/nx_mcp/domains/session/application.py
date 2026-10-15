@@ -25,8 +25,10 @@ NX 2406 findings encoded here:
 
 from __future__ import annotations
 
-from typing import Literal, NoReturn, TypedDict
+import contextlib
+from typing import Any, Literal, NoReturn, TypedDict
 
+from nx_mcp.core import target as targets
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
@@ -63,6 +65,22 @@ def _not_displayed(tx: Tx, part, display) -> NoReturn:
     )
 
 
+def _displayed(services, args) -> Any:
+    """Gate 3t: the displayed part when it is the agent's (NX enters an application for
+    the displayed part only), so no ``part`` is needed; else None (the usual rule: the
+    engineer's displayed part is never switched without ``part``). A given ``part``
+    wins; the handler refuses it when it is not displayed."""
+    display = None
+    with contextlib.suppress(Exception):
+        display = services.session.Parts.Display
+    if display is None or not targets.counts(services, display):
+        return None
+    return display
+
+
+_displayed.yields_to_part = True  # type: ignore[attr-defined]
+
+
 class ApplicationData(TypedDict):
     application: str
     previous: str
@@ -75,7 +93,7 @@ def name_of(native_name) -> str:
 
 
 @tool(
-    target="display",
+    target=_displayed,
     switch="none",  # never displayed for the call: the switch would be undone at its end
     effect="session",
     label="Activate application",
@@ -86,6 +104,7 @@ def name_of(native_name) -> str:
         "switch application",
         "enter sheet metal",
         "UG_APP_SBSM",
+        "leave nx in sheet metal",
     ),  # fmt: skip
     requires=("work_part", "no_active_sketch", "interactive"),
     cost="light",
@@ -94,10 +113,10 @@ def name_of(native_name) -> str:
 def nx_activate_application(
     tx: Tx, *, application: Literal["modeling", "sheet_metal"]
 ) -> ApplicationData:
-    """Switch NX to the Modeling or Sheet Metal application for the displayed work part.
-    Sheet-metal features need sheet_metal; a part with them cannot go back to modeling.
-    With two parts loaded, part must name the displayed one (nx_activate_part display=true
-    shows another). For drawings use nx_activate_drawing_sheet, not this tool."""
+    """Switch NX to the Modeling or Sheet Metal application for the displayed part.
+    Sheet-metal tools called with part enter Sheet Metal for their call themselves: this
+    tool is needed only to leave NX in an application. A part with sheet-metal features
+    cannot go back to modeling. Drawings: nx_activate_drawing_sheet."""
     wanted = APPLICATIONS[application]
     with tx.checks():
         part = tx.part

@@ -37,7 +37,7 @@ from nx_mcp.core.errors import NXError, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Offset, PageLimit
 from nx_mcp.domains.inspection import voids
-from nx_mcp.kit import bodies, expr, measure, parts, positioning, result
+from nx_mcp.kit import bodies, deform, expr, measure, parts, positioning, result
 from nx_mcp.kit import features as kfeatures
 
 # Self-overlap (Examine Geometry) per call by default; clash=True lifts these limits.
@@ -249,6 +249,18 @@ def clashes(tx, solids, *, force: bool = False, skipped=None) -> list[Issue]:
     return issues
 
 
+def _deformations(tx, part) -> list[Issue]:
+    """Warnings for deformed components whose values left their recorded range."""
+    messages: list[str] = []
+    with contextlib.suppress(NXError):  # an assembly NX cannot read: no such warning
+        messages = deform.range_messages(tx, part)
+    where = tx.services.part_path(part)
+    return [
+        {"severity": "warning", "kind": "deformation_range", "part": where, "message": m}
+        for m in messages
+    ]
+
+
 def diagnose(
     tx,
     scope="part",
@@ -278,7 +290,7 @@ def diagnose(
                 issues.append({"severity": "warning", "kind": "unloaded_component", "path": path})
             else:
                 checked.setdefault(int(prototype.Tag), prototype)
-    features = solids = 0
+    features = solids = visited = 0
     examine: list[tuple[Any, str, Any]] = []
     for owner in checked.values():
         where = tx.services.part_path(owner)
@@ -298,9 +310,12 @@ def diagnose(
         # Feature.Suppressed is also True for features rolled back after the current
         # feature; only the user's suppressions are issues.
         held = {t for t, (_f, user, _a) in kfeatures.states(tx, owner).items() if user}
+        # Counted as the Part Navigator shows them (the summary's count); NX's internal
+        # sub-features are read for diagnostics too.
+        features += len(visible_features(owner))
         for feature in owner.Features:
-            features += 1
-            if features % 200 == 0:
+            visited += 1
+            if visited % 200 == 0:
                 tx.checkpoint()
             with native():
                 diagnostics = (
@@ -355,6 +370,7 @@ def diagnose(
             )
             if void is not None:
                 issues.append(void)
+    issues.extend(_deformations(tx, part))
     if clash != "off":
         issues.extend(clashes(tx, examine, force=clash == "all", skipped=skipped))
     counts: Counts = {
@@ -387,7 +403,7 @@ def nx_check_model(
     """Check feature errors/warnings, suppression, unloaded components, unsolved constraints
     and bodies. Bodies: consistency, self-overlap, sealed voids (info: fine if intended).
     healthy: no errors/warnings in what was examined; complete false: some solids were
-    not examined (skipped), not a clean bill. No update."""
+    skipped, not a clean bill. features_checked: navigator features. No update."""
     left: dict = {}
     issues, counts = diagnose(tx, scope, clash="all" if clash else "auto", skipped=left)
     selected, page = result.page(issues, offset, limit)
@@ -410,19 +426,26 @@ class SummaryData(TypedDict, total=False):
     modified: bool
     counts: dict[str, int]
     bounds: dict[str, list[float]] | None
+    bounds_scope: str  # part, or assembly: the loaded components' bodies too
     health: dict[str, Any]
     items: list[dict[str, Any]]
     page: dict[str, Any]
 
 
 def overview(tx):
+    """Counts, bounds and health of the work part; an assembly's bounds and health cover
+    its loaded components too (``bounds_scope``/``health.scope`` say which)."""
     part = tx.part
     found = list(part.Bodies)
+    components = parts.components(part)
+    scope = "assembly" if components else "part"
+    boxed = bodies.scope(tx, "assembly") if components else found
+    tx.scale_budget(len(boxed))
     bounds = None
-    if found:
-        low, high = measure.bounds(tx, found)
+    if boxed:
+        low, high = measure.bounds(tx, boxed)
         bounds = {"min": low, "max": high, "size": [b - a for a, b in zip(low, high, strict=True)]}
-    issues, counts = diagnose(tx, "part", clash="off", find_voids=False)
+    issues, counts = diagnose(tx, scope, clash="off", find_voids=False)
     return {
         "part": tx.ref(part, kind="part"),
         "modified": bool(part.IsModified),
@@ -431,13 +454,16 @@ def overview(tx):
             "features": len(visible_features(part)),
             "sketches": len(list(part.Sketches)),
             "expressions": len(list(part.Expressions)),
-            "components": len(parts.components(part)),
+            "components": len(components),
         },
         "bounds": bounds,
+        "bounds_scope": scope,
         "health": {
             "healthy": counts["errors"] == 0 and counts["warnings"] == 0,
             "errors": counts["errors"],
             "warnings": counts["warnings"],
+            "scope": scope,
+            "parts_checked": counts["parts_checked"],
         },
     }
 
@@ -505,7 +531,8 @@ def nx_get_model_summary(
     limit: PageLimit = 20,
 ) -> SummaryData:
     """Summarise the work part: counts, bounds and health, or one page of its features,
-    expressions, sketches or components."""
+    expressions, sketches or components. An assembly's bounds and health cover its loaded
+    components (bounds_scope, health.scope)."""
     if section == "overview":
         return {"section": section, **overview(tx)}
     part = tx.part

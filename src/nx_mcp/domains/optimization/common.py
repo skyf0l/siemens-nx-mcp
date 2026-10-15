@@ -30,8 +30,8 @@ import contextlib
 import importlib
 from typing import TypedDict
 
-from nx_mcp.core.errors import fail, native
-from nx_mcp.kit import geom, licenses, result, select, units
+from nx_mcp.core.errors import NXError, fail, native
+from nx_mcp.kit import geom, licenses, measure, result, select, units
 
 # Either feature unlocks Topology Optimization for Designers (NXOpen.xml license notes).
 LICENSES = ("des_top_opt", "sc_des_topol_opt")
@@ -40,6 +40,11 @@ LICENSE_HINT = (
     "des_top_opt, a Simcenter token add-on)"
 )
 TYPE_NAME = "TopologyOptimizationFeature"
+CYCLE_CODE = 600008  # "There is an object which depends on itself" (task Exit update)
+TIMELINE_HINT = (
+    "Use bodies made before the study, make a new study after the body "
+    "(nx_create_topology_study), or move the study after it with nx_set_feature_order"
+)
 
 
 def ds(tx):
@@ -127,13 +132,54 @@ def outside_task(tx) -> None:
             )
 
 
+def _stamp(feature) -> int | None:
+    try:
+        return int(feature.Timestamp)
+    except Exception:
+        return None
+
+
+def _feature_name(feature) -> str:
+    try:
+        return str(feature.GetFeatureName())
+    except Exception:
+        return str(getattr(feature, "Name", "") or "a feature")
+
+
+def after_study(tx, feature, bodies, field) -> None:
+    """``NX_INVALID_ARGUMENT`` for a body that a feature later in the timeline than the study
+    makes or changes: the study would depend on itself, and NX's update would fail behind a
+    modal "Error During Update" dialog that blocks the session. Checked before the task."""
+    own = _stamp(feature)
+    if own is None:
+        return
+    for i, body in enumerate(bodies):
+        try:
+            made = list(body.GetFeatures() or [])
+        except Exception:
+            continue
+        later = [f for f in made if not is_study(f) and (_stamp(f) or 0) > own]
+        if later:
+            last = max(later, key=lambda f: _stamp(f) or 0)
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"{_feature_name(last)} makes or changes the body after the study in the "
+                "timeline: the study would depend on itself",
+                field=f"{field}/{i}",
+                hint=TIMELINE_HINT,
+                details={"feature": tx.ref(last, kind="feature"), "study_timestamp": own},
+            )
+
+
 @contextlib.contextmanager
-def task(tx, feature=None, keep=True):
+def task(tx, feature=None, keep=True, cycle_field=None):
     """Inside NX's Topology Optimization task environment; yields its active feature.
 
     ``feature`` edits an existing study, else NX creates a new feature. A failure inside
     cancels the task (NX discards its changes) before the kernel's rollback; so does the
     end of the block without ``keep`` (a solve whose results are read, then dropped).
+    An update that finds the study depending on itself (``CYCLE_CODE``, from ``Exit``)
+    is ``NX_INVALID_ARGUMENT`` on ``cycle_field`` when given, else ``NX_UPDATE_FAILED``.
     """
     environment = tx.session.TopologyOptimizationTaskEnvironment
     outside_task(tx)
@@ -148,14 +194,33 @@ def task(tx, feature=None, keep=True):
             fail("NX_BUILD_FAILED", "NX entered the topology task without a feature")
         yield active
     except BaseException:
-        with contextlib.suppress(Exception):
-            environment.SetCancelled()
-        with contextlib.suppress(Exception):
-            environment.Exit()
+        _cancel(environment)
         raise
-    with native():
-        if not keep:
-            environment.SetCancelled()
+    try:
+        with native():
+            if not keep:
+                environment.SetCancelled()
+            environment.Exit()
+    except NXError as error:
+        with contextlib.suppress(Exception):
+            if environment.ActiveFeature is not None:
+                _cancel(environment)
+        if error.nx_code == CYCLE_CODE:
+            fail(
+                "NX_INVALID_ARGUMENT" if cycle_field else "NX_UPDATE_FAILED",
+                "NX could not update the study: an input of it comes after the study in "
+                f"the timeline ({error.message})",
+                field=cycle_field,
+                hint=TIMELINE_HINT,
+                nx_code=CYCLE_CODE,
+            )
+        raise
+
+
+def _cancel(environment) -> None:
+    with contextlib.suppress(Exception):
+        environment.SetCancelled()
+    with contextlib.suppress(Exception):
         environment.Exit()
 
 
@@ -234,8 +299,8 @@ def length(tx, expression, value):
 
 
 def mass_expressions(feature) -> list:
-    """The feature's mass expressions: NX lists no mass-target object, so the target's
-    ``Mass`` is the feature's (last) mass expression."""
+    """The feature's mass expressions, in NX's order: NX lists no mass-target object, so
+    the target's ``Mass`` is the first; a solve adds the result's mass after it."""
     try:
         expressions = list(feature.GetExpressions() or [])
     except Exception:
@@ -243,10 +308,90 @@ def mass_expressions(feature) -> list:
     return [e for e in expressions if _unit_name(e) in UNIT_FACTORS["mass"]]
 
 
-def target_mass(feature) -> float | None:
-    """The study's mass target in kg (``mass_expressions``)."""
+def target_expression(feature):
+    """The mass target's expression (the feature's first mass expression), else None."""
     masses = mass_expressions(feature)
-    return value_of(masses[-1], "mass") if masses else None
+    return masses[0] if masses else None
+
+
+def target_mass(feature) -> float | None:
+    """The study's mass target in kg (``target_expression``), not a solved result's mass."""
+    expression = target_expression(feature)
+    return None if expression is None else value_of(expression, "mass")
+
+
+LOAD_TYPES = ("Force", "BearingLoad", "Pressure", "Torque", "Acceleration",
+              "EnforcedDisplacement", "RemoteForce", "HeatFlux")  # fmt: skip
+SUPPORT_TYPES = ("Fixed", "Pinned", "PinnedSlider", "LinearSlider", "PlanarSlider", "Temperature")
+# Load type -> (the load's expression member, dimension, reported unit).
+LOAD_VALUES = {"force": ("Force", "force", "N"), "pressure": ("Pressure", "pressure", "MPa")}
+GETTERS = {"support": "GetAllAnalysisConstraints", "load": "GetAllAnalysisLoads"}
+
+
+class Condition(TypedDict):
+    type: str
+    faces: int
+    face_refs: list[str]
+    load_cases: list[str]
+    magnitude: float | None
+    unit: str | None
+    direction: list[float] | None
+
+
+def condition_type(tx, item, role) -> str:
+    """``fixed``, ``force``...: a support's or load's NX type in lower case."""
+    DS = ds(tx)
+    if role == "support":
+        return result.enum_name(
+            item.Type, DS.AnalysisConstraintBuilder.ConstraintType, SUPPORT_TYPES
+        ).lower()
+    return result.enum_name(item.Type, DS.AnalysisLoadBuilder.AnalysisLoadType, LOAD_TYPES).lower()
+
+
+def _direction(item) -> list[float] | None:
+    """The unit direction of a load's face vector; None when it has none (or zero)."""
+    try:
+        vector = item.FaceVector.Vector
+        return geom.unit([vector.X, vector.Y, vector.Z])
+    except Exception:
+        return None
+
+
+def condition_row(tx, study, item, role) -> Condition:
+    """A support or load as the study holds it: type, faces (count and refs), the load
+    cases that hold it, and for a force or pressure its magnitude (N, MPa) and direction."""
+    kind = condition_type(tx, item, role)
+    try:
+        faces = list(item.GetFaces() or [])
+    except Exception:
+        faces = []
+    cases = []
+    for case in all_of(study, "GetAllSubcases"):
+        try:
+            if any(int(x.Tag) == int(item.Tag) for x in list(case.GetReferences() or [])):
+                cases.append(str(getattr(case, "Name", "") or ""))
+        except Exception:
+            continue
+    magnitude = unit = direction = None
+    if role == "load" and kind in LOAD_VALUES:
+        member, dim, unit = LOAD_VALUES[kind]
+        expression = getattr(item, member, None)
+        magnitude = None if expression is None else value_of(expression, dim)
+        direction = _direction(item) if kind == "force" else None
+    return {
+        "type": kind,
+        "faces": len(faces),
+        "face_refs": [tx.ref(f, kind="face")["id"] for f in faces],
+        "load_cases": cases,
+        "magnitude": magnitude,
+        "unit": unit if magnitude is not None else None,
+        "direction": direction,
+    }
+
+
+def conditions(tx, study, role) -> list[Condition]:
+    """Every support (``role`` support) or load of the study as :func:`condition_row`."""
+    return [condition_row(tx, study, item, role) for item in all_of(study, GETTERS[role])]
 
 
 def design_faces(tx, refs, field, body, others=()):
@@ -294,12 +439,41 @@ class CasePeaks(TypedDict):
     max_displacement: float | None
 
 
-def _where(location) -> list[float] | None:
-    """``geom.xyz`` of a result location; None when NX gives none."""
+# Result locations: NX 2406 gives the displacement peak's point in part units but the stress
+# peak's 1e-6 of them (100x20x30 mm cantilever: [9.6e-7, 1.9e-5, 3.0e-5] for the fixed end's
+# top edge at [0.96, 19.05, 30] mm). A point is read at the first scale that puts it inside
+# the analysis bodies' box; at none of them it is not reported.
+LOCATION_SCALES = {"s": (1e6, 1e6 / 25.4, 1.0), "u": (1.0, 1e6, 1e6 / 25.4)}
+BOX_MARGIN = 0.02  # share of the box diagonal a peak point may lie outside the box
+
+
+def _box(tx, study):
+    """The analysis bodies' bounds grown by ``BOX_MARGIN``, None when NX gives none."""
+    bodies = [b.Body for b in all_of(study, "GetAllAnalysisBodies") if getattr(b, "Body", None)]
+    if not bodies:
+        return None
     try:
-        return geom.xyz(location)
+        low, high = measure.bounds(tx, bodies)
     except Exception:
         return None
+    pad = BOX_MARGIN * geom.norm(geom.sub(high, low)) + 1e-9
+    return [v - pad for v in low], [v + pad for v in high]
+
+
+def _where(location, key, box) -> list[float] | None:
+    """The result location in part units (``LOCATION_SCALES``); None when NX gives none."""
+    try:
+        raw = geom.xyz(location)
+    except Exception:
+        return None
+    if box is None:
+        return [v * LOCATION_SCALES[key][0] for v in raw]
+    low, high = box
+    for scale in LOCATION_SCALES[key]:
+        point = [v * scale for v in raw]
+        if all(a <= v <= b for v, a, b in zip(point, low, high, strict=True)):
+            return point
+    return None
 
 
 def peaks(tx, study) -> tuple[list[CasePeaks], dict]:
@@ -309,6 +483,7 @@ def peaks(tx, study) -> tuple[list[CasePeaks], dict]:
     kinds = ds(tx).AnalysisBodySubcaseResults.ResultType
     names = [str(getattr(c, "Name", "") or "") for c in all_of(study, "GetAllSubcases")]
     scale = {"s": STRESS_UNITS[units.part_units(tx)], "u": 1.0}
+    box = _box(tx, study)
     cases: dict[int, dict] = {}
     top: dict = {}
     for body in all_of(study, "GetAllAnalysisBodies"):
@@ -331,7 +506,7 @@ def peaks(tx, study) -> tuple[list[CasePeaks], dict]:
                 value = float(value) * scale[key]
                 row[key] = max(row.get(key, value), value)
                 if value >= top.get(key, (float("-inf"), None))[0]:
-                    top[key] = (value, _where(location))
+                    top[key] = (value, _where(location, key, box))
     rows: list[CasePeaks] = [
         {
             "name": names[i] if i < len(names) else f"Subcase {i + 1}",

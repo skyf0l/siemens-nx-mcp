@@ -635,10 +635,11 @@
     }
    },
    "expect": {
-    "error.category": "unsupported",
-    "error.code": "NX_UNSUPPORTED_OPTION",
+    "error.category": "invalid_argument",
+    "error.code": "NX_INVALID_ARGUMENT",
     "error.field": "/tolerance/hole",
-    "mutation_outcome": "not_started"
+    "mutation_outcome": "not_started",
+    "error.retry": "after_fix"
    }
   },
   {
@@ -651,10 +652,11 @@
     }
    },
    "expect": {
-    "error.category": "unsupported",
-    "error.code": "NX_UNSUPPORTED_OPTION",
+    "error.category": "invalid_argument",
+    "error.code": "NX_INVALID_ARGUMENT",
     "error.field": "/tolerance/hole",
-    "mutation_outcome": "not_started"
+    "mutation_outcome": "not_started",
+    "error.retry": "after_fix"
    }
   },
   {
@@ -667,10 +669,11 @@
     }
    },
    "expect": {
-    "error.category": "unsupported",
-    "error.code": "NX_UNSUPPORTED_OPTION",
+    "error.category": "invalid_argument",
+    "error.code": "NX_INVALID_ARGUMENT",
     "error.field": "/tolerance/hole",
-    "mutation_outcome": "not_started"
+    "mutation_outcome": "not_started",
+    "error.retry": "after_fix"
    }
   },
   {
@@ -683,10 +686,11 @@
     }
    },
    "expect": {
-    "error.category": "unsupported",
-    "error.code": "NX_UNSUPPORTED_OPTION",
+    "error.category": "invalid_argument",
+    "error.code": "NX_INVALID_ARGUMENT",
     "error.field": "/tolerance/shaft",
-    "mutation_outcome": "not_started"
+    "mutation_outcome": "not_started",
+    "error.retry": "after_fix"
    }
   },
   {

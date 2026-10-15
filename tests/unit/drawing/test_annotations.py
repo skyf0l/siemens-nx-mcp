@@ -220,7 +220,8 @@ def test_update_reports_objects_it_did_not_refresh():
     ref = note.data["annotation"]["id"]
     given = run(nx, "nx_update_annotations", objects=[ref])
     assert given.ok, given
-    assert given.data["refreshed"] == [] and given.data["skipped"] == [{"id": ref}]
+    assert given.data["refreshed"] == []
+    assert given.data["skipped"] == [{"id": ref, "reason": "follows the model on its own"}]
     assert "Not managed" in given.data["note"]
     every = run(nx, "nx_update_annotations")
     assert every.data["refreshed"] == [] and "skipped" not in every.data

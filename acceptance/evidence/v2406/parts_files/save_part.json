@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/save_part.json",
-  "scenario_sha256": "ab86bfd6c7fae6b2835efd470d8f174a485145c4b7362d35b81f71e4e9848c21",
+  "scenario_sha256": "858408f2e00eebd529ac30f9d0a50dd4d4496ff010810d545e3ed2ef72bd8b22",
   "domain": "parts_files",
   "covers": {
     "nx_save_part": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_save_part": "695386257ac06d11cc0cf699d94cf17ff5661803f1056a616d9bab2566c2462e"
+    "nx_save_part": "2ac3280b33b70c05d36d7ba2a7a58adec9d42ab1f4674607af14c8dd4873587c"
   },
-  "recorded": "2026-10-14T13:46:20Z",
+  "recorded": "2026-10-15T11:43:28Z",
   "passed": true,
-  "checks": 47,
+  "checks": 51,
   "failed_checks": 0,
   "steps": [
     {
@@ -84,7 +84,7 @@
       "call": "nx_save_part",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 6
     },
     {
       "index": 11,
@@ -109,10 +109,10 @@
     },
     {
       "index": 14,
-      "call": "nx_save_part",
-      "setup": false,
+      "call": "nx_create_datum_plane",
+      "setup": true,
       "passed": true,
-      "checks": 2
+      "checks": 0
     },
     {
       "index": 15,
@@ -123,17 +123,17 @@
     },
     {
       "index": 16,
-      "call": "nx_list_files",
-      "setup": false,
-      "passed": true,
-      "checks": 1
-    },
-    {
-      "index": 17,
       "call": "nx_save_part",
       "setup": false,
       "passed": true,
       "checks": 2
+    },
+    {
+      "index": 17,
+      "call": "nx_list_files",
+      "setup": false,
+      "passed": true,
+      "checks": 1
     },
     {
       "index": 18,
@@ -154,38 +154,45 @@
       "call": "nx_save_part",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 2
     },
     {
       "index": 21,
+      "call": "nx_save_part",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 22,
       "call": "nx_create_part",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 22,
+      "index": 23,
       "call": "nx_save_part",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 23,
+      "index": 24,
       "call": "nx_save_part",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 4
     },
     {
-      "index": 24,
+      "index": 25,
       "call": "nx_list_files",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 25,
+      "index": 26,
       "call": "nx_save_part",
       "setup": false,
       "passed": true,

@@ -32,8 +32,6 @@ from pydantic import ValidationError
 from nx_mcp.core import catalogue, evidence
 from nx_mcp.core.catalogue import CatalogueError
 from nx_mcp.core.errors import NXError
-from nx_mcp.core.types import RefKind
-from nx_mcp.core.validate import unwrap
 from nx_mcp.sidecar import artifacts, gateways, proxy, schema
 from nx_mcp.sidecar.proxy import CatalogueProxy, failure, result
 
@@ -75,15 +73,17 @@ AGENT_INSTRUCTIONS = (
     "add the target part's file name to the arguments of every call without refs, the listed "
     'core tools included: {"part": "housing", ...}; nx_list_parts lists them.'
 )
-# The ref-less core tools (nx_list_components, nx_list_objects, nx_get_model_summary,
-# nx_find_geometry, nx_check_model, nx_capture_view, nx_undo_operation) list ``part`` in
-# their schemas: agents trust a strict schema over the instructions (with ``part`` left
-# out of the schemas, agents did not pass it to a core tool and gave up a capture). The proxy pops it as a call key before gate 1; the kernel resolves it (gate 3t).
-PART_KEY = {
-    "type": "string",
-    "description": "Target part's file name; needed when 2+ parts are loaded",
-}
+# Every tool that can be called without references lists ``part`` in its schemas (the
+# ref-less core tools in the agent listing, every such tool in nx_get_tool_schemas and the
+# full listing): schema.PART_KEY, schema.takes_part_key.
+PART_KEY = schema.PART_KEY
 CALL_WITH = "nx_invoke; nx_invoke_read for effect read (not as direct MCP tools)"
+# The agent profile also lists the core tools as MCP tools of their own (rows: core).
+CALL_WITH_CORE = "nx_invoke; nx_invoke_read for reads; core:true rows are also MCP tools"
+# nx_find_tools: tools NX does not offer on this build (no evidence, a missing license)
+# that would rank this high on the page are named in ``not_available`` with the reason,
+# so an agent learns why its tool is missing instead of assuming none exists.
+NOT_AVAILABLE_RANK, NOT_AVAILABLE_ROWS = 3, 3
 # nx_find_tools: default rows for one query and per query of ``queries``; a query with more
 # words than this, or joining tasks (``,`` ``;`` ``+`` "and" "then"), earns a hint to split
 # the tasks into ``queries`` (a long single task, "assembly constraints status", does not).
@@ -120,14 +120,7 @@ def tool_annotations(effect: str, name: str, label: str | None = None) -> ToolAn
     )
 
 
-def takes_part_key(spec) -> bool:
-    """A tool that acts on a loaded part and can be called without references: the
-    ``part`` call key picks its part when two or more are loaded (rule G)."""
-    if spec.runs != "nx" or spec.target in ("none", "creates", "any"):
-        return False
-    if spec.target.startswith("arg:"):
-        return False
-    return not any(p.required and RefKind in unwrap(p.hint)[1] for p in spec.params.values())
+takes_part_key = schema.takes_part_key
 
 
 class Surface:
@@ -174,8 +167,7 @@ class Surface:
         input_schema = schema.narrow_variants(
             schema.input_schema(spec), spec, self.proxy.variants(spec)
         )
-        if spec.name in CORE_TOOLS and takes_part_key(spec):
-            input_schema["properties"]["part"] = dict(PART_KEY)
+        schema.with_part_key(spec, input_schema)
         return Tool(
             name=spec.name,
             title=spec.label,
@@ -327,6 +319,12 @@ class Surface:
     def _visible_entries(self):
         return [e for e in self.entries if self.proxy.visible(self.specs[e.name])]
 
+    def _hidden_entries(self):
+        return [e for e in self.entries if not self.proxy.visible(self.specs[e.name])]
+
+    def call_with(self) -> str:
+        return CALL_WITH_CORE if self.profile == "agent" else CALL_WITH
+
     def row(self, entry, matched=None) -> dict[str, Any]:
         row: dict[str, Any] = {
             "name": entry.name,
@@ -334,6 +332,8 @@ class Surface:
             "effect": entry.effect,
             "domain": entry.domain,
         }
+        if self.profile == "agent" and entry.name in CORE_TOOLS:
+            row["core"] = True  # also listed as an MCP tool of its own
         if not self.proxy.tested(self.specs[entry.name]):
             row["tested"] = False
         if matched is not None:
@@ -363,9 +363,30 @@ class Surface:
             request.effect,
             variants=lambda e: self.proxy.variants(self.specs[e.name]),
             index=self.index,
+            fuzzy=spellings,
         )
         # Spellings are alternatives ("revolve remove"), so missing one is not partial.
         return hits, partial and not spellings, spellings, searched
+
+    def _not_available(self, hits, searched: str, spellings, request) -> list[dict[str, Any]]:
+        """Tools this build does not offer that would rank among the first
+        NOT_AVAILABLE_RANK rows of ``hits``, with the reason (at most NOT_AVAILABLE_ROWS)."""
+        hidden = self._hidden_entries()
+        if not hidden or not gateways.query_words(searched):
+            return []
+        found, _ = gateways.ranked(
+            hidden, searched, request.domain, request.effect, index=self.index, fuzzy=spellings
+        )
+        bar = hits[NOT_AVAILABLE_RANK - 1].score if len(hits) >= NOT_AVAILABLE_RANK else 0.0
+        rows = []
+        for hit in found[:NOT_AVAILABLE_ROWS]:
+            if hit.score < bar:
+                break
+            reason = self.proxy.unavailable(self.specs[hit.entry.name])
+            if reason is not None:
+                rows.append({"name": hit.entry.name, "summary": hit.entry.summary,
+                             "reason": reason})  # fmt: skip
+        return rows
 
     def _rows(self, hits, query: str, offset: int, limit: int) -> list[dict[str, Any]]:
         """Rows of a page of hits; a row that missed a query word lists the words it matched
@@ -404,8 +425,11 @@ class Surface:
         limit = request.limit or FIND_LIMIT
         data: dict[str, Any] = {
             "tools": self._rows(hits, searched, request.offset, limit),
-            "call_with": CALL_WITH,
+            "call_with": self.call_with(),
         }
+        hidden = self._not_available(hits, searched, spellings, request)
+        if hidden and not request.offset:
+            data["not_available"] = hidden
         data.update(self._notes(request.query, partial, spellings))
         if not hits:  # never just empty: the domains to browse instead
             data["domains"] = self._domains(request.effect)
@@ -440,9 +464,12 @@ class Surface:
                 "tools": self._rows(hits, searched, request.offset, limit),
                 "total": len(hits),
             }
+            hidden = self._not_available(hits, searched, spellings, request)
+            if hidden and not request.offset:
+                item["not_available"] = hidden
             item.update(self._notes(query, partial, spellings))
             results.append(item)
-        data: dict[str, Any] = {"results": results, "call_with": CALL_WITH}
+        data: dict[str, Any] = {"results": results, "call_with": self.call_with()}
         if any(not item["total"] for item in results):
             data["hint"] = "Some queries match no tool: try other words, or an empty query"
         data["listing"] = self.build_note()
@@ -479,7 +506,7 @@ class Surface:
                     "domains": self._domains(effect),
                     "hint": "Search with task words (e.g. 'revolve', 'sketch polyline'), or "
                     "pass domain with an empty query to list one domain's tools",
-                    "call_with": CALL_WITH,
+                    "call_with": self.call_with(),
                     "listing": self.build_note(),
                 },
             }
@@ -503,6 +530,7 @@ class Surface:
                 input_schema = schema.narrow_variants(
                     schema.input_schema(spec, call_keys=False), spec, offered
                 )
+            schema.with_part_key(spec, input_schema)
             out: dict[str, Any] = {
                 "name": name,
                 "description": spec.description,

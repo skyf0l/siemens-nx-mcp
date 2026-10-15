@@ -65,6 +65,45 @@ def plane_object(tx, origin, normal):
     )
 
 
+def chain_problem(tx, objs, limit=None):
+    """None when the curves chain end to end into one string (open or closed), else
+    ``(index, kind, details)``: ``branch`` (three or more ends meet at
+    ``details.branch_at``) or ``gap`` (separate strings; ``details.gap`` is the
+    smallest distance between free ends of two of them, from ``open_at`` to ``to``)."""
+    pts = [p for o in objs for p in curve.ends(tx, o)]
+    limit = gap_tolerance(tx, *pts) if limit is None else limit
+    count = len(pts)
+    links: list[list[int]] = [[] for _ in range(count)]
+    for a in range(count):
+        for b in range(a + 1, count):
+            if a // 2 != b // 2 and geom.dist(pts[a], pts[b]) <= limit:
+                links[a].append(b)
+                links[b].append(a)
+    for a in range(count):
+        if len(links[a]) > 1:
+            meeting = sorted({a // 2, *(b // 2 for b in links[a])})
+            return a // 2, "branch", {"branch_at": clean(pts[a]), "curves": meeting}
+    group = list(range(len(objs)))
+
+    def root(i):
+        while group[i] != i:
+            i = group[i]
+        return i
+
+    for a in range(count):
+        for b in links[a]:
+            group[root(a // 2)] = root(b // 2)
+    if len({root(i) for i in range(len(objs))}) == 1:
+        return None
+    free = [a for a in range(count) if not links[a]]
+    pairs = [(geom.dist(pts[a], pts[b]), a, b) for a in free for b in free
+             if root(a // 2) != root(b // 2)]  # fmt: skip
+    if not pairs:
+        return 1, "gap", {"gap": None, "strings": len({root(i) for i in range(len(objs))})}
+    gap, a, b = min(pairs)
+    return b // 2, "gap", {"gap": gap, "open_at": clean(pts[a]), "to": clean(pts[b])}
+
+
 def chain_normal(tx, objs, field):
     """Unit normal of the plane the curves lie in (sampled), or ``NX_INVALID_ARGUMENT``
     naming ``field`` when they are a straight line or not planar."""

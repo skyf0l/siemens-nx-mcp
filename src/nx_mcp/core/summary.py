@@ -13,6 +13,10 @@ import typing
 from collections.abc import Callable, Mapping
 from pathlib import Path
 
+from nx_mcp.core.errors import article as article  # the grammar helpers, for panel lines
+from nx_mcp.core.errors import counted as counted
+from nx_mcp.core.errors import plural as plural
+from nx_mcp.core.errors import singular
 from nx_mcp.core.types import PathArg, Quantity, RefKind, format_quantity, parse_quantity
 from nx_mcp.core.validate import is_union, unwrap
 
@@ -34,7 +38,7 @@ def _number(value) -> str:
 
 
 def _singular(word: str) -> str:
-    return word[:-1] if word.endswith("s") and not word.endswith("ss") else word
+    return singular(word)
 
 
 class _Say:

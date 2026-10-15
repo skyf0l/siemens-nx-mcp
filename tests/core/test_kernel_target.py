@@ -124,7 +124,10 @@ def test_two_or_more_parts_make_ref_less_calls_ambiguous():
     r = run(nx, "nx_create_primitive", **BLOCK)  # no part key, no refs
     assert r.error["code"] == "NX_AMBIGUOUS_PART" and r.mutation_outcome == "not_started", r
     assert _count(nx) == 0 and r.error["details"]["count"] == 3
-    message = "3 agent parts are loaded and nx_create_primitive has no refs that pick one"
+    message = (
+        "3 agent parts are loaded (plate.prt, bolt.prt, work.prt), and nx_create_primitive "
+        "has no refs that pick one"
+    )
     assert r.error["message"] == message
     files = [row["file"] for row in r.error["details"]["loaded_parts"]]
     assert files == ["plate.prt", "bolt.prt", "work.prt"]  # the work part last
@@ -175,7 +178,7 @@ def test_engineer_parts_are_not_counted():
     files = {row["file"] for row in r.error["details"]["loaded_parts"]}
     assert files == {"work.prt", "plate.prt"} and "housing.prt" not in r.error["hint"]
     # Not "4 parts are loaded" while 6 were: the engineer's are said apart
-    message = "2 agent parts are loaded (and 1 of the engineer's) and nx_create_primitive"
+    message = "2 agent parts are loaded (plate.prt, work.prt) and 1 of the engineer's, and"
     assert r.error["message"].startswith(message), r.error["message"]
 
 
@@ -193,8 +196,8 @@ def test_a_ref_less_call_takes_the_agents_only_part_when_the_work_part_is_the_en
 
 def test_anchors_and_unknown_refs_never_land_in_the_engineers_work_part():
     """An anchor gate 3t cannot resolve (a body ``#n`` anchor the handler resolves) pins
-    the part its path names; an unknown ref goes to the agent's part, not the engineer's
-    work part (inspection/holes_and_words beside the engineer)."""
+    the part its path names; an unknown ref is refused with its field before any part is
+    chosen, never acted on in the engineer's work part."""
     nx = _block_nx()
     s = services(nx)
     s.foreign.add(s.part_key(nx.part))  # the work part is the engineer's
@@ -204,7 +207,9 @@ def test_anchors_and_unknown_refs_never_land_in_the_engineers_work_part():
     found = target.resolve(spec, checked, s)
     assert found.part is plate and found.source == "refs"
     checked = spec.check({"owner": "b:999999"})
-    assert target.resolve(spec, checked, s).part is plate
+    with pytest.raises(NXError) as unknown:
+        target.resolve(spec, checked, s)
+    assert unknown.value.field == "/owner"
 
 
 def _parts_nx():
@@ -656,9 +661,10 @@ def test_no_mode_window_or_environment_switch(monkeypatch):
 def test_a_call_with_an_unknown_ref_is_not_ref_less():
     nx = _block_nx()
     _second(nx)
-    r = run(nx, "nx_get_feature", feature="f:999")  # the handler reports the ref
+    r = run(nx, "nx_get_feature", feature="f:999")  # refused before a part is chosen
     assert r.error["code"] not in ("NX_AMBIGUOUS_PART", "NX_WRONG_PART_CONTEXT"), r
-    assert r.error["code"] == "NX_STALE_REFERENCE" and r.part["from"] == "work", r
+    assert r.error["code"] == "NX_STALE_REFERENCE" and r.error["field"] == "/feature", r
+    assert r.part is None, r  # no part block: no part was chosen
 
 
 def test_a_refs_registered_kind_decides_over_the_inferred_one():

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/freeform/mesh_surface.json",
-  "scenario_sha256": "51d81d77f4f99b973851bc86f31ffc918e0d74e2b4607922844e5a0927a83eb7",
+  "scenario_sha256": "43e8d1873f6fe3be50b7ebc48fa1cbcd82e32ac3c1fe8fa291a6ba939dad38fa",
   "domain": "freeform",
   "covers": {
     "nx_create_mesh_surface": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_mesh_surface": "6a4946efa1a4cc9bd769893c035217a31959df972415c72deae906a55a1b3964"
+    "nx_create_mesh_surface": "83e4888a65ff69a1179d6b1abc6706476ea43aecbc6047e30697729f30b40567"
   },
-  "recorded": "2026-10-13T07:24:21Z",
+  "recorded": "2026-10-15T11:00:14Z",
   "passed": true,
-  "checks": 27,
+  "checks": 46,
   "failed_checks": 0,
   "steps": [
     {
@@ -56,7 +56,7 @@
       "call": "nx_create_mesh_surface",
       "setup": false,
       "passed": true,
-      "checks": 5
+      "checks": 7
     },
     {
       "index": 7,
@@ -126,7 +126,7 @@
       "call": "nx_create_mesh_surface",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 6
     },
     {
       "index": 17,
@@ -172,6 +172,69 @@
     },
     {
       "index": 23,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 24,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 25,
+      "call": "nx_create_mesh_surface",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 26,
+      "call": "nx_create_mesh_surface",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 27,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 28,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 29,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 30,
+      "call": "nx_create_mesh_surface",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 31,
+      "call": "nx_create_mesh_surface",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 32,
       "call": "nx_check_model",
       "setup": false,
       "passed": true,

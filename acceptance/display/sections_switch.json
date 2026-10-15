@@ -1,0 +1,171 @@
+{
+ "covers": {
+  "nx_create_section_view": [],
+  "nx_edit_section_view": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "shape": "block",
+    "length": 100,
+    "width": 60,
+    "height": 20
+   }
+  },
+  {
+   "call": "nx_create_section_view",
+   "save": "a",
+   "args": {
+    "plane": "xz",
+    "offset": 30,
+    "name": "CUT_A"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.origin": {
+     "close": [
+      0,
+      30,
+      0
+     ],
+     "tol": 1e-09
+    },
+    "data.enabled": true
+   }
+  },
+  {
+   "call": "nx_create_section_view",
+   "args": {
+    "plane": "xy",
+    "offset": 5
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_ALREADY_EXISTS",
+    "error.details.section.id": "$a.data.section.id",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_section_view",
+   "args": {
+    "section": "$a.data.section.id",
+    "enabled": false
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.enabled": false,
+    "data.sectioning": false
+   }
+  },
+  {
+   "call": "nx_create_section_view",
+   "save": "b",
+   "args": {
+    "plane": "xy",
+    "offset": 5,
+    "name": "CUT_B"
+   },
+   "intent": "Acceptance: a switched-off section no longer blocks a new one (live: NX_ALREADY_EXISTS)",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.origin": {
+     "close": [
+      0,
+      0,
+      5
+     ],
+     "tol": 1e-09
+    },
+    "data.active": true,
+    "data.sectioning": true
+   }
+  },
+  {
+   "call": "nx_edit_section_view",
+   "args": {
+    "section": "CUT_A",
+    "enabled": true
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.enabled": true,
+    "data.origin": {
+     "close": [
+      0,
+      30,
+      0
+     ],
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "args": {
+    "kind": "section_view"
+   },
+   "expect": {
+    "data.items": {
+     "count": 2
+    }
+   }
+  },
+  {
+   "call": "nx_delete_objects",
+   "args": {
+    "objects": [
+     "$b.data.section.id"
+    ]
+   },
+   "intent": "Acceptance: deleting a section raises no note that an undo reverted it (live: a false NX_NOTE)",
+   "expect": {
+    "ok": true,
+    "warnings": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_delete_objects",
+   "args": {
+    "objects": [
+     "$a.data.section.id"
+    ]
+   },
+   "expect": {
+    "ok": true,
+    "warnings": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "args": {
+    "kind": "section_view"
+   },
+   "expect": {
+    "data.items": {
+     "count": 0
+    },
+    "warnings": {
+     "count": 0
+    }
+   }
+  }
+ ]
+}

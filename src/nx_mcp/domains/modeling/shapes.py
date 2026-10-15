@@ -176,7 +176,9 @@ def nx_create_rib(
         Doc("Centred or one side; a parallel rib's one_side is the sketch normal side"),
     ] = "symmetric",
     draft: Annotated[Angle, Doc("Draft of a perpendicular rib's walls")] | None = None,
-    combine: Annotated[bool, Doc("Unite the rib with the body; false keeps a new body")] = True,
+    combine: Annotated[
+        bool, Doc("Unite the rib with the body; false: a new body, the rib minus the body")
+    ] = True,
     flip: Annotated[
         bool, Doc("Perpendicular rib: grow against the sketch normal (NX grows along it)")
     ] = False,
@@ -193,8 +195,9 @@ def nx_create_rib(
             fail("NX_INVALID_ARGUMENT", "Only a perpendicular rib takes a draft", field="/draft")
         if not 0 < float(draft) < 89:
             fail("NX_INVALID_ARGUMENT", "draft must be within 0..89 degrees", field="/draft")
-    sk = ksketch.resolve(tx, sketch)
-    target = common.solid(tx, body)
+    with tx.checks():
+        sk = ksketch.resolve(tx, select.resolve(tx, sketch, "sketch", field="/sketch"), "/sketch")
+        target = common.solid(tx, body)
     before = measure.volume(tx, target)
     rib = tx.nx.Features.RibBuilder
     collection = tx.part.Features.DesignFeatureCollection
@@ -230,6 +233,12 @@ def nx_create_rib(
         return {**out, "added": out["volume"] - before}
     made = _new_bodies(feature, target)
     readback.expect(bool(made), "bodies", "The rib built no body")
+    if len(made) > 1:
+        tx.warn(
+            "NX_NOTE",
+            f"The rib body came out in {len(made)} pieces: without combine NX removes the "
+            "body (and earlier ribs) from it",
+        )
     out = common.result_of(tx, feature, made)
     common.changed(0.0, out["volume"], "positive")
     common.changed(before, measure.volume(tx, target), "same", check="target_volume")
@@ -238,6 +247,56 @@ def nx_create_rib(
 
 # ---------------------------------------------------------------------------
 # Tube
+
+
+# NX 2406 refuses a tube path that is not one chain: "Gaps in string or multiple loops."
+TUBE_GAPS = 1070008
+CHAIN_HINT = "Make the path curves meet end to end in one chain (add the missing curve)"
+
+
+def _refuse_gaps(tx, curves, field) -> None:
+    """Refuse a path whose curves do not join end to end in one chain (a gap, a branch,
+    or a closed curve among others) before NX does (1070008, with no location)."""
+    if len(curves) < 2:
+        return
+    ends = []  # (curve index, point)
+    for i, c in enumerate(curves):
+        try:
+            a, b = curve.ends(tx, c)
+        except Exception:  # a point or an object UF Eval does not take: NX decides
+            return
+        ends += [(i, a), (i, b)]
+    tol = units.part_tolerance(tx)
+
+    def meet(p, q):
+        return geom.dist(p, q) <= max(tol, geom.tol(p, q))
+
+    free = []
+    for k, (i, p) in enumerate(ends):
+        if meet(p, ends[k ^ 1][1]):  # a closed curve among others: a second loop
+            fail("NX_WRONG_GEOMETRY", "The path holds a closed curve among others; a path is "
+                 "one chain", field=field, hint=CHAIN_HINT)  # fmt: skip
+        mates = [j for j, (i2, q) in enumerate(ends) if i2 != i and meet(p, q)]
+        if len(mates) > 1:
+            fail("NX_WRONG_GEOMETRY",
+                 f"The path branches at {[round(v, 6) for v in p]}: {len(mates) + 1} curves meet",
+                 field=field, hint=CHAIN_HINT)  # fmt: skip
+        if not mates:
+            free.append((i, p))
+    if len(free) <= 2:
+        return
+    pairs = [
+        (geom.dist(p, q), p, q) for n, (i, p) in enumerate(free) for j, q in free[n + 1 :] if i != j
+    ]
+    gap, p, q = min(pairs, key=lambda g: g[0])
+    fail(
+        "NX_WRONG_GEOMETRY",
+        f"The path has a gap of {gap:.6g} between {[round(v, 6) for v in p]} and "
+        f"{[round(v, 6) for v in q]}; its curves must join end to end",
+        field=field,
+        hint=CHAIN_HINT,
+        details={"gap": gap, "free_ends": [[round(v, 6) for v in e] for _i, e in free][:10]},
+    )
 
 
 def _path(tx, refs):
@@ -259,9 +318,11 @@ def _path(tx, refs):
     curves = [select.owned(tx, c, field, "curves") for c, field in curves]
     if sketches:
         sk = sketches[0]
+        _refuse_gaps(tx, common.sketch_curves(sk), "/path")
         common.refuse_corners(tx, common.sketch_curves(sk), "/path", "path")
         return (lambda into: builders.section(tx, sk, into=into)), None
     if len(curves) > 1:
+        _refuse_gaps(tx, curves, "/path")
         common.refuse_corners(tx, curves, "/path", "path")
     single = curves[0] if len(curves) == 1 else None
     return (lambda into: builders.curve_section(tx, curves, into=into)), single
@@ -271,7 +332,7 @@ def _path(tx, refs):
     effect="model",
     label="Create tube",
     summary=lambda a, say: f"Tube {say('outer_diameter')} along {say('path')}",
-    keywords=("tube", "pipe", "wire", "hose", "cable", "tubing", "hollow pipe"),
+    keywords=("tube", "pipe", "wire", "hose", "cable", "tubing", "hollow pipe", "pipe routing"),
     requires=("work_part", "no_active_sketch"),
     cost="heavy",
     previewable=True,
@@ -315,6 +376,8 @@ def nx_create_tube(
             builders.boolean(tx, b.BooleanOption, combine)
             feature = b.commit()
     except NXError as error:
+        if error.nx_code == TUBE_GAPS:
+            error.field, error.hint = error.field or "/path", CHAIN_HINT
         common.smooth_hint(error)
         common.outside_hint(error, combine)
         raise
@@ -377,6 +440,15 @@ def _ends(tx, curves, first):
     return (a, b) if geom.dist(a, first) <= geom.dist(b, first) else (b, a)
 
 
+def _face_start(face, origin, z):
+    """The point of a cylinder or cone face's axis at the face's end lowest along ``z``
+    (NX gives a point at mid-height), so the helix climbs over the face."""
+    heights = [
+        geom.dot(geom.sub(geom.xyz(v), origin), z) for e in face.GetEdges() for v in e.GetVertices()
+    ]
+    return geom.add(origin, geom.scale(z, min(heights))) if heights else origin
+
+
 def _constant_law(tx, law, value):
     law.LawType = tx.nx.GeometricUtilities.LawBuilder.Type.Constant
     expr.drive(law.Value, value)
@@ -406,8 +478,9 @@ def nx_create_helix(
     ] = 0.0,
 ) -> HelixData:
     """Create a helix curve of constant radius and pitch climbing along an axis (default z).
-    It starts on the axis origin's plane; give turns or height, not both (turns =
-    height/pitch). Length is turns * sqrt((2 pi r)^2 + pitch^2)."""
+    It starts on the axis origin's plane (a cylinder or cone face: at the face's lower end
+    along its axis); give turns or height, not both (turns = height/pitch). Length is
+    turns * sqrt((2 pi r)^2 + pitch^2)."""
     if turns is not None and height is not None:
         fail(
             "NX_INVALID_ARGUMENT",
@@ -426,7 +499,10 @@ def nx_create_helix(
     n = float(turns) if turns is not None else args.finite(height, "/height", positive=True) / p
     if not 0 < n <= 1000:
         fail("NX_INVALID_ARGUMENT", "The helix needs 0 to 1000 turns", field="/height")
-    _obj, origin, z = select.axis(tx, common.principal(axis), "/axis")
+    with tx.checks():
+        obj, origin, z = select.axis(tx, common.principal(axis), "/axis")
+        if obj is not None and hasattr(obj, "GetEdges"):  # a face: start at its end
+            origin = _face_start(obj, origin, z)
     helix = tx.nx.Features.HelixBuilder
     with builders.build(tx, tx.part.Features.CreateHelixBuilder, None) as b:
         csys, x, y = _helix_csys(tx, origin, z, float(start_angle))
@@ -483,6 +559,31 @@ def nx_create_helix(
 # Emboss body
 
 
+# NX 2406 "Unable to perform Boolean." of an emboss whose tool only touches the target.
+EMBOSS_BOOLEAN = 670033
+EMBOSS_HINT = (
+    "The tool must overlap the target by a real volume: a tool that only touches it (a "
+    "sphere's equator on a face) fails; move it into the target a little"
+)
+
+
+class EmbossBodyData(common.FeatureData, total=False):
+    sheet: bool  # the target is a sheet body (volume is then 0)
+    area_before: float  # sheet targets: the sheet's area before
+    area: float  # sheet targets: the sheet's area after
+    bounds: list[Point3]  # sheet targets: [low, high] of the sheet after
+
+
+def _boxes_meet(tx, a, b, gap) -> bool:
+    """Whether the two bodies' boxes, ``a``'s grown by ``gap``, overlap (True when NX
+    cannot box them: NX decides)."""
+    try:
+        (la, ha), (lb, hb) = measure.bounds(tx, [a]), measure.bounds(tx, [b])
+    except Exception:  # a body NX cannot box
+        return True
+    return all(la[i] - gap <= hb[i] and lb[i] <= ha[i] + gap for i in range(3))
+
+
 @tool(
     effect="model",
     label="Emboss body",
@@ -499,13 +600,14 @@ def nx_create_emboss_body(
     target: BodyRef,
     tool_body: BodyRef,
     clearance: Annotated[Length, Doc("Gap kept around the tool on every side")] = 0.0,
-    thickness: Annotated[Length, Doc("Sheet targets only: the embossed wall's thickness")]
+    thickness: Annotated[Length, Doc("Sheet targets only: NX's emboss thickness; it stays a sheet")]
     | None = None,
     keep_tool: Annotated[bool, Doc("Keep the tool body after the emboss")] = True,
     reverse: Annotated[bool, Doc("Emboss toward the other side of the target")] = False,
-) -> common.FeatureData:
+) -> EmbossBodyData:
     """Emboss a target around an overlapping tool body (not text). A solid target loses the
-    overlap grown by clearance; a sheet is pushed out around the tool. volume: the target's."""
+    overlap grown by clearance; a sheet is pushed out around the tool (reverse: the other
+    way). volume: a solid target's; a sheet target reports area, area_before and bounds."""
     gap = float(clearance)
     if gap < 0:
         fail("NX_INVALID_ARGUMENT", "clearance must be 0 or more", field="/clearance")
@@ -513,22 +615,50 @@ def nx_create_emboss_body(
         args.finite(thickness, "/thickness", positive=True)
     if target == tool_body:
         fail("NX_INVALID_ARGUMENT", "target and tool_body must differ", field="/tool_body")
-    goal = select.one(tx, target, "body", field="/target")
-    tool_obj = select.one(tx, tool_body, "body", field="/tool_body")
+    with tx.checks():  # lookups and refusals: nothing changed yet (not_started)
+        goal = select.one(tx, target, "body", field="/target")
+        tool_obj = select.one(tx, tool_body, "body", field="/tool_body")
+        if not _boxes_meet(tx, tool_obj, goal, gap):
+            fail(
+                "NX_WRONG_GEOMETRY",
+                "tool_body does not reach the target: their bounding boxes do not overlap",
+                field="/tool_body",
+                hint="Move the tool so it overlaps the target (nx_create_transform), or pick "
+                "the body it crosses",
+            )
     solid = bool(getattr(goal, "IsSolidBody", True))
     before = measure.volume(tx, goal) if solid else 0.0
-    with builders.build(tx, tx.part.Features.CreateEmbossBodyBuilder, None) as b:
-        b.TargetBody = builders.collector(tx, [goal], "Body")
-        b.ToolBody = builders.collector(tx, [tool_obj], "Body")
-        expr.drive(b.Clearance, clearance)
-        if thickness is not None:
-            expr.drive(b.Thickness, thickness)
-        b.KeepTools = bool(keep_tool)
-        b.KeepTargets = False
-        b.TargetMaterialSide = bool(reverse)
-        feature = b.commit()
+    faces_before = [] if solid else list(goal.GetFaces())
+    area_before = measure.area(tx, faces_before) if faces_before else 0.0
+    try:
+        with builders.build(tx, tx.part.Features.CreateEmbossBodyBuilder, None) as b:
+            b.TargetBody = builders.collector(tx, [goal], "Body")
+            b.ToolBody = builders.collector(tx, [tool_obj], "Body")
+            expr.drive(b.Clearance, clearance)
+            if thickness is not None:
+                expr.drive(b.Thickness, thickness)
+            b.KeepTools = bool(keep_tool)
+            b.KeepTargets = False
+            b.TargetMaterialSide = bool(reverse)
+            feature = b.commit()
+    except NXError as error:
+        if error.nx_code == EMBOSS_BOOLEAN and not error.hint:
+            error.hint = EMBOSS_HINT
+            error.field = error.field or "/tool_body"
+        raise
     bodies = [x for x in common.feature_bodies(feature) if int(x.Tag) != int(tool_obj.Tag)]
-    out = common.result_of(tx, feature, bodies or [goal])
+    out: EmbossBodyData = {**common.result_of(tx, feature, bodies or [goal]), "sheet": not solid}
     if solid:
         common.changed(before, out["volume"], "differs")
-    return out
+        return out
+    sheets = bodies or [goal]
+    area = measure.area(tx, [f for x in sheets for f in x.GetFaces()])
+    readback.expect(
+        not common.same_volume(area_before, area),
+        "area",
+        f"The sheet kept its area ({area:.6g}): NX did not emboss it",
+        area=area,
+        before=area_before,
+    )
+    low, high = measure.bounds(tx, sheets)
+    return {**out, "area_before": area_before, "area": area, "bounds": [low, high]}

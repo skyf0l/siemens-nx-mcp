@@ -85,7 +85,11 @@ class Target:
         """``envelope.part``: ``{id, file, from}``."""
         if self.closed is not None:
             return {**self.closed, "from": self.source}
-        return {"id": part_id(services, self.part), "file": self.file, "from": self.source}
+        file = self.file
+        with contextlib.suppress(Exception):  # after a save-as: the part's new file
+            if getattr(self.part, "FullPath", None):
+                file = file_name(self.part)
+        return {"id": part_id(services, self.part), "file": file, "from": self.source}
 
     def reported(self, explicit: bool) -> bool:
         """Whether the envelope names the part: ``part`` given, or two or more parts
@@ -590,20 +594,43 @@ def _by_refs(spec, services, loaded, pinned, explicit, checked, parent) -> Targe
         ):
             return _target(services, work, "work", count)  # as before
         listed = [{**rows(services, [v[0]])[0], "fields": v[1]} for v in pinned.values()]
+        files = ", ".join(r["file"] for r in listed[:LISTED])
         fail(
             "NX_AMBIGUOUS_PART",
             "The references name objects of several parts: "
-            + ", ".join(f"{r['fields'][0]} in {r['file']}" for r in listed[:LISTED]),
+            + ", ".join(f"{r['fields'][0]} in {r['file']}" for r in listed[:LISTED])
+            + f"; a call acts in one part, so they must be in the same part ({files}) "
+            "unless the tool brings objects of another part in",
             field=listed[0]["fields"][0],
-            hint="Add part to the arguments to say which part the call changes, e.g. "
-            f"{EXAMPLE}: one of {', '.join(r['file'] for r in listed[:LISTED])}",
+            hint="Pass refs of one part. Only a tool that takes geometry from another part "
+            f"(a WAVE link, a component in an assembly) needs part, e.g. {EXAMPLE}: one of "
+            f"{files}",
             details={"parts": listed[:LISTED]},
         )
-    if parent is None and _named_refs(checked):  # unknown or stale refs: the handler says so
-        work = services.work_part()  # (in the agent's part, never the engineer's)
-        if work is not None and (counts(services, work) or not agent_parts(services, loaded)):
-            return _target(services, work, "work", count)
+    if _named_refs(checked):
+        # No ref resolves: refuse with the first ref's own error (stale, unknown) before any
+        # part is chosen or marked; never fall back to the work part, which may be another
+        # agent's.
+        _raise_unresolved(services, checked)
+        if parent is None:  # refs that resolve but pin no part: the handler says why
+            work = services.work_part()  # (in the agent's part, never the engineer's)
+            if work is not None and (counts(services, work) or not agent_parts(services, loaded)):
+                return _target(services, work, "work", count)
     return _fallback(spec, services, loaded, parent)
+
+
+def _raise_unresolved(services, checked) -> None:
+    """Raise the error of the first reference argument that does not resolve, with its
+    field (``/objects/1``); return when every one resolves."""
+    for path, kinds in checked.refs:
+        value = get_at(checked.args, path)
+        if not is_ref(value):
+            continue
+        try:
+            _named(services, value, kinds)
+        except NXError as error:
+            error.field = error.field or pointer(path)
+            raise
 
 
 USES_PART_NODES = 20_000  # components :func:`uses_part` visits at most
@@ -638,6 +665,12 @@ def _named_refs(checked) -> bool:
         if isinstance(value, str) and not value.startswith("$"):
             return True
     return False
+
+
+def is_ref(value) -> bool:
+    """Whether ``value`` is shaped like a reference (a short ref, a registry handle or an
+    anchor), not a name a field also takes ('SHT1') or a batch placeholder."""
+    return isinstance(value, str) and bool(re.match(REF_PATTERN, value.strip()))
 
 
 def _into_assembly(spec) -> bool:
@@ -681,9 +714,9 @@ def _fallback(spec, services, loaded: list, parent) -> Target | None:
     others = count - len(mine)
     fail(
         "NX_AMBIGUOUS_PART",
-        f"{len(mine)} agent parts are loaded"
-        + (f" (and {others} of the engineer's)" if others > 0 else "")
-        + f" and {spec.name} has no refs that pick one",
+        f"{len(mine)} agent parts are loaded ({names})"
+        + (f" and {others} of the engineer's" if others > 0 else "")
+        + f", and {spec.name} has no refs that pick one",
         hint=hint,
         details={"loaded_parts": rows(services, ordered), "count": len(mine)},
     )

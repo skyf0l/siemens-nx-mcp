@@ -37,7 +37,7 @@ from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import BodyRef, Doc, Items, Length, RefTo
 from nx_mcp.domains.freeform import common
 from nx_mcp.kit import bodies as kbodies
-from nx_mcp.kit import builders, curve, licenses, measure, readback, result, select, units
+from nx_mcp.kit import builders, curve, geom, licenses, measure, readback, result, select, units
 
 LICENSE = "nx_freeform_1"
 TOLERANCE_MM = 0.01  # the default and the smallest tolerance accepted
@@ -61,6 +61,68 @@ def _min_tolerance(tx) -> float:
     with contextlib.suppress(Exception):
         low = max(low, float(tx.part.Preferences.Modeling.DistanceToleranceData))
     return low
+
+
+HINT = (
+    "The tool must be a solid made by a cylinder, revolve or cylindrical extrude, the path "
+    "one chain of curves starting level with the tool axis, and the swept space must cross "
+    "the targets' faces"
+)
+HINTS = {
+    4120009: "NX found no place on the path for the tool: start the path level with the tool "
+    "axis (its point nearest the axis), e.g. above the tool's base centre",
+    4120021: "The swept space lies wholly inside or outside the target: intersect needs a "
+    "target the sweep crosses, e.g. a block thinner than the tool along its axis",
+}
+
+
+def _axis(tx, body):
+    """``(point, unit direction)`` of the tool's axis: its first cylinder or cone face's
+    axis (None when it has neither)."""
+    for face in body.GetFaces():
+        kind, point, direction = select.face_data(tx, face)
+        if kind in (16, 17) and geom.norm(direction) > 1e-12:
+            return point, geom.unit(direction)
+    return None
+
+
+def _check_start(tx, body, curves) -> None:
+    """Refuse a path that does not start level with the tool axis.
+
+    NX places the path at its point nearest the tool axis (seen along the axis) and
+    sweeps the whole path from there: a straight path starting 10 off sideways cut a slot
+    10 longer behind the tool, and one whose nearest point is an end that is not level
+    with the axis failed ('The Tool Body is invalid', 4120009). The path start must be
+    level: the offset from the axis to the start, across the axis, is normal to the path.
+    """
+    found = _axis(tx, body)
+    if found is None:
+        return
+    origin, axis = found
+    with curve.evaluator(tx, curves[0]) as e:
+        start, tangent = e.at(0.0)
+
+    def across(v):
+        return geom.sub(v, geom.scale(axis, geom.dot(v, axis)))
+
+    offset = across(geom.sub(start, origin))
+    along = across(tangent)
+    if geom.norm(along) <= 1e-9:
+        return  # the path starts along the axis
+    along = geom.unit(along)
+    lead = geom.dot(offset, along)
+    if abs(lead) <= units.part_tolerance(tx, TOLERANCE_MM) + geom.tol(start, origin):
+        return
+    shift = geom.scale(along, -lead)
+    fail(
+        "NX_INVALID_ARGUMENT",
+        f"The path starts {abs(lead):.4g} ahead of or behind the tool axis: NX would sweep "
+        "from the path's point nearest the axis instead of from the tool",
+        field="/path/0",
+        hint="Start the path level with the tool axis: move it by details.shift (or start it "
+        "at the tool's base centre)",
+        details={"lead": lead, "shift": [float(v) for v in shift]},
+    )
 
 
 def _feature_tags(part):
@@ -96,9 +158,11 @@ def nx_create_swept_volume(
     tolerance: Annotated[Length, Doc("Default and minimum 0.01 mm (finer can hang NX)")]
     | None = None,
 ) -> SweptData:
-    """Cut or intersect targets with the space a cylindrical/revolved tool sweeps along a path.
-    The tool moves by the path's shape from where it stands, axis kept; intersect with a block
-    enclosing the motion gives the envelope body. Reports the volume change."""
+    """Cut or intersect targets with the space a cylindrical/revolved tool sweeps along a path,
+    axis kept. Start the path level with the tool axis (the path's point nearest the axis,
+    e.g. above the base centre): the tool then moves by the path's shape from where it
+    stands. Envelope body: intersect with a block the sweep pierces (thinner than the tool
+    along its axis); a block enclosing the whole sweep is refused. Reports the volume change."""
     if tool in targets:
         fail("NX_INVALID_ARGUMENT", "The tool cannot be a target", field="/targets")
     with tx.checks():
@@ -116,6 +180,7 @@ def nx_create_swept_volume(
         ]
         if len({int(c.Tag) for c in curves}) != len(curves):
             fail("NX_INVALID_ARGUMENT", "A path curve is listed twice", field="/path")
+        _check_start(tx, body, curves)
         floor = _min_tolerance(tx)
         tol = floor if tolerance is None else float(tolerance)
         if tol < floor * (1 - 1e-9):
@@ -145,11 +210,7 @@ def nx_create_swept_volume(
     except NXError as error:
         if error.code != "NX_BUILD_FAILED":
             raise
-        raise common.explain(
-            error,
-            "The tool must be a solid made by a cylinder, revolve or cylindrical extrude, the "
-            "path one chain of curves, and the swept space must meet the targets",
-        ) from None
+        raise common.explain(error, HINTS.get(error.nx_code or 0, HINT)) from None
     made = [f for f in part.Features if int(f.Tag) not in features]
     live = {int(x.Tag) for x in part.Bodies}
     after_bodies = [x for x in found if int(x.Tag) in live]

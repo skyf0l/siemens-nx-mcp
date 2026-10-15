@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/freeform/midsurface.json",
-  "scenario_sha256": "f9c0835b4000a7647479af55276f9320c97557d8833507c77f635d671837f8d4",
+  "scenario_sha256": "48990a62ebfa0ac49472c04d650ae7235c4e861bb4a858e81959a8441a77f64f",
   "domain": "freeform",
   "covers": {
     "nx_create_midsurface": [
@@ -13,11 +13,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_midsurface": "e680df06fb52cd517069024b3dc9def3198c1386065f8d7924e8d67c56f15cc7"
+    "nx_create_midsurface": "6e55799721aca2b550c6d5762d5da03ffe6a0b009aa04fb631b8a65c2869fcd3"
   },
-  "recorded": "2026-10-13T12:10:22Z",
+  "recorded": "2026-10-15T11:00:18Z",
   "passed": true,
-  "checks": 29,
+  "checks": 34,
   "failed_checks": 0,
   "steps": [
     {
@@ -113,6 +113,20 @@
     },
     {
       "index": 14,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 15,
+      "call": "nx_create_midsurface",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 16,
       "call": "nx_check_model",
       "setup": false,
       "passed": true,

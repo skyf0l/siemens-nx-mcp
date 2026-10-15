@@ -10,15 +10,7 @@ from nx_mcp.core.types import FeatureRef
 from nx_mcp.domains.optimization import common, environment
 from nx_mcp.kit import measure, result
 
-LOAD_TYPES = ("Force", "BearingLoad", "Pressure", "Torque", "Acceleration",
-              "EnforcedDisplacement", "RemoteForce", "HeatFlux")  # fmt: skip
 SOLVED_BELOW = 0.999  # result volume / design volume of a solved study
-SUPPORT_TYPES = ("Fixed", "Pinned", "PinnedSlider", "LinearSlider", "PlanarSlider", "Temperature")
-
-
-class Item(TypedDict):
-    type: str
-    faces: int
 
 
 class LoadCase(TypedDict):
@@ -34,8 +26,9 @@ class StudyInfo(TypedDict):
     material: str | None
     design_mass: float | None
     target_mass: float | None
-    supports: list[Item]
-    loads: list[Item]
+    target_fraction: float | None
+    supports: list[common.Condition]
+    loads: list[common.Condition]
     load_cases: list[LoadCase]
     acceleration: environment.Acceleration | None
     scenery: list[result.Row]
@@ -48,21 +41,6 @@ class StudyInfo(TypedDict):
 
 class StudyList(TypedDict):
     items: list[StudyInfo]
-
-
-def _type(value, enum, names) -> str:
-    return result.enum_name(value, enum, names).lower()
-
-
-def _items(tx, study, getter, enum, names) -> list[Item]:
-    out: list[Item] = []
-    for item in common.all_of(study, getter):
-        try:
-            count = len(list(item.GetFaces() or []))
-        except Exception:
-            count = 0
-        out.append({"type": _type(item.Type, enum, names), "faces": count})
-    return out
 
 
 def _cases(study) -> list[LoadCase]:
@@ -81,7 +59,6 @@ def _cases(study) -> list[LoadCase]:
 
 def describe(tx, feature) -> StudyInfo:
     """One study's definition and solve state."""
-    DS = common.ds(tx)
     study = common.active_study(feature)
     designs = common.all_of(study, "GetAllDesignSpaces")
     design = designs[0] if designs else None
@@ -93,23 +70,18 @@ def describe(tx, feature) -> StudyInfo:
     if bodies and design is not None:
         fraction = measure.volume(tx, bodies) / measure.volume(tx, [design.Body])
     solved = fraction is not None and 0.0 < fraction < SOLVED_BELOW
+    design_mass = None if design is None else common.mass_of(design)
+    target = common.target_mass(feature)
     return {
         "study": tx.ref(feature, kind="feature"),
         "name": str(getattr(study, "Name", "") or ""),
         "design_space": None if design is None else tx.ref(design.Body, kind="body"),
         "material": None if material is None else str(material.Name),
-        "design_mass": None if design is None else common.mass_of(design),
-        "target_mass": common.target_mass(feature),
-        "supports": _items(
-            tx,
-            study,
-            "GetAllAnalysisConstraints",
-            DS.AnalysisConstraintBuilder.ConstraintType,
-            SUPPORT_TYPES,
-        ),  # fmt: skip
-        "loads": _items(
-            tx, study, "GetAllAnalysisLoads", DS.AnalysisLoadBuilder.AnalysisLoadType, LOAD_TYPES
-        ),
+        "design_mass": design_mass,
+        "target_mass": target,
+        "target_fraction": target / design_mass if target and design_mass else None,
+        "supports": common.conditions(tx, study, "support"),
+        "loads": common.conditions(tx, study, "load"),
         "load_cases": _cases(study),
         "acceleration": environment.acceleration_of(tx, study),
         "scenery": result.rows(tx, common.scenery_bodies(study), "body"),
@@ -133,8 +105,8 @@ def describe(tx, feature) -> StudyInfo:
 )
 def nx_get_topology_study(tx: Tx, *, study: FeatureRef | None = None) -> StudyList:
     """List the work part's topology optimization studies, or describe one. Rows: design
-    space, material, mass and target (kg), supports, loads, load cases, acceleration (g),
-    scenery bodies, connections, quality, solved result."""
+    space, material, mass and target (kg), supports and loads (faces, load cases, N or MPa,
+    direction), load cases, acceleration (g), scenery bodies, connections, quality, result."""
     if study is not None:
         return {"items": [describe(tx, common.feature_of(tx, study))]}
     return {"items": [describe(tx, f) for f in common.studies(tx)]}

@@ -17,7 +17,9 @@ from typing import Any, NoReturn
 CATEGORIES: dict[str, tuple[str, tuple[str, ...], str]] = {
     "invalid_argument": (
         "after_fix",
-        ("NX_INVALID_ARGUMENT", "NX_INVALID_FORMULA"),
+        # NX_IDEMPOTENCY_CONFLICT: an operation_id reused with other arguments (use a new
+        # one); nothing ran, so it is not an interruption.
+        ("NX_INVALID_ARGUMENT", "NX_INVALID_FORMULA", "NX_IDEMPOTENCY_CONFLICT"),
         "Fix the argument named in field; the same call never succeeds",
     ),
     "unsupported": (
@@ -71,7 +73,8 @@ CATEGORIES: dict[str, tuple[str, tuple[str, ...], str]] = {
     "already_exists": (
         "after_fix",
         ("NX_ALREADY_EXISTS", "NX_NAME_CONFLICT"),
-        "Choose another name or path, or use the existing object in details",
+        "Choose another name or path; details.existing, when given, is the object that "
+        "has it (use it instead)",
     ),
     "blocked": (
         "after_fix",
@@ -152,7 +155,7 @@ CATEGORIES: dict[str, tuple[str, tuple[str, ...], str]] = {
     ),
     "interrupted": (
         "after_status_check",
-        ("NX_CANCELLED", "NX_OUTCOME_UNKNOWN", "NX_IDEMPOTENCY_CONFLICT", "NX_CALL_EXPIRED"),
+        ("NX_CANCELLED", "NX_OUTCOME_UNKNOWN", "NX_CALL_EXPIRED"),
         "Query nx_get_operation(operation_id); never retry a mutation blindly",
     ),
     "rollback_failed": (
@@ -195,9 +198,107 @@ RETRY_VALUES = frozenset(
 # Native license checkout failures (NX 2406: 948801 missing token feature,
 # 949895 license feature not available).
 LICENSE_ERROR_CODES = frozenset({948801, 949895})
+# NX messages of a license refusal raised under another code (a module or token checkout).
+LICENSE_ERROR_TEXT = ("license error", "not enough tokens", "license feature is not available")
 # "Update undo happened.": an update failed and NX undid it, as the host's update
 # failure action (host/quiet.py) asks instead of opening "Error During Update".
 UPDATE_UNDONE_CODE = 670024
+# Native NX codes whose meaning does not depend on the tool (NX 2406 messages): classified
+# here unless the tool maps them itself (``native(codes)``), with a hint to fix the input.
+# Defaults that say only "NX failed": a known code is more precise. A tool's own default
+# (``native(default="NX_INVALID_FORMULA")``) already says what its failures mean.
+GENERIC_DEFAULTS = frozenset({"NX_ERROR", "NX_BUILD_FAILED"})
+KNOWN_NX_CODES: dict[int, tuple[str, str]] = {
+    1050017: (  # "The specified expression variable already exists."
+        "NX_ALREADY_EXISTS",
+        "Choose a name no expression of the part has (nx_list_objects kind 'expression')",
+    ),
+    1050011: (  # "New expression variable name is invalid."
+        "NX_INVALID_ARGUMENT",
+        "An expression name starts with a letter or '_' and holds letters, digits and '_'",
+    ),
+    1720003: (  # "Sketch already exists with specified name"
+        "NX_ALREADY_EXISTS",
+        "Choose a name no sketch of the part has (nx_list_objects kind 'sketch')",
+    ),
+    1405072: (  # "The view is not located on the drawing."
+        "NX_INVALID_ARGUMENT",
+        "Place the view on the sheet: a position from [0, 0] to the sheet size, sheet units",
+    ),
+    3270008: (  # "The specified string contains a syntax error"
+        "NX_INVALID_FORMULA",
+        "Give a number, a unit string such as '10 mm' or a valid NX formula",
+    ),
+    3520016: (  # "No object found with this name"
+        "NX_NOT_FOUND",
+        "Use a name NX lists for that kind of object",
+    ),
+    735029: (  # "There are no drawing sheets in the selected part."
+        "NX_NOT_FOUND",
+        "Name a part that has drawing sheets",
+    ),
+}
+
+
+# ---------------------------------------------------------------------------
+# Grammar of messages and panel lines (one place: no "bodys" or "a explosion")
+
+_IRREGULAR = {"body": "bodies", "vertex": "vertices", "datum": "datums", "axis": "axes"}
+_AN_EXCEPTIONS = ("one", "use", "uni", "eu")  # 'a unit', 'a one-way'
+_AN_LETTERS = frozenset("aeiou")
+
+
+def article(word: str) -> str:
+    """``a`` or ``an`` before ``word`` (``an edge``, ``an explosion``, ``a unit``)."""
+    text = str(word).strip().lower()
+    if text.startswith(_AN_EXCEPTIONS):
+        return "a"
+    return "an" if text[:1] in _AN_LETTERS else "a"
+
+
+def plural(word: str, count: int = 2) -> str:
+    """``word`` for one, else its plural; the last word of a phrase (``drawing view`` ->
+    ``drawing views``), ``_`` kinds too (``drawing_view`` -> ``drawing_views``)."""
+    if count == 1:
+        return word
+    head, sep, last = str(word).rpartition(" ")
+    if not sep:
+        head, sep, last = str(word).rpartition("_")
+    lower = last.lower()
+    if lower in _IRREGULAR:
+        out = _IRREGULAR[lower]
+    elif lower.endswith(("s", "x", "z", "ch", "sh")):
+        out = last + "es"
+    elif lower.endswith("y") and lower[-2:-1] not in _AN_LETTERS:
+        out = last[:-1] + "ies"
+    else:
+        out = last + "s"
+    return f"{head}{sep}{out}"
+
+
+def singular(word: str) -> str:
+    """The singular of a plural noun (``bodies`` -> ``body``, ``sketches`` -> ``sketch``)."""
+    lower = str(word).lower()
+    for one, many in _IRREGULAR.items():
+        if lower.endswith(many):
+            return word[: len(word) - len(many)] + one
+    if lower.endswith("ies") and len(lower) > 3:
+        return word[:-3] + "y"
+    if lower.endswith(("ches", "shes", "sses", "xes", "zes")):
+        return word[:-2]
+    if lower.endswith("s") and not lower.endswith("ss"):
+        return word[:-1]
+    return word
+
+
+def counted(count: int, word: str) -> str:
+    """``1 body``, ``3 bodies``."""
+    return f"{count} {plural(word, count)}"
+
+
+def with_article(word: str) -> str:
+    """``an edge``, ``a face``."""
+    return f"{article(word)} {word}"
 
 
 def dev_mode() -> bool:
@@ -307,6 +408,28 @@ def fail(
     )
 
 
+def already_exists(
+    message: str,
+    *,
+    field: str | None = None,
+    existing: Any = None,
+    hint: str | None = None,
+    details: dict | None = None,
+) -> NoReturn:
+    """``NX_ALREADY_EXISTS`` that names the object holding the name or path:
+    ``details.existing`` (its result row or path), so the agent can use it instead."""
+    out = dict(details or {})
+    if existing is not None:
+        out["existing"] = existing
+    if hint is None:
+        hint = (
+            "Use details.existing instead, or choose another name"
+            if existing is not None
+            else "Choose another name or path"
+        )
+    fail("NX_ALREADY_EXISTS", message, field=field, hint=hint, details=out)
+
+
 def _native_code(error: BaseException) -> int | None:
     code = getattr(error, "ErrorCode", None)
     try:
@@ -334,7 +457,10 @@ def classify(error: BaseException, codes: dict | None = None, default: str = "NX
 
 
 def _classify(error, nx_code, details, codes, default) -> NXError:
-    if nx_code in LICENSE_ERROR_CODES:
+    text = str(error).casefold()
+    if nx_code in LICENSE_ERROR_CODES or (
+        nx_code is not None and any(words in text for words in LICENSE_ERROR_TEXT)
+    ):
         return NXError(
             "NX_LICENSE_UNAVAILABLE",
             "This NX seat has no license for the NX command this tool uses: " + str(error),
@@ -353,7 +479,13 @@ def _classify(error, nx_code, details, codes, default) -> NXError:
     if nx_code is None:
         # A Python exception, not a native NX one.
         return NXError("NX_ERROR", f"{type(error).__name__}: {error}", details=details)
-    return NXError(default, str(error), nx_code=nx_code, details=details)
+    if nx_code in KNOWN_NX_CODES and default in GENERIC_DEFAULTS:
+        code, hint = KNOWN_NX_CODES[nx_code]
+        return NXError(code, str(error), nx_code=nx_code, details=details, hint=hint)
+    # NX refused the input for a reason no table names: changing the input is the way on,
+    # not a report to the engineer (a Python exception, a bug, stays ``ask_engineer``).
+    retry = "after_fix" if default == "NX_ERROR" else None
+    return NXError(default, str(error), nx_code=nx_code, details=details, retry=retry)
 
 
 @contextlib.contextmanager

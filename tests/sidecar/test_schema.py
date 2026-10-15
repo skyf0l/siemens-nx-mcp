@@ -101,7 +101,8 @@ def specs():
 def valid_value(hint):
     base, markers = unwrap(hint)
     if Quantity in markers:
-        return 30 if markers[Quantity].dim == "angle" else "2.5 mm"
+        dim = markers[Quantity].dim
+        return {"angle": 30, "scalar": 2.5, "mass": "2.5 kg"}.get(dim, "2.5 mm")
     if is_union(base):
         alternatives = [a for a in typing.get_args(base) if a is not type(None)]
         return valid_value(alternatives[0])

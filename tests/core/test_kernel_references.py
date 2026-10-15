@@ -213,9 +213,11 @@ def test_ref_fields_take_the_anchors_result_rows_carry(svc):
         "@smoke/a/blk.prt:EXTRUDE(4)",
         "@C:/work/a.prt:BLOCK(1)#0",
         "@a.prt:Pattern Feature(3:5A:1A)#0",
+        "@a.prt:face=HANDLE R-1",  # nx_create_anchor's face anchor
+        "@asm.prt:COMPONENT pin 1>EXTRUDE(2)#0",  # an occurrence's anchor
     ):
         assert re.match(REF_PATTERN, anchor), anchor
-    for not_ref in ("@a.prt:face=HANDLE R-1", "@nopart", "s:PLACEHOLDER", "@a.prt:"):
+    for not_ref in ("@a.prt:vertex=HANDLE R-1", "@nopart", "s:PLACEHOLDER", "@a.prt:"):
         assert not re.match(REF_PATTERN, not_ref), not_ref
     feature = svc.part.add("feature", "BOSS", jid="EXTRUDE(3)")
     made = run(svc, "nx_delete_first", feature="@a.prt:EXTRUDE(3)")

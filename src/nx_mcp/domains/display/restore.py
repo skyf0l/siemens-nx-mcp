@@ -12,6 +12,11 @@ change of the shown part. Applying a presentation is itself restorable: its resu
 ``restore_id`` that puts the camera and the recorded appearance back (not the section).
 Restoring a ``restore_id`` returns none (no redo), so ``last`` walks back one change at a
 time.
+
+A presentation stores its part's path relative to the workspace (absolute only for a part
+outside it) and applies to that part, or to a part of the same file name (a copy or a
+moved workspace: objects are found by journal identifier). ``skip_missing`` applies what
+is still there and names the objects it skipped.
 """
 
 from __future__ import annotations
@@ -23,7 +28,7 @@ from typing import Annotated, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import PathTo, Text
+from nx_mcp.core.types import Doc, PathTo, Text
 from nx_mcp.domains.display.common import Camera, DisplayRow, camera_row, display_rows
 from nx_mcp.domains.display.sections import guarded
 from nx_mcp.kit import args, bodies, display, files, geom, parts, readback, select
@@ -125,15 +130,20 @@ def nx_restore_display(
     *,
     restore_id: RestoreId | None = None,
     presentation: Annotated[str, PathTo("read", ".json")] | None = None,
+    skip_missing: Annotated[bool, Doc("Presentation: apply what still exists")] = False,
 ) -> RestoreData:
-    """Undo a display change by restore_id ('last' or none: the newest; newest first), or
-    apply an nx_save_presentation file. nx_set_camera, nx_set_visibility, nx_set_appearance
-    and a presentation return restore_ids; sections do not (nx_delete_objects)."""
+    """Undo a display change by restore_id ('last' or none: the newest), or apply an
+    nx_save_presentation file. Newest first; a presentation fits its part or one of that
+    file name. nx_set_camera, nx_set_visibility, nx_set_appearance and a presentation
+    return restore_ids; sections do not (nx_delete_objects)."""
     if restore_id is not None and presentation is not None:
         fail("NX_INVALID_ARGUMENT", "Give restore_id or presentation, not both",
              field="/presentation")  # fmt: skip
+    if skip_missing and presentation is None:
+        fail("NX_INVALID_ARGUMENT", "skip_missing goes with presentation",
+             field="/skip_missing")  # fmt: skip
     if presentation is not None:
-        return _restore_presentation(tx, Path(presentation))
+        return _restore_presentation(tx, Path(presentation), skip_missing)
     with tx.checks():
         part = display.shown_part(tx, work=True)
         key = tx.services.part_key(part)
@@ -212,16 +222,31 @@ def _read(path: Path) -> dict:
     return data
 
 
-def _restore_presentation(tx, path: Path) -> RestoreData:
+def _same_part(tx, saved, part) -> bool:
+    """Whether a presentation saved for ``saved`` (workspace-relative, or absolute) applies
+    to ``part``: the same file, or a file of the same name (a copy, a moved workspace)."""
+    text = str(saved or "")
+    if not text:
+        return False
+    own = parts.file_of(part)
+    full = Path(text) if Path(text).is_absolute() else Path(tx.workspace.root) / text
+    if parts.same_file(str(full), own):
+        return True
+    return Path(text.replace("\\", "/")).name.casefold() == Path(str(own)).name.casefold()
+
+
+def _restore_presentation(tx, path: Path, skip_missing: bool = False) -> RestoreData:
     data = _read(path)
     with tx.checks():
         part = display.shown_part(tx, work=True)
         view = display.model_view(tx, part)
-        if not parts.same_file(data.get("part_path", ""), parts.file_of(part)):
+        if not _same_part(tx, data.get("part_path"), part):
             fail(
                 "NX_WRONG_PART_CONTEXT",
                 "The presentation belongs to another part",
                 field="/presentation",
+                hint="Apply it with that part displayed (nx_activate_part), or a part of the "
+                "same file name",
                 details={"part_path": data.get("part_path")},
             )
         index = _index(part)
@@ -233,11 +258,12 @@ def _restore_presentation(tx, path: Path) -> RestoreData:
                 missing.append(loc)
             else:
                 pairs.append((obj, row))
-        if missing:
+        if missing and not skip_missing:
             fail(
                 "NX_STALE_REFERENCE",
                 f"{len(missing)} saved objects no longer exist in the part",
                 field="/presentation",
+                hint="Add skip_missing=true to apply the rest, or save the presentation again",
                 details={"missing": missing[:20]},
             )
         cam = data["camera"]
@@ -265,6 +291,9 @@ def _restore_presentation(tx, path: Path) -> RestoreData:
         got = display.set_camera(tx, view, rotation, origin, scale)
         _expect_records(tx, pairs, True)
     tx.frame = "display_part_absolute"
+    if missing:
+        tx.warn("NX_NOTE", f"{len(missing)} saved objects no longer exist and were skipped: "
+                + ", ".join(str(m.get("journal_id")) for m in missing[:10]))  # fmt: skip
     return {
         "restored": files.relative(path, tx.workspace.root),
         "count": len(pairs),
@@ -289,10 +318,27 @@ def _restore_presentation(tx, path: Path) -> RestoreData:
 def nx_save_presentation(
     tx: Tx,
     *,
-    path: Annotated[str, PathTo("new", ".json")],
+    path: Annotated[str, PathTo("replace", ".json")],
+    overwrite: bool = False,
 ) -> PresentationData:
-    """Save the camera, active section and every body and component's appearance to a new
-    .json file. Never overwrites; nx_restore_display(presentation=...) applies it again."""
+    """Save the camera, active section and every body and component's appearance to a .json
+    file. overwrite=true replaces one; nx_restore_display(presentation=...) applies it
+    again. Lights and decals are not saved."""
+    if Path(path).exists() and not overwrite:
+        fail(
+            "NX_ALREADY_EXISTS",
+            "/path: a file already exists there; set overwrite=true to replace it",
+            field="/path",
+            details={"path": files.relative(path, tx.workspace.root)},
+        )
+    if overwrite and Path(path).exists():
+        try:
+            old = json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, ValueError):
+            old = None
+        if not isinstance(old, dict) or old.get("format") != FORMAT:
+            fail("NX_UNSUPPORTED_FILE_TYPE", "overwrite replaces presentation files only; the "
+                 "file there is not one", field="/path")  # fmt: skip
     part = display.shown_part(tx, work=True)
     view = display.model_view(tx, part)
     index = _index(part)
@@ -316,13 +362,13 @@ def nx_save_presentation(
     data = {
         "format": FORMAT,
         "version": VERSION,
-        "part_path": parts.file_of(part),
+        "part_path": files.relative(parts.file_of(part), tx.workspace.root),
         "camera": {k: cam[k] for k in ("rotation", "origin", "scale", "style")},
         "display": saved,
         "section": section,
         "sectioning": bool(view.DisplaySectioningToggle),
     }
-    temp = tx.files.stage(path)
+    temp = tx.files.stage(path, replace=overwrite)
     temp.write_text(json.dumps(data, indent=1), encoding="utf-8")
     published = tx.files.publish()[0]
     meta = files.metadata(published, tx.workspace.root)

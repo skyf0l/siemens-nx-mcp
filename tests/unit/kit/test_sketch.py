@@ -210,3 +210,108 @@ def test_status_solves_a_sketch_nx_has_not_evaluated_and_reads_again(monkeypatch
     s.status, s.updates = (2, 0), []
     del s.GetStatus
     assert sketch.status(nx.tx, s)["status"] == "WellConstrained" and s.updates == []
+
+
+# ---- chaining (closed loops and connected paths) --------------------------------------
+
+
+def test_chains_walk_a_shuffled_loop_end_to_end():
+    square = [
+        ([10, 0], [10, 10]),
+        ([0, 0], [10, 0]),
+        ([0, 10], [0, 0]),
+        ([10, 10], [0, 10]),
+    ]
+    (chain,) = sketch.chains(square)
+    assert chain["closed"] and not chain["branched"] and chain["free_ends"] == []
+    assert sorted(chain["curves"]) == [0, 1, 2, 3] and len(chain["curves"]) == 4
+    assert sketch.require_chain(square, "/curves", closed=True) == chain["curves"]
+
+
+def test_chains_report_free_ends_branches_and_closed_curves():
+    path = [([0, 0, 0], [5, 0, 0]), ([5, 0, 0], [5, 5, 0])]
+    (chain,) = sketch.chains(path)
+    assert not chain["closed"] and chain["curves"] == [0, 1]
+    assert chain["free_ends"] == [(0, "start"), (1, "end")]
+    assert sketch.require_chain(path, "/path") == [0, 1]  # an open path is fine
+    tee = [*path, ([5, 0, 0], [9, 0, 0])]
+    (branched,) = sketch.chains(tee)
+    assert branched["branched"] and branched["branch_points"] == [[5.0, 0.0, 0.0]]
+    with pytest.raises(NXError) as error:
+        sketch.require_chain(tee, "/path")
+    assert error.value.field == "/path" and error.value.details["branch_point"] == [5, 0, 0]
+    circle = [([3, 0], [3, 0])]
+    assert sketch.chains(circle) == [
+        {"curves": [0], "closed": True, "branched": False, "free_ends": [], "branch_points": []}
+    ]
+
+
+def test_require_chain_names_the_gap_and_the_curves():
+    nearly = [([0, 0], [10, 0]), ([10, 0], [10, 10]), ([10, 10], [0.5, 0])]
+    with pytest.raises(NXError) as error:
+        sketch.require_chain(nearly, "/curves", closed=True, labels=["c:1", "c:2", "c:3"])
+    e = error.value
+    assert e.code == "NX_INVALID_ARGUMENT" and e.field == "/curves"
+    assert e.details["gap"] == pytest.approx(0.5) and "0.5" in e.message
+    assert {b["curve"] for b in e.details["between"]} == {"c:1", "c:3"}
+    split = [([0, 0], [1, 0]), ([1, 0], [2, 0]), ([2.25, 0], [3, 0])]
+    with pytest.raises(NXError) as error:
+        sketch.require_chain(split, "/path")
+    assert error.value.details["chains"] == 2 and error.value.details["gap"] == pytest.approx(0.25)
+    assert "2 separate chains" in error.value.message
+    gap = sketch.nearest_gap(split)
+    assert gap["ends"] == [(1, "end"), (2, "start")]
+    assert sketch.nearest_gap([([0, 0], [1, 0]), ([1, 0], [0, 0])]) is None  # closed
+    loose = [([0, 0], [1, 0]), ([1, 0], [0.002, 0.001])]
+    assert sketch.require_chain(loose, "/c", closed=True, tol=0.01) == [0, 1]
+
+
+def test_loops_keep_their_summary_shape():
+    rows = [
+        {"start": [0, 0], "end": [4, 0]},
+        {"start": [4, 0], "end": [4, 4]},
+        {"start": [9, 9], "end": [9, 9], "closed": True},
+    ]
+    assert sketch.loops(rows) == [
+        {"closed": False, "curves": 2, "open_ends": 2},
+        {"closed": True, "curves": 1},
+    ]
+
+
+# ---- size guard, solver side effects, fields -----------------------------------------
+
+
+def test_require_room_refuses_more_curves_than_a_sketch_takes():
+    nx = fake_nx()
+    s = nx.sketch()
+    s.geometry = [object()] * 490
+    assert sketch.require_room(nx.tx, s, 10) == 490
+    with pytest.raises(NXError) as error:
+        sketch.require_room(nx.tx, s, 11, "/curves")
+    e = error.value
+    assert e.code == "NX_TOO_MANY_OBJECTS" and e.field == "/curves"
+    assert e.details == {"curves": 490, "adding": 11, "limit": sketch.MAX_CURVES}
+    assert "several sketches" in e.hint
+    with pytest.raises(NXError):
+        sketch.require_room(None, None, sketch.MAX_CURVES + 1)
+
+
+def test_at_field_fills_a_missing_field_only():
+    with pytest.raises(NXError) as error, sketch.at_field("/sketch"):
+        raise NXError("NX_NOT_FOUND", "gone")
+    assert error.value.field == "/sketch"
+    with pytest.raises(NXError) as error, sketch.at_field("/sketch"):
+        raise NXError("NX_NOT_FOUND", "gone", field="/other")
+    assert error.value.field == "/other"
+
+
+def test_resolve_names_the_field_of_a_wrong_kind_or_unknown_ref():
+    nx = fake_nx()
+    s = nx.sketch()
+    curve = nx.curve(s)
+    with pytest.raises(NXError) as error:
+        sketch.resolve(nx.tx, nx.ref_of(curve, "curve"), "/section")
+    assert error.value.code == "NX_WRONG_KIND" and error.value.field == "/section"
+    with pytest.raises(NXError) as error:
+        sketch.resolve(nx.tx, "s:999999")
+    assert error.value.field == "/sketch"

@@ -570,6 +570,76 @@
    }
   },
   {
+   "call": "nx_create_part",
+   "setup": true,
+   "save": "two",
+   "args": {
+    "path": "$run/view_two_bodies.prt",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "args": {
+    "part": "view_two_bodies",
+    "length": 40,
+    "width": 40,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "b2",
+   "args": {
+    "part": "view_two_bodies",
+    "length": 20,
+    "width": 20,
+    "height": 10,
+    "origin": [
+     100,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "args": {
+    "part": "view_two_bodies",
+    "name": "SHT1",
+    "size": "a3"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "args": {
+    "part": "view_two_bodies",
+    "type": "base",
+    "orientation": "top",
+    "position": [
+     150,
+     150
+    ]
+   },
+   "expect": {
+    "error.code": "NX_UNSUPPORTED_OPTION",
+    "error.field": "/type",
+    "error.details.bodies": 2,
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_close_part",
+   "setup": true,
+   "args": {
+    "part": "$two.data.part.id",
+    "save": false
+   }
+  },
+  {
    "call": "nx_close_part",
    "setup": true,
    "args": {

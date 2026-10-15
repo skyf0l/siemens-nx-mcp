@@ -434,8 +434,33 @@ def test_save_leaves_other_modified_parts_alone(nx, root):
     ]
     assert child.IsModified and (root / "child.prt").read_bytes() == before
     child.IsModified = False
+    top.IsModified = True
     clean = call(nx, tools.nx_save_part, part=nx.ref_of(top, "part"))
     assert clean.ok and clean.data["other_modified_parts"] == []
+    assert clean.data["saved"] is True
+
+
+def test_save_leaves_an_unmodified_part_as_it_is(nx, root):
+    top = nx.new_part("top.prt")
+    top.Save()
+    before = (root / "top.prt").stat().st_mtime_ns, (root / "top.prt").read_bytes()
+    marks = dict(nx.session.marks)
+    same = call(nx, tools.nx_save_part, part=nx.ref_of(top, "part"))
+    assert same.ok and same.mutation_outcome == "not_applicable", same
+    assert same.data["saved"] is False and same.data["saved_files"] == []
+    assert [w["code"] for w in same.warnings] == ["NX_NO_EFFECT"]
+    assert ((root / "top.prt").stat().st_mtime_ns, (root / "top.prt").read_bytes()) == before
+    assert dict(nx.session.marks) == marks  # undo marks kept
+
+
+def test_save_as_onto_an_existing_file_suggests_a_free_path(nx, root):
+    top = nx.new_part("top.prt")
+    top.Save()
+    (root / "copy.prt").write_bytes(b"there")
+    taken = call(nx, tools.nx_save_part, part=nx.ref_of(top, "part"), path="copy.prt")
+    assert taken.error["code"] == "NX_ALREADY_EXISTS", taken
+    assert taken.error["details"] == {"path": "copy.prt", "suggested_path": "copy-2.prt"}
+    assert "copy-2.prt" in taken.error["hint"]
 
 
 def test_a_flag_flipped_on_another_part_is_partial(nx):
@@ -492,6 +517,98 @@ def test_open_reuses_a_loaded_part_spelled_differently(nx, root):
     part.FullPath = str(root / "project" / "sub" / ".." / "base.prt")
     ok = call(nx, tools.nx_open_part, path="project/base.prt")
     assert ok.data["already_loaded"] and nx.opened_files == []
+
+
+def test_open_part_loads_components_as_saved_and_lists_the_ones_nx_cannot_find(nx, root):
+    """A component saved in a subfolder: NX looks only in the assembly's folder when the
+    session loads components from there (status 641044). The open loads them as saved,
+    lists what NX still could not load and succeeds."""
+    from types import SimpleNamespace as NS
+
+    blk = nx.new_part("p01/sub/blk.prt")
+    blk.Save()
+    asm = nx.new_part("p01/asm.prt")
+    nx.attach(asm, blk)
+    asm.Save()
+    asm.Close()
+    nx.structure[str((root / "p01/asm.prt").resolve()).casefold()] = [str(root / "p01/sub/blk.prt")]
+    opened = nx.session.Parts.OpenBase
+    methods = []
+
+    def open_base(path):
+        methods.append(nx.session.Parts.LoadOptions.ComponentLoadMethod)
+        part, _status = opened(path)
+        status = NS(NumberUnloadedParts=1, GetPartName=lambda i: "blk.prt",
+                    GetStatus=lambda i: 641044, Dispose=lambda: None)  # fmt: skip
+        return part, status
+
+    nx.session.Parts.OpenBase = open_base
+    ok = call(nx, tools.nx_open_part, path="p01/asm.prt")
+    assert ok.ok and ok.mutation_outcome == "committed", ok
+    assert methods == ["as_saved"] and nx.session.Parts.LoadOptions.ComponentLoadMethod == "search"
+    assert ok.data["unloaded_components"] == [
+        {"file": "blk.prt", "nx_code": 641044, "reason": tools.parts.LOAD_STATUS[641044]}
+    ]
+    assert [w["code"] for w in ok.warnings if "unloaded_components" in w["message"]] == [
+        "NX_UPDATE_WARNING"
+    ]
+
+
+def test_open_part_with_load_components_succeeds_and_lists_unloaded_ones(nx, root):
+    from types import SimpleNamespace as NS
+
+    blk = nx.new_part("p02/sub/blk.prt")
+    blk.Save()
+    asm = nx.new_part("p02/asm.prt")
+    nx.attach(asm, blk)
+    asm.Save()
+    asm.Close()
+    nx.structure[str((root / "p02/asm.prt").resolve()).casefold()] = [str(root / "p02/sub/blk.prt")]
+    ok = call(nx, tools.nx_open_part, path="p02/asm.prt", display=False)
+    assert ok.ok and "unloaded_components" not in ok.data, ok
+    part = next(p for p in nx.session.Parts if p.Name == "asm")
+    proto = next(p for p in nx.session.Parts if p.Name == "blk")
+    proto.IsFullyLoaded = False
+    failing = NS(NumberUnloadedParts=1, GetPartName=lambda i: "blk.prt",
+                 GetStatus=lambda i: 641044, Dispose=lambda: None)  # fmt: skip
+    part.ComponentAssembly.OpenComponents = lambda option, comps: (failing, None)
+    again = call(nx, tools.nx_open_part, path="p02/asm.prt", load_components=True, display=False)
+    assert again.ok and again.data["components_loaded"] == 1, again
+    assert again.data["unloaded_components"][0]["component"] == "BLK"
+    assert again.data["unloaded_components"][0]["nx_code"] == 641044
+
+
+def test_activate_that_changes_nothing_says_so(nx):
+    a, b = nx.new_part("a.prt"), nx.new_part("b.prt")
+    ref = nx.ref_of(a, "part")
+    first = call(nx, tools.nx_activate_part, part=ref)  # gives a its own tab behind b's
+    assert first.ok
+    again = call(nx, tools.nx_activate_part, part=ref)  # its tab exists: nothing changes
+    assert again.ok and again.mutation_outcome == "not_applicable", again
+    (warning,) = [w for w in again.warnings if w["code"] == "NX_NO_EFFECT"]
+    assert "only display true" in warning["message"] and '"part": "a.prt"' in warning["message"]
+    assert nx.session.Parts.Display is b
+    shown = call(nx, tools.nx_activate_part, part=ref, display=True)
+    assert shown.ok and shown.mutation_outcome == "committed" and shown.data["display"]
+
+
+def test_unknown_part_errors_list_the_callers_parts_first_with_the_count(nx, root):
+    for i in range(12):
+        nx.new_part(f"many/p{i:02d}.prt")
+    mine = call(nx, tools.nx_create_part, path="many/mine.prt", display=False)
+    services(nx).foreign.update(
+        services(nx).part_key(p) for p in nx.session.Parts if p.Name.startswith("p")
+    )
+    bad = call(nx, tools.nx_activate_part, part="nothing.prt")
+    assert bad.error["code"] == "NX_NOT_FOUND", bad
+    details = bad.error["details"]
+    assert details["loaded_count"] == len(nx.session.Parts) and len(details["loaded_parts"]) == 10
+    assert mine.data["part"]["id"] in [r["id"] for r in details["loaded_parts"][:2]]  # own first
+
+
+def test_create_part_reports_the_new_parts_units_when_not_shown(nx, root):
+    ok = call(nx, tools.nx_create_part, path="u/inch_quiet.prt", units="in", display=False)
+    assert ok.ok and not ok.data["work"] and ok.units["length"] == "in", ok
 
 
 # ---- usability: units block, part refs, save to the part's own file ----

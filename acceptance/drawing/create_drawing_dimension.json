@@ -350,6 +350,10 @@
      "tol": 1e-09
     },
     "data.margin": {
+     "close": 15,
+     "tol": 1e-06
+    },
+    "data.margin_line": {
      "close": 246.35,
      "tol": 1e-06
     },
@@ -387,6 +391,10 @@
     "data.margin": {
      "close": 20,
      "tol": 1e-09
+    },
+    "data.margin_line": {
+     "close": 68.65,
+     "tol": 1e-06
     }
    }
   },

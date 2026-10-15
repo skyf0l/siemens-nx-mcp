@@ -306,9 +306,14 @@ def test_a_constraint_nx_does_not_create_names_the_one_in_the_way():
     assert "constrained vertical" in bad.error["message"], bad
     assert held_ref in bad.error["message"] and "delete" in bad.error["hint"]
     assert bad.error["details"]["existing"][0]["type"] == "vertical"
-    sk.constraints[:] = [Constraint(CT.Horizontal, [(line, "NotSet")], sk)]
+    existing = Constraint(CT.Horizontal, [(line, "NotSet")], sk)
+    sk.constraints[:] = [existing]
     again = _constrain(nx, sk, {"type": "horizontal", "curves": [nx.cref(line)]})
-    assert "already has a horizontal constraint" in again.error["message"], again
+    assert again.ok and again.data["constraints"][0]["already_existed"] is True, again
+    assert again.data["constraints"][0]["constraints"][0]["id"] == nx.ref_of(
+        existing, "sketch_constraint"
+    )
+    assert sk.constraints == [existing]
 
 
 def test_a_fixed_point_holds_only_that_point():

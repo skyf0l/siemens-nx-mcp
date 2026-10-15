@@ -1,6 +1,8 @@
 import base64
 import hashlib
+import os
 import struct
+import time
 from unittest.mock import AsyncMock
 
 import pytest
@@ -84,22 +86,75 @@ def test_upload_in_chunks_with_retry_conflict_and_gap(tree):
     common = {"path": "in/blob.json", "total_size": len(data), "sha256": digest}
     first = side(tree, ws.nx_upload_file, data_base64=c1, offset=o1, **common)
     assert first.data["committed"] is False and first.data["received"] == 200_000
+    assert first.data["next_offset"] == 200_000 and first.mutation_outcome == "not_applicable"
+    assert "offset 200000" in first.warnings[0]["message"]
     assert not (tree / "in" / "blob.json").exists()
     again = side(tree, ws.nx_upload_file, data_base64=c1, offset=o1, **common)
     assert again.ok and again.data["received"] == 200_000
     other = base64.b64encode(b"z" * 10).decode()
-    conflict = side(tree, ws.nx_upload_file, data_base64=other, offset=0, **common)
+    conflict = side(tree, ws.nx_upload_file, data_base64=other, offset=100_000, **common)
     assert (
         conflict.error["code"] == "NX_TRANSFER_FAILED" and conflict.error["field"] == "/data_base64"
     )
+    assert "offset 0" in conflict.error["hint"]  # the partial upload was discarded
+    assert not list((tree / ".nx-mcp" / "uploads").iterdir())
+    restart = side(tree, ws.nx_upload_file, data_base64=c1, offset=o1, **common)
+    assert restart.ok and restart.data["received"] == 200_000
     gap = side(tree, ws.nx_upload_file, data_base64=other, offset=250_000, **common)
     assert gap.error["code"] == "NX_TRANSFER_FAILED" and gap.error["details"]["received"] == 200_000
+    assert gap.error["details"]["next_offset"] == 200_000
     done = side(tree, ws.nx_upload_file, data_base64=c2, offset=o2, **common)
     assert done.ok and done.data["committed"] is True and done.mutation_outcome == "committed"
+    assert done.data["next_offset"] is None
     assert (tree / "in" / "blob.json").read_bytes() == data
     exists = side(tree, ws.nx_upload_file, data_base64=c2, offset=o2, **common)
     assert exists.error["code"] == "NX_ALREADY_EXISTS" and exists.mutation_outcome == "not_started"
     assert not list((tree / ".nx-mcp" / "uploads").iterdir())
+
+
+def test_offset_zero_restarts_an_upload_and_stale_staging_expires(tree):
+    data = b"a" * 100 + b"b" * 100
+    digest = hashlib.sha256(data).hexdigest()
+    common = {"path": "in/r.dat", "total_size": len(data), "sha256": digest}
+    wrong = base64.b64encode(b"x" * 100).decode()
+    assert side(tree, ws.nx_upload_file, data_base64=wrong, offset=0, **common).ok
+    (o1, c1), (o2, c2) = chunked(data, 100)
+    assert side(tree, ws.nx_upload_file, data_base64=c1, offset=o1, **common).ok  # restarts
+    done = side(tree, ws.nx_upload_file, data_base64=c2, offset=o2, **common)
+    assert done.ok and done.data["committed"], done
+    assert (tree / "in" / "r.dat").read_bytes() == data
+    staging = tree / ".nx-mcp" / "uploads"
+    old = staging / ("0" * 64)
+    old.write_bytes(b"abandoned")
+    stale = time.time() - ws.UPLOAD_KEEP_SECONDS - 10
+    os.utime(old, (stale, stale))
+    assert side(tree, ws.nx_upload_file, path="in/s.txt", content="x").ok
+    assert not old.exists()
+
+
+def test_upload_takes_point_and_image_files_and_never_text_as_a_part(tree):
+    for name in ("pts.csv", "pts.dat", "pts.xyz", "decal.jpg", "sheet.tif", "logo.bmp"):
+        assert side(tree, ws.nx_upload_file, path=f"in/{name}", content="1,2,3").ok, name
+    plain = side(tree, ws.nx_upload_file, path="in/notes", content="no suffix")
+    assert plain.error["field"] == "/path" and plain.error["retry"] == "after_fix", plain
+    assert not (tree / "in" / "notes.prt").exists()
+    part = side(tree, ws.nx_upload_file, path="in/notes.prt", content="text")
+    assert part.error["code"] == "NX_UNSUPPORTED_FILE_TYPE" and part.error["field"] == "/path"
+    assert part.error["retry"] == "after_fix" and ".txt" in part.error["hint"]
+    assert not (tree / "in" / "notes.prt").exists()
+
+
+def test_every_file_a_tool_reads_can_be_uploaded():
+    from nx_mcp.core import catalogue
+
+    missing = {}
+    for spec in catalogue.load().values():
+        for _pointer, mode, suffixes in getattr(spec, "paths", ()):
+            if mode == "read":
+                lost = [s for s in suffixes if s not in ws.UPLOAD_SUFFIXES]
+                if lost:
+                    missing[spec.name] = lost
+    assert not missing
 
 
 def test_upload_checksum_mismatch_publishes_nothing(tree):
@@ -274,3 +329,27 @@ def test_download_text(tree):
     (tree / "notes.txt").write_text("hi")
     image = side(tree, ws.nx_download_file, path="notes.txt", delivery="image")
     assert "delivery text" in image.error["hint"]
+
+
+@pytest.mark.parametrize(
+    ("path", "words"),
+    [
+        ("", "empty"),
+        ("proj/bad<name>?", "contains"),
+        ("proj/trailing.", "dot or space"),
+        ("proj/CON", "reserved"),
+        ("proj/part.prt", "file suffix .prt"),
+        ("proj/model.STEP", "file suffix .step"),
+    ],
+)
+def test_create_directory_refuses_names_before_creating_anything(tree, path, words):
+    bad = side(tree, ws.nx_create_directory, path=path)
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/path", bad
+    assert words in bad.error["message"] and bad.mutation_outcome == "not_started"
+    assert str(tree) not in str(bad.error)  # workspace-relative only
+    assert sorted(p.name for p in (tree / "proj").iterdir()) == ["a.txt", "b.txt", "sub"]
+
+
+def test_create_directory_takes_dotted_version_folders(tree):
+    ok = side(tree, ws.nx_create_directory, path="proj/v1.2")
+    assert ok.ok and ok.data == {"path": "proj/v1.2", "created": True}

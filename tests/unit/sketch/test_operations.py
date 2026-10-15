@@ -1,5 +1,7 @@
 """nx_create_sketch_corner, nx_create_sketch_copy, nx_create_sketch_projection (fake kit)."""
 
+import math
+
 import pytest
 
 from tests.kit import NXException, run
@@ -175,6 +177,14 @@ def test_projection_maps_the_native_refusal_and_returns_the_feature():
     ok = run(nx, "nx_create_sketch_projection", sketch=sk.ref, objects=[edge.ref], mode="project")
     assert ok.ok, ok
     assert ok.data["curves"][0]["start"] == pytest.approx([140, -10])
+    assert ok.data["sources"] == [
+        {"object": edge.ref, "curves": [ok.data["curves"][0]["curve"]["id"]]}
+    ]
+    again = run(nx, "nx_create_sketch_projection", sketch=sk.ref, objects=[edge.ref])
+    assert again.error["code"] == "NX_ALREADY_EXISTS" and again.error["field"] == "/objects/0"
+    assert again.error["details"]["existing"] == ok.data["curves"][0]["curve"]["id"]
+    assert again.mutation_outcome == "not_started"
+    sk.geometry.pop()  # the projected line gone: NX's own refusal next
     nx.refuse("ProjectBuilder", code=674275, message="Invalid data for Sketch Project")
     bad = run(nx, "nx_create_sketch_projection", sketch=sk.ref, objects=[edge.ref], mode="project")
     assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["nx_code"] == 674275
@@ -273,7 +283,9 @@ def test_offset_inside_needs_a_closed_loop():
         nx, "nx_create_sketch_copy", sketch=sk.ref, curves=[nx.cref(a), nx.cref(b)],
         mode="offset", distance=2, side="outside",
     )  # fmt: skip
-    assert bad.error["field"] == "/side" and "closed loop" in bad.error["message"], bad
+    assert bad.error["field"] == "/curves" and "closed loop" in bad.error["message"], bad
+    assert bad.error["details"]["gap"] == pytest.approx(math.hypot(40, 20))
+    assert bad.mutation_outcome == "not_started"
     assert "left/right" in bad.error["hint"]
 
 

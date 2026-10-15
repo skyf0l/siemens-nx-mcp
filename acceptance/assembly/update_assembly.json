@@ -35,8 +35,9 @@
   {"call": "nx_edit_feature", "setup": true, "args": {"feature": "$ext.data.feature.id", "parameters": [{"name": "distance", "value": 30}]}},
   {"call": "nx_activate_part", "setup": true, "args": {"part": "$asm.data.part.id"}},
   {"call": "nx_update_assembly", "args": {"part": "$part"},
-   "expect": {"mutation_outcome": "committed", "data.constraints": {"count": 2}, "data.constraints.0.status": "Solved",
-              "data.constraints.1.status": "Solved", "data.traces": {"count": 1}, "data.traces.0.kind": "traceline",
+   "expect": {"mutation_outcome": "committed", "data.constraint_counts.total": 2, "data.constraint_counts.solved": 2,
+              "data.constraint_counts.suppressed": 0, "data.constraints": {"count": 0},
+              "data.traces": {"count": 1}, "data.traces.0.kind": "traceline",
               "data.views": {"count": 1}, "data.views.0.kind": "drawing_view",
               "data.retained": {"count": 0}, "data.documentation_complete": true}},
   {"call": "nx_list_components", "args": {"part": "$part", "name_contains": "B", "include_poses": true},
@@ -45,7 +46,11 @@
    "expect": {"data.start.2": {"close": 30, "tol": 1e-6}, "data.end.2": {"close": 80, "tol": 1e-6}}},
   {"call": "nx_edit_assembly_constraint", "setup": true, "args": {"constraint": "$touch.data.constraint.id", "suppressed": true}},
   {"call": "nx_update_assembly", "args": {"part": "$part"},
+   "expect": {"mutation_outcome": "committed", "data.constraint_counts.total": 2, "data.constraint_counts.solved": 1,
+              "data.constraint_counts.suppressed": 1, "data.constraints": {"count": 1},
+              "data.constraints.0.suppressed": true, "data.moved": {"count": 0}, "data.documentation_complete": true}},
+  {"call": "nx_update_assembly", "args": {"part": "$part", "all_constraints": true},
    "expect": {"mutation_outcome": "committed", "data.constraints": {"count": 2}, "data.constraints.0.status": "Solved",
-              "data.constraints.1.suppressed": true, "data.documentation_complete": true}}
+              "data.constraints.1.suppressed": true}}
  ]
 }

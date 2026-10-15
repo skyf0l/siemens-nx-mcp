@@ -70,7 +70,37 @@ def test_a_part_that_is_no_family_template_is_refused_first():
     assert bad.mutation_outcome == "not_started" and not nx.builders
 
 
+def test_an_origin_off_the_sheet_is_refused_before_nx():
+    nx = family_nx()
+    bad = run(nx, "nx_create_part_family_table", origin=[500, 500])
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/origin"
+    assert bad.mutation_outcome == "not_started" and not nx.builders
+
+
 def test_a_table_missing_a_member_fails_the_read_back():
     nx = family_nx(shown=[["pf_50", "50", "12.5"]])
     bad = run(nx, "nx_create_part_family_table", origin=[30, 250], sheet="SHT1")
     assert bad.error["code"] == "NX_VERIFICATION_FAILED" and bad.mutation_outcome == "rolled_back"
+
+
+def test_the_result_names_the_table_section_nx_lists():
+    nx = family_nx()
+    section = Object("TableSection")
+    sections = nx.part.Annotations.TableSections = []
+    nx.on_commit("PartFamilyTableBuilder", _with_section(nx, sections, section))
+    ok = run(nx, "nx_create_part_family_table", origin=[30, 250])
+    assert ok.ok, ok
+    assert ok.data["table"]["id"] == nx.ref_of(section, "drawing_table")
+
+
+def _with_section(nx, sections, section):
+    def commit(b):
+        table = Object("PFT")
+        table.AnnotationOrigin = b.Origin.Origin.SetValue.calls[-1][0][2]
+        table.OwningPart, table.IsOccurrence = nx.part, False
+        nx.dependent[table.Tag] = (1, "SHT1@0")
+        section.OwningPart, section.IsOccurrence = nx.part, False
+        sections.append(section)
+        return table
+
+    return commit

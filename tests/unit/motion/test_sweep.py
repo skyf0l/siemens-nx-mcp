@@ -233,3 +233,42 @@ def test_a_nested_component_is_refused():
              axis=HINGE, start=0, end=10)  # fmt: skip
     assert not ok.ok
     assert ok.error["code"] == "NX_WRONG_OWNER" and ok.error["field"] == "/moving/0"
+
+
+def test_start_end_and_min_clearance_take_unit_strings():
+    nx, _frame, lid, stop = hatch()
+    ok = run(
+        nx, "nx_run_motion_sweep", joint="revolute", moving=[lid.ref], axis=HINGE,
+        start="0 deg", end="1.9198621771937625 rad", steps=11,
+        pairs=[{"a": lid.ref, "b": stop.ref}], min_clearance="5 mm",
+    )  # fmt: skip
+    assert ok.ok, ok
+    assert ok.data["reached"] == pytest.approx([0.0, 110.0])
+    assert ok.data["min_clearance"] == 5.0
+    assert ok.data["clearances"][0]["limit"] == pytest.approx(96.301957, abs=1e-3)
+    slid = run(
+        nx, "nx_run_motion_sweep", joint="slider", moving=[stop.ref],
+        axis={"origin": [0, 0, 0], "direction": [0, -1, 0]}, start="0 mm", end="2 cm",
+        steps=4, pairs=[{"a": stop.ref, "b": lid.ref}],
+    )  # fmt: skip
+    assert slid.ok and slid.data["values"] == pytest.approx([0, 5, 10, 15, 20])  # cm: 20 mm
+    slid = run(
+        nx, "nx_run_motion_sweep", joint="slider", moving=[stop.ref],
+        axis={"origin": [0, 0, 0], "direction": [0, -1, 0]}, start="0 mm", end="20 mm",
+        steps=4, pairs=[{"a": stop.ref, "b": lid.ref}],
+    )  # fmt: skip
+    assert slid.ok and slid.data["values"] == pytest.approx([0, 5, 10, 15, 20])
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "field"),
+    [("10 mm", 90, "/start"), (0, "90 mm", "/end"), ("abc", 90, "/start"),
+     (0, 200000, "/end")],
+)  # fmt: skip
+def test_a_value_of_the_wrong_kind_is_refused(start, end, field):
+    nx, _frame, lid, _stop = hatch()
+    ok = run(nx, "nx_run_motion_sweep", joint="revolute", moving=[lid.ref], axis=HINGE,
+             start=start, end=end)  # fmt: skip
+    assert not ok.ok and ok.error["field"] == field, ok.error
+    assert ok.error["category"] == "invalid_argument"
+    assert nx.undos == 0

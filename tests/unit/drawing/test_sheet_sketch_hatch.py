@@ -98,6 +98,8 @@ def sheet_nx(units="mm", sheet_units="mm"):
         nx.boxes[h.Tag] = box
         h.AnnotationOrigin = NS(X=(box[0] + box[3]) / 2, Y=(box[1] + box[4]) / 2, Z=0)
         nx.dependent[h.Tag] = (1, "SHT1@0")
+        if not isinstance(b.args[0], Object):  # a new hatch joins the part's hatches
+            nx.part.Annotations.Hatches.append(h)
         return h
 
     nx.on_commit("HatchBuilder", hatch)
@@ -214,6 +216,15 @@ def test_crosshatch_fills_a_closed_loop_with_its_pattern_angle_and_spacing():
     assert nx.live_builders == 0
 
 
+def test_hatches_are_listed_with_the_annotations():
+    nx = sheet_nx()
+    ok = run(nx, "nx_create_hatch", boundary=_rect(nx), pattern="steel")
+    assert ok.ok, ok
+    listed = run(nx, "nx_list_objects", kind="annotation")
+    rows = [r for r in listed.data["items"] if r["id"] == ok.data["annotation"]["id"]]
+    assert len(rows) == 1, listed.data
+
+
 def test_area_fill_takes_a_material_and_refuses_crosshatch_fields():
     nx = sheet_nx()
     curves = _rect(nx)
@@ -238,3 +249,24 @@ def test_a_hatch_needs_one_closed_loop_on_a_sheet():
     off_sheet = run(nx, "nx_create_hatch", boundary=[nx.ref_of(model, "curve")])
     assert off_sheet.error["code"] == "NX_WRONG_OWNER"
     assert off_sheet.error["field"] == "/boundary/0"
+
+
+def test_a_patterned_area_fill_may_stop_short_of_the_boundary():
+    nx = sheet_nx()
+    curves = _rect(nx)
+    made = nx.hooks["HatchBuilder"]
+
+    def short(b):  # whole pattern cells: the box lies inside the region
+        h = made(b)
+        box = nx.boxes[h.Tag]
+        nx.boxes[h.Tag] = [box[0] + 0.7, box[1], 0, box[3], box[4] - 0.21, 0]
+        return h
+
+    nx.on_commit("HatchBuilder", short)
+    ok = run(nx, "nx_create_hatch", boundary=curves, type="area_fill", material="concrete")
+    assert ok.ok, ok
+    assert ok.data["bounds"] == pytest.approx([300.7, 40, 380, 79.79])
+    solid = run(nx, "nx_create_hatch", boundary=curves, type="area_fill")
+    assert (
+        solid.error["code"] == "NX_VERIFICATION_FAILED" and solid.mutation_outcome == "rolled_back"
+    )

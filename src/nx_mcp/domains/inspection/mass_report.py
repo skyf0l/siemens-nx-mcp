@@ -697,6 +697,14 @@ def _what_if(walk, changes, ref, baseline) -> WhatIfData:
     return out
 
 
+def _clean_cog(*rows) -> None:
+    """Rounding noise in centres of gravity (``7e-32`` next to 300) becomes exact 0."""
+    for row in rows:
+        for key in ("center_of_gravity", "reference_cog"):
+            if row.get(key) is not None:
+                row[key] = _denoise([row[key]])[0]
+
+
 def _denoise(matrix):
     largest = max((abs(v) for row in matrix for v in row), default=0.0)
     return [[0.0 if abs(v) <= NOISE * largest else v for v in row] for row in matrix]
@@ -734,6 +742,7 @@ def report(tx, a) -> dict:
         row["percent"] = 100.0 * row.get("mass", 0.0) / mass if mass > 0 else 0.0
         if ref is not None and row.get("center_of_gravity") is not None:
             row["reference_cog"] = mp.in_frame(ref, row["center_of_gravity"])
+    _clean_cog(totals, *(r["row"] for r in walk.records))
     if a.get("inertia") and total["inertia"] is not None:
         totals["inertia"] = _denoise(total["inertia"])
         totals["principal_moments"] = mp.principal_moments(total["inertia"])
@@ -761,6 +770,7 @@ def report(tx, a) -> dict:
                      percent=100.0 * g["mass"] / mass if mass > 0 else 0.0)  # fmt: skip
             rows_out.append(g)
         out["groups"] = sorted(rows_out, key=lambda g: -g["mass"])
+        _note_unmatched(tx, walk, named)
     if a.get("what_if"):
         out["what_if"] = _what_if(walk, a["what_if"], ref, totals)
     rows = [r["row"] for r in walk.records]
@@ -768,6 +778,23 @@ def report(tx, a) -> dict:
     out["row_count"] = len(rows)
     _notes(tx, walk, rows)
     return out
+
+
+def _note_unmatched(tx, walk, named) -> None:
+    """``NX_NOTE`` for named groups that match nothing and for a group_by attribute that no
+    component carries (a typo would otherwise vanish into (other))."""
+    a = walk.a
+    if a.get("group_by") == "named":
+        empty = [g["name"] for g in a.get("named") or [] if g["name"] not in named]
+        if empty:
+            tx.warn("NX_NOTE", f"Group(s) {', '.join(repr(n) for n in empty)} matched no "
+                    "component or item; check the refs and name patterns")  # fmt: skip
+    if a.get("group_by") == "attribute":
+        components = [r for r in walk.records if "component" in r["row"]]
+        tagged = [r for r in components if r["row"].get("group") != OTHER]
+        if components and not tagged:
+            tx.warn("NX_NOTE", f"Attribute {a['attribute']!r} is set on 0 of {len(components)} "
+                    "components (or their parts): every row is in (other)")  # fmt: skip
 
 
 def _notes(tx, walk, rows) -> None:
@@ -834,7 +861,9 @@ def nx_measure_assembly_mass(
     inertia: bool = False,
 ) -> MassReportData:
     """Report weight and centre of gravity per component and in total, for trim and stability.
-    Uses NX asserted masses; items add assumed ones. kg, part units."""
+    Uses NX asserted masses; items add assumed ones. kg, part units. inertia: kg*unit^2
+    tensor about the total CoG in absolute axes, products negated (Ixy = -sum m*x*y);
+    reference_inertia about the reference, its axes."""
     a = _args(components=components, exclude=exclude, include_suppressed=include_suppressed,
               items=items, group_by=group_by, attribute=attribute, groups=groups,
               reference=reference, what_if=what_if, inertia=inertia)  # fmt: skip
@@ -908,8 +937,31 @@ def csv_text(out) -> str:
                                                      "rows": change["rows"]}))  # fmt: skip
         writer.writerow(_line("what_if_total", {"name": "WHAT-IF TOTAL", **what_if}))
     writer.writerow([])
-    writer.writerow(["units", f"mass kg; lengths {units['length']}; density kg/m^3"])
+    length = units["length"]
+    writer.writerow(["units", f"mass kg; lengths {length}; volume {length}^3; density kg/m^3; "
+                     f"inertia kg*{length}^2"])  # fmt: skip
+    _inertia_lines(writer, out["total"])
     return buffer.getvalue()
+
+
+INERTIA_COLUMNS = ("section", "about", "xx", "yy", "zz", "xy", "xz", "yz")
+
+
+def _inertia_lines(writer, total) -> None:
+    """The total's inertia (with inertia set): tensors about the CoG (absolute axes) and the
+    reference (its axes), products negated as in the tensor, then the principal moments."""
+    tensors = [("cog", total.get("inertia")), ("reference", total.get("reference_inertia"))]
+    tensors = [(about, t) for about, t in tensors if t is not None]
+    if not tensors:
+        return
+    writer.writerow([])
+    writer.writerow(INERTIA_COLUMNS)
+    for about, t in tensors:
+        values = (t[0][0], t[1][1], t[2][2], t[0][1], t[0][2], t[1][2])
+        writer.writerow(["inertia", about, *(_cell(v) for v in values)])
+    principal = total.get("principal_moments")
+    if principal:
+        writer.writerow(["principal_moments", "cog", *(_cell(v) for v in principal)])
 
 
 class ExportData(TypedDict):
@@ -940,8 +992,8 @@ def nx_export_mass_report(
     overwrite: bool = False,
 ) -> ExportData:
     """Write the weight and CoG report to an Excel-friendly .csv. report_args: the arguments
-    of nx_measure_assembly_mass. Lines: rows, groups, total, what-if; the model is not
-    changed. overwrite replaces a file."""
+    of nx_measure_assembly_mass. Lines: rows, groups, total, what-if, then units and (inertia
+    true) the inertia lines; the model is not changed. overwrite replaces a file."""
     target = Path(path)
     replacing = target.exists()
     if replacing and not overwrite:
@@ -970,5 +1022,8 @@ def _report_args(given) -> dict:
         checked = spec.check(given)
     except NXError as error:
         error.field = "/report_args" + (error.field or "")
+        for row in (error.details or {}).get("errors") or []:
+            if isinstance(row, dict) and isinstance(row.get("field"), str):
+                row["field"] = "/report_args" + row["field"]
         raise
     return {k: v for k, v in checked.args.items() if v is not None}

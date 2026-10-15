@@ -125,7 +125,7 @@ FACE_ROWS = 20  # differing faces a body's appearance row lists
 FIT_TOL = 0.005  # fitted view centre off the bodies' box centre, x the box diagonal
 COLOR_FORMS = (
     "color takes an index 1-216, a basic name (red, green, blue, yellow, cyan, magenta, "
-    "orange, white, black, gray), a colour-table name ('Light Steel Blue'), '#RRGGBB' or "
+    "orange, white, black, gray), a colour-table name ('Pale Steel', 'Light Gray'), '#RRGGBB' or "
     "[r, g, b] (0-255, or 0-1 when every component is at most 1): the nearest table colour"
 )
 
@@ -288,6 +288,16 @@ def origin_for(rotation, centre) -> list[float]:
     return [-sum(float(rotation[i][j]) * float(centre[i]) for i in range(3)) for j in range(3)]
 
 
+def pivot(tx, view, rotation, centre=None) -> dict:
+    """Turn the view to ``rotation`` about the point at the viewport centre (``centre``,
+    absolute; default the current one): that point stays centred and the scale is kept.
+    NX keeps the view-space origin when only the rotation changes, which moves the model
+    off the centre (NX 2406, measured: 35 mm on a 100 mm block)."""
+    now = camera(tx, view)
+    middle = now["absolute_origin"] if centre is None else [float(v) for v in centre]
+    return set_camera(tx, view, rotation, origin_for(rotation, middle), now["scale"])
+
+
 def centre_offset(cam: dict, centre) -> float:
     """Screen-plane distance between the viewport centre (``absolute_origin``) and
     ``centre``: depth along the view direction does not count."""
@@ -314,12 +324,13 @@ def shown_bodies(tx) -> list:
     return out
 
 
-def fit(tx, view) -> dict:
-    """Fit the model view to the shown bodies, their box centred: ``{bodies, centre,
-    offset}`` (``offset``: the screen-plane distance left between the viewport centre and
-    the box centre, part units). Datums, sketches and the datum CSYS do not count. With no
-    body shown NX's own fit frames whatever is shown (``{"bodies": 0}``)."""
-    shown = shown_bodies(tx)
+def fit(tx, view, objects=None) -> dict:
+    """Fit the model view to the shown bodies (or ``objects``: bodies, faces, edges), their
+    box centred: ``{bodies, centre, offset}`` (``offset``: the screen-plane distance left
+    between the viewport centre and the box centre, part units). Datums, sketches and the
+    datum CSYS do not count. With no body shown NX's own fit frames whatever is shown
+    (``{"bodies": 0}``)."""
+    shown = list(objects) if objects is not None else shown_bodies(tx)
     with native(default="NX_ERROR"):
         if shown:
             try:
@@ -639,10 +650,12 @@ def section_state(tx, part, view, section) -> dict:
 def write_section(tx, part, view, *, section=None, origin=None, normal=None, cap=None, name=None):
     """Create (``section=None``) or edit a one-plane section and commit it; returns it.
 
-    Absolute coordinates; the material on the normal's positive side is cut away."""
+    Absolute coordinates; the material on the normal's positive side is cut away. A new
+    section is built from ``DynamicSection.Null``: ``CreateSectionBuilder(view)`` edits
+    the view's active section, also one switched off (NX 2406)."""
     types = tx.nx.Display.DynamicSectionTypes
     factory = part.DynamicSections.CreateSectionBuilder
-    args = (section, view) if section is not None else (view,)
+    args = (section if section is not None else tx.nx.Display.DynamicSection.Null, view)
     with builders.build(tx, factory, *args) as b:
         if section is None:
             b.Type = types.Type.OnePlane

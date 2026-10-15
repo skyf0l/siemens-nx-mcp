@@ -1,0 +1,78 @@
+{
+ "covers": {
+  "nx_set_material": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "a",
+   "args": {
+    "shape": "block",
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "length": 40,
+    "width": 20,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_set_material",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ],
+    "material": {
+     "custom": {
+      "name": "Dense_dm3",
+      "density": "7.8 kg/dm3"
+     }
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed"
+   }
+  },
+  {
+   "call": "nx_get_material",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.items.0.density": {
+     "close": 7800,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$a.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.mass": {
+     "close": 0.0624,
+     "tol": 1e-06
+    }
+   }
+  }
+ ]
+}

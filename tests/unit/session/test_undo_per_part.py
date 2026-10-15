@@ -93,7 +93,7 @@ def test_the_parts_own_save_after_another_parts_save_still_ends_its_checkpoints(
     assert run(nx, "nx_save_part", part="b").ok
     assert run(nx, "nx_save_part", part="a").ok
     a_key = services(nx).part_key(nx.a)
-    row = run(nx, "nx_list_checkpoints", part="a").data["checkpoints"][0]
+    row = run(nx, "nx_list_checkpoints", part="a", include_expired=True).data["checkpoints"][0]
     assert row["available"] is False and row["expired_reason"] == "saved_or_closed", row
     stale = run(nx, "nx_restore_checkpoint", checkpoint_id=cp)
     assert stale.error["code"] == "NX_STALE_CHECKPOINT" and stale.mutation_outcome == "not_started"
@@ -110,7 +110,7 @@ def test_another_parts_close_keeps_the_checkpoint_and_the_restore_compensates(nx
     assert closed.ok and closed.data["undo_marks"] == "kept", closed
     assert services(nx).history[-1]["close"] == ["b.prt"]
     block(nx, "a", "op_a_block_3")
-    row = run(nx, "nx_list_checkpoints", part="a").data["checkpoints"][0]
+    row = run(nx, "nx_list_checkpoints", part="a", include_expired=True).data["checkpoints"][0]
     assert row["available"] and row["compensated"] and row["operations_after"] == 2, row
     restored = run(nx, "nx_restore_checkpoint", checkpoint_id=cp)
     assert restored.ok and restored.data["compensated"], restored

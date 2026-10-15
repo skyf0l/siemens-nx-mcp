@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/freeform/sew_thicken.json",
-  "scenario_sha256": "331e13ac7cfc43605bfa3270f965f3a443d576c23dcda4e4e1ca9f0bdd853253",
+  "scenario_sha256": "67c77dfe43ecff63c087ba25d8a487be2a69c468ed9f9169ce1309af2f93b08c",
   "domain": "freeform",
   "covers": {
     "nx_create_sew": [],
@@ -10,12 +10,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_sew": "116458171d64df62e91870635e06b8f1b1773efcae9940e569251f12f9d9b041",
-    "nx_create_thicken": "116458171d64df62e91870635e06b8f1b1773efcae9940e569251f12f9d9b041"
+    "nx_create_sew": "9d68e13e03859a7db0c0f8ed95f6088a8eff23bc45f04f25a68655c682894192",
+    "nx_create_thicken": "9d68e13e03859a7db0c0f8ed95f6088a8eff23bc45f04f25a68655c682894192"
   },
-  "recorded": "2026-10-12T09:57:55Z",
+  "recorded": "2026-10-15T12:43:46Z",
   "passed": true,
-  "checks": 40,
+  "checks": 47,
   "failed_checks": 0,
   "steps": [
     {
@@ -93,7 +93,7 @@
       "call": "nx_create_sew",
       "setup": false,
       "passed": true,
-      "checks": 8
+      "checks": 10
     },
     {
       "index": 12,
@@ -482,6 +482,139 @@
     },
     {
       "index": 67,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 68,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 69,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 70,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 71,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 72,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 73,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 74,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 75,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 76,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 77,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 78,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 79,
+      "call": "nx_create_mesh_surface",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 80,
+      "call": "nx_create_mesh_surface",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 81,
+      "call": "nx_create_mesh_surface",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 82,
+      "call": "nx_create_mesh_surface",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 83,
+      "call": "nx_create_mesh_surface",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 84,
+      "call": "nx_create_mesh_surface",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 85,
+      "call": "nx_create_sew",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 86,
       "call": "nx_check_model",
       "setup": false,
       "passed": true,

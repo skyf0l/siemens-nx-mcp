@@ -8,7 +8,7 @@ handles (``exploded.TRACE_ATTRIBUTE``); every explosion change refreshes them.
 from __future__ import annotations
 
 import json
-from typing import Annotated, TypedDict
+from typing import Annotated, TypedDict, cast
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
@@ -21,6 +21,10 @@ Percent = Annotated[float, Range(ge=0, le=100), Doc("0-100 % of the edge's arc l
 Direction = Annotated[
     tuple[float, float, float], Doc("Direction the line leaves this anchor; default +Z")
 ]
+LegDirection = Annotated[
+    tuple[float, float, float], Doc("New direction the line leaves the anchor")
+]
+LegOffset = Annotated[Length, Doc("Straight leg length along the leg direction (>= 0)")]
 TraceEdge = Annotated[str, RefTo("edge", doc="Edge id 'e:N' of a component in the explosion")]
 TraceId = Annotated[str, RefTo("traceline", doc="Trace id 'tl:N'")]
 
@@ -38,6 +42,7 @@ class TraceData(TypedDict, total=False):
     end_direction: Vec3
     start_offset: float
     end_offset: float
+    stale: bool  # an anchor edge is gone
 
 
 def _name(part) -> str:
@@ -51,22 +56,9 @@ def _name(part) -> str:
     return f"TRACE{n}"
 
 
-def _row(tx, line, ex, records) -> TraceData:
-    """The trace, its endpoints, anchor edges, percents and leg offsets."""
-    start, end = exploded.endpoints(line)
-    edges = exploded.anchor_edges(tx, ex, records)
-    return {
-        "trace": tx.ref(line, "traceline"),
-        "explosion": tx.ref(ex, "explosion"),
-        "start": start,
-        "end": end,
-        "start_edge": tx.ref(edges[0], "edge"),
-        "end_edge": tx.ref(edges[1], "edge"),
-        "start_percent": float(records[0]["percent"]),
-        "end_percent": float(records[1]["percent"]),
-        "start_offset": float(line.StartOffset),
-        "end_offset": float(line.EndOffset),
-    }
+def _row(tx, line, ex) -> TraceData:
+    """The trace, its endpoints, anchor edges, percents, leg offsets and directions."""
+    return cast(TraceData, exploded.trace_row(tx, line, ex))
 
 
 def _edge(tx, ref, entries, field):
@@ -88,7 +80,15 @@ def _edge(tx, ref, entries, field):
     effect="model",
     label="Create explosion trace",
     summary="Trace line in {explosion}",
-    keywords=("trace line", "explosion line", "assembly path line", "exploded view line"),
+    keywords=(
+        "trace line",
+        "explosion line",
+        "assembly path line",
+        "exploded view line",
+        "exploded line",
+        "flow line",
+        "leader line",
+    ),  # fmt: skip
     requires=("work_part", "no_active_sketch", "assembly"),
     cost="heavy",
     invalidates="deleted",
@@ -106,8 +106,9 @@ def nx_create_explosion_trace(
     start_direction: Direction | None = None,
     end_direction: Direction | None = None,
 ) -> TraceData:
-    """Draw a trace line between edges of two components in an explosion. Each end sits at a
-    percent of its edge's arc length and follows later explosion edits."""
+    """Draw a trace line between two edges of components in an explosion (two different
+    edges). Each end sits at a percent of its edge's arc length and follows later explosion
+    edits."""
     directions = [
         geom.unit(v if v is not None else [0.0, 0.0, 1.0], field)
         for v, field in ((start_direction, "/start_direction"), (end_direction, "/end_direction"))
@@ -118,6 +119,10 @@ def nx_create_explosion_trace(
         entries = exploded.tree(ex)
         edges = [_edge(tx, start_edge, entries, "/start_edge"),
                  _edge(tx, end_edge, entries, "/end_edge")]  # fmt: skip
+        if int(edges[0].Tag) == int(edges[1].Tag):
+            fail("NX_INVALID_ARGUMENT", "start_edge and end_edge are the same edge",
+                 field="/end_edge", hint="A trace joins two edges, usually of two "
+                 "components: pick the mating edge of the other component")  # fmt: skip
     records = [
         {
             "edge": exploded.handle(tx, edge.Prototype),
@@ -156,7 +161,7 @@ def nx_create_explosion_trace(
     start, end = exploded.endpoints(line)
     readback.expect_close(start, positions[0], "start")
     readback.expect_close(end, positions[1], "end")
-    out = _row(tx, line, ex, records)
+    out = _row(tx, line, ex)
     out["start_direction"], out["end_direction"] = directions
     return out
 
@@ -166,7 +171,15 @@ def nx_create_explosion_trace(
     effect="model",
     label="Edit explosion trace",
     summary="Edit trace {trace}",
-    keywords=("move trace anchor", "trace offset", "edit trace line", "trace percent"),
+    keywords=(
+        "move trace anchor",
+        "trace offset",
+        "edit trace line",
+        "trace percent",
+        "trace direction",
+        "edit exploded view lines",
+        "flow line",
+    ),  # fmt: skip
     requires=("work_part", "no_active_sketch", "assembly"),
     cost="heavy",
     invalidates="deleted",
@@ -179,15 +192,27 @@ def nx_edit_explosion_trace(
     trace: TraceId,
     start_percent: Percent | None = None,
     end_percent: Percent | None = None,
-    start_offset: Length | None = None,
-    end_offset: Length | None = None,
+    start_offset: LegOffset | None = None,
+    end_offset: LegOffset | None = None,
+    start_direction: LegDirection | None = None,
+    end_direction: LegDirection | None = None,
 ) -> TraceData:
-    """Slide a trace's anchors along their edges (percent) or set its end legs. An offset is
-    a straight leg leaving the anchor; anchors stay put."""
-    given = (start_percent, end_percent, start_offset, end_offset)
+    """Slide a trace's anchors along their edges (percent), or set its end legs (offset,
+    direction). An offset is a straight leg along the leg direction; anchors stay put.
+    nx_get_explosion reads traces back."""
+    given = (start_percent, end_percent, start_offset, end_offset, start_direction, end_direction)
     if all(v is None for v in given):
-        fail("NX_INVALID_ARGUMENT", "Give start/end_percent or start/end_offset",
-             hint='e.g. {"trace": "tl:6", "start_percent": 50}')  # fmt: skip
+        fail("NX_INVALID_ARGUMENT", "Give start/end_percent, start/end_offset or "
+             "start/end_direction", hint='e.g. {"trace": "tl:6", "start_percent": 50}')  # fmt: skip
+    for name, offset in (("start_offset", start_offset), ("end_offset", end_offset)):
+        if offset is not None and float(offset) < 0:  # a quantity string, converted by the kernel
+            fail("NX_INVALID_ARGUMENT", f"{name} must not be negative; turn the leg with "
+                 f"{name.replace('offset', 'direction')}", field="/" + name)  # fmt: skip
+    directions = {
+        name: geom.unit(value, "/" + name)
+        for name, value in (("start_direction", start_direction), ("end_direction", end_direction))
+        if value is not None
+    }
     with tx.checks():
         line = select.resolve(tx, trace, "traceline", field="/trace")
         if not exploded.is_managed(tx, line):
@@ -205,9 +230,20 @@ def nx_edit_explosion_trace(
             line.StartOffset = float(start_offset)
         if end_offset is not None:
             line.EndOffset = float(end_offset)
+        if "start_direction" in directions:
+            line.StartDirection = builders.direction(tx, directions["start_direction"],
+                                                     field="/start_direction")  # fmt: skip
+        if "end_direction" in directions:
+            line.EndDirection = builders.direction(tx, directions["end_direction"],
+                                                   field="/end_direction")  # fmt: skip
     exploded.refresh_traces(tx, ex)
     exploded.regenerate(tx)
     for name, offset in (("StartOffset", start_offset), ("EndOffset", end_offset)):
         if offset is not None:
             readback.expect_close(float(getattr(line, name)), offset, name)
-    return _row(tx, line, ex, records)
+    if directions:
+        got = exploded.leg_directions(line)
+        for i, name in enumerate(("start_direction", "end_direction")):
+            if name in directions and got is not None:
+                readback.expect_close(got[i], directions[name], name, 1e-6)
+    return _row(tx, line, ex)

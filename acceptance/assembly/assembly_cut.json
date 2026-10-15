@@ -1,6 +1,9 @@
 {
  "covers": {
-  "nx_create_assembly_cut": []
+  "nx_create_assembly_cut": [],
+  "nx_create_arrangement": [],
+  "nx_set_arrangement_component": [],
+  "nx_edit_arrangement": ["set_default"]
  },
  "fixture": null,
  "part": "new",
@@ -17,6 +20,14 @@
   {"call": "nx_create_assembly_cut",
    "args": {"part": "$part", "targets": ["$DECK.data.component.id"], "tools": ["$DECK.data.component.id"]},
    "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/tools/0", "mutation_outcome": "not_started"}},
+  {"call": "nx_create_arrangement", "setup": true, "args": {"part": "$part", "name": "OPEN", "activate": true}},
+  {"call": "nx_set_arrangement_component", "setup": true,
+   "args": {"part": "$part", "arrangement": "OPEN", "component": "$TRUNK.data.component.id", "pose": {"translation": [150, 110, -20]}}},
+  {"call": "nx_create_assembly_cut",
+   "args": {"part": "$part", "targets": ["$DECK.data.component.id"], "tools": ["$TRUNK.data.component.id"]},
+   "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/tools/0", "error.details.active": "OPEN",
+              "error.details.default": "Arrangement 1", "mutation_outcome": "not_started"}},
+  {"call": "nx_edit_arrangement", "setup": true, "args": {"part": "$part", "arrangement": "OPEN", "action": "set_default"}},
   {"call": "nx_create_assembly_cut", "save": "cut",
    "args": {"part": "$part", "targets": ["$DECK.data.component.id"], "tools": ["$TRUNK.data.component.id"]},
    "expect": {"mutation_outcome": "committed", "data.feature.kind": "feature",
@@ -25,6 +36,11 @@
               "data.targets.0.volume_after": {"close": 1120000, "tol": 1e-6},
               "data.targets.0.removed": {"close": 80000, "tol": 1e-6},
               "data.tools.0.name": "TRUNK", "data.bodies": {"count": 1}}},
+  {"call": "nx_create_assembly_cut",
+   "args": {"part": "$part", "targets": ["$DECK.data.component.id"], "tools": ["$TRUNK.data.component.id"]},
+   "expect": {"error.code": "NX_WRONG_GEOMETRY", "error.field": "/targets/0", "error.details.cuts": {"count": 1},
+              "error.details.cuts.0.id": "$cut.data.feature.id", "error.details.bodies.0.id": "$cut.data.bodies.0.id",
+              "mutation_outcome": "not_started"}},
   {"call": "nx_check_model", "args": {"part": "$part"},
    "expect": {"ok": true}}
  ]

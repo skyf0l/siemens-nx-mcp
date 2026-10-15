@@ -452,27 +452,31 @@ def nx_create_surface_analysis(
     direction: Annotated[Direction, Doc("slope reference; default +z (up)")] | None = None,
     plane: Annotated[Plane, Doc("distance reference plane; + along its normal")] | None = None,
     samples_per_axis: Annotated[int, Range(ge=1, le=20), Doc("slope/distance values grid")] = 5,
+    display: Annotated[bool, Doc("false: slope/distance values only, any loaded part")] = True,
 ) -> AnalysisData:
     """Create an NX display analysis to look at or capture with nx_capture_view. Displayed
-    part only; it stays until nx_undo_operation of this call. slope and distance also return
-    values (min/max/mean on a UV grid): slope = angle from direction to face normal (0
-    faces along it, 90 wall, 180 faces away); distance = signed, along the plane normal.
-    Numbers: nx_check_face_continuity, nx_analyze_faces."""
-    if type != "curvature_comb" and curves is not None:
-        fail("NX_INVALID_ARGUMENT", f"{type} takes faces, not curves", field="/curves")
-    if type == "curvature_comb" and faces is not None:
-        fail("NX_INVALID_ARGUMENT", "curvature_comb takes curves, not faces", field="/faces",
-             hint="For faces use reflection or radius")  # fmt: skip
-    if type == "continuity" and faces is not None and len(faces) < 2:
-        fail("NX_INVALID_ARGUMENT", "continuity compares 2 or more faces", field="/faces")
-    if direction is not None and type != "slope":
-        fail("NX_INVALID_ARGUMENT", "direction is the slope reference", field="/direction")
-    if plane is not None and type != "distance":
-        fail("NX_INVALID_ARGUMENT", "plane is the distance reference", field="/plane")
-    angle = float(angle)
-    if not 0 < angle < 90:
-        fail("NX_INVALID_ARGUMENT", "angle must be 0 to 90 degrees", field="/angle")
-    with tx.checks():
+    part only (display false: slope/distance values without one); it stays until
+    nx_undo_operation. slope and distance return values (min/max/mean on a UV grid): slope =
+    angle from direction to face normal (0 faces along it, 90 wall); distance = signed,
+    along the plane normal. Numbers: nx_check_face_continuity, nx_analyze_faces."""
+    with tx.checks():  # argument rules and lookups: refusals are not_started
+        if type != "curvature_comb" and curves is not None:
+            fail("NX_INVALID_ARGUMENT", f"{type} takes faces, not curves", field="/curves")
+        if type == "curvature_comb" and faces is not None:
+            fail("NX_INVALID_ARGUMENT", "curvature_comb takes curves, not faces", field="/faces",
+                 hint="For faces use reflection or radius")  # fmt: skip
+        if type == "continuity" and faces is not None and len(faces) < 2:
+            fail("NX_INVALID_ARGUMENT", "continuity compares 2 or more faces", field="/faces")
+        if direction is not None and type != "slope":
+            fail("NX_INVALID_ARGUMENT", "direction is the slope reference", field="/direction")
+        if plane is not None and type != "distance":
+            fail("NX_INVALID_ARGUMENT", "plane is the distance reference", field="/plane")
+        angle = float(angle)
+        if not 0 < angle < 90:
+            fail("NX_INVALID_ARGUMENT", "angle must be 0 to 90 degrees", field="/angle")
+        if not display and type not in ("slope", "distance"):
+            fail("NX_INVALID_ARGUMENT", "display false gives slope or distance values only; "
+                 f"{type} is a display object", field="/display")  # fmt: skip
         picked_faces = select.faces(tx, faces) if faces is not None else []
         picked_curves = [
             select.one(tx, ref, "curve", "edge", field=f"/curves/{i}")
@@ -484,14 +488,19 @@ def nx_create_surface_analysis(
         origin = normal = None
         if plane is not None:
             _obj, origin, normal = select.plane(tx, plane, "/plane")
-        analysis_objects.require_displayed(tx)
-        licenses.require(tx, LICENSE, NOTE)
-        collection = _collection(tx)
+        if display:
+            analysis_objects.require_displayed(tx)
+            licenses.require(tx, LICENSE, NOTE)
+            collection = _collection(tx)
     values: Values | None = None
     if type == "slope":
         values = _sampled(tx, picked_faces, samples_per_axis, _slope_of(vector))
     elif type == "distance":
         values = _sampled(tx, picked_faces, samples_per_axis, _distance_of(origin, normal))
+    if not display:
+        assert values is not None  # slope or distance
+        return {"type": type, "name": "", "faces": len(picked_faces), "curves": 0,
+                "analyses": 0, "values": values}  # fmt: skip
     with native(default="NX_BUILD_FAILED"):
         if type == "reflection":
             made = _reflection(tx, collection, picked_faces, lines, line_type, orientation)

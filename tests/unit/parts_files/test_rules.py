@@ -32,6 +32,7 @@ class RuleManager:
     def __init__(self, nx):
         self.nx, self.part = nx, nx.part
         self.children: dict[str, tuple[str, dict]] = {}
+        self.specified: dict[str, list[str]] = {}  # the parameters a child sets
         self.dynamic: dict[str, tuple[str, str]] = {}
         self.updates, self.regenerated, self.update_errors = 0, 0, 0
         self.error = ""
@@ -55,7 +56,52 @@ class RuleManager:
         return self.children[name][0]
 
     def GetRulesOfClass(self, klass):
-        return list(CLASSES[klass])
+        if klass not in CLASSES:
+            self._fail(3520002, "Second parameter is invalid")
+        return ["onCreate", "inTree?", *CLASSES[klass], "volume"]  # base, parameters, computed
+
+    def IsParameter(self, klass, name):
+        if name == "volume":
+            return False
+        if name in ("onCreate", "inTree?"):
+            return True  # NX lists the KF base parameters of every class
+        if all(name.casefold() != p.casefold() for p in CLASSES[klass]):
+            self._fail(1, "No such rule")
+        return True
+
+    def GetDefaultFormula(self, klass, name):
+        return CLASSES[klass][name] + ";"
+
+    def _canonical(self, klass, name):
+        return next((p for p in CLASSES[klass] if p.casefold() == name.casefold()), name)
+
+    def GetSpecifiedParameters(self, chain):
+        name = chain[5:-1]
+        return ["Class", *self.specified.get(name, [])]
+
+    def GetParameterFormula(self, chain, name):
+        child = chain[5:-1]
+        return self.children[child][1][name] + ";"
+
+    def GetDynamicRuleText(self, chain):
+        name = chain[5:-1]
+        if name not in self.dynamic:
+            self._fail(1, "No such rule")
+        kind, formula = self.dynamic[name]
+        return f"({kind}) {name}: {formula}; "
+
+    def GetRuleType(self, chain):
+        name = chain[5:-1]
+        # NX 2406: an enum member with ``value`` (``int()`` of it raises), not an int.
+        return NS(value=6 if self.dynamic.get(name, ("",))[0] == "Point" else 3)
+
+    def DeleteChildRule(self, name):
+        del self.children[name]
+        self.specified.pop(name, None)
+
+    def DeleteDynamicRule(self, chain, name):
+        assert chain == "root:"
+        del self.dynamic[name]
 
     def IsExpressionRule(self, name):
         return name in self._expressions()
@@ -79,6 +125,8 @@ class RuleManager:
                     return formula == "true"
                 if kind == "List":
                     return [1.0, 2.0]
+                if kind == "Point":
+                    return [0.0, 50.0, 0.0]
                 if formula.endswith(": * 2"):
                     return 2 * self.Evaluate(f"root:{formula.split(':')[0]}:")
                 value = _number(formula)
@@ -90,6 +138,7 @@ class RuleManager:
             if child not in self.children:
                 self._fail(3270054, "Referenced Instance does not exist")
             klass, values = self.children[child]
+            rule = next((k for k in values if k.casefold() == rule.casefold()), rule)
             if rule in values:
                 value = _number(values[rule])
                 if value is None and not values[rule].startswith('"'):
@@ -105,11 +154,16 @@ class RuleManager:
         return str(value)
 
     def CreateChildRule(self, name, klass, params):
+        """NX 2406: the parameter list replaces the child's; the others are the defaults."""
         if klass not in CLASSES:
             raise NXException(3520002, "Second parameter is invalid")
-        values = dict(self.children[name][1]) if name in self.children else dict(CLASSES[klass])
-        values.update(dict(params))
+        values = dict(CLASSES[klass])
+        for key, value in params:
+            if value == "10 mm":
+                self._fail(3270008, "Syntax error", f"Syntax error in rule {key}")
+            values[self._canonical(klass, key)] = value
         self.children[name] = (klass, values)
+        self.specified[name] = [self._canonical(klass, key) for key, _ in params]
 
     def CreateDynamicRule(self, chain, name, kind, formula):
         assert chain == "root:"
@@ -123,6 +177,8 @@ class RuleManager:
         for name, (klass, values) in self.children.items():
             if klass == "ug_expression" and name not in self._expressions():
                 self.nx.expression(name, values["Value"], float(values["Value"]))
+            elif klass == "ug_expression":  # NX changes the expression without a note
+                self._expressions()[name].Value = float(values["Value"])
         return self.update_errors
 
     def RegenerateAll(self):
@@ -214,6 +270,80 @@ def test_child_rule_changes_an_existing_child(nx, kf):
     assert out.data["created"] is False
     values = {r["name"]: r["value"] for r in out.data["rules"]}
     assert values == {"width": 55.0, "length": 100.0}
+
+
+def test_changing_one_parameter_of_a_child_keeps_the_others(nx, kf):
+    """NX resets every parameter a CreateChildRule does not list; the tool merges."""
+    kfset(nx, kind="child", name="holder", class_name="plate",
+          parameters=[{"name": "length", "value": 15}, {"name": "width", "value": 25}])  # fmt: skip
+    out = kfset(nx, kind="child", name="holder", class_name="plate",
+                parameters=[{"name": "Width", "value": 9}])  # fmt: skip
+    assert out.ok, out
+    assert kf.children["holder"][1] == {"length": "15", "width": "9"}
+    assert out.data["kept_parameters"] == ["length"]
+    rows = {r["name"]: r for r in out.data["rules"]}
+    assert rows["length"]["formula"] == "15" and rows["Width"]["value"] == 9.0
+    assert "onCreate" not in rows and "volume" not in rows  # base and computed rules
+    reset = kfset(nx, kind="child", name="holder", class_name="plate", replace=True,
+                  parameters=[{"name": "width", "value": 7}])  # fmt: skip
+    assert reset.ok and kf.children["holder"][1] == {"length": "100", "width": "7"}
+    assert "kept_parameters" not in reset.data
+
+
+def test_a_misspelled_parameter_is_refused_with_the_class_parameters(nx, kf):
+    out = kfset(nx, kind="child", name="rib", class_name="ug_expression",
+                parameters=[{"name": "Valeu", "value": 4}])  # fmt: skip
+    assert out.error["code"] == "NX_INVALID_ARGUMENT", out
+    assert out.error["field"] == "/parameters/0/name"
+    assert out.error["details"]["valid"] == ["Value", "Comment"]
+    assert out.error["details"]["suggestions"] == ["Value"] and "Value" in out.error["message"]
+    assert out.mutation_outcome == "not_started" and kf.children == {}
+
+
+def test_a_value_with_units_is_a_formula_error_on_its_parameter(nx, kf):
+    out = kfset(nx, kind="child", name="rib", class_name="ug_expression",
+                parameters=[{"name": "Comment", "value": '"x"'},
+                            {"name": "Value", "value": "10 mm"}])  # fmt: skip
+    assert out.error["code"] == "NX_INVALID_FORMULA", out
+    assert out.error["field"] == "/parameters/1/value" and out.error["nx_code"] == 3270008
+    assert "10 mm" in out.error["hint"]
+
+
+def test_kf_driven_expression_changes_are_reported(nx, kf):
+    kfset(nx, kind="child", name="size", class_name="ug_expression",
+          parameters=[{"name": "Value", "value": 25}])  # fmt: skip
+    out = kfset(nx, kind="child", name="size", class_name="ug_expression",
+                parameters=[{"name": "Value", "value": 30}])  # fmt: skip
+    assert out.ok, out
+    assert [r["name"] for r in out.changes["modified"]] == ["size"]
+
+
+def test_class_parameters_formulas_and_delete(nx, kf):
+    described = get(nx, class_name="plate")
+    assert described.ok, described
+    assert described.data["parameters"] == [
+        {"name": "length", "default": "100"}, {"name": "width", "default": "40"}
+    ]  # fmt: skip
+    unknown = get(nx, class_name="nothing")
+    assert unknown.error["code"] == "NX_NOT_FOUND" and unknown.error["field"] == "/class_name"
+    kfset(nx, kind="dynamic", name="twice", formula="p0: * 2")
+    point = kfset(nx, kind="dynamic", name="pt", formula="Point(0,50,0)", rule_type="point")
+    assert point.ok and point.data["rule"]["type"] == "point", point
+    assert point.data["rule"]["value"] == [0.0, 50.0, 0.0]
+    rows = {r["name"]: r for r in get(nx).data["rules"]}
+    assert rows["twice"]["formula"] == "p0: * 2" and rows["p0"]["formula"] == "40"
+    assert rows["pt"]["formula"] == "Point(0,50,0)"
+    gone = call(nx, rules.nx_delete_kf_rule, name="twice")
+    assert gone.ok and gone.data["kind"] == "dynamic" and "twice" not in kf.dynamic, gone
+    kfset(nx, kind="child", name="holder", class_name="plate")
+    child = call(nx, rules.nx_delete_kf_rule, name="HOLDER")
+    assert child.ok and child.data == {**child.data, "name": "holder", "kind": "child",
+                                       "class_name": "plate"}  # fmt: skip
+    assert "holder" not in kf.children
+    missing = call(nx, rules.nx_delete_kf_rule, name="nope")
+    assert missing.error["code"] == "NX_NOT_FOUND" and missing.mutation_outcome == "not_started"
+    expression = call(nx, rules.nx_delete_kf_rule, name="p0")
+    assert expression.error["code"] == "NX_WRONG_KIND"
 
 
 def test_dynamic_rules(nx, kf):

@@ -17,7 +17,7 @@ from types import SimpleNamespace as NS
 
 from tests.kit import fake_nx
 from tests.kit.kernel import services
-from tests.kit.objects import Expression, Face, Feature, Object
+from tests.kit.objects import Face, Feature, Object
 
 
 class Enum(str):
@@ -89,6 +89,14 @@ NUMBERS = {
     "BendReliefWidth": 3.0,
     "BendReliefDepth": 3.0,
 }
+# NX's names of the default expressions features refer to.
+DEFAULT_NAMES = {
+    "MaterialThickness": "Sheet_Metal_Material_Thickness",
+    "BendRadius": "Sheet_Metal_Bend_Radius",
+    "NeutralFactor": "Sheet_Metal_Neutral_Factor",
+    "BendReliefWidth": "Sheet_Metal_Relief_Width",
+    "BendReliefDepth": "Sheet_Metal_Relief_Depth",
+}
 
 
 class Preferences:
@@ -105,12 +113,17 @@ class Preferences:
         self.material = ""
         self.tool = ""
         self.ignore = set()  # numbers NX silently keeps (read-back test)
+        # The part's default expressions (``Sheet_Metal_Bend_Radius``...), one per number.
+        self.expressions = {
+            n: fake.expression(DEFAULT_NAMES[n], repr(v), v) for n, v in self.numbers.items()
+        }
         fake.on_commit("SheetMetalPreferencesBuilder", self._commit)
 
     def __getattr__(self, name):
         if name.startswith("Get") and name[3:] in NUMBERS:
-            value = self.numbers[name[3:]]
-            return lambda: _number(value)
+            exp = self.expressions[name[3:]]
+            exp.Value = self.numbers[name[3:]]
+            return lambda: exp
         raise AttributeError(name)
 
     def GetParameterEntryType(self):
@@ -156,12 +169,6 @@ class Preferences:
             if node is not None and node.calls:
                 setattr(self, field, node.calls[-1][0][0])
         return None
-
-
-def _number(value):
-    e = Expression("p", repr(value))
-    e.Value = value
-    return e
 
 
 def sm_nx(units="mm", application="sheet_metal"):

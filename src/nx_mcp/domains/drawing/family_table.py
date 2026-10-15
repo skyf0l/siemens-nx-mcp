@@ -9,6 +9,8 @@ NX 2406 findings encoded here (``Annotations.PartFamilyTables.CreatePartFamilyTa
   note shown as a table section at the requested origin (its top-left corner).
 - Rows are read back from the tabular note and compared with the family's member rows
   (``UF Fam.AskMemberRowData``).
+- The builder commits the family table object; the table NX lists and reads as a drawing
+  table is its first table section, which the result returns.
 """
 
 from __future__ import annotations
@@ -23,10 +25,12 @@ from nx_mcp.core.types import Doc, SheetPoint
 from nx_mcp.domains.drawing.common import (
     SheetArg,
     commit,
+    on_sheet_point,
     open_or_only_sheet,
     report_bounds,
     set_origin,
     sheet_of,
+    shown_table,
     update,
     verify_origin,
 )
@@ -114,6 +118,17 @@ def _member_rows(cells, members):
     return cells[start : start + len(members)] if start is not None else []
 
 
+def _sections(part):
+    return {int(s.Tag): s for s in getattr(part.Annotations, "TableSections", None) or []}
+
+
+def _section(tx, before, table):
+    """The table section NX made for the family table (the drawing table nx_list_objects
+    lists and nx_get_drawing_table reads), else the table itself."""
+    made = [s for tag, s in _sections(tx.part).items() if tag not in before]
+    return made[0] if len(made) == 1 else shown_table(tx, table)
+
+
 @tool(
     effect="model",
     label="Create part family table",
@@ -133,8 +148,8 @@ def nx_create_part_family_table(
 ) -> FamilyTableData:
     """Place the work part's part family table on a drawing sheet: one row per member with
     its name and column values. The work part must be a family template (make one with
-    nx_create_part_family). origin is the table's top-left corner; sheet defaults to the
-    open or only one. Rows are read back against the family."""
+    nx_create_part_family). origin is the table's top-left corner, on the sheet; sheet
+    defaults to the open or only one. Rows are read back against the family."""
     with tx.checks():
         part = tx.part
         try:
@@ -146,9 +161,11 @@ def nx_create_part_family_table(
                  hint="Create the family first with nx_create_part_family")  # fmt: skip
         columns, members = family_rows(tx, part)
         target = sheet_of(tx, sheet, "/sheet") if sheet is not None else open_or_only_sheet(tx)
+        on_sheet_point(target, origin, "/origin")  # a table off the sheet is refused
     licenses.require(tx, ("drafting",), "Part family tables need a drafting license")
     A = tx.nx.Annotations
     factory = part.Annotations.PartFamilyTables.CreatePartFamilyTableBuilder
+    before = _sections(part)
     with drawing.on_sheet(tx, target, part) as sh:
         with builders.build(tx, factory, A.Table.Null) as b:
             set_origin(tx, b.Origin, sh, origin)
@@ -166,7 +183,7 @@ def nx_create_part_family_table(
             members=members[:20],
         )
         out: FamilyTableData = {
-            "table": tx.ref(table, "drawing_table"),
+            "table": tx.ref(_section(tx, before, table), "drawing_table"),
             "sheet": tx.ref(target, "drawing_sheet"),
             "origin": verify_origin(sh, anchor, origin),
             "columns": columns,

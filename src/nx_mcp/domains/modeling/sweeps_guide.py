@@ -26,7 +26,7 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Combine, Doc, Items, Length, Range, RefTo, SketchRef
-from nx_mcp.domains.modeling import common
+from nx_mcp.domains.modeling import common, features
 from nx_mcp.kit import args, builders, expr, licenses, measure, select, units
 from nx_mcp.kit import bodies as kbodies
 from nx_mcp.kit import sketch as ksketch
@@ -36,6 +36,12 @@ LICENSE = "nx_freeform_1"
 TOLERANCE_MM = 0.01
 PATH_PARENT = "DATUM_ON_PATH"  # the feature type a path sketch's feature hangs on
 Percent = Annotated[float, Range(ge=0, le=100)]
+
+
+OPEN_HINT = (
+    "Close the profile (nx_get_sketch lists its loops), or give first_offset and "
+    "second_offset (e.g. 0.5 and -0.5) for a thin wall along it"
+)
 
 
 class GuideSweepData(common.FeatureData):
@@ -92,19 +98,31 @@ def nx_create_sweep_along_guide(
     combine: Combine | None = None,
 ) -> GuideSweepData:
     """Sweep one section sketch along one guide, mitring sharp guide corners (frames, bars bent
-    from a polyline). nx_create_sweep needs a smooth guide. Equal offsets give a solid of the
-    section; offsets 1 and -1 a wall 2 thick around its outline. New body or combined.
-    guide_length: the guide's; a straight guide: volume = area x length."""
+    from a polyline). nx_create_sweep needs a smooth guide. Offsets 0 and 0 (default) give a
+    solid of a closed section; two different offsets (1 and -1: a wall 2 thick) a wall
+    around its outline, open sections too. New body or combined. guide_length: the guide's;
+    a straight guide: volume = area x length."""
     if isinstance(guide, str):
         guide = [guide]
     if section in guide:
         fail("NX_INVALID_ARGUMENT", "section and guide must differ", field="/guide")
+    wall = float(first_offset) != 0 or float(second_offset) != 0
+    if wall and float(first_offset) == float(second_offset):
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "first_offset and second_offset are equal: the wall between them has no thickness",
+            field="/second_offset",
+            hint="Give two different offsets for a wall (e.g. 1 and -1: 2 thick), or both 0 for "
+            "a solid of the section",
+        )
     common.check_combine(combine)
     with tx.checks():
         sk = ksketch.resolve(tx, section, "/section")
         fill, curves = _guide(tx, guide)
         if any(int(c.Tag) in ksketch.tags(sk) for c in curves):
             fail("NX_INVALID_ARGUMENT", "section and guide must differ", field="/guide")
+        if not wall:
+            features.refuse_open(tx, sk, "/section", OPEN_HINT)
     length = measure.length(tx, curves)
     targets = common.combine_targets(tx, combine)
     before = common.target_state(tx, targets)
@@ -153,9 +171,7 @@ class VariationalData(common.FeatureData):
 def nx_create_variational_sweep(
     tx: Tx,
     *,
-    sketch: Annotated[
-        SketchRef, Doc("Closed section sketched on a path (nx_create_sketch placement path)")
-    ],
+    sketch: Annotated[SketchRef, Doc("Closed section sketched on the path")],
     start: Annotated[Percent, Doc("Start along the path, percent")] = 0.0,
     end: Annotated[Percent, Doc("End along the path, percent")] = 100.0,
     combine: Combine | None = None,
@@ -170,6 +186,7 @@ def nx_create_variational_sweep(
     common.check_combine(combine)
     with tx.checks():
         sk = ksketch.resolve(tx, sketch)
+        features.refuse_open(tx, sk, "/sketch", "Draw a closed profile on the path sketch")
         parents = list(sk.Feature.GetParents()) if hasattr(sk.Feature, "GetParents") else []
         if not any(str(getattr(f, "FeatureType", "")) == PATH_PARENT for f in parents):
             fail("NX_WRONG_GEOMETRY", "The sketch is not on a path", field="/sketch",

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/sketch/sketch_polyline.json",
-  "scenario_sha256": "16c47fcc7826bdc388e6c2f669111cc338650105a9c4fba9df6a548bd98b0397",
+  "scenario_sha256": "991e2bae86620c39aa078fec585ff24cbe1a26d82a94e22382fb57c42909adae",
   "domain": "sketch",
   "covers": {
     "nx_create_sketch_curves": [
@@ -11,9 +11,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_sketch_curves": "76f90c95b881d86cffcbd6331ef5ed265a6a9b4916f6c8b7342238007e853e63"
+    "nx_create_sketch_curves": "5d601b8857742c6178a4e48ae04f57b45231a1d704100adc96f285f69129d9b5"
   },
-  "recorded": "2026-10-14T13:34:53Z",
+  "recorded": "2026-10-15T11:29:35Z",
   "passed": true,
   "checks": 37,
   "failed_checks": 0,

@@ -127,10 +127,12 @@ def test_type_rules_are_checked_before_nx():
     iso = run(nx, "nx_set_visibility", mode="isolate", types=["curve"])
     assert iso.error["code"] == "NX_INVALID_ARGUMENT" and iso.error["field"] == "/mode"
     assert iso.mutation_outcome == "not_started"
-    scope = run(nx, "nx_set_visibility", mode="hide", objects=["b:1"], scope="assembly")
+    block = nx.part.Bodies[0]
+    scope = run(nx, "nx_set_visibility", mode="hide", objects=[block.ref], scope="assembly")
     assert scope.error["field"] == "/scope" and scope.mutation_outcome == "not_started"
-    none = run(nx, "nx_set_visibility", mode="hide", types=["point"])
-    assert none.error["code"] == "NX_NOT_FOUND" and none.error["field"] == "/types"
+    none = run(nx, "nx_set_visibility", mode="hide", types=["point", "sketch"])
+    assert none.ok and none.data["count"] == 0 and none.data["by_type"] == {"point": 0, "sketch": 0}
+    assert "no points, sketches: nothing changed" in none.warnings[0]["message"]
     bad = run(nx, "nx_set_visibility", mode="hide", types=["face"])
     assert bad.error["category"] == "invalid_argument"
 

@@ -1,0 +1,117 @@
+{
+ "covers": {
+  "nx_list_visual_materials": [],
+  "nx_set_visual_material": [],
+  "nx_get_visual_material": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "shape": "block",
+    "length": 100,
+    "width": 60,
+    "height": 20
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "near": [
+     50,
+     30,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_set_visual_material",
+   "args": {
+    "objects": [
+     "$blk.data.bodies.0.id"
+    ],
+    "material": "Glas Clear"
+   },
+   "intent": "Acceptance: close names match words in any order (live: 'Clear Glass' was not offered)",
+   "expect": {
+    "ok": false,
+    "error.code": "NX_NOT_FOUND",
+    "error.details.close.0": "Clear Glass"
+   }
+  },
+  {
+   "call": "nx_list_visual_materials",
+   "args": {
+    "query": "aluminium anodized"
+   },
+   "intent": "Acceptance: no name holds every word: the closest spellings come back (live: nothing)",
+   "expect": {
+    "ok": true,
+    "data.items": {
+     "count": 20
+    },
+    "data.items.0.name": {
+     "matches": "(?i)anodi|alumin"
+    },
+    "warnings.0.message": {
+     "contains": "closest names"
+    }
+   }
+  },
+  {
+   "call": "nx_set_visual_material",
+   "args": {
+    "objects": [
+     "$top.data.items.0.id"
+    ],
+    "material": "Clear Glass"
+   },
+   "expect": {
+    "mutation_outcome": "committed"
+   }
+  },
+  {
+   "call": "nx_get_visual_material",
+   "args": {
+    "objects": [
+     "$top.data.items.0.id",
+     "$blk.data.bodies.0.id"
+    ]
+   },
+   "intent": "Acceptance: a face and its body list the face once (live: twice)",
+   "expect": {
+    "ok": true,
+    "data.count": 2
+   }
+  },
+  {
+   "call": "nx_get_visual_material",
+   "args": {
+    "objects": [
+     "$blk.data.feature.id"
+    ]
+   },
+   "expect": {
+    "ok": true,
+    "data.count": 2
+   }
+  }
+ ]
+}

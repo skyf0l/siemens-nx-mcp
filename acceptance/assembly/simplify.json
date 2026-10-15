@@ -35,6 +35,12 @@
               "data.volume": {"close": 2093716.815, "tol": 1e-2}}},
   {"call": "nx_create_simplified_assembly",
    "args": {"part": "$part", "objects": ["$A.data.component.id", "$B.data.component.id"], "unite": false, "destination_part": "sa_block"},
+   "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/destination_part", "error.details.bodies": {"count": 2},
+              "mutation_outcome": "not_started"}},
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$run/sa_block2.prt", "units": "mm"}},
+  {"call": "nx_activate_part", "setup": true, "args": {"part": "$part"}},
+  {"call": "nx_create_simplified_assembly",
+   "args": {"part": "$part", "objects": ["$A.data.component.id", "$B.data.component.id"], "unite": false, "destination_part": "sa_block2"},
    "expect": {"mutation_outcome": "committed", "data.bodies": {"count": 2},
               "data.volume": {"close": 2000000, "tol": 1e-2}}},
   {"call": "nx_check_model", "args": {"part": "$part"}, "expect": {"ok": true}}

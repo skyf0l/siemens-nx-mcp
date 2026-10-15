@@ -11,6 +11,9 @@ NX 2406 (probed live):
   optimized). Supports and loads may then sit on its faces.
 - ``CreateConnectionBuilder``: ``Type`` BodyToBody, ``SelectBody1/2.Value``; the commit
   returns None, ``GetAllConnections`` lists the bond.
+- A scenery body that a feature later in the timeline than the study makes or changes
+  fails the task's update ("There is an object which depends on itself", 600008) behind a
+  modal dialog: refused before the task (``common.after_study``).
 """
 
 from __future__ import annotations
@@ -27,6 +30,7 @@ from nx_mcp.kit import builders, readback, result, select
 
 Kind = Literal["acceleration", "scenery", "connection"]
 G_REL = 1e-6
+GRAVITY = [0.0, 0.0, -1.0]  # the acceleration's direction when none is given
 
 
 class Acceleration(TypedDict):
@@ -47,8 +51,6 @@ def _check(kind, bodies, magnitude, direction):
     if kind == "acceleration":
         if bodies is not None:
             fail("NX_INVALID_ARGUMENT", "acceleration takes no bodies", field="/bodies")
-        if magnitude and direction is None:
-            fail("NX_INVALID_ARGUMENT", "acceleration needs direction", field="/direction")
         return
     for field, value in (("magnitude", magnitude), ("direction", direction)):
         if value is not None:
@@ -167,12 +169,13 @@ def nx_create_topology_environment(
         float, Range(ge=0, le=1e4), Doc("g (9.80665 m/s^2); 1 = gravity; 0 removes")
     ]
     | None = None,
-    direction: Annotated[Direction, Doc("Way the inertia load acts; gravity '-z'")] | None = None,
+    direction: Annotated[Direction, Doc("Way the inertia load acts; default '-z' (gravity)")]
+    | None = None,
 ) -> EnvironmentData:
     """Add a g-load, scenery bodies or a bonded connection to a topology study.
     acceleration: inertia load on every body in every load case; replaces the last one.
-    scenery: solids that carry load but are not optimized (own material; supports and loads
-    may sit on their faces). connection: bonds 2 touching study bodies (design space or
+    scenery: solids that carry load but are not optimized (own material, made before the
+    study; supports and loads may sit on their faces). connection: bonds 2 touching study bodies (design space or
     scenery)."""
     _check(kind, bodies, magnitude, direction)
     with tx.checks():
@@ -183,10 +186,15 @@ def nx_create_topology_environment(
             fail("NX_NOT_FOUND", "The study has no design space", field="/study")
         scenery = common.scenery_bodies(found)
         picked = _bodies(tx, kind, bodies, designs[0].Body, scenery) if bodies else []
+        if kind == "scenery":
+            common.after_study(tx, feature, picked, "/bodies")
         vector = select.direction(tx, direction, "/direction") if direction is not None else None
+        if kind == "acceleration" and vector is None:
+            vector = list(GRAVITY)
         common.require_license(tx)
         before = len(scenery), len(common.all_of(found, "GetAllConnections"))
-    with common.task(tx, feature) as active:
+    cycle = "/bodies" if kind == "scenery" else None
+    with common.task(tx, feature, cycle_field=cycle) as active:
         current = common.active_study(active)
         if kind == "acceleration":
             _accelerate(tx, current, float(magnitude or 0.0), vector)

@@ -57,6 +57,8 @@ def test_refusals_happen_before_nx():
         assert bad.error["category"] == category and bad.error["field"] == field, (args, bad)
         assert bad.mutation_outcome == "not_started"
     assert not nx.builders
+    taken = run(nx, "nx_create_drawing_sheet", name="Sht1")
+    assert taken.error["details"]["sheet"]["name"] == "SHT1"
 
 
 def test_installed_templates_resolve_under_ugii_base_dir(tmp_path, monkeypatch):
@@ -73,7 +75,7 @@ def test_installed_templates_resolve_under_ugii_base_dir(tmp_path, monkeypatch):
     assert ok.data["sheet"]["name"] == "T" and ok.data["scale"] == 2  # renamed, rescaled
     assert ok.data["projection"] == "first_angle" and len(ok.warnings) == 2
     assert nx.committed.MetricSheetTemplateLocation.endswith("Drawing-A3-Size2D-template.prt")
-    assert ok.data["template"].endswith("Drawing-A3-Size2D-template.prt")
+    assert ok.data["template"] == "Drawing-A3-Size2D-template.prt"  # no host path
 
 
 def test_a_sheet_that_differs_from_the_request_is_rolled_back():

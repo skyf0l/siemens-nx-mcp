@@ -59,9 +59,13 @@ def test_create_refusals():
         nx, "nx_create_topology_study", design_space=plate.ref, mass_fraction=0.3,
         material="Unobtainium",
     )  # fmt: skip
-    assert unknown.error["code"] == "NX_NOT_FOUND" and unknown.mutation_outcome == "rolled_back"
+    assert unknown.error["code"] == "NX_NOT_FOUND" and unknown.error["field"] == "/material"
+    assert unknown.mutation_outcome == "not_started"  # checked against the library first
+    near = run(nx, "nx_create_topology_study", design_space=plate.ref, mass_fraction=0.3,
+               material="Stel")  # fmt: skip
+    assert near.error["details"]["candidates"] == ["Steel"]
     env = nx.session.TopologyOptimizationTaskEnvironment
-    assert env.log == ["Enter", "Cancel", "Exit"] and env.ActiveFeature is None
+    assert env.log == [] and env.ActiveFeature is None
     assert not [f for f in nx.part.Features if hasattr(f, "GetAllStudies")]
 
 
@@ -224,8 +228,14 @@ def test_get_lists_and_describes_studies():
     assert listed.ok and len(listed.data["items"]) == 1, listed
     item = listed.data["items"][0]
     assert item["study"]["id"] == study and item["design_space"]["id"] == plate.ref
-    assert item["supports"] == [{"type": "fixed", "faces": 2}]
-    assert item["loads"] == [{"type": "force", "faces": 1}]
+    holes = [f.ref for f in _holes]
+    assert item["supports"] == [{"type": "fixed", "faces": 2, "face_refs": holes,
+                                 "load_cases": ["Default Subcase"], "magnitude": None,
+                                 "unit": None, "direction": None}]  # fmt: skip
+    (load,) = item["loads"]
+    assert load["type"] == "force" and load["faces"] == 1 and load["face_refs"] == [_end.ref]
+    assert load["magnitude"] == pytest.approx(1000.0) and load["unit"] == "N"
+    assert load["direction"] == [0, 0, -1] and load["load_cases"] == ["Default Subcase"]
     assert item["solved"] is False
     assert item["target_mass"] == pytest.approx(0.4 * item["design_mass"])
     run(nx, "nx_run_topology_study", study=study)

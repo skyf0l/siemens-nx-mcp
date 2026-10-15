@@ -2,8 +2,10 @@
 
 NX 2406 findings encoded here:
 
-- A Flat Pattern feature adds flat bodies that NX reports as sheet metal; their rows say
-  ``flat_pattern: true`` (``common.is_flat_pattern``) so they are not taken for parts.
+- A Flat Pattern feature adds two flat bodies that NX reports as sheet metal (an extracted
+  copy flattened in place and an extract of that), both on a hidden layer and overlapping
+  the formed web. Their rows say ``flat_pattern: true`` with the Flat Pattern feature and
+  the formed body, so they are not taken for parts or picked for features.
 """
 
 from __future__ import annotations
@@ -24,6 +26,8 @@ class BodyRow(TypedDict, total=False):
     thickness: float
     bend_count: int
     bends: list[common.BendRow]
+    flat_pattern_feature: result.Row
+    formed_body: result.Row
 
 
 class SheetMetalData(TypedDict):
@@ -35,14 +39,21 @@ def body_row(tx, body) -> BodyRow:
     row: BodyRow = {"body": tx.ref(body, "body"), "sheet_metal": common.is_sheet_metal(tx, body)}
     if row["sheet_metal"]:
         found = common.bends(tx, body)
+        flat = common.is_flat_pattern(body)
         row.update(
             {
-                "flat_pattern": common.is_flat_pattern(body),
+                "flat_pattern": flat,
                 "thickness": common.thickness(tx, body),
                 "bend_count": len(found),
                 "bends": common.bend_rows(tx, found),
             }
         )
+        feature = common.flat_pattern_of(tx, body) if flat else None
+        if feature is not None:
+            row["flat_pattern_feature"] = tx.ref(feature, "feature")
+            formed = common.formed_body(feature)
+            if formed is not None:
+                row["formed_body"] = tx.ref(formed, "body")
     return row
 
 
@@ -66,8 +77,8 @@ def nx_get_sheet_metal(
     limit: PageLimit = 20,
 ) -> SheetMetalData:
     """Read the sheet-metal facts of the work part's bodies, or of one body. Rows give the
-    actual thickness, each bend's face, state (bent/flat), inner radius, angle and K, and
-    flat_pattern for Flat Pattern bodies."""
+    actual thickness, each bend's face, state (bent/flat), inner radius, angle and K.
+    flat_pattern rows are NX's hidden flat copies: build on their formed_body."""
     bodies = [select.one(tx, body, "body", field="/body")] if body else list(tx.part.Bodies)
     selected, page = result.page(bodies, offset, limit)
     items: list[BodyRow] = []

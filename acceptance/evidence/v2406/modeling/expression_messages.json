@@ -1,0 +1,55 @@
+{
+  "format": 2,
+  "scenario": "acceptance/modeling/expression_messages.json",
+  "scenario_sha256": "a3110e65b830a09af5f40d3bd7ae967959bcc7bccd16aac1cd4999578ce6e7e9",
+  "domain": "modeling",
+  "covers": {
+    "nx_set_expression": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_set_expression": "0dd907919277c4b93236fddb789ad353a0bae4d9fe261f3d5e7581f61d7e9382"
+  },
+  "recorded": "2026-10-15T12:36:52Z",
+  "passed": true,
+  "checks": 8,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 3,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 4,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    }
+  ]
+}

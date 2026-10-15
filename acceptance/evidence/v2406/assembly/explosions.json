@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/explosions.json",
-  "scenario_sha256": "c38e7cebc08ad5f047746eff17760ccff9896dd54f9cda52d1043d6e47978cc4",
+  "scenario_sha256": "ce870cdcdfac4750a8922c1f54d4e80fa98ea857ef12e60a65930cad7f90cd78",
   "domain": "assembly",
   "covers": {
     "nx_create_explosion": [],
@@ -15,17 +15,17 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_explosion": "d76d4171a019a48dc9ef7666e348ba8e5695df4a6ac0c31e3879e58bfbfbb092",
-    "nx_edit_explosion": "d76d4171a019a48dc9ef7666e348ba8e5695df4a6ac0c31e3879e58bfbfbb092",
-    "nx_get_explosion": "d76d4171a019a48dc9ef7666e348ba8e5695df4a6ac0c31e3879e58bfbfbb092",
-    "nx_set_explosion_display": "d76d4171a019a48dc9ef7666e348ba8e5695df4a6ac0c31e3879e58bfbfbb092",
-    "nx_create_explosion_trace": "d762ba6858bdc3fdc3ef39db9c904eff5cac0580932800083e5b937bfcffa2d0",
-    "nx_edit_explosion_trace": "d762ba6858bdc3fdc3ef39db9c904eff5cac0580932800083e5b937bfcffa2d0",
-    "nx_export_explosion_animation": "102a46a10cb1e8a28cd9040658d5c60d410c480b40a885db3fe56e3a6a16f74e"
+    "nx_create_explosion": "7799b99613f2461ef09c44ed2c84ab1d11aee980955db26d34bfa920c7cc20fe",
+    "nx_edit_explosion": "7799b99613f2461ef09c44ed2c84ab1d11aee980955db26d34bfa920c7cc20fe",
+    "nx_get_explosion": "7799b99613f2461ef09c44ed2c84ab1d11aee980955db26d34bfa920c7cc20fe",
+    "nx_set_explosion_display": "7799b99613f2461ef09c44ed2c84ab1d11aee980955db26d34bfa920c7cc20fe",
+    "nx_create_explosion_trace": "69a331528b458a5e8e7fedb51496a89a8fff64b417c4f5ef7ef9ac35bae0d4e1",
+    "nx_edit_explosion_trace": "69a331528b458a5e8e7fedb51496a89a8fff64b417c4f5ef7ef9ac35bae0d4e1",
+    "nx_export_explosion_animation": "397931100db15971fe24c329167b19911583682a115cb94e034bf7263e8f19b6"
   },
-  "recorded": "2026-10-14T13:58:41Z",
+  "recorded": "2026-10-15T10:58:15Z",
   "passed": true,
-  "checks": 139,
+  "checks": 161,
   "failed_checks": 0,
   "steps": [
     {
@@ -303,42 +303,42 @@
     },
     {
       "index": 40,
-      "call": "nx_set_explosion_display",
+      "call": "nx_create_explosion_trace",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 3
     },
     {
       "index": 41,
-      "call": "nx_get_explosion",
+      "call": "nx_edit_explosion_trace",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
       "index": 42,
-      "call": "nx_set_explosion_display",
+      "call": "nx_edit_explosion_trace",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 5
     },
     {
       "index": 43,
-      "call": "nx_export_explosion_animation",
+      "call": "nx_set_explosion_display",
       "setup": false,
       "passed": true,
-      "checks": 8
+      "checks": 4
     },
     {
       "index": 44,
-      "call": "nx_download_file",
+      "call": "nx_get_explosion",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 9
     },
     {
       "index": 45,
-      "call": "nx_get_explosion",
+      "call": "nx_set_explosion_display",
       "setup": false,
       "passed": true,
       "checks": 2
@@ -348,98 +348,98 @@
       "call": "nx_export_explosion_animation",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 8
     },
     {
       "index": 47,
       "call": "nx_export_explosion_animation",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 5
     },
     {
       "index": 48,
-      "call": "nx_export_explosion_animation",
+      "call": "nx_download_file",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
       "index": 49,
-      "call": "nx_edit_explosion",
+      "call": "nx_get_explosion",
       "setup": false,
       "passed": true,
-      "checks": 8
+      "checks": 2
     },
     {
       "index": 50,
-      "call": "nx_edit_explosion",
+      "call": "nx_export_explosion_animation",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
       "index": 51,
-      "call": "nx_edit_explosion",
+      "call": "nx_export_explosion_animation",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
       "index": 52,
-      "call": "nx_set_explosion_display",
+      "call": "nx_export_explosion_animation",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
       "index": 53,
-      "call": "nx_get_explosion",
+      "call": "nx_edit_explosion",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 8
     },
     {
       "index": 54,
-      "call": "nx_create_explosion",
+      "call": "nx_edit_explosion",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 2
     },
     {
       "index": 55,
       "call": "nx_edit_explosion",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 2
     },
     {
       "index": 56,
+      "call": "nx_set_explosion_display",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 57,
       "call": "nx_get_explosion",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 57,
-      "call": "nx_edit_explosion",
+      "index": 58,
+      "call": "nx_create_explosion",
       "setup": false,
       "passed": true,
       "checks": 4
     },
     {
-      "index": 58,
-      "call": "nx_get_explosion",
-      "setup": false,
-      "passed": true,
-      "checks": 2
-    },
-    {
       "index": 59,
-      "call": "nx_create_explosion",
+      "call": "nx_edit_explosion",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 60,
@@ -450,6 +450,34 @@
     },
     {
       "index": 61,
+      "call": "nx_edit_explosion",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 62,
+      "call": "nx_get_explosion",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 63,
+      "call": "nx_create_explosion",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 64,
+      "call": "nx_get_explosion",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 65,
       "call": "nx_set_explosion_display",
       "setup": false,
       "passed": true,

@@ -228,6 +228,26 @@
   },
   {
    "call": "nx_create_draft_body",
+   "args": {
+    "faces": [
+     "$ax.data.items.0.id",
+     "$anx.data.items.0.id",
+     "$ay.data.items.0.id",
+     "$any.data.items.0.id"
+    ],
+    "parting": "xy",
+    "direction": "z",
+    "angle": 0
+   },
+   "expect": {
+    "error.category": "invalid_argument",
+    "mutation_outcome": "not_started",
+    "error.field": "/angle"
+   },
+   "intent": "A zero angle is refused before NX is called"
+  },
+  {
+   "call": "nx_create_draft_body",
    "save": "da",
    "args": {
     "faces": [
@@ -403,25 +423,6 @@
      "close": 263223.9309,
      "tol": 0.02
     }
-   }
-  },
-  {
-   "call": "nx_create_draft_body",
-   "args": {
-    "faces": [
-     "$ax.data.items.0.id",
-     "$anx.data.items.0.id",
-     "$ay.data.items.0.id",
-     "$any.data.items.0.id"
-    ],
-    "parting": "xy",
-    "direction": "z",
-    "angle": 0
-   },
-   "expect": {
-    "error.category": "invalid_argument",
-    "mutation_outcome": "not_started",
-    "error.field": "/angle"
    }
   },
   {

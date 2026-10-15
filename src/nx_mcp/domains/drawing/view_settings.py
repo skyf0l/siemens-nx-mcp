@@ -43,6 +43,14 @@ SETTINGS = {
 }
 
 
+HIDDEN_LINES_DOC = "Hidden-line removal; false draws hidden edges solid"
+HIDDEN_LINES_OFF = (
+    "Hidden-line removal is off: occluded edges are drawn solid like visible ones. To hide "
+    "dashed hidden lines instead, keep hidden_lines and set nx_edit_drawing_view style "
+    "hidden_font invisible"
+)
+
+
 class ViewSettings(TypedDict, total=False):
     threads: Annotated[
         Literal["none", "simplified", "simplified_three_quarter", "schematic", "detailed"],
@@ -52,7 +60,7 @@ class ViewSettings(TypedDict, total=False):
         float, Range(ge=0), Doc("Threads of a smaller pitch are not drawn; part units")
     ]
     thread_true_hidden: Annotated[bool, Doc("Hidden threads drawn with true hidden lines")]
-    hidden_lines: bool
+    hidden_lines: Annotated[bool, Doc(HIDDEN_LINES_DOC)]
     edges_hidden_by_edges: bool
     smooth_edges: Annotated[bool, Doc("Tangent (smooth) edges between blended faces")]
     virtual_intersections: Annotated[bool, Doc("Virtual sharp edges of blended faces")]
@@ -149,6 +157,8 @@ def nx_set_view_settings(
         rows.append({**tx.modified(view, "drawing_view"), "settings": actual})
     moved = [tx.ref(v, "drawing_view")["id"] for v in others
              if read_settings(tx, v) != before[int(v.Tag)]]  # fmt: skip
+    if changes.get("hidden_lines") is False:
+        tx.warn("NX_UPDATE_WARNING", HIDDEN_LINES_OFF)
     if moved:
         tx.warn("NX_UPDATE_WARNING", f"NX also changed the settings of views {moved}; set "
                 "them back with nx_set_view_settings")  # fmt: skip

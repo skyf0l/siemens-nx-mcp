@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Annotated, Any, Literal, TypedDict, cast
 
 from nx_mcp.core.catalogue import restorer, tool
-from nx_mcp.core.errors import fail, native
+from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
     BodyRef,
@@ -41,7 +41,7 @@ from nx_mcp.core.types import (
     Point3,
     Text,
 )
-from nx_mcp.domains.assembly import common, structure
+from nx_mcp.domains.assembly import common, constraints, structure
 from nx_mcp.domains.assembly.common import (
     ComponentId,
     ComponentName,
@@ -50,11 +50,12 @@ from nx_mcp.domains.assembly.common import (
     Rotation,
     Translation,
 )
-from nx_mcp.kit import args, builders, model, parts, readback, result, select
+from nx_mcp.kit import args, builders, model, parts, positioning, readback, result, select
 from nx_mcp.kit import pose as kpose
 from nx_mcp.kit import units as kit_units
 
 BUILT_IN_SETS = ("Entire Part", "Empty")
+TEMPORARY_PART = 720027  # NX: "Part is temporary" (a replaced part never saved)
 RefSetName = Annotated[str, Doc("e.g. MODEL or Entire Part (any case)"), Text(132, r"^\S(.*\S)?$")]
 SET_HINT = (
     "Use a name from details.available. Sets come from the component's own part: create one "
@@ -182,8 +183,8 @@ def nx_list_components(
     offset: Offset = 0,
     limit: PageLimit = 20,
 ) -> ComponentListData:
-    """List the work part's component occurrences depth first, a page at a time. Rows: id,
-    path, load state, reference set, suppression and, with include_poses, absolute poses."""
+    """List the work part's component occurrences depth first, paged. Rows: id, path, load
+    state, reference set, suppression and, with include_poses, absolute poses."""
     found = []
     for c, names in parts.components(tx.part):
         if name_contains and name_contains.casefold() not in str(c.Name).casefold():
@@ -333,6 +334,9 @@ def _finish_create(tx, data, component, reference_set) -> CreateComponentData:
         _use_set(tx, component, chosen)
         readback.expect(_set_of(component) == chosen, "reference_set", actual=_set_of(component))
     data["component"]["reference_set"] = _set_of(component)
+    note = parts.outside_folder_note(tx.part, parts.file_of(component.Prototype))
+    if note is not None:
+        tx.warn("NX_NOTE", note)
     return data
 
 
@@ -475,8 +479,9 @@ def nx_edit_component(
 ) -> EditComponentData:
     """Edit direct components: rename (one), replace or make unique the part, (un)suppress, or
     set the reference set. Options combine in one call. reference_set must exist in the
-    component's part. make_unique renames it after the copy. Placement never changes; delete
-    with nx_delete_objects."""
+    component's part. replace_with keeps the names and needs the current part saved once;
+    make_unique renames it after the copy. Placement never changes; delete with
+    nx_delete_objects."""
     edits = (name, replace_with, make_unique, suppressed, reference_set)
     if all(v is None for v in edits):
         fail(
@@ -494,6 +499,8 @@ def nx_edit_component(
         values = [common.component(tx, r, f"/components/{i}") for i, r in enumerate(components)]
         if replace_with is not None:
             _check_file(tx, replace_with, "/replace_with")
+            for i, c in enumerate(values):
+                _check_saved(tx, c, f"/components/{i}")
         if make_unique is not None:
             parts.check_new_name(tx, make_unique, field="/make_unique")
             if values[0].Prototype is None:
@@ -516,6 +523,7 @@ def nx_edit_component(
                     _resolve_set(c, reference_set, f"/components/{i}")
     part = tx.part
     poses = [structure.pose(c) for c in values]
+    old_names = [str(c.Name) for c in values]
     if suppressed is False:
         _suppress(tx, values, False)
     if replace_with is not None:
@@ -525,7 +533,10 @@ def nx_edit_component(
             b.ReplacementPart = str(replace_with)
             b.ReplaceAllOccurrences = False
             b.MaintainRelationships = True
-            b.commit()
+            with contextlib.suppress(Exception):  # keep the component names (NX: Maintain)
+                b.ComponentNameType = b.ComponentNameOption.Maintain
+            with native(codes={TEMPORARY_PART: "NX_UNSAVED_PART"}, default="NX_BUILD_FAILED"):
+                b.commit()
             structure.check(
                 b.GetErrorList(),
                 "NX_BUILD_FAILED",
@@ -533,6 +544,10 @@ def nx_edit_component(
                 hint="Nothing changed; NX's reasons are in the message and details.errors",
             )
         model.update(tx)
+        if name is None:  # NX may still name them after the new part
+            for c, was in zip(values, old_names, strict=True):
+                if str(c.Name) != was:
+                    result.rename(tx, c, was)
     if make_unique is not None:
         _make_unique(tx, values[0], Path(make_unique))
     sets: list[str | None] = [None] * len(values)
@@ -573,6 +588,21 @@ def nx_edit_component(
     return {"components": out}
 
 
+def _check_saved(tx, component, field):
+    """NX replaces only a part saved on disk: one never saved (a new_in_context part) is
+    refused with the file to save (NX 2406: "Part is temporary", 720027)."""
+    prototype = getattr(component, "Prototype", None)
+    path = parts.file_of(prototype) if prototype is not None else ""
+    if path and not Path(path).is_file():
+        fail(
+            "NX_UNSAVED_PART",
+            f"{component.Name}'s part {Path(path).name} was never saved: NX cannot replace it",
+            field=field,
+            hint=f"Save it first with nx_save_part(part='{Path(path).name}'), then replace",
+            details={"part_path": common.relative_path(tx, path)},
+        )
+
+
 def _make_unique(tx, component, path):
     """Point ``component`` at a new copy of its part saved later as ``path``."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -595,6 +625,28 @@ class PoseValue(TypedDict):
 class PoseData(TypedDict):
     component: ComponentRow
     previous: PoseValue
+    moved: list[ComponentRow]
+
+
+CONSTRAINED_HINT = (
+    "A constrained component moves only along the freedom its constraints leave: suppress "
+    "them with nx_edit_assembly_constraint(suppressed=true) or edit their values "
+    "(details.constraints), then move it"
+)
+
+
+def _constrained(tx, component, error, held):
+    """``NX_CONSTRAINT_UNSATISFIED`` naming the constraints that kept ``component`` from
+    the requested pose (the pose read-back ``error`` of the move)."""
+    ids = ", ".join(str(h["constraint"].get("id")) for h in held[:5])
+    fail(
+        "NX_CONSTRAINT_UNSATISFIED",
+        f"{component} is held by its assembly constraints ({ids}): {error.message}",
+        field="/translation",
+        hint=CONSTRAINED_HINT,
+        details={**(error.details or {}), "constraints": held},
+        retry="after_fix",
+    )
 
 
 @tool(
@@ -628,22 +680,46 @@ def nx_set_component_pose(
 ) -> PoseData:
     """Place a direct component at an absolute pose, or move it relative to its pose. absolute
     without rotation means no rotation. relative turns it about its own origin by rotation,
-    then shifts it by translation. Returns the previous pose. It moves the component in
-    every arrangement; nx_set_arrangement_component sets a per-arrangement pose."""
+    then shifts it by translation. Moves in every arrangement (per arrangement:
+    nx_set_arrangement_component). Constraints refuse moves they block; moved lists every
+    component that moved."""
     r = common.rotation(rotation, "/rotation") if rotation is not None else None
     t = [float(v) for v in translation]
     with tx.checks():
         c = common.component(tx, component, "/component")
+    part = tx.part
+    held = positioning.holding(tx, part, c)
     current = structure.pose(c)
     if mode == "absolute":
         target = (t, r if r is not None else kpose.identity())
     else:
         target = kpose.relative(current, t, r)
-    got = structure.move(tx, c, target)
+    before = constraints.poses(part)
+    try:
+        got = structure.move(tx, c, target)
+    except NXError as error:
+        if error.code != "NX_VERIFICATION_FAILED" or not held:
+            raise
+        _constrained(tx, component, error, held)
     tx.note_restore({"component": component, "before": list(current), "after": list(got)})
+    moved = constraints.moved(tx, before)
+    fixed = [h["constraint"].get("id") for h in held if h["type"] == "fix"]
+    others = [row for row in moved if row.get("id") != component]
+    if fixed:
+        tx.warn(
+            "NX_UPDATE_WARNING",
+            f"{component} has a fix constraint ({', '.join(map(str, fixed))}) and moved with it"
+            + (f"; the components constrained to it moved too ({len(others)})" if others else ""),
+        )
+    elif others:
+        tx.warn("NX_UPDATE_WARNING", f"Constraints moved {len(others)} other components with "
+                f"{component} (moved lists them)")  # fmt: skip
+    for row in others:
+        tx.modified(row)
     return {
         "component": common.component_row(tx, c),
         "previous": {"translation": current[0], "rotation": current[1]},
+        "moved": moved,
     }
 
 

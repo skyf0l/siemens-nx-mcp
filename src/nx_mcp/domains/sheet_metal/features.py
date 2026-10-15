@@ -19,8 +19,11 @@ NX 2406 findings encoded here:
   other operation and keeps the radius fixed.
 - A bend or jog folds the side of the bend line away from ``FixedSide``; the stationary
   face of a later unbend, rebend or resize must be on the side that stayed.
-- Louver commits fail on this NX ("Cannot create feature", ValidateBuilderData 3675043)
-  for every tested input, so the operation has no 2406 evidence.
+- Louver builders start with their end shape, cut side and rounding unset (reading them
+  fails) and a die radius of 0, which validation refuses (3675043) while rounding is on;
+  the tool sets the cut side, the end shape and no rounding. NX needs the depth at most
+  the width minus the thickness (3675041) and cannot form ends whose depth equals the
+  thickness ("Unable to create body").
 - Remove Bends is not offered: its feature toggle is disabled on this NX installation.
 - Lofted Flange needs ``StartSectionPoint``/``EndSectionPoint`` on corresponding free ends
   of its open profiles ("Point must lie on one end of the open section") and a bend
@@ -61,6 +64,15 @@ NX 2406 findings encoded here:
   ``reverse`` puts it on the normal's side.
 - Tab, contour flange, lofted flange and from-solid without ``thickness`` take the part's
   default (``nx_set_sheet_metal_defaults``), set explicitly and verified like a given one.
+- A flange's bend options left at the part defaults are NX expressions referring to the
+  ``Sheet_Metal_*`` defaults (they follow later default changes). The hem builder starts
+  from its own neutral factor (0.33) and relief sizes; the tool links them to the part's
+  defaults the same way unless given (a 180 degree hem then gets the part's K).
+- An NX expression name or formula given for a length or angle stays the feature
+  expression's formula (``kit.expr.rhs``), as for extrude.
+- A Flat Pattern adds two flat bodies (an EXTRACT_BODY copy flattened by SB_FLAT_SOLID and
+  an extract of it) on a hidden layer, overlapping the formed web; geometry of those
+  bodies is refused (a feature on one corrupts the flat pattern).
 """
 
 from __future__ import annotations
@@ -84,6 +96,7 @@ from nx_mcp.kit import (
     builders,
     curve,
     drawing,
+    expr,
     geom,
     measure,
     model,
@@ -142,6 +155,8 @@ HEMS = {
     "centered_loop": "CenteredLoopHemType",
 }
 CORNERS = {"fillet": "Fillet", "chamfer": "ChamferEqualSetback"}
+LOUVER_ENDS = {"formed": "Formed", "lanced": "Lanced"}
+STYLES = {"hem": HEMS, "louver": LOUVER_ENDS}  # other operations: CORNERS
 
 
 class Fields(TypedDict, total=False):
@@ -177,6 +192,8 @@ class Fields(TypedDict, total=False):
             "centered_loop",
             "fillet",
             "chamfer",
+            "formed",
+            "lanced",
         ],
         Doc("Style"),
     ]
@@ -234,12 +251,25 @@ OPERATIONS: dict[str, Op] = {
     "hem": Op(
         "CreateHemFlangeFeatureBuilder",
         ("edges", "length"),
-        ("style", "radius"),
-        {"length": "Hem flange length", "style": "Hem type (default open)"},
+        ("style", "radius", "neutral_factor"),
+        {
+            "length": "Hem flange length",
+            "style": "Hem type (default open)",
+            "neutral_factor": "Neutral factor 0..1 (default: the part's)",
+        },
     ),
     "normal_cutout": Op("CreateNormalCutoutFeatureBuilder", ("section", "body")),
     "dimple": Op("CreateDimpleFeatureBuilder", ("section", "height"), ("reverse",)),
-    "louver": Op("CreateLouverFeatureBuilder", ("section", "height", "width"), ("reverse",)),
+    "louver": Op(
+        "CreateLouverFeatureBuilder",
+        ("section", "height", "width"),
+        ("style", "reverse"),
+        {
+            "section": "Ref: sketch with the louver's cut line",
+            "height": "Depth, at most width minus thickness",
+            "style": "End shape: formed (default) or lanced",
+        },
+    ),
     "drawn_cutout": Op("CreateDrawnCutoutFeatureBuilder", ("section", "height"), ("reverse",)),
     "break_corner": Op(
         "CreateBreakCornerFeatureBuilder",
@@ -474,7 +504,7 @@ def check(operation, p) -> dict:
              field="/parameters/angle")  # fmt: skip
     style = p.get("style")
     if style is not None:
-        styles = HEMS if operation == "hem" else CORNERS
+        styles = STYLES.get(operation, CORNERS)
         if style not in styles:
             fail("NX_INVALID_ARGUMENT", f"{operation} style is one of {', '.join(styles)}",
                  field="/parameters/style")  # fmt: skip
@@ -534,6 +564,7 @@ class Inputs:
                                              field=where + "end_section", work_part=True)  # fmt: skip
         if p.get("body"):
             self.body = common.sheet_body(tx, p["body"], where + "body")
+            common.not_flat_pattern(tx, self.body, where + "body")
         if p.get("faces"):
             self.faces = select.faces(tx, p["faces"], where + "faces")
             self.body = self._one_body(self.faces, where + "faces", owner)
@@ -633,7 +664,15 @@ def _enum(tx, name, member):
 
 
 def _expression(target, value):
-    target.RightHandSide = repr(float(value))
+    """A number, or an evaluated NX formula that stays the expression's formula."""
+    expr.drive(target, value)
+
+
+def _link_default(tx, target, key):
+    """Drive ``target`` by the part's default expression ``key`` (it follows the default)."""
+    name = part_defaults.default_name(tx, key)
+    if name:
+        target.RightHandSide = name
 
 
 def _bend_options(opts, p):
@@ -715,6 +754,13 @@ def _hem(tx, b, i):
     _expression(b.FirstFlangeLength, p["length"])
     if p.get("radius") is not None:
         _expression(b.FirstBendRadius, p["radius"])
+    # NX's hem starts from its own K (0.33) and relief sizes, not the part's defaults.
+    if p.get("neutral_factor") is not None:
+        _expression(b.NeutralFactor, p["neutral_factor"])
+    else:
+        _link_default(tx, b.NeutralFactor, "neutral_factor")
+    _link_default(tx, b.BendReliefDepth, "bend_relief_depth")
+    _link_default(tx, b.BendReliefWidth, "bend_relief_width")
 
 
 def _normal_cutout(tx, b, i):
@@ -740,6 +786,9 @@ def _louver(tx, b, i):
     _expression(b.Depth, i.p["height"])
     _expression(b.Width, i.p["width"])
     _side(tx, b, "LouverBuilderDepthSideOptions", "DepthSide", i.p.get("reverse"))
+    b.SectionSide = _enum(tx, "LouverBuilderSectionSideOptions", "Left")
+    b.EndType = _enum(tx, "LouverBuilderEndTypeOptions", LOUVER_ENDS[i.p.get("style", "formed")])
+    b.IncludeRounding = False  # rounding needs a die radius; the builder starts at 0
 
 
 def _drawn_cutout(tx, b, i):
@@ -758,7 +807,9 @@ def _resize_angle(tx, b, i):
     b.BendFace.Value = i.faces[0]
     b.ReferenceFace.Value = i.face
     b.KeepRadiusFixed = True  # otherwise NX keeps the developed length and moves the radius
-    _expression(b.Angle, 180.0 - float(i.p["angle"]))  # NX: the included angle
+    angle = i.p["angle"]  # NX: the included angle
+    formula = getattr(angle, "formula", None)
+    b.Angle.RightHandSide = f"180-({formula})" if formula else repr(180.0 - float(angle))
 
 
 def _resize_radius(tx, b, i):
@@ -1113,6 +1164,23 @@ def _verify(tx, operation, i, before, body, after):
         _volume_change(before["volume"], after["volume"], VOLUME[operation])
     if operation.startswith("resize_") or operation in ("unbend", "rebend"):
         _verify_bends(tx, operation, i, before, after)
+    if operation == "hem":
+        _verify_hem_factor(tx, p, before, after)
+
+
+def _verify_hem_factor(tx, p, before, after):
+    """The hem's new bend has the given K, else the part's default K."""
+    k = p.get("neutral_factor")
+    if k is None:
+        k = part_defaults.default_value(tx, "neutral_factor")
+    old = {int(f.Tag) for f, _d in before["bends"]} if before else set()
+    new = [d for f, d in after["bends"] if int(f.Tag) not in old]
+    gained = len(after["bends"]) - len(before["bends"]) if before else len(new)
+    if k is None or not new:
+        return
+    hits = [d for d in new if abs(d["neutral_factor"] - float(k)) <= NF_TOL]
+    readback.expect(len(hits) >= gained, "neutral_factor", f"The hem's bend has no K {float(k):g}",
+                    bends=new)  # fmt: skip
 
 
 def _verify_bends(tx, operation, i, before, after):
@@ -1173,6 +1241,21 @@ def _flat_extents(tx, curves, i, what="flat_pattern") -> list[float]:
     ]
 
 
+def _flat_patterns_of(tx, body) -> list:
+    """The Flat Pattern features already made of ``body``."""
+    out = []
+    for feature in tx.part.Features:
+        if str(getattr(feature, "FeatureType", "")) != "FLAT_PATTERN":
+            continue
+        try:
+            formed = common.formed_body(feature)
+        except Exception:  # NX lists no centre lines for it: not this body's
+            continue
+        if formed is not None and int(formed.Tag) == int(body.Tag):
+            out.append(feature)
+    return out
+
+
 def _result(tx, operation, feature, body, after, view=None) -> FeatureData:
     out: FeatureData = {
         "feature": tx.ref(feature, "feature"),
@@ -1211,7 +1294,8 @@ def nx_create_sheet_metal_feature(
     """Create one sheet-metal feature. Parameters per operation:
     nx_get_tool_schemas("nx_create_sheet_metal_feature#<operation>"). Needs the Sheet Metal
     application (nx_activate_application). Face/edge refs (nx_find_geometry) go stale after
-    each feature. flat_extents: [along edge, across]."""
+    each feature; Flat Pattern bodies overlap the web and are refused, so find geometry with
+    owner=<formed body>. flat_extents: [along edge, across]."""
     p = check(operation, dict(parameters))
     spec = OPERATIONS[operation]
     with tx.checks():
@@ -1223,6 +1307,7 @@ def nx_create_sheet_metal_feature(
         if factory is None:
             fail("NX_UNSUPPORTED_OPTION", f"This NX has no {operation} builder",
                  field="/operation")  # fmt: skip
+        earlier = _flat_patterns_of(tx, i.body) if operation == "flat_pattern" else []
     sm = common.namespace(tx)
     view = None
     leave = operation == "flat_pattern"
@@ -1266,6 +1351,10 @@ def nx_create_sheet_metal_feature(
     out = _result(tx, operation, feature, body, after, view)
     if operation == "flat_pattern":
         out["flat_extents"] = _flat_extents(tx, feature.GetCurves(), i)[:2]
+        if earlier:
+            names = ", ".join(tx.ref(f, "feature")["id"] for f in earlier)
+            tx.warn("NX_NOTE", f"The body already had a Flat Pattern ({names}); this added "
+                    "another one")  # fmt: skip
     if operation == "flat_solid":  # flat: as thick as the sheet across the upward face
         extents = _flat_extents(tx, body.GetEdges(), i, "flat_solid")
         readback.expect_close(extents[2], after["thickness"], "flat",

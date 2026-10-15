@@ -20,6 +20,24 @@
               "data.references": "preserved"}},
   {"call": "nx_measure_mass", "args": {"bodies": ["$blk.data.bodies.0.id"]},
    "intent": "Acceptance: the renamed feature's body is unchanged",
-   "expect": {"data.volume": {"close": 8000, "tol": 1e-06}}}
+   "expect": {"data.volume": {"close": 8000, "tol": 1e-06}}},
+
+  {"call": "nx_set_expression", "setup": true, "save": "e1", "args": {"part": "sn_part", "name": "sn_first", "formula": "10"}},
+  {"call": "nx_set_expression", "setup": true, "save": "e2", "args": {"part": "sn_part", "name": "sn_second", "formula": "20"}},
+  {"call": "nx_set_name", "args": {"object": "$e2.data.expression.id", "name": "sn_first"},
+   "intent": "Acceptance: renaming an expression to a name the part already uses is refused before NX with the existing expression",
+   "expect": {"ok": false, "error.code": "NX_NAME_CONFLICT", "error.field": "/name",
+              "error.retry": "after_fix", "error.details.existing.id": "$e1.data.expression.id",
+              "mutation_outcome": "not_started"}},
+  {"call": "nx_set_name", "args": {"object": "$e2.data.expression.id", "name": "2 bad name"},
+   "intent": "Acceptance: an expression name that is not an identifier is refused before NX",
+   "expect": {"ok": false, "error.code": "NX_INVALID_ARGUMENT", "error.field": "/name",
+              "mutation_outcome": "not_started"}},
+  {"call": "nx_set_name", "args": {"object": "$e2.data.expression.id", "name": "sn_renamed"},
+   "intent": "Acceptance: a valid unique name renames the expression; its value stays",
+   "expect": {"mutation_outcome": "committed", "data.name": "sn_renamed"}},
+  {"call": "nx_list_objects", "args": {"part": "sn_part", "kind": "expression", "name_contains": "sn_renamed"},
+   "expect": {"page.total": 1, "data.items.0.name": "sn_renamed",
+              "data.items.0.details.value": {"close": 20, "tol": 1e-09}}}
  ]
 }

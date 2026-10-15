@@ -6,7 +6,7 @@ from unittest.mock import Mock
 import pytest
 
 from nx_mcp.core.errors import NXError
-from nx_mcp.kit import bodies, measure
+from nx_mcp.kit import bodies, massprops, measure
 from tests.kit import fake_nx
 from tests.kit.objects import Body, Component, Feature, matrix, point
 
@@ -50,7 +50,8 @@ def test_solids_and_require():
 
 
 def test_inertia_uses_centroidal_values_product_signs_and_part_units():
-    """UF AskMassProps3d: centroid 3-5 (m, WCS), centroidal moments 12-14, products 19-21."""
+    """UF AskMassProps3d: centroid 3-5 (m, WCS), centroidal moments 12-14, products
+    yz, xz, xy at 19, 20, 21 (negated in the tensor)."""
     nx = fake_nx()
     values = [float(i) for i in range(47)]
     nx.uf.Modeling.AskMassProps3d = Mock(return_value=(values, [0.0] * 11))
@@ -60,11 +61,63 @@ def test_inertia_uses_centroidal_values_product_signs_and_part_units():
     assert out["mass"] == 2
     assert out["center"] == pytest.approx([1 + 3 * k, 2 + 4 * k, 3 + 5 * k])
     flat = [v for row in out["inertia"] for v in row]
-    assert flat == pytest.approx([k * k * v for v in (12, -19, -21, -19, 13, -20, -21, -20, 14)])
+    assert flat == pytest.approx([k * k * v for v in (12, -21, -20, -21, 13, -19, -20, -19, 14)])
     assert out["principal"] == pytest.approx([31 * k * k, 32 * k * k, 33 * k * k])
     assert measure.wcs_is_absolute(nx.tx)
     nx.part.WCS.CoordinateSystem.Orientation.Element = matrix((0, 1, 0), (-1, 0, 0), (0, 0, 1))
     assert not measure.wcs_is_absolute(nx.tx)
+
+
+def _offset_blocks():
+    """Two offset blocks of 1000 kg/m^3: 100x50x20 mm at the origin and a 10 mm cube
+    at x 200..210, y 30..40, z 0..10 (NX 2406 read the same set live)."""
+    items = [
+        (0.1, (50.0, 25.0, 10.0), (100.0, 50.0, 20.0)),
+        (0.001, (205.0, 35.0, 5.0), (10.0,) * 3),
+    ]
+    mass = sum(m for m, _c, _s in items)
+    centre = [sum(m * c[i] for m, c, _s in items) / mass for i in range(3)]
+    moments = [0.0, 0.0, 0.0]
+    products = {"yz": 0.0, "xz": 0.0, "xy": 0.0}  # sum(m*a*b), positive
+    for m, c, s in items:
+        d = [c[i] - centre[i] for i in range(3)]
+        own = [m * (s[1] ** 2 + s[2] ** 2) / 12, m * (s[0] ** 2 + s[2] ** 2) / 12,
+               m * (s[0] ** 2 + s[1] ** 2) / 12]  # fmt: skip
+        for i in range(3):
+            moments[i] += own[i] + m * (sum(v * v for v in d) - d[i] ** 2)
+        products["yz"] += m * d[1] * d[2]
+        products["xz"] += m * d[0] * d[2]
+        products["xy"] += m * d[0] * d[1]
+    return mass, centre, moments, products
+
+
+def test_inertia_eigenvalues_are_the_principal_moments():
+    """The tensor's products sit where NX puts them: its eigenvalues are the principal
+    moments NX reports (an asymmetric two-body set, all three products non-zero)."""
+    nx = fake_nx()
+    mass, centre, moments, products = _offset_blocks()
+    mm2 = 1e-6  # kg mm^2 -> kg m^2
+    tensor = [
+        [moments[0], -products["xy"], -products["xz"]],
+        [-products["xy"], moments[1], -products["yz"]],
+        [-products["xz"], -products["yz"], moments[2]],
+    ]
+    principal = massprops.principal_moments(tensor)
+    values = [0.0] * 47
+    values[2] = mass
+    values[3:6] = [c * 1e-3 for c in centre]
+    values[12:15] = [v * mm2 for v in moments]
+    values[19:22] = [products["yz"] * mm2, products["xz"] * mm2, products["xy"] * mm2]
+    values[31:34] = [v * mm2 for v in principal]
+    nx.uf.Modeling.AskMassProps3d = Mock(return_value=(values, [0.0] * 11))
+    nx.part.WCS = NS(CoordinateSystem=NS(Origin=point(0, 0, 0), Orientation=NS(Element=matrix())))
+    out = measure.inertia(nx.tx, [Body()])
+    assert out["inertia"][0][1] == pytest.approx(-1.534653465, rel=1e-6)  # NX 2406 live
+    assert out["inertia"][0][2] == pytest.approx(0.767326733, rel=1e-6)
+    assert out["inertia"][1][2] == pytest.approx(0.049504950, rel=1e-6)
+    assert massprops.principal_moments(out["inertia"]) == pytest.approx(
+        sorted(out["principal"]), rel=1e-9
+    )
 
 
 @pytest.mark.parametrize(("units", "k"), [("mm", 1000.0), ("in", 1 / 0.0254)])
@@ -76,7 +129,7 @@ def test_solid_props_reads_one_body_in_part_units(units, k):
     nx.uf.Modeling.AskMassProps3d = Mock(return_value=(values, [0.0] * 11))
     body = Body()
     out = measure.solid_props(nx.tx, body)
-    assert out == pytest.approx({"volume": 8e-6 * k**3, "area": 2.8e-3 * k**2})
+    assert out == pytest.approx({"volume": 8e-6 * k**3, "area": 2.8e-3 * k**2, "mass": 0.0})
     tags, count, kind, flag = nx.uf.Modeling.AskMassProps3d.call_args.args[:4]
     assert tags == [body.Tag] and count == 1 and (kind, flag) == (1, 4)
 

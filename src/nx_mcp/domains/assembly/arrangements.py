@@ -21,13 +21,13 @@ import contextlib
 import typing
 from typing import Annotated, Literal, TypedDict, cast
 
-from nx_mcp.core.catalogue import tool
+from nx_mcp.core.catalogue import restorer, tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Name, Text
 from nx_mcp.domains.assembly import common, structure
 from nx_mcp.domains.assembly.common import ComponentId, ComponentPose, ComponentRow
-from nx_mcp.kit import builders, display, geom, model, readback
+from nx_mcp.kit import builders, display, geom, model, readback, result
 from nx_mcp.kit import pose as kpose
 
 MAX_LISTED = 200
@@ -44,11 +44,12 @@ class ArrangementRow(TypedDict):
 
 
 class ArrangementState(ArrangementRow, total=False):
-    suppressed: list[str]
+    suppressed: list[result.Row]
 
 
 class ArrangedComponent(ComponentRow, total=False):
     suppressed: bool
+    varied: bool | None
 
 
 class ArrangementList(TypedDict):
@@ -101,7 +102,11 @@ def _find(assembly, name, field):
 def _clash(assembly, name, field, keep=None) -> None:
     for a in _all(assembly):
         if _key(a.Name) == _key(name) and not display.same(a, keep):
-            fail("NX_ALREADY_EXISTS", f"An arrangement {a.Name} already exists", field=field)
+            fail("NX_ALREADY_EXISTS", f"An arrangement {a.Name} already exists", field=field,
+                 hint="Choose another name, or use it: nx_edit_arrangement(arrangement="
+                 f"'{a.Name}', action='activate')",
+                 details={"arrangement": str(a.Name),
+                          "arrangements": [str(o.Name) for o in _all(assembly)]})  # fmt: skip
 
 
 def _default(tx):
@@ -110,6 +115,11 @@ def _default(tx):
         tag = int(tx.uf.Assem.AskDefaultArrangement(tx.part.Tag))
         return next((a for a in _all(_assembly(tx)) if int(a.Tag) == tag), None)
     return None
+
+
+def default_arrangement(tx):
+    """The default arrangement of the work assembly (None when NX cannot tell)."""
+    return _default(tx)
 
 
 def _row(tx, arrangement) -> ArrangementRow:
@@ -186,6 +196,11 @@ def _varied(tx, component) -> bool | None:
         finally:
             builder.Destroy()
     return None
+
+
+def varied(tx, component) -> bool | None:
+    """Whether ``component`` is positioned per arrangement (None: NX cannot tell)."""
+    return _varied(tx, component)
 
 
 def _move_in(tx, component, arrangement, target) -> None:
@@ -331,21 +346,30 @@ def nx_edit_arrangement(
                          field="/arrangement",
                          hint=f"Make another arrangement {word} first")  # fmt: skip
     previous = str(target.Name)
+    active_before = assembly.ActiveArrangement
+    default_before = _default(tx)
     if action == "activate":
         _activate(tx, target)
         row = _row(tx, target)
+        if active_before is not None:
+            tx.note_restore({"action": "activate", "before": str(active_before.Name),
+                             "after": previous})  # fmt: skip
     elif action == "rename":
         with native(default="NX_BUILD_FAILED"):
             target.SetName(str(new_name))
         readback.expect(_key(target.Name) == _key(new_name), "name",
                         "NX did not rename the arrangement", actual=str(target.Name))  # fmt: skip
         row = _row(tx, target)
+        tx.note_restore({"action": "rename", "before": previous, "after": str(target.Name)})
     elif action == "set_default":
         with native(default="NX_BUILD_FAILED"):
             assembly.SetDefault(target)
         readback.expect(display.same(_default(tx), target), "default",
                         "NX did not make it the default")  # fmt: skip
         row = _row(tx, target)
+        if default_before is not None:
+            tx.note_restore({"action": "set_default", "before": str(default_before.Name),
+                             "after": previous})  # fmt: skip
     else:
         with native(default="NX_BUILD_FAILED"):
             target.Delete(False)
@@ -404,6 +428,7 @@ def nx_set_arrangement_component(
             fail("NX_INVALID_ARGUMENT", f"{component} is suppressed in {target.Name}",
                      field="/pose", hint="Pass suppressed=false with the pose")  # fmt: skip
     other = next((a for a in _all(assembly) if not display.same(a, target)), None)
+    before = _component_state(tx, c, target, with_pose=target_pose is not None)
     if suppressed is False:
         _suppress(tx, c, target, False)
     if target_pose is not None:
@@ -429,12 +454,28 @@ def nx_set_arrangement_component(
     with _active(tx, target):
         row = common.component_row(tx, c)
     tx.modified(row)
+    after = _component_state(tx, c, target, with_pose=target_pose is not None)
+    tx.note_restore({"component": component, "arrangement": str(target.Name),
+                     "before": before, "after": after})  # fmt: skip
     return {
         "component": row,
         "arrangement": _row(tx, target),
         "suppressed": _suppressed_in(tx, c, target),
         "varied": bool(_varied(tx, c)),
     }
+
+
+def _component_state(tx, component, arrangement, *, with_pose: bool) -> dict:
+    """Plain values of a component in one arrangement for the compensating undo:
+    suppression, whether it is positioned per arrangement and (``with_pose``) its pose
+    there."""
+    state: dict = {"suppressed": _suppressed_in(tx, component, arrangement),
+                   "varied": _varied(tx, component), "pose": None}  # fmt: skip
+    if with_pose:
+        with _active(tx, arrangement):
+            t, r = structure.pose(component)
+        state["pose"] = [t, r]
+    return state
 
 
 def _suppress(tx, component, arrangement, on: bool) -> None:
@@ -459,12 +500,92 @@ def _suppress(tx, component, arrangement, on: bool) -> None:
 )
 def nx_list_arrangements(tx: Tx) -> ArrangementList:
     """List the work assembly's arrangements: active, default and the components suppressed
-    in each. Also lists its direct components with their poses in the active one."""
+    in each. Also lists its direct components with their poses in the active one and varied
+    (positioned per arrangement; activate another arrangement to read its poses)."""
     assembly = _assembly(tx)
     kids = _children(tx)
     items: list[ArrangementState] = []
     for a in _all(assembly):
         row = cast(ArrangementState, _row(tx, a))
-        row["suppressed"] = [str(c.Name) for c in kids if _suppressed_in(tx, c, a)]
+        row["suppressed"] = [tx.ref(c, "component") for c in kids if _suppressed_in(tx, c, a)]
         items.append(row)
-    return {"items": items, "components": _components(tx), "truncated": len(kids) > MAX_LISTED}
+    components = _components(tx)  # the first MAX_LISTED of kids, in order
+    for listed, c in zip(components, kids, strict=False):
+        listed["varied"] = _varied(tx, c)
+    return {"items": items, "components": components, "truncated": len(kids) > MAX_LISTED}
+
+
+def _changed_since(what: str) -> None:
+    fail("NX_DEPENDENCY_ORDER", f"{what} changed since the operation; undo the later "
+         "operations first or set it back yourself")  # fmt: skip
+
+
+@restorer("nx_edit_arrangement")
+def _restore_arrangement(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Set back what nx_edit_arrangement's activate, rename or set_default changed (a
+    delete is not restorable): refused when the arrangement changed again since."""
+    assembly = _assembly(tx)
+    action, before, after = data["action"], data["before"], data["after"]
+    if action == "rename":
+        found = [a for a in _all(assembly) if _key(a.Name) == _key(after)]
+        if not found:
+            _changed_since(f"Arrangement {after}")
+        if apply:
+            _clash(assembly, before, "/new_name", keep=found[0])
+            with native(default="NX_BUILD_FAILED"):
+                found[0].SetName(before)
+            readback.expect(_key(found[0].Name) == _key(before), "name",
+                            "NX did not rename the arrangement back")  # fmt: skip
+        return f"arrangement {after} renamed back to {before}"
+    current = assembly.ActiveArrangement if action == "activate" else _default(tx)
+    word = "active" if action == "activate" else "default"
+    if current is None or _key(current.Name) != _key(after):
+        _changed_since(f"The {word} arrangement")
+    if apply:
+        previous = _find(assembly, before, "/arrangement")
+        if action == "activate":
+            _activate(tx, previous)
+        else:
+            with native(default="NX_BUILD_FAILED"):
+                assembly.SetDefault(previous)
+            readback.expect(display.same(_default(tx), previous), "default",
+                            "NX did not make it the default again")  # fmt: skip
+    return f"{before} the {word} arrangement again"
+
+
+@restorer("nx_set_arrangement_component")
+def _restore_arrangement_component(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Set a component's pose, suppression and per-arrangement positioning in one
+    arrangement back to what they were before nx_set_arrangement_component: refused when
+    they changed since."""
+    ref, before, after = data["component"], data["before"], data["after"]
+    target = _find(_assembly(tx), data["arrangement"], "/arrangement")
+    c = common.component(tx, ref, "/component")
+    if _suppressed_in(tx, c, target) != after["suppressed"]:
+        _changed_since(f"The suppression of {ref} in {target.Name}")
+    if after["pose"] is not None:
+        with _active(tx, target):
+            now = structure.pose(c)
+        wanted = (after["pose"][0], after["pose"][1])
+        if not kpose.close(now, wanted, tol=1e-6 * max(1.0, *map(abs, wanted[0]))):
+            _changed_since(f"The pose of {ref} in {target.Name}")
+    if apply:
+        if after["suppressed"] and before["pose"] is not None:
+            _suppress(tx, c, target, False)  # move it shown; suppressed again below
+        if before["pose"] is not None:
+            pose = (before["pose"][0], before["pose"][1])
+            with _active(tx, target):
+                _move_in(tx, c, target, pose)
+            if before["varied"] is False and _varied(tx, c):
+                with native(default="NX_BUILD_FAILED"):
+                    c.SetPositioningVaried([c], False)
+                readback.expect(_varied(tx, c) is not True, "varied",
+                                "NX kept the component positioned per arrangement")  # fmt: skip
+                with _active(tx, target):
+                    structure.expect_pose(structure.pose(c), pose, "previous_pose")
+        if _suppressed_in(tx, c, target) != before["suppressed"]:
+            _suppress(tx, c, target, before["suppressed"])
+        model.update(tx)
+    state = "suppressed" if before["suppressed"] else "unsuppressed"
+    where = f" at {before['pose'][0]}" if before["pose"] is not None else ""
+    return f"{ref} in {target.Name} back to {state}{where}"

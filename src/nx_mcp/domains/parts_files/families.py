@@ -39,6 +39,7 @@ from nx_mcp.core.types import Doc, Items, PathTo, Text
 from nx_mcp.domains.parts_files import _saving
 from nx_mcp.kit import args, files, parts, readback, result
 from nx_mcp.kit import expr as kit_expr
+from nx_mcp.kit import units as kit_units
 
 MEMBER_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
 FORMULA_MAX = 200
@@ -46,9 +47,13 @@ NAME_COLUMN = "Part_Name"
 EXPRESSION_TYPE = "Expression"
 MEMBER_HINT = "Use letters, digits, _ and - (the member's file name without .prt)"
 TEMPLATE_NOTE = (
-    "The template part holds the new, unsaved family table; close it without saving "
-    "(nx_close_part save=false) to discard it, or call again after fixing the cause"
+    "The template part holds the new, unsaved family table, and a second call is refused "
+    "while it does: close the template without saving (nx_close_part save=false), open it "
+    "again with nx_open_part, then call again after fixing the cause"
 )
+# '<number> <unit>': converted to the expression's own units before NX sees it.
+UNIT_VALUE = re.compile(r"^\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)\s*([A-Za-z]+)\s*$")
+UNIT_DIMENSION = {"mm": "length", "in": "length", "deg": "angle", "rad": "angle"}
 SAVED_NOTE = (
     "The template part was saved with the family table and the member files were written; "
     "check them with nx_get_part_family"
@@ -63,8 +68,8 @@ class Member(TypedDict):
         list[Value],
         Items(1, 30),
         Doc(
-            "One per expressions entry, same order: a number in that expression's units or a "
-            "formula"
+            "One per expressions entry, same order: a number in that expression's units, "
+            "'10 mm', or a formula"
         ),  # fmt: skip
     ]
 
@@ -148,6 +153,45 @@ def _formula(value, field: str) -> str:
     if not text or any(c in text for c in "\r\n;"):
         fail("NX_INVALID_ARGUMENT", "A formula is one non-empty line without ';'", field=field)
     return text
+
+
+def _number_text(number: float) -> str:
+    return str(int(number)) if float(number).is_integer() else repr(float(number))
+
+
+def _with_units(rows, expressions, known) -> list[tuple[str, list[str]]]:
+    """``rows`` with every ``'<number> <unit>'`` value given in its expression's own units
+    (NX takes a family value as a formula, where '10 mm' is a syntax error that leaves a
+    half-made family). A unit the expression cannot take is refused before NX."""
+    out = []
+    for i, (name, texts) in enumerate(rows):
+        values = []
+        for k, (column, text) in enumerate(zip(expressions, texts, strict=True)):
+            match = UNIT_VALUE.match(text)
+            if match is None:
+                values.append(text)
+                continue
+            field = f"/members/{i}/values/{k}"
+            unit = match.group(2).lower()
+            unit = {"inch": "in", "inches": "in", "degrees": "deg"}.get(unit, unit)
+            have = kit_expr.units(known[column])
+            if unit not in UNIT_DIMENSION or UNIT_DIMENSION.get(have) != UNIT_DIMENSION[unit]:
+                takes = f"{have} values" if have != "unitless" else "plain numbers (unitless)"
+                fail(
+                    "NX_INVALID_ARGUMENT",
+                    f"{text!r} cannot be a value of {column}, which takes {takes}",
+                    field=field,
+                    hint=f"Give a plain number in {column}'s units ({have}), or a formula",
+                    details={"expression": column, "units": have},
+                )
+            number = float(match.group(1))
+            if UNIT_DIMENSION[unit] == "length":
+                number *= kit_units.factor(unit, have)
+            elif unit != have:
+                number = math.degrees(number) if unit == "rad" else math.radians(number)
+            values.append(_number_text(round(number, 12)))
+        out.append((name, values))
+    return out
 
 
 def _member_paths(tx, directory: Path, names) -> list[Path]:
@@ -283,10 +327,18 @@ def nx_create_part_family(
             fail("NX_WRONG_KIND", "The member folder is a file", field="/directory")
         paths = _member_paths(tx, folder, [name for name, _ in rows])
         if _uf_flag(tx, "IsFamilyTemplate", part):
+            unsaved = bool(getattr(part, "IsModified", False))
             fail(
                 "NX_ALREADY_EXISTS",
-                "The work part already has a part family",
-                hint="List it with nx_get_part_family; NX edits family tables interactively",
+                "The work part already has a part family"
+                + (" (unsaved: an earlier call may have failed)" if unsaved else ""),
+                hint=(
+                    "Discard the unsaved family table: nx_close_part save=false, then "
+                    "nx_open_part, then call again"
+                    if unsaved
+                    else "List it with nx_get_part_family; NX edits family tables interactively"
+                ),
+                details={"template": tx.ref(part, "part"), "unsaved": unsaved},
             )
         if _uf_flag(tx, "IsFamilyInstance", part):
             fail("NX_INVALID_ARGUMENT", "The work part is a part family member, not a template",
@@ -300,6 +352,7 @@ def nx_create_part_family(
                     field=f"/expressions/{i}",
                     hint="List them with nx_list_objects kind=expression",
                 )
+        rows = _with_units(rows, expressions, known)
     folder.mkdir(parents=True, exist_ok=True)
     created: list[Path] = []
     manager = None
@@ -379,6 +432,9 @@ def nx_create_part_family(
     try:
         _saving.verified_save(tx, part)
     except NXError as error:
+        if error.code == "NX_RESTORE_FAILED":  # saved: the members belong to its table
+            error.details.setdefault("template_note", SAVED_NOTE)
+            raise
         _undo_members(tx, created)
         error.details.setdefault("template_note", TEMPLATE_NOTE)
         raise

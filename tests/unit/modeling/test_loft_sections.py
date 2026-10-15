@@ -1,6 +1,7 @@
 """Loft sections made of curves and edges, not only sketches (shared fake, real kernel)."""
 
 import math
+from types import SimpleNamespace as NS
 
 import pytest
 
@@ -53,8 +54,9 @@ def test_an_open_curve_section_lofts_a_sheet_along_the_centres():
         return made
 
     nx.on_commit("ThroughCurvesBuilder", sheet)
+    nx.part.MeasureManager.NewFaceProperties = lambda *a: NS(Area=600.0, Dispose=lambda: None)
     ok = run(nx, "nx_create_loft", sections=[a.ref, b.ref], solid=False)
-    assert ok.ok, ok
+    assert ok.ok and ok.data["area"] == 600, ok
     assert len(nx.last("ThroughCurvesBuilder").SectionsList.Append.calls) == 2
 
 

@@ -75,3 +75,29 @@ def test_compare_refusals():
     nx.part.DrawingSheets.clear()
     bare = run(nx, "nx_check_drawing_changes", against="rev_a.prt")
     assert bare.error["code"] == "NX_WRONG_APPLICATION"
+
+
+class _NativeError(Exception):
+    def __init__(self, message, code):
+        super().__init__(message)
+        self.ErrorCode = code
+
+
+def test_an_earlier_revision_without_sheets_is_a_wrong_against():
+    nx, root = compare_nx()
+
+    def refuse(code):
+        def create(path, reuse):
+            raise _NativeError("There are no drawing sheets in the selected part.", code)
+
+        return create
+
+    nx.part.DrawingCompare = NS(CreateCompareReportBuilder=refuse(735029))
+    bare = run(nx, "nx_check_drawing_changes", against="rev_a.prt")
+    assert bare.error["code"] == "NX_INVALID_ARGUMENT" and bare.error["field"] == "/against"
+    assert bare.error["retry"] == "after_fix" and bare.error["nx_code"] == 735029
+    assert "rolled back" not in bare.error["hint"]
+    assert bare.mutation_outcome == "not_applicable"
+    nx.part.DrawingCompare = NS(CreateCompareReportBuilder=refuse(123456))
+    other = run(nx, "nx_check_drawing_changes", against="rev_a.prt")
+    assert other.error["code"] == "NX_EXPORT_FAILED" and "rolled back" not in other.error["hint"]

@@ -15,7 +15,7 @@ import contextlib
 from nx_mcp.core.catalogue import deleter, lister, refresher, sheet_locator
 from nx_mcp.core.errors import fail
 from nx_mcp.domains.drawing import title_blocks, views
-from nx_mcp.domains.drawing.common import DETAIL, attribute, update
+from nx_mcp.domains.drawing.common import DETAIL, attribute, id_symbol_text, update
 from nx_mcp.domains.drawing.tables import all_tables, cells
 from nx_mcp.kit import builders, display, drawing
 
@@ -209,6 +209,7 @@ def _annotations(part):
         "DraftingSurfaceFinishSymbol",
         "Welds",
         "DraftingImages",  # sheet images (nx_set_sheet_image)
+        "Hatches",  # crosshatches and area fills (nx_create_hatch)
     ):
         try:
             values.extend(getattr(collections, name, None) or [])
@@ -226,6 +227,8 @@ def list_annotations(tx, owner, owner_kind):
         if hasattr(a, "GetText"):
             with contextlib.suppress(Exception):  # an annotation without readable text
                 details["text"] = [str(t) for t in a.GetText()]
+        elif type(a).__name__ == "IdSymbol" and (texts := id_symbol_text(tx, a)) is not None:
+            details["text"] = texts  # a balloon's item number
         if hasattr(a, "IsRetained"):
             details["retained"] = bool(a.IsRetained)
         out.append((a, "annotation", {"type": type(a).__name__, "details": details}))

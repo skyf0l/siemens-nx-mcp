@@ -153,3 +153,33 @@ def test_section_in_view_refuses_other_views_and_reads_back_what_nx_did():
                   mode="non_sectioned")  # fmt: skip
     assert ignored.error["code"] == "NX_VERIFICATION_FAILED"
     assert ignored.mutation_outcome == "rolled_back"
+
+
+def test_a_body_outside_the_work_part_is_refused_before_nx():
+    nx = section_nx()
+    other = Object("OTHER_BODY")
+    other.OwningPart, other.IsOccurrence = NS(Leaf="fam", Tag=77), False
+    nx.ref_of(other, "body")
+    bad = run(nx, "nx_set_view_sectioning", view=nx.sx.ref, objects=[nx.shaft.ref,
+              nx.ref_of(other, "body")], mode="non_sectioned")  # fmt: skip
+    assert bad.error["code"] == "NX_WRONG_OWNER" and bad.error["field"] == "/objects/1"
+    assert "fam" in bad.error["message"] and bad.mutation_outcome == "not_started"
+    assert not nx.builders
+
+
+def test_an_unreadable_cut_list_warns_instead_of_rolling_back():
+    nx = section_nx()
+    nx.uf.Draw.AskSxsolidsOfSxview = lambda tag, leg: (0, [])  # NX lists no solid
+    ok = run(nx, "nx_set_view_sectioning", view=nx.sx.ref, objects=[nx.shaft.ref],
+             mode="sectioned")  # fmt: skip
+    assert ok.ok and ok.data["cut"] == [], ok
+    assert any("could not be read back" in w["message"] for w in ok.warnings)
+
+
+def test_a_failed_check_names_objects_by_ref():
+    nx = section_nx()
+    nx.on_commit("SectionInViewBuilder", lambda b: None)  # NX ignored the change
+    bad = run(nx, "nx_set_view_sectioning", view=nx.sx.ref, objects=[nx.shaft.ref],
+              mode="non_sectioned")  # fmt: skip
+    assert bad.error["code"] == "NX_VERIFICATION_FAILED"
+    assert [r["id"] for r in bad.error["details"]["actual"]["objects"]] == [nx.shaft.ref]

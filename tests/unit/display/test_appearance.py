@@ -367,3 +367,29 @@ def test_face_refs_are_refused_with_a_hint():
     bad = run(nx, "nx_set_visibility", mode="hide", objects=[body.faces[0].ref])
     assert bad.error["category"] == "wrong_kind" and bad.mutation_outcome == "not_started"
     assert not body.faces[0].IsBlanked
+
+
+def test_rows_name_the_colour_table_entry():
+    """Every coloured row carries the colour-table label and hex, not only basic names."""
+    nx = display_nx()
+    body = nx.block(1, 1, 1)
+    run(nx, "nx_set_appearance", objects=[body.ref], color=123)
+    row = run(nx, "nx_get_appearance", objects=[body.ref]).data["objects"][0]
+    assert row["color"] == 123 and "color_name" not in row
+    assert row["color_label"] == "Light Steel Blue" and row["color_hex"] == "#99CCFF"
+
+
+def test_the_colour_forms_hint_names_real_table_entries():
+    assert "'Pale Steel'" in display.COLOR_FORMS and "Light Steel Blue" not in display.COLOR_FORMS
+
+
+def test_highlight_on_a_hidden_body_says_it_does_not_show():
+    nx = display_nx()
+    body = nx.block(1, 1, 1)
+    body.IsBlanked = True
+    ok = run(nx, "nx_set_highlight", objects=[body.ref])
+    assert ok.ok and ok.data["count"] == 1
+    assert any("hidden" in w["message"] for w in ok.warnings)
+    shown = nx.block(2, 2, 2)
+    plain = run(nx, "nx_set_highlight", objects=[shown.ref])
+    assert plain.ok and not plain.warnings

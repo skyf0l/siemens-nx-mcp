@@ -27,7 +27,7 @@ from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Length, Range, RefTo
 from nx_mcp.kit import bodies as kbodies
-from nx_mcp.kit import geom, measure, result
+from nx_mcp.kit import geom, measure, result, select
 from nx_mcp.kit import units as kunits
 
 # UF AskFaceData surface types.
@@ -43,6 +43,7 @@ class ChangedFace(TypedDict):
     control: result.Row
     sample: result.Row
     area_change: float
+    why: list[str]  # what differs: bounds, edges, area
 
 
 class Counts(TypedDict):
@@ -74,7 +75,7 @@ class CompareData(_CompareRequired, total=False):
 
 
 def _solid(tx, ref, field):
-    obj = tx.resolve(ref, "body", "component")
+    obj = select.resolve(tx, ref, "body", "component", field=field)
     found = [b for b in kbodies.of(tx, obj) if getattr(b, "IsSolidBody", False)]
     if len(found) != 1:
         fail(
@@ -165,6 +166,18 @@ def identical(a, b, tol) -> bool:
     )
 
 
+def why(a, b, tol) -> list[str]:
+    """What differs between two faces on one surface: ``bounds``, ``edges``, ``area``."""
+    out = []
+    if not _same_box(a, b, tol):
+        out.append("bounds")
+    if a["edges"] != b["edges"]:
+        out.append("edges")
+    if not _within(a["area"], b["area"], _area_tol(a["area"], tol)):
+        out.append("area")
+    return out
+
+
 def _centre(s):
     box = s["box"]
     return [(box[i] + box[i + 3]) / 2 for i in range(3)]
@@ -218,7 +231,8 @@ def nx_analyze_body_changes(
     """Compare two versions of a solid face by face, plus volume and area differences.
     Bodies are compared where they sit (no alignment). changed: same surface but new
     bounds, edges or area (e.g. cut by a new hole); added: sample only; removed: control
-    only; differences are sample - control. Components: their occurrences in one assembly."""
+    only; differences are sample - control. Components: their occurrences in one assembly;
+    bodies of two loaded parts compare too."""
     first = _solid(tx, control, "/control")
     second = _solid(tx, sample, "/sample")
     if int(first.Tag) == int(second.Tag):
@@ -253,6 +267,7 @@ def nx_analyze_body_changes(
                 "control": tx.ref(a["face"], kind="face"),
                 "sample": tx.ref(b["face"], kind="face"),
                 "area_change": b["area"] - a["area"],
+                "why": why(a, b, tol),
             }
             for a, b in changed[:limit]
         ],
@@ -264,6 +279,12 @@ def nx_analyze_body_changes(
     }
     if max(len(changed), len(added), len(removed)) > limit:
         out["truncated"] = True
+    if not matching and (faces[0] and faces[1]):
+        tx.warn(
+            "NX_NOTE",
+            "No face of the two bodies matches: they may be different parts, or the sample "
+            "is placed elsewhere (bodies are compared where they sit)",
+        )
     if math.isclose(out["volume"]["difference"], 0.0, abs_tol=tol**3):
         out["volume"]["difference"] = 0.0
     return out

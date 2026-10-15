@@ -76,7 +76,8 @@ def test_a_failed_edit_puts_the_plane_back():
 def test_edit_needs_a_change_and_a_section():
     nx = display_nx()
     body = nx.block(1, 1, 1)
-    assert run(nx, "nx_edit_section_view", section=body.ref).error["field"] == "/plane"
+    made = run(nx, "nx_create_section_view", plane=PLANE).data["section"]["id"]
+    assert run(nx, "nx_edit_section_view", section=made).error["field"] == "/plane"
     bad = run(nx, "nx_edit_section_view", section=body.ref, enabled=True)
     assert bad.error["category"] == "wrong_kind" and bad.mutation_outcome == "not_started"
 
@@ -264,3 +265,35 @@ def test_a_section_an_undo_reverted_or_removed_is_named_on_the_next_call():
     listed = run(nx, "nx_list_objects", kind="section_view")
     assert listed.ok and listed.data["items"] == []
     assert any("SEC2 is gone" in w["message"] for w in listed.warnings)
+
+
+def test_a_switched_off_section_lets_create_add_another():
+    """Switched off, the active section no longer cuts: a new one becomes the active one,
+    and enabled=true on the first switches back to it."""
+    nx = display_nx()
+    first = run(nx, "nx_create_section_view", plane=PLANE, name="A").data["section"]["id"]
+    run(nx, "nx_edit_section_view", section=first, enabled=False)
+    second = run(nx, "nx_create_section_view", plane="xy", offset=5, name="B")
+    assert second.ok, second.error
+    assert second.data["active"] and second.data["sectioning"]
+    assert nx.work_view.ActiveDynamicSection.Name == "B" and len(nx.part.DynamicSections) == 2
+    back = run(nx, "nx_edit_section_view", section=first, enabled=True)
+    assert back.ok and back.data["enabled"] and nx.work_view.ActiveDynamicSection.Name == "A"
+
+
+def test_deleting_a_section_raises_no_reverted_note():
+    """A deleted section's tag no longer reads back: the deleter forgets it by the tags it
+    read first, so the listing nx_delete_objects runs afterwards says nothing."""
+    nx = display_nx()
+    made = run(nx, "nx_create_section_view", plane=PLANE, name="MID_CUT")
+    delete = nx.part.DynamicSections.DeleteSections
+
+    def forget_tags(flag, targets):
+        delete(flag, targets)
+        for target in targets:
+            target.Tag = 0  # NX: the deleted object reads another tag
+
+    nx.part.DynamicSections.DeleteSections = forget_tags
+    removed = run(nx, "nx_delete_objects", objects=[made.data["section"]["id"]])
+    assert removed.ok, removed.error
+    assert not [w for w in removed.warnings if w["code"] == "NX_NOTE" and "gone" in w["message"]]

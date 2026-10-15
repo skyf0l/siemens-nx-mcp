@@ -1,0 +1,78 @@
+{
+ "covers": {
+  "nx_create_measurement": [
+   "distance"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "a",
+   "args": {
+    "shape": "block",
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "length": 10,
+    "width": 10,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "b",
+   "args": {
+    "shape": "block",
+    "origin": [
+     100,
+     0,
+     0
+    ],
+    "length": 10,
+    "width": 10,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_create_measurement",
+   "args": {
+    "kind": "distance",
+    "first": "$a.data.bodies.0.id",
+    "second": "$b.data.feature.id"
+   },
+   "expect": {
+    "data.value": {
+     "close": 90,
+     "tol": 1e-06
+    },
+    "mutation_outcome": "committed"
+   }
+  },
+  {
+   "call": "nx_create_measurement",
+   "args": {
+    "kind": "distance",
+    "first": "$a.data.bodies.0.id",
+    "second": "$a.data.feature.id"
+   },
+   "expect": {
+    "error.field": "/second",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

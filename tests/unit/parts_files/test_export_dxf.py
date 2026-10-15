@@ -118,7 +118,7 @@ def test_dwg_selected_body(dxf, root):
     assert creator.OutputFileType == ENUMS.OutputFileTypeOption.Dwg
     assert creator.selected == [part.Bodies[1]]
     assert ok.data["format"] == "dwg" and ok.data["schema"] == "AC1018"
-    assert ok.data["encoding"] == "binary" and ok.data["bounds"] is None
+    assert ok.data["encoding"] == "binary" and ok.data["bounds"]["max"] == [210.0, 20.0, 30.0]
     assert (root / "m.dwg").read_bytes()[:6] == b"AC1018"
 
 

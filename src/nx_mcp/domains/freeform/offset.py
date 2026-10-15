@@ -30,12 +30,12 @@ from __future__ import annotations
 from typing import Annotated, TypedDict
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, FaceRef, Items, Length, forbid_extra
 from nx_mcp.domains.freeform import common
 from nx_mcp.kit import bodies as kbodies
-from nx_mcp.kit import builders, curve, expr, facts, geom, readback, select, units
+from nx_mcp.kit import builders, curve, expr, facts, geom, readback, result, select, units
 
 MAX_FACES = 500
 SAMPLES = 3  # per face and UV direction
@@ -60,6 +60,34 @@ class SetData(TypedDict):
 
 class OffsetData(common.SheetData):
     sets: list[SetData]
+    skipped: list[result.Row]  # partial: faces NX could not offset (left out)
+
+
+def _too_far(tx, resolved) -> None:
+    """Refuse an offset towards the axis or centre of a cylinder or sphere face by its radius
+    or more (NX: "could not be offset"), naming the face and the largest inward distance."""
+    for i, (found, value) in enumerate(resolved):
+        for j, face in enumerate(found):
+            kind, centre, axis = select.face_data(tx, face)
+            if kind not in (select.FACE_CYLINDER, select.FACE_SPHERE):
+                continue
+            samples = facts.interior_samples(tx, face, 1)
+            if not samples:
+                continue
+            point, normal = samples[0]
+            radial = geom.sub(point, centre)
+            if kind == select.FACE_CYLINDER:
+                along = geom.unit(axis)
+                radial = geom.sub(radial, geom.scale(along, geom.dot(radial, along)))
+            radius = geom.norm(radial)
+            inward = geom.dot(normal, radial) * float(value) < 0
+            if inward and abs(float(value)) >= radius - units.part_tolerance(tx):
+                where = f"/sets/{i}" if len(resolved) > 1 else ""
+                fail("NX_INVALID_ARGUMENT", f"Face {j} of radius {radius:.4g} cannot be offset "
+                     f"{abs(float(value)):.4g} towards its centre", field=f"{where}/distance",
+                     hint=f"Offset less than {radius:.4g} inward, or pass partial true to leave "
+                     "such faces out", details={"face": tx.ref(face, kind="face"),
+                                                "radius": radius})  # fmt: skip
 
 
 def _sets(faces, distance, sets):
@@ -148,6 +176,7 @@ def nx_create_offset_surface(
     sets: Annotated[list[OffsetSet], Items(1, 20), Doc("Face sets, each its own distance")]
     | None = None,
     tolerance: Annotated[Length, Doc("Offset tolerance")] | None = None,
+    partial: Annotated[bool, Doc("Leave out faces NX cannot offset (listed in skipped)")] = False,
 ) -> OffsetData:
     """Offset sheet or solid faces into new sheets at a signed distance along the normals.
     sets give face groups their own distance. Checked at sampled points: sets[].gap and
@@ -161,6 +190,8 @@ def nx_create_offset_surface(
         tags = [int(f.Tag) for found, _ in resolved for f in found]
         if len(set(tags)) != len(tags):
             fail("NX_INVALID_ARGUMENT", "A face is listed twice", field="/sets")
+        if not partial:
+            _too_far(tx, resolved)
     common.licensed(tx)
     part = tx.part
     before = {int(x.Tag) for x in part.Bodies}
@@ -172,6 +203,8 @@ def nx_create_offset_surface(
             face_set.Offset.RightHandSide = expr.rhs(value)
             face_set.FaceCollector = builders.collector(tx, found, "Face")
             b.FaceSets.Append(face_set)
+        if partial:
+            b.PartialOption = True
         feature = b.commit()
     bodies = common.feature_bodies(feature)
     known = {int(x.Tag) for x in bodies}
@@ -179,5 +212,28 @@ def nx_create_offset_surface(
     out = common.result_of(tx, feature, bodies)
     kbodies.expect_sound(tx, bodies)
     limit = 2 * tol + 10 * units.part_tolerance(tx)
-    checked = [_check(tx, found, float(value), bodies, limit) for found, value in resolved]
-    return {**out, "sets": checked}
+    skipped: list = []
+    if partial:
+        resolved = [(_offset_faces(tx, found, float(v), bodies, limit, skipped), v)
+                    for found, v in resolved]  # fmt: skip
+        if skipped:
+            tx.warn("NX_APPROXIMATED", f"{len(skipped)} face(s) could not be offset and were "
+                    "left out (skipped)")  # fmt: skip
+    checked = [_check(tx, found, float(value), bodies, limit) for found, value in resolved if found]
+    return {**out, "sets": checked, "skipped": [tx.ref(f, kind="face") for f in skipped]}
+
+
+def _offset_faces(tx, faces, distance, bodies, limit, skipped) -> list:
+    """The faces of a partial offset that NX offset; the others go to ``skipped``."""
+    kept = []
+    for face in faces:
+        try:
+            _check(tx, [face], distance, bodies, limit)
+        except NXError as error:
+            if error.code != "NX_VERIFICATION_FAILED":
+                raise
+            skipped.append(face)
+            continue
+        kept.append(face)
+    readback.expect(bool(kept) or not faces, "offset", "NX offset none of the faces")
+    return kept

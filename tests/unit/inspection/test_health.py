@@ -103,8 +103,11 @@ def test_unsolved_assembly_constraints_are_errors_or_warnings():
         assert "concentric constraint is CannotSolve" in found[0]["message"]
         assert "nx_edit_assembly_constraint" in found[0]["message"]
         assert found[1]["object"]["id"] == nx.ref_of(pending, "assembly_constraint")
-    summary = run(nx, "nx_get_model_summary")
-    assert summary.data["health"] == {"healthy": False, "errors": 1, "warnings": 1}
+    summary = run(nx, "nx_get_model_summary")  # an assembly: its components' health too
+    health = summary.data["health"]
+    assert health["healthy"] is False and health["errors"] == 1 and health["scope"] == "assembly"
+    assert summary.data["bounds_scope"] == "assembly"
+    assert summary.data["bounds"]["min"] == [0, 0, 0] and summary.data["bounds"]["max"][0] == 3
 
 
 def test_summary_overview_and_sections():
@@ -165,7 +168,8 @@ def test_a_sealed_void_is_info_with_its_volume_and_box():
     assert params.SurfaceAngularTolerance == 0.05 and len(nx.part.Curves) == curves
     calls = len(nx.uf.Facet.models)
     summary = run(nx, "nx_get_model_summary").data  # no void search in the overview
-    assert summary["health"] == {"healthy": True, "errors": 0, "warnings": 0}
+    assert summary["health"] == {"healthy": True, "errors": 0, "warnings": 0, "scope": "part",
+                                 "parts_checked": 1}  # fmt: skip
     assert len(nx.uf.Facet.models) == calls
 
 
@@ -223,8 +227,8 @@ def test_summary_features_follow_the_timeline_without_internal_features():
     assert "SKETCH(1:1B)" not in [i["name"] for i in feats.data["items"]]
     over = run(nx, "nx_get_model_summary")
     assert over.data["counts"]["features"] == 3
-    health = run(nx, "nx_check_model")
-    assert health.data["features_checked"] == 4  # internal features are still checked
+    health = run(nx, "nx_check_model")  # the navigator's count; internal ones are read too
+    assert health.data["features_checked"] == 3
 
 
 def _examine(nx, failed: dict):
@@ -254,7 +258,7 @@ def test_a_self_overlapping_solid_is_an_error_naming_its_faces():
     assert [f["id"] for f in issue["faces"]] == [f.ref for f in bad.faces[:3]]
     assert issue["message"].startswith("3 faces cut other faces") and seen == [good, bad]
     summary = run(nx, "nx_get_model_summary").data  # the overview does not examine bodies
-    assert summary["health"] == {"healthy": True, "errors": 0, "warnings": 0}
+    assert summary["health"]["healthy"] is True and summary["health"]["errors"] == 0
     assert seen == [good, bad]
 
 

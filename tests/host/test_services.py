@@ -250,8 +250,8 @@ def test_batch_bridge_requires_explicit_feasibility_gate(tmp_path, monkeypatch):
         start_bridge(tmp_path)
 
 
-def test_annotations_include_drafting_gdt_and_datum_targets():
-    # changes.created comes from this list: drafting GD&T was missing from it.
+def test_annotations_include_drafting_gdt_datum_targets_and_hatches():
+    # changes.created comes from this list: drafting GD&T and hatches were missing from it.
     from nx_mcp.host.services import part_annotations
 
     def obj(tag):
@@ -261,9 +261,9 @@ def test_annotations_include_drafting_gdt_and_datum_targets():
         Notes=[obj(1)],
         Labels=[],
         Gdts=[obj(2), obj(3)],
-        Annotations=NS(DraftingDatumTargets=[obj(4)], Fcfs=[obj(2)]),
+        Annotations=NS(DraftingDatumTargets=[obj(4)], Fcfs=[obj(2)], Hatches=[obj(5)]),
     )
-    assert sorted(int(o.Tag) for o in part_annotations(part)) == [1, 2, 3, 4]
+    assert sorted(int(o.Tag) for o in part_annotations(part)) == [1, 2, 3, 4, 5]
 
 
 def test_each_drawing_table_is_one_object():

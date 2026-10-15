@@ -588,9 +588,10 @@ def _clusters(m):
     return list(groups.values())
 
 
-def analyse(tx, sk):
+def analyse(tx, sk, why=None):
     """``{"dof": total, "curves": {tag: dof}}`` of the sketch, or None when a curve or
-    constraint kind is not modelled (or a cluster is too large)."""
+    constraint kind is not modelled (or a cluster is too large); ``why`` (a list) then
+    receives the reason."""
     try:
         m = Model(tx, sk)
         total, per_curve = 0, {}
@@ -601,6 +602,8 @@ def analyse(tx, sk):
                 for i in range(m.entries[t].offset, m.entries[t].offset + SIZES[m.entries[t].kind])
             ]
             if len(columns) > MAX_CLUSTER:
+                if why is not None:
+                    why.append(f"a group of joined curves is too large ({len(columns)} values)")
                 return None
             reduced, pivots = _rref(_jacobian(m, eqs, columns), len(columns))
             free = [c for c in range(len(columns)) if c not in set(pivots)]
@@ -618,18 +621,24 @@ def analyse(tx, sk):
                 own = [position[i] for i, o in enumerate(m.owner) if o == t]
                 per_curve[t] = _rank([[v[k] for k in own] for v in basis], len(own))
         return {"dof": total, "curves": per_curve}
-    except (Unsupported, ZeroDivisionError, ValueError):
+    except (Unsupported, ZeroDivisionError, ValueError) as error:
+        if why is not None:
+            why.append(f"not modelled: {error}" if isinstance(error, Unsupported) else str(error))
         return None
 
 
-def checked(tx, sk, native_count):
+def checked(tx, sk, native_count, why=None):
     """:func:`analyse` when it agrees with NX's count of curves not fully constrained
-    (``native_count``), else None."""
+    (``native_count``), else None; ``why`` (a list) then receives the reason."""
     if native_count is None:
+        if why is not None:
+            why.append("NX gives no count of free curves in this state")
         return None
-    found = analyse(tx, sk)
+    found = analyse(tx, sk, why)
     if found is None:
         return None
     if sum(1 for v in found["curves"].values() if v > 0) != native_count:
+        if why is not None:
+            why.append("the computed freedom disagrees with NX's count of free curves")
         return None
     return found

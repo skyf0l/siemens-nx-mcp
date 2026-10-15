@@ -8,22 +8,18 @@ of A instead compensates them: it deletes what they created and sets back the va
 they changed, which leaves every other part untouched. Only a narrow case qualifies
 (else the undo is refused and says why):
 
-- every undone operation is a committed call that either
-  - created objects and changed nothing else (nothing deleted, changed or consumed;
-    drawing views, sheets and their annotations that NX refreshed after the model
-    changed count as derived, not as changed): features (with their bodies, expressions
-    and datums), sketches (with their curves, points, constraints and dimensions) and
-    curves and points outside any sketch (``DELETED_KINDS``; curves, points, constraints
-    and dimensions added to a sketch the operations did not create are in-sketch edits:
-    refused, deleting them could make NX ask about the sketch's dimensions), or
-  - set values its tool can set back (a ``@restorer`` hook: ``nx_set_attributes``,
-    ``nx_set_expression``, ``nx_set_name``, ``nx_set_component_pose``,
-    ``nx_set_sheet_metal_defaults``) and kept the before-values in its history entry
-    (``restore``), and those values still read what the operation set (a later change of
-    the same value is refused: ``NX_DEPENDENCY_ORDER``);
-- every created object is still in A (a ref that went stale counts only when a later
-  operation's receipt says it deleted the object: ``missing``); a created sketch is not
-  open (active or parked: finish it first);
+- every undone operation qualifies by its receipt (``core/undoable.py``: the call, or
+  each child of a batch or an accepted preview, either created objects, features with
+  what they own and what they consumed, sketches, curves and points, or set values its
+  tool's ``@restorer`` hook sets back from the before-values it kept,
+  ``tx.note_restore``), and those values still read what the operation set (a later
+  change of the same value is refused: ``NX_DEPENDENCY_ORDER``); curves, points,
+  constraints and dimensions added to a sketch the operations did not create are
+  in-sketch edits: refused, deleting them could make NX ask about the sketch's dimensions;
+- every created object is still in A, or in another part the operation named as changed
+  (``parts`` of its history entry: a WAVE link into a component's part); a ref that went
+  stale counts only when a later operation's receipt says it deleted the object
+  (``missing``); a created sketch is not open (active or parked: finish it first);
 - no feature outside the set depends on one of them (``GetChildren``, recursively).
 
 Values are set back first (newest operation first), each verified by its restorer. The
@@ -37,8 +33,10 @@ may renumber the journal identifiers of later features: anchors are re-checked
 ``compensation`` (``core/marks.py``): it is never undone itself, so no later undo brings
 the deleted objects or the changed values back.
 
-:func:`qualifies` is the receipt-only part of the rules (no NX object is read): the undo
-depth counts the operations it admits.
+:func:`qualifies` (``core/undoable.py``) is the receipt-only part of the rules (no NX
+object is read): the undo depth and the checkpoint listing count the operations it admits.
+Deleting a created feature brings back the faces, edges and bodies it consumed (under new
+refs). Deletes and edits without before-values never qualify.
 """
 
 from __future__ import annotations
@@ -49,33 +47,39 @@ from typing import Any
 
 from nx_mcp.core import parking
 from nx_mcp.core.catalogue import hooks
-from nx_mcp.core.errors import NXError, fail
-from nx_mcp.core.types import KIND_GROUPS, SHEET_KINDS
+from nx_mcp.core.errors import NXError, fail, with_article
+from nx_mcp.core.undoable import (
+    CREATED_KINDS,
+    DELETED_KINDS,
+    DERIVED_KINDS,
+    UNDO_TOOLS,
+    WITH_FEATURE,
+    WITH_SKETCH,
+    Refusal,
+    Unit,
+    creates,
+    qualifies,
+    restorer_of,
+    settable,
+    units,
+)
+from nx_mcp.core.undoable import record_of as _record
 from nx_mcp.kit import readback
 
-# Kinds an undo by deletion deletes itself (in this order: a feature takes its bodies and
-# the sketch it is, a sketch its geometry).
-DELETED_KINDS = ("feature", "sketch", "curve", "point")
-# Kinds that go with a created feature (its bodies, expressions and datum objects).
-WITH_FEATURE = frozenset({"body", "expression", *KIND_GROUPS["datum"]})
-# Kinds that go with a created sketch (its constraints and dimensions).
-WITH_SKETCH = frozenset({"sketch_constraint", "dimension"})
-CREATED_KINDS = frozenset({*DELETED_KINDS, *WITH_FEATURE, *WITH_SKETCH})
-# Objects NX refreshes when the model changes (a feature's drawing views update): a
-# change to them is derived from the created features, not work of its own.
-DERIVED_KINDS = SHEET_KINDS
-UNDO_TOOLS = frozenset({"nx_undo_operation", "nx_restore_checkpoint", "nx_redo_operation"})
+__all__ = [
+    "CREATED_KINDS",
+    "DELETED_KINDS",
+    "DERIVED_KINDS",
+    "UNDO_TOOLS",
+    "WITH_FEATURE",
+    "WITH_SKETCH",
+    "Plan",
+    "Refusal",
+    "plan",
+    "qualifies",
+    "run",
+]
 LISTED = 10
-
-
-class Refusal(Exception):
-    """Why the undone operations cannot be undone by deletion."""
-
-    def __init__(self, code: str, reason: str, details: dict | None = None) -> None:
-        super().__init__(reason)
-        self.code = code
-        self.reason = reason
-        self.details = details or {}
 
 
 @dataclass
@@ -88,20 +92,11 @@ class Plan:
     missing: list = field(default_factory=list)  # refs a later operation already deleted
     rows: dict = field(default_factory=dict)  # (kind, tag) -> ref (read-back messages)
     kinds: dict = field(default_factory=dict)  # kind -> count of created objects found
-    # (operation id, restorer, before-values) of the operations whose values are set
-    # back, newest first
+    # (what, restorer, before-values) of the units whose values are set back, newest first
     restores: list = field(default_factory=list)
-
-
-def _record(services, entry: dict) -> dict:
-    try:
-        return services.store.get(entry["operation_id"]) or {}
-    except Exception:
-        return {}
-
-
-def _changes(record: dict) -> dict:
-    return (record.get("envelope") or {}).get("changes") or {}
+    # part key -> part: the other parts the operations created objects in (a WAVE link
+    # into a component's part); the undo reads them back too
+    others: dict = field(default_factory=dict)
 
 
 def _deleted_later(services, later: list) -> set:
@@ -110,9 +105,16 @@ def _deleted_later(services, later: list) -> set:
     for entry in later:
         if entry.get("operation_id") is None:
             continue
-        changes = _changes(_record(services, entry))
+        changes = (_record(services, entry).get("envelope") or {}).get("changes") or {}
         out.update(str(r.get("id")) for r in changes.get("deleted") or [] if r.get("id"))
         out.update(str(r) for r in changes.get("stale_refs") or [])
+        for child in ((_record(services, entry).get("envelope") or {}).get("data") or {}).get(
+            "results"
+        ) or []:
+            if isinstance(child, dict):
+                inner = child.get("changes") or {}
+                out.update(str(r.get("id")) for r in inner.get("deleted") or [] if r.get("id"))
+                out.update(str(r) for r in inner.get("stale_refs") or [])
     return out
 
 
@@ -123,97 +125,23 @@ def _tag(obj) -> int | None:
         return None
 
 
-def _committed(entry: dict, record: dict) -> None:
-    operation, tool = entry["operation_id"], entry.get("method") or ""
-    if tool in UNDO_TOOLS or record.get("state") != "committed" or record.get("reverted_by"):
+def _restorable(tx, unit: Unit, restore, data) -> None:
+    """Refuse a unit whose values cannot be set back now (it deleted objects, its values
+    changed since, or they lie in another part)."""
+    settable(unit)
+    key = tx.services.part_key(tx.part)
+    if unit.part is not None and unit.part != key:
         raise Refusal(
-            "NX_UNSUPPORTED_OPTION",
-            f"{operation} ({tool}) is not a committed operation that created objects or set values",
-            {"operation_id": operation},
+            "NX_CROSS_PART",
+            f"{unit.what} set values in another part: they are not set back from here",
+            {"operation_id": unit.operation_id, "step": unit.index},
         )
-
-
-def _own_changes(changes: dict, name: str) -> list:
-    """``changes[name]`` without the derived objects NX refreshed (drawing views...)."""
-    rows = changes.get(name) or []
-    if name != "modified":
-        return list(rows)
-    return [r for r in rows if not (isinstance(r, dict) and r.get("kind") in DERIVED_KINDS)]
-
-
-def restorer_of(entry: dict):
-    """``(restorer, before-values)`` when ``entry``'s values can be set back, else None."""
-    data = entry.get("restore")
-    restore = hooks("restorer").get(str(entry.get("method") or ""))
-    return (restore, data) if data is not None and restore is not None else None
-
-
-def _restorable(tx, entry: dict, record: dict, restore, data) -> None:
-    """Refuse an operation whose values cannot be set back now (it deleted objects, or
-    its values changed since)."""
-    _settable(entry, record)
-    operation, tool = entry["operation_id"], entry.get("method") or ""
     try:
         restore(tx, data, apply=False)
     except NXError as error:
         raise Refusal(
-            error.code, f"{operation} ({tool}): {error.message}", {"operation_id": operation}
+            error.code, f"{unit.what}: {error.message}", {"operation_id": unit.operation_id}
         ) from None
-
-
-def _settable(entry: dict, record: dict) -> None:
-    """The receipt-only check of an operation whose values a restorer sets back."""
-    _committed(entry, record)
-    operation, tool = entry["operation_id"], entry.get("method") or ""
-    if _changes(record).get("deleted"):
-        raise Refusal(
-            "NX_UNSUPPORTED_OPTION",
-            f"{operation} ({tool}) deleted objects: setting its values back does not bring "
-            "them back",
-            {"operation_id": operation, "changes": ["deleted"]},
-        )
-
-
-def _creates(entry: dict, record: dict) -> list:
-    """The created rows of a create-only operation, else a Refusal (receipt only)."""
-    operation, tool = entry["operation_id"], entry.get("method") or ""
-    _committed(entry, record)
-    changes = _changes(record)
-    created = list(changes.get("created") or [])
-    other = [k for k in ("deleted", "modified", "stale_refs") if _own_changes(changes, k)]
-    if other or not created:
-        what = ", ".join(other) if other else "created nothing"
-        raise Refusal(
-            "NX_UNSUPPORTED_OPTION",
-            f"{operation} ({tool}) did more than create objects ({what})",
-            {"operation_id": operation, "changes": other or ["created nothing"]},
-        )
-    kinds = sorted({str(r.get("kind")) for r in created} - CREATED_KINDS)
-    if kinds or not any(r.get("kind") in DELETED_KINDS for r in created):
-        raise Refusal(
-            "NX_UNSUPPORTED_OPTION",
-            f"{operation} ({tool}) created "
-            + (", ".join(kinds) if kinds else "no feature, sketch, curve or point")
-            + ": only features, sketches, curves and points (with what they own) are "
-            "undone by deletion",
-            {"operation_id": operation, "kinds": kinds or ["no feature"]},
-        )
-    return created
-
-
-def qualifies(services, entry: dict) -> bool:
-    """Whether ``entry``'s receipt admits an undo by deletion (create-only within the
-    kinds above, or values a restorer sets back). The NX objects are not read: the plan
-    may still refuse (a dependent feature, a value changed since)."""
-    record = _record(services, entry)
-    try:
-        if restorer_of(entry) is not None:
-            _settable(entry, record)
-        else:
-            _creates(entry, record)
-    except Refusal:
-        return False
-    return True
 
 
 def _children(features: list) -> list:
@@ -256,7 +184,8 @@ def _sketch_of(part, tag, sketches: dict) -> Any:
 
 def _found(tx, plan: Plan, entry: dict, row: dict, key, later: list, gone: list) -> Any:
     """The live object of a created row (None: a later operation deleted it, ``missing``);
-    refuses a stale ref nobody deleted and an object of another part."""
+    refuses a stale ref nobody deleted and an object of a part the operation did not
+    change (the call's part, or another part it named: ``parts`` of its history entry)."""
     services = tx.services
     ref = str(row.get("id") or "")
     try:
@@ -276,7 +205,11 @@ def _found(tx, plan: Plan, entry: dict, row: dict, key, later: list, gone: list)
             {"ref": ref, "operation_id": entry["operation_id"]},
         ) from None
     owner = services.owning_part(obj)
-    if owner is None or services.part_key(owner) != key:
+    owner_key = services.part_key(owner) if owner is not None else None
+    if owner_key is not None and owner_key != key and owner_key in (entry.get("parts") or []):
+        plan.others.setdefault(owner_key, owner)
+        return obj
+    if owner_key != key:
         raise Refusal(
             "NX_CROSS_PART",
             f"{ref}, which {entry['operation_id']} created, is not in this part",
@@ -287,9 +220,9 @@ def _found(tx, plan: Plan, entry: dict, row: dict, key, later: list, gone: list)
 
 def plan(tx, candidates: list, later: list) -> Plan:
     """What undoing ``candidates`` (history entries of the call's part, oldest first) by
-    deletion deletes; raises :class:`Refusal` when it does not qualify. ``later``: the
-    history entries after the oldest candidate (their receipts prove a missing object
-    gone)."""
+    compensation sets back and deletes; raises :class:`Refusal` when it does not qualify.
+    ``later``: the history entries after the oldest candidate (their receipts prove a
+    missing object gone)."""
     services = tx.services
     part = tx.part
     key = services.part_key(part)
@@ -297,16 +230,16 @@ def plan(tx, candidates: list, later: list) -> Plan:
     gone: list = []  # [refs later operations deleted], read once when needed
     found: list = []  # (entry, kind, ref, object) of every live created object
     for entry in candidates:
-        record = _record(services, entry)
-        restoring = restorer_of(entry)
-        if restoring is not None:  # values set back (a created expression is the restorer's)
-            _restorable(tx, entry, record, *restoring)
-            result.restores.insert(0, (str(entry["operation_id"]), *restoring))
-            continue
-        for row in _creates(entry, record):
-            obj = _found(tx, result, entry, row, key, later, gone)
-            if obj is not None:
-                found.append((entry, str(row.get("kind")), str(row.get("id") or ""), obj))
+        for unit in units(services, entry):
+            restoring = restorer_of(unit)
+            if restoring is not None:  # values set back (a created expression is the restorer's)
+                _restorable(tx, unit, *restoring)
+                result.restores.insert(0, (unit.what, *restoring))
+                continue
+            for row in creates(unit):
+                obj = _found(tx, result, entry, row, key, later, gone)
+                if obj is not None:
+                    found.append((entry, str(row.get("kind")), str(row.get("id") or ""), obj))
     _sort(tx, result, found, part)
     outside = _children(result.features)
     if outside:
@@ -363,7 +296,7 @@ def _sort(tx, result: Plan, found: list, part) -> None:
         elif kind in ("curve", "point"):
             if tag in own:
                 continue  # goes with its created sketch
-            holder = _sketch_of(part, tag, geometry)
+            holder = _sketch_of(services.owning_part(obj) or part, tag, geometry)
             if holder is not None:
                 raise Refusal(
                     "NX_UNSUPPORTED_OPTION",
@@ -378,7 +311,7 @@ def _sort(tx, result: Plan, found: list, part) -> None:
         elif kind in WITH_SKETCH and not created_sketches:
             raise Refusal(
                 "NX_UNSUPPORTED_OPTION",
-                f"{ref}, which {entry['operation_id']} created, is a {kind.replace('_', ' ')} "
+                f"{ref}, which {entry['operation_id']} created, is {with_article(kind.replace('_', ' '))} "
                 "in a sketch it did not create: an in-sketch edit is not undone by deletion",
                 {"ref": ref, "operation_id": entry["operation_id"]},
             )
@@ -390,11 +323,22 @@ def _sort(tx, result: Plan, found: list, part) -> None:
             result.allowed.update(_tag(e) for e in feature.GetExpressions() or [])
 
 
-def _present(part, obj) -> bool:
-    tag = _tag(obj)
+def _present(part, tag) -> bool:
     with contextlib.suppress(Exception):
         return any(_tag(e) == tag for e in getattr(part, "Expressions", None) or [])
     return False
+
+
+def _expression_owners(services, part, plan: Plan) -> list:
+    """(owning part, tag, ref) of each created expression, read before the deletion: NX
+    raises on any property of an object it deleted (a feature takes its expressions)."""
+    out = []
+    for obj, ref in plan.expressions:
+        try:
+            out.append((services.owning_part(obj) or part, _tag(obj), ref))
+        except Exception:
+            continue  # already gone: not kept
+    return out
 
 
 def _delete(tx, plan: Plan) -> None:
@@ -403,7 +347,7 @@ def _delete(tx, plan: Plan) -> None:
     deleters = hooks("deleter")
     if plan.features:
         deleters["feature"](tx, list(plan.features))
-    present = {(k, int(t)) for k, t in tx.services.snapshot(tx.part)}
+    present = {(k, int(t)) for k, t in _snapshot(tx, plan)}
     sketches = [s for s in plan.sketches if ("sketch", _tag(s)) in present]
     if sketches:
         deleters["sketch"](tx, sketches)
@@ -411,6 +355,16 @@ def _delete(tx, plan: Plan) -> None:
     if loose:
         # curves and points alike: NX's Delete through the update manager
         deleters["curve"](tx, loose)
+
+
+def _snapshot(tx, plan: Plan) -> dict:
+    """The snapshot of the call's part and of the other parts the plan deletes in (NX
+    tags are unique in the session, so the keys never collide)."""
+    services = tx.services
+    out = dict(services.snapshot(tx.part))
+    for other in plan.others.values():
+        out.update(services.snapshot(other))
+    return out
 
 
 def run(tx, plan: Plan) -> dict[str, Any]:
@@ -430,10 +384,13 @@ def run(tx, plan: Plan) -> dict[str, Any]:
             setattr(error, "unchanged", False)  # noqa: B010  # so the kernel rolls back
             raise
     tx.history_note = note
-    before = services.snapshot(part)
+    for other in plan.others.values():  # the kernel reads them back and lists their changes
+        tx.touch_part(other)
+    expressions = _expression_owners(services, part, plan)
+    before = _snapshot(tx, plan)
     if plan.features or plan.sketches or plan.loose:
         _delete(tx, plan)
-    after = services.snapshot(part)
+    after = _snapshot(tx, plan)
     vanished = [k for k in before if k not in after]
     outside = [k for k in vanished if int(k[1]) not in plan.allowed]
     if outside:
@@ -447,7 +404,7 @@ def run(tx, plan: Plan) -> dict[str, Any]:
         )
     alive = [ref for (kind, tag), ref in plan.rows.items() if (kind, tag) in after]
     readback.expect(not alive, "deleted", f"NX did not delete {', '.join(alive)}", objects=alive)
-    kept = [ref for obj, ref in plan.expressions if _present(part, obj)]
+    kept = [ref for owner, tag, ref in expressions if _present(owner, tag)]
     out: dict[str, Any] = {"deleted": len(vanished), "kinds": dict(plan.kinds)}
     if restored:
         out["restored"] = restored
@@ -458,7 +415,9 @@ def run(tx, plan: Plan) -> dict[str, Any]:
     recheck = getattr(services.references, "recheck_anchors", None)
     if recheck is not None:
         with contextlib.suppress(Exception):
-            moved = recheck(key, {k[1] for k in vanished})
+            moved: list = []
+            for each in (key, *plan.others):
+                moved.extend(recheck(each, {k[1] for k in vanished}) or [])
             if moved:
                 out["renumbered"] = moved[:LISTED]
     return out

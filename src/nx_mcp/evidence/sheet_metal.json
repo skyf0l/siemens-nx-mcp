@@ -2,10 +2,10 @@
   "nx_create_sheet_metal_feature": {
     "v2406": {
       "checks": 11,
-      "recorded": "2026-10-13T07:33:34Z",
+      "recorded": "2026-10-15T11:28:48Z",
       "scenario": "acceptance/sheet_metal/three_bend_corner.json",
       "scenario_sha256": "fe0be90a3540b4c56acda34e47216997b5224d8ac99422567aefc59f10cd21ff",
-      "source_sha256": "0cb86ec2b1b68627b15937d5f5b1ee2110821e242858eae414b284fbcb25da32",
+      "source_sha256": "bf3fd67fcbf3614ac852a3481d8b19132a27603a0e2d699d391486c90c3c3fcf",
       "variants": [
         "bead",
         "bend",
@@ -27,6 +27,7 @@
         "hem",
         "jog",
         "lofted_flange",
+        "louver",
         "normal_cutout",
         "rebend",
         "resize_bend_angle",
@@ -41,61 +42,61 @@
   },
   "nx_export_bend_list": {
     "v2406": {
-      "checks": 47,
-      "recorded": "2026-10-13T15:41:01Z",
-      "scenario": "acceptance/sheet_metal/bend_list.json",
-      "scenario_sha256": "6fd574913198fb03e30b0a92fc4a717ad559dc0712bc92fd3b6980c54119d0ae",
-      "source_sha256": "b486bed7a470f4035b0adc777b1ba9978176b9949500978d16485f2af4761c38",
+      "checks": 43,
+      "recorded": "2026-10-15T11:27:51Z",
+      "scenario": "acceptance/sheet_metal/default_followers.json",
+      "scenario_sha256": "8331124dc8721d3dc071663a98c38c3d255a3c454bdff3ee5a56eb54c7f767ac",
+      "source_sha256": "f14dc1f88a5052c11815ad2ae161745190afae4de6a9df04aff28f92713cad74",
       "variants": []
     }
   },
   "nx_export_flat_pattern": {
     "v2406": {
       "checks": 14,
-      "recorded": "2026-10-13T07:33:13Z",
+      "recorded": "2026-10-15T11:28:22Z",
       "scenario": "acceptance/sheet_metal/inch.json",
       "scenario_sha256": "068e2ea6b438fb6885532ecc0ab27981957cc46092d2ac9992e9301ff7816124",
-      "source_sha256": "d148430c523270bb5b98030e73505e276b4781818c8ecaa96085d60c3e69c793",
+      "source_sha256": "d488204612e7c07f7eeaf354ebe78f2c01ef7abf14e72f43defe9f2f584f4594",
       "variants": []
     }
   },
   "nx_get_bend_list": {
     "v2406": {
-      "checks": 47,
-      "recorded": "2026-10-13T15:41:01Z",
-      "scenario": "acceptance/sheet_metal/bend_list.json",
-      "scenario_sha256": "6fd574913198fb03e30b0a92fc4a717ad559dc0712bc92fd3b6980c54119d0ae",
-      "source_sha256": "b486bed7a470f4035b0adc777b1ba9978176b9949500978d16485f2af4761c38",
+      "checks": 43,
+      "recorded": "2026-10-15T11:27:51Z",
+      "scenario": "acceptance/sheet_metal/default_followers.json",
+      "scenario_sha256": "8331124dc8721d3dc071663a98c38c3d255a3c454bdff3ee5a56eb54c7f767ac",
+      "source_sha256": "f14dc1f88a5052c11815ad2ae161745190afae4de6a9df04aff28f92713cad74",
       "variants": []
     }
   },
   "nx_get_sheet_metal": {
     "v2406": {
       "checks": 14,
-      "recorded": "2026-10-13T07:33:13Z",
+      "recorded": "2026-10-15T11:28:22Z",
       "scenario": "acceptance/sheet_metal/inch.json",
       "scenario_sha256": "068e2ea6b438fb6885532ecc0ab27981957cc46092d2ac9992e9301ff7816124",
-      "source_sha256": "95a0511ea3b5bef12af2c1ee901d3bde2d5424d217901961aa0f065f85125285",
+      "source_sha256": "3454f129b2bc6b67a30e503008b92761eeaceb5c96944ae256c116d6957be74c",
       "variants": []
     }
   },
   "nx_get_sheet_metal_defaults": {
     "v2406": {
       "checks": 25,
-      "recorded": "2026-10-13T07:32:58Z",
+      "recorded": "2026-10-15T11:28:05Z",
       "scenario": "acceptance/sheet_metal/flat_pattern_axes.json",
       "scenario_sha256": "eb69e2e8b0ed051ac2e879cd39be3e869928a3aae7e66aecde22a2e8bbd94b66",
-      "source_sha256": "e372a3b710c15e0ee38385076358771f2d93738dbf413087317cf2ca8e366e2f",
+      "source_sha256": "2eea7d3fd0cee2ffe8184fa55b1cefaa01f5f86ee96f54eaa2a0dddf80d0afc9",
       "variants": []
     }
   },
   "nx_set_sheet_metal_defaults": {
     "v2406": {
       "checks": 14,
-      "recorded": "2026-10-13T07:33:13Z",
+      "recorded": "2026-10-15T11:28:22Z",
       "scenario": "acceptance/sheet_metal/inch.json",
       "scenario_sha256": "068e2ea6b438fb6885532ecc0ab27981957cc46092d2ac9992e9301ff7816124",
-      "source_sha256": "e372a3b710c15e0ee38385076358771f2d93738dbf413087317cf2ca8e366e2f",
+      "source_sha256": "2eea7d3fd0cee2ffe8184fa55b1cefaa01f5f86ee96f54eaa2a0dddf80d0afc9",
       "variants": []
     }
   }

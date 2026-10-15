@@ -1,0 +1,240 @@
+{
+ "covers": {
+  "nx_create_decal": [],
+  "nx_delete_decal": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "shape": "block",
+    "length": 100,
+    "width": 60,
+    "height": 20
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "near": [
+     50,
+     30,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "side",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "near": [
+     100,
+     30,
+     10
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_upload_file",
+   "setup": true,
+   "args": {
+    "path": "$run/cleanup_logo.png",
+    "data_base64": "iVBORw0KGgoAAAANSUhEUgAAAMgAAABkCAIAAABM5OhcAAABl0lEQVR4nO3SQRHCUADFwCqpEvyrqBe4ooCXP2wmEva6JEmSJEn66rnvo38f2P16jh6saHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxlggVUcrGhzGWCBVRysaHMZYIFVHKxocxm/gCVJkiRJ+ps+r7FcsdWPvY4AAAAASUVORK5CYII=",
+    "offset": 0,
+    "total_size": 464,
+    "sha256": "42a234490bbaf3cf76626e9ce0e2f7da90862b773c0551eddc14db190074a0b4"
+   }
+  },
+  {
+   "call": "nx_upload_file",
+   "setup": true,
+   "args": {
+    "path": "$run/cleanup_broken.png",
+    "data_base64": "aGVsbG8="
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "setup": true,
+   "save": "exp0",
+   "args": {
+    "kind": "expression"
+   }
+  },
+  {
+   "call": "nx_create_decal",
+   "args": {
+    "face": "$top.data.items.0.id",
+    "image": "$run/cleanup_broken.png",
+    "width": 20
+   },
+   "intent": "Acceptance: a file that is not an image is refused before NX (live: NX said 'End of file on read')",
+   "expect": {
+    "ok": false,
+    "error.code": "NX_UNSUPPORTED_FILE_TYPE",
+    "error.field": "/image",
+    "error.retry": "after_fix",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_decal",
+   "save": "logo",
+   "args": {
+    "face": "$side.data.items.0.id",
+    "image": "$run/cleanup_logo.png",
+    "width": 40,
+    "height": 20,
+    "center": [
+     300,
+     30,
+     10
+    ],
+    "name": "SIDE_LOGO"
+   },
+   "intent": "Acceptance: a center far off the face is snapped and said; the image is reported in the workspace",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.projected": {
+     "close": 200,
+     "tol": 1e-06
+    },
+    "data.decal.center": {
+     "close": [
+      100,
+      30,
+      10
+     ],
+     "tol": 1e-06
+    },
+    "data.decal.image": {
+     "matches": "^[^:]*logo\\.png$"
+    },
+    "warnings": {
+     "count": 1
+    },
+    "warnings.0.code": "NX_NOTE",
+    "warnings.0.message": {
+     "contains": "from the face"
+    }
+   }
+  },
+  {
+   "call": "nx_create_decal",
+   "args": {
+    "face": "$top.data.items.0.id",
+    "image": "$run/cleanup_logo.png",
+    "width": 30,
+    "center": [
+     50,
+     30,
+     20
+    ],
+    "name": "Top_Logo"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.decal.height": {
+     "close": 15,
+     "tol": 1e-06
+    },
+    "warnings": {
+     "count": 0
+    }
+   }
+  },
+  {
+   "call": "nx_delete_decal",
+   "args": {
+    "names": [
+     "top logo"
+    ]
+   },
+   "save": "near",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.deleted": [
+     "Top_Logo"
+    ]
+   }
+  },
+  {
+   "call": "nx_delete_decal",
+   "args": {
+    "names": [
+     "SIDE_LOGOS"
+    ]
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_NOT_FOUND",
+    "error.details.close": [
+     "SIDE_LOGO"
+    ]
+   }
+  },
+  {
+   "call": "nx_delete_decal",
+   "args": {
+    "names": [
+     "SIDE_LOGO",
+     "side_logo"
+    ]
+   },
+   "intent": "Acceptance: a name given twice deletes its decal once (live: NX_ERROR 'Object no longer exists')",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 1,
+    "data.deleted": [
+     "SIDE_LOGO"
+    ]
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "args": {
+    "kind": "expression"
+   },
+   "intent": "Acceptance: the decals' width, height and rotation expressions went with them (live: six pN per decal stayed)",
+   "expect": {
+    "ok": true,
+    "page.total": {
+     "close": "$exp0.page.total",
+     "tol": 0
+    }
+   }
+  },
+  {
+   "call": "nx_list_visual_materials",
+   "args": {
+    "limit": 1
+   },
+   "expect": {
+    "data.in_part": {
+     "count": 0
+    }
+   }
+  }
+ ]
+}

@@ -43,6 +43,39 @@ def _construction(tx, chamfer):
     return [ranked[0][0], ranked[1][0]]
 
 
+def _adjacent(chamfer, sides) -> None:
+    """Each ``between`` face must share an edge with the chamfer face (NX refuses others
+    with 3190163 and no field)."""
+    near = {int(f.Tag) for e in chamfer.GetEdges() for f in e.GetFaces()}
+    for i, side in enumerate(sides):
+        if int(side.Tag) not in near:
+            fail("NX_WRONG_GEOMETRY", f"between[{i}] does not meet the chamfer face",
+                 field=f"/between/{i}",
+                 hint="Pass the two faces the chamfer face shares edges with, or omit between")  # fmt: skip
+
+
+def _warn_duplicate(tx, feature, faces) -> None:
+    """Warn when an earlier label of the same kind already holds one of ``faces``: NX
+    accepts a second label of a labelled face silently."""
+    kind = getattr(feature, "FeatureType", None)
+    tags = {int(f.Tag) for f in faces}
+    for other in tx.part.Features:
+        tx.checkpoint()
+        if other is feature or int(other.Tag) == int(feature.Tag):
+            continue
+        if kind is None or getattr(other, "FeatureType", None) != kind:
+            continue
+        try:
+            held = {int(f.Tag) for f in other.GetFaces()}
+        except Exception:  # NX cannot list the faces of this label: nothing to compare
+            continue
+        if held & tags:
+            row = tx.ref(other, kind="feature")
+            tx.warn("NX_NOTE", f"{row['name']} ({row['id']}) already labels these faces; this "
+                    "call added a second label (delete one with nx_delete_objects)")  # fmt: skip
+            return
+
+
 @tool(
     effect="model",
     label="Label chamfer or group faces",
@@ -93,6 +126,7 @@ def nx_create_face_label(
                         fail("NX_INVALID_ARGUMENT", "between must not hold the chamfer face",
                              field=f"/between/{i}")  # fmt: skip
                 common.one_body([selected[0], *sides], "/between")
+                _adjacent(selected[0], sides)
             else:
                 sides = _construction(tx, selected[0])
         sync_relate.require_synchronous(tx, "Label Chamfer" if kind == "chamfer" else "Group Face")
@@ -110,6 +144,7 @@ def nx_create_face_label(
             b.Rigid = rigid
             feature = b.commit()
     readback.expect(feature is not None, "feature", "NX built no label feature")
+    _warn_duplicate(tx, feature, selected)
     sync_common.consistent(tx, body, "The label")
     out = common.result_of(tx, feature, [body])
     common.changed(before, out["volume"], "same")

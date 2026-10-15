@@ -7,6 +7,8 @@
     engineer = parts.engineer_tab(tx)              # the engineer's displayed part, or None
     parts.explicit(tx, part)                       # loaded by a call of its own
     parts.require_loaded(part, message)            # NX_NOT_LOADED: a component not fully loaded
+    count, unloaded = parts.load_all(tx, part)     # load every component, as saved
+    with parts.loading_as_saved(tx): ...           # components load from their saved folders
     for component, names in parts.components(part): ...
     with parts.saving(tx, part) as updated:        # drawing preview data survives the save
         part.Save(...)                             # updated: views it brought up to date
@@ -45,6 +47,11 @@ NX 2406 findings encoded here:
   with the marks kept; closing the active tab leaves NX with no display part
   (``UG_APP_NOPART``) until a tab is activated again. NX's application stays one per
   session across tab switches.
+- Component load method (``LoadOptions.ComponentLoadMethod``, NX 2406 enum AsSaved 0,
+  FromDirectory 1, SearchDirectories 2): sessions often run ``FromDirectory``, which looks
+  for a component only in the assembly's own folder, so one saved in a subfolder fails
+  with status 641044 ("not found"). Opens and loads switch to ``AsSaved`` for the call
+  (``loading_as_saved``) and try the assembly's folder tree as search folders after that.
 - ``present`` is the tab policy of nx_create_part, nx_open_part and nx_activate_part.
   The engineer tab guard first: while the displayed part is the engineer's
   (``engineer_tab``: not created, opened or granted to the agent), an agent part is
@@ -121,15 +128,31 @@ def _taken(tx, ignore=None) -> set[str]:
 
 
 def unique_name(tx, path, *, ignore=None) -> Path:
-    """``path`` with ``_2``, ``_3``, ... added to its stem: the first name no loaded part
-    uses and no file in its folder has."""
+    """``path`` with ``-2``, ``-3``, ... added to its stem (the suffix the path gate
+    suggests too): the first name no loaded part uses and no file in its folder has."""
     path = Path(path)
     taken = _taken(tx, ignore)
     for n in range(2, 1000):
-        candidate = path.with_name(f"{path.stem}_{n}{path.suffix or '.prt'}")
+        candidate = path.with_name(f"{path.stem}-{n}{path.suffix or '.prt'}")
         if candidate.stem.casefold() not in taken and not candidate.exists():
             return candidate
-    return path.with_name(f"{path.stem}_{uuid.uuid4().hex[:8]}{path.suffix or '.prt'}")
+    return path.with_name(f"{path.stem}-{uuid.uuid4().hex[:8]}{path.suffix or '.prt'}")
+
+
+def shown_path(tx, path) -> str:
+    """``path`` workspace-relative with forward slashes (as given when outside it)."""
+    try:
+        return Path(path).resolve().relative_to(Path(tx.workspace.root).resolve()).as_posix()
+    except Exception:
+        return Path(str(path)).as_posix()
+
+
+def _part_row(tx, part):
+    """The loaded part's ref row (None when the call cannot make one)."""
+    try:
+        return tx.ref(part, "part")
+    except Exception:
+        return None
 
 
 def check_new_name(tx, path, *, field: str | None = "/path", ignore=None) -> None:
@@ -151,12 +174,7 @@ def check_new_name(tx, path, *, field: str | None = "/path", ignore=None) -> Non
         return
     same = same_file(file_of(clash), path)
     name = Path(file_of(clash)).name
-    suggested = unique_name(tx, path, ignore=ignore)
-    try:
-        shown = str(Path(suggested).resolve().relative_to(Path(tx.workspace.root).resolve()))
-    except Exception:
-        shown = str(suggested)
-    shown = shown.replace("\\", "/")
+    shown = shown_path(tx, unique_name(tx, path, ignore=ignore))
     fail(
         "NX_ALREADY_EXISTS" if same else "NX_NAME_CONFLICT",
         (
@@ -167,7 +185,12 @@ def check_new_name(tx, path, *, field: str | None = "/path", ignore=None) -> Non
         ),
         field=field,
         hint=f"Choose a unique file name, e.g. {shown}",
-        details={"path": str(path), "loaded_part_path": file_of(clash), "suggested_path": shown},
+        details={
+            "path": shown_path(tx, path),
+            "loaded_part": _part_row(tx, clash),
+            "loaded_part_path": shown_path(tx, file_of(clash)),
+            "suggested_path": shown,
+        },
     )
 
 
@@ -205,9 +228,12 @@ def _dispose(status) -> None:
 
 def can_be_work(tx, part) -> bool:
     """Whether ``part`` may become the work part while the display part stays: NX
-    accepts only the display part itself or a component prototype under it."""
+    accepts only the display part itself or a component prototype under it. With no
+    display part NX refuses ``SetWork`` (NX 2406: 720037 "There Is No Displayed Part")."""
     display = tx.session.Parts.Display
-    if display is None or same_part(display, part):
+    if display is None:
+        return False
+    if same_part(display, part):
         return True
     return any(same_part(getattr(c, "Prototype", None), part) for c, _ in components(display))
 
@@ -567,55 +593,180 @@ def dependents(tx, target) -> list[str]:
     return out
 
 
-def load_components(tx, part, *, limit: int = 10000) -> int:
-    """Fully load every unsuppressed occurrence prototype; restores partial loading.
+# Native load status codes of a component part NX did not load (PartLoadStatus).
+LOAD_STATUS = {
+    641044: "file not found where NX looked for it (its saved folder or the assembly's)",
+}
 
-    Returns the number of occurrences checked. Unloadable prototypes raise
-    ``NX_IMPORT_FAILED`` with the native status per file.
+
+def load_reason(code) -> str:
+    """Plain words for a native component load status."""
+    try:
+        return LOAD_STATUS.get(int(code), f"NX could not load it (NX status {int(code)})")
+    except (TypeError, ValueError):
+        return "NX could not load it"
+
+
+def load_failures(status) -> list[dict]:
+    """``[{file, nx_code, reason}]`` of the parts a ``PartLoadStatus`` names as not loaded
+    (``[]`` for None or a status without failures)."""
+    out: list[dict] = []
+    for i in range(int(getattr(status, "NumberUnloadedParts", 0) or 0) if status else 0):
+        with contextlib.suppress(Exception):
+            code = status.GetStatus(i)
+            out.append({
+                "file": Path(str(status.GetPartName(i))).name,
+                "nx_code": int(code),
+                "reason": load_reason(code),
+            })  # fmt: skip
+    return out
+
+
+@contextlib.contextmanager
+def loading_as_saved(tx, folder=None):
+    """Load component parts from the folder each was saved in (``LoadMethod.AsSaved``),
+    whatever the session's load option says, then put the option back.
+
+    NX 2406 sessions often load components ``FromDirectory``: only the assembly's own
+    folder, so a component saved in a subfolder fails with status 641044. With ``folder``
+    the components load from the search folders instead: ``folder`` and its subfolders
+    (``LoadMethod.SearchDirectories``; for a tree moved after it was saved), with the
+    session's search folders put back too.
     """
+    options = getattr(tx.session.Parts, "LoadOptions", None)
+    methods = getattr(getattr(tx.nx, "LoadOptions", None), "LoadMethod", None)
+    before = getattr(options, "ComponentLoadMethod", None)
+    searchable = hasattr(options, "GetSearchDirectories") and hasattr(
+        options, "SetSearchDirectories"
+    )
+    if options is None or methods is None or before is None or (folder and not searchable):
+        yield
+        return
+    searched = None
+    try:
+        if folder is not None:
+            searched = options.GetSearchDirectories()
+            options.SetSearchDirectories([str(folder)], [True])
+            options.ComponentLoadMethod = methods.SearchDirectories
+        else:
+            options.ComponentLoadMethod = methods.AsSaved
+        yield
+    finally:
+        with contextlib.suppress(Exception):
+            options.ComponentLoadMethod = before
+        if searched is not None:
+            with contextlib.suppress(Exception):
+                dirs, subs = searched
+                options.SetSearchDirectories(list(dirs), list(subs))
+
+
+def _not_loaded(part) -> list:
+    """Unsuppressed occurrences of ``part`` whose prototype is not fully loaded."""
+    return [
+        (c, names)
+        for c, names in components(part)
+        if not getattr(c, "IsSuppressed", False)
+        and not getattr(getattr(c, "Prototype", None), "IsFullyLoaded", bool(prototype_file(c)))
+    ]
+
+
+def outside_folder_note(assembly, component_file) -> str | None:
+    """The note for a component whose file is not in the assembly's folder (a subfolder
+    or another folder), else None. NX MCP loads components as saved
+    (:func:`loading_as_saved`); an NX session whose load option is "From Folder" looks only
+    in the assembly's folder and reports the component as not found."""
+    top, file = file_of(assembly), str(component_file or "")
+    if not top or not file:
+        return None
+    try:
+        if Path(file).resolve().parent == Path(top).resolve().parent:
+            return None
+    except (OSError, ValueError):
+        return None
+    return (
+        f"{Path(file).name} is not in the assembly's folder: NX MCP loads it from the folder "
+        "it was saved in, but an NX session that loads components from the assembly's folder "
+        "will not find it. Keep component files beside the assembly to share it that way"
+    )
+
+
+def load_all(tx, part, *, limit: int = 10000) -> tuple[int, list[dict]]:
+    """Fully load every unsuppressed occurrence prototype, as saved; restores partial
+    loading. ``(occurrences checked, unloaded rows)``: a row per occurrence still not
+    loaded, ``{component, file, nx_code, reason}``. Occurrences NX could not find as saved
+    are tried once more from the assembly's folder and its subfolders. Never raises for a
+    part NX could not load."""
     options = tx.session.Parts.LoadOptions
     partial = options.UsePartialLoading
     opened: set[int] = set()
+    failures: dict[str, dict] = {}
+
+    def open_all(pending) -> None:
+        status, _ = part.ComponentAssembly.OpenComponents(
+            part.ComponentAssembly.OpenOption.ComponentOnly, pending
+        )
+        try:
+            for row in load_failures(status):
+                failures[row["file"].casefold()] = row
+        finally:
+            _dispose(status)
+
     try:
         options.UsePartialLoading = False
-        while True:
-            pending = [
-                c for c, _ in components(part) if not c.IsSuppressed and int(c.Tag) not in opened
-            ]
-            if not pending:
-                break
-            if len(opened) + len(pending) > limit:
-                fail("NX_TOO_MANY_OBJECTS", f"Loading exceeds {limit} occurrences")
-            status, _ = part.ComponentAssembly.OpenComponents(
-                part.ComponentAssembly.OpenOption.ComponentOnly, pending
-            )
-            try:
-                if status and status.NumberUnloadedParts:
-                    fail(
-                        "NX_IMPORT_FAILED",
-                        "Some component prototypes could not be loaded",
-                        details={
-                            "parts": [
-                                {"path": status.GetPartName(i), "nx_code": status.GetStatus(i)}
-                                for i in range(status.NumberUnloadedParts)
-                            ]
-                        },
-                    )
-            finally:
-                _dispose(status)
-            opened.update(int(c.Tag) for c in pending)
-            if hasattr(tx, "checkpoint"):
-                tx.checkpoint()
+        with loading_as_saved(tx):
+            while True:
+                pending = [
+                    c
+                    for c, _ in components(part)
+                    if not c.IsSuppressed and int(c.Tag) not in opened
+                ]
+                if not pending:
+                    break
+                if len(opened) + len(pending) > limit:
+                    fail("NX_TOO_MANY_OBJECTS", f"Loading exceeds {limit} occurrences")
+                open_all(pending)
+                opened.update(int(c.Tag) for c in pending)
+                if hasattr(tx, "checkpoint"):
+                    tx.checkpoint()
+        missing = _not_loaded(part)
+        folder = Path(file_of(part)).parent if file_of(part) else None
+        if missing and folder is not None:
+            with loading_as_saved(tx, folder):
+                open_all([c for c, _ in missing])
+            missing = _not_loaded(part)
     finally:
         options.UsePartialLoading = partial
-    missing = [
-        {"occurrence": "/".join(names), "path": prototype_file(c) or None}
-        for c, names in components(part)
-        if not c.IsSuppressed and not getattr(c.Prototype, "IsFullyLoaded", bool(prototype_file(c)))
-    ]
+    rows = []
+    for component, names in missing:
+        file = Path(prototype_file(component)).name if prototype_file(component) else None
+        if file is None:  # an unloaded component still knows its file (UF, as saved)
+            with contextlib.suppress(Exception):
+                file = Path(str(tx.uf.Assem.AskComponentData(component.Tag)[0])).name or None
+        failure = failures.get((file or "").casefold())
+        if failure is None and len(failures) == 1 and len(missing) == 1:
+            failure = next(iter(failures.values()))
+        rows.append({
+            "component": "/".join(names),
+            "file": file or (failure or {}).get("file"),
+            "nx_code": (failure or {}).get("nx_code"),
+            "reason": (failure or {}).get("reason") or "not loaded",
+        })  # fmt: skip
+    return len(opened), rows
+
+
+def load_components(tx, part, *, limit: int = 10000) -> int:
+    """:func:`load_all`, failing with ``NX_IMPORT_FAILED`` (``details.parts``: each
+    unloaded component with NX's status in words) when any occurrence stays unloaded."""
+    count, missing = load_all(tx, part, limit=limit)
     if missing:
-        fail("NX_NOT_LOADED", "Some occurrences are still not loaded", details={"missing": missing})
-    return len(opened)
+        fail(
+            "NX_IMPORT_FAILED",
+            "Some component prototypes could not be loaded",
+            hint="Check that the component files exist (nx_list_files); NX looked in the "
+            "folder each was saved in and under the assembly's folder",
+            details={"parts": missing[:50]},
+        )
+    return count
 
 
 def _sheet_views(sheets) -> list:
@@ -624,6 +775,18 @@ def _sheet_views(sheets) -> list:
         with contextlib.suppress(Exception):  # a sheet NX cannot list views of
             views.extend(sheet.GetDraftingViews())
     return views
+
+
+def unchanged_on_disk(part) -> bool:
+    """Whether a save of ``part`` would write nothing new: not modified, its file exists
+    and no drawing view is out of date (a save brings those up to date first)."""
+    if bool(getattr(part, "IsModified", True)):
+        return False
+    path = file_of(part)
+    if not path or not Path(path).is_file():
+        return False
+    sheets = list(getattr(part, "DrawingSheets", None) or [])
+    return not (sheets and drawing.out_of_date(_sheet_views(sheets)))
 
 
 @contextlib.contextmanager
@@ -661,10 +824,7 @@ def saving(tx, part, *, force_display: bool = False, update_views: bool = True):
         elif drawing.current(part) != original:
             drawing.open_sheet(tx, original, part)
         if moved:
-            if display is not None:
-                activate(tx, display, work=False)
-            if work is not None:
-                activate(tx, work, display=False)
+            _restore_parts(tx, display, work)
 
     try:
         if moved:
@@ -681,6 +841,44 @@ def saving(tx, part, *, force_display: bool = False, update_views: bool = True):
         fail(
             "NX_RESTORE_FAILED",
             f"The part was saved but the drawing display was not restored: {error}",
+        )
+
+
+def set_work(tx, work) -> None:
+    """Make ``work`` the work part again: ``SetWork`` where NX takes it (the display part or
+    a component under it), else quietly (``uf.Assem.SetWorkPartQuietly``: a work part
+    outside the display part, as gate 4s leaves it). NX refuses ``SetWork`` there with
+    "Part or occurrence is not a descendant of the root part"."""
+    session_parts = tx.session.Parts
+    if same_part(session_parts.Work, work):
+        return
+    if can_be_work(tx, work):
+        session_parts.SetWork(work)
+        return
+    quietly = getattr(getattr(tx.uf, "Assem", None), "SetWorkPartQuietly", None)
+    if quietly is None:
+        session_parts.SetWork(work)  # NX's own error says why
+        return
+    quietly(work.Tag)
+
+
+def _restore_parts(tx, display, work) -> None:
+    """Put the display and work parts a save found back. The save already happened, so a
+    part NX will not take back is a note, never a failure: the call's own switch (gate 4s)
+    gives the engineer's display and work part back after the call."""
+    try:
+        if display is not None and not same_part(tx.session.Parts.Display, display):
+            activate(tx, display, work=False)
+        if work is not None:
+            set_work(tx, work)
+    except Exception as error:
+        warn = getattr(tx, "warn", None)
+        if warn is None:
+            raise
+        warn(
+            "NX_NOTE",
+            f"The part was saved; NX did not take back the display or work part it had "
+            f"before ({error}). Calls reach parts by their part key, so nothing else changes",
         )
 
 

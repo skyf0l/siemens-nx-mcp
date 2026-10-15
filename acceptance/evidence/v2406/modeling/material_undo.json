@@ -1,0 +1,62 @@
+{
+  "format": 2,
+  "scenario": "acceptance/modeling/material_undo.json",
+  "scenario_sha256": "6dbb81e4f9ca286dc883345a666183a815f60b716bf06870ad14f6e03dfe192d",
+  "domain": "modeling",
+  "covers": {
+    "nx_set_material": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_set_material": "9c3e901ca942664e3056fee694b02bdc439322e72fe968367cedb5e00aa1dec7"
+  },
+  "recorded": "2026-10-15T10:35:54Z",
+  "passed": true,
+  "checks": 5,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_set_material",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_set_material",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 5,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 6,
+      "call": "nx_get_material",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    }
+  ]
+}

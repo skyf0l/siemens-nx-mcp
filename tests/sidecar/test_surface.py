@@ -131,6 +131,7 @@ async def test_find_ranks_by_name_keywords_and_synonyms(tmp_path, tested):
         "summary": "List objects",
         "effect": "read",
         "domain": "inspection",
+        "core": True,  # also a direct MCP tool in the agent profile
     }
     rows = body(await agent.call_tool("nx_find_tools", {"query": "fillet"}))["data"]["tools"]
     names = [r["name"] for r in rows]
@@ -605,7 +606,7 @@ def _top3(query):
         ("measure distance", ["nx_measure_distance"]),
         ("screenshot", ["nx_capture_view"]),
         ("mate parts", ["nx_create_assembly_constraint"]),
-        # pump-cover benchmark misses (2026-10-11)
+        # queries a pump-cover task uses
         ("isometric view", ["nx_create_drawing_view"]),
         ("rectangle sketch", ["nx_create_sketch"]),
         ("list edges", ["nx_list_objects", "nx_find_geometry"]),
@@ -832,14 +833,15 @@ def test_compact_changes_keep_the_main_object_and_count_the_rest():
     }
     store = _Store()
     compact = _project(full, store)
-    assert compact["changes"]["created"] == []  # data shows the pattern: never listed twice
+    # The rows data names at its top level stay: changes alone tell what was made.
+    assert compact["changes"]["created"] == [pattern]
     assert compact["changes"]["counts"] == {"created": {"expression": 8, "feature": 36}}
-    assert compact["omitted"]["/changes/created"] == {"total": 44, "returned": 0}
+    assert compact["omitted"]["/changes/created"] == {"total": 44, "returned": 1}
     assert compact["data"]["volume"] == 1.0 and compact["result_id"]
     assert store.saved == [full] and len(full["changes"]["created"]) == 44  # full kept
 
 
-def test_compact_changes_drop_rows_data_already_shows_and_nx_helpers():
+def test_compact_changes_keep_rows_data_shows_and_drop_nx_helpers():
     from nx_mcp.sidecar.proxy import _project
 
     curves = [_ref(k, "curve", f"Line{k}") for k in range(12)]
@@ -851,8 +853,9 @@ def test_compact_changes_drop_rows_data_already_shows_and_nx_helpers():
         "changes": {"created": curves, "modified": [], "deleted": [], "references": "preserved"},
     }
     compact = _project(full, _Store())
-    assert compact["changes"]["created"] == []  # data lists every curve: nothing is lost
-    assert "counts" not in compact["changes"] and "result_id" not in compact
+    assert compact["changes"]["created"] == [curves[0], curves[-1]]  # also in data
+    assert compact["changes"]["counts"] == {"created": {"curve": 12}}
+    assert compact["omitted"]["/changes/created"]["shown"] == "first_last"
     helpers = [_ref(70 + k, "point", f"ENTITY 2 {k} 1") for k in range(4)]
     helpers += [_ref(80 + k, "curve", f"ENTITY 3 {k} 1") for k in range(4)]
     datum = _ref(9, "datum_plane", "DATUM_PLANE(3)")
@@ -863,7 +866,7 @@ def test_compact_changes_drop_rows_data_already_shows_and_nx_helpers():
 
 def test_small_compact_result_needs_no_result_id():
     """A helper row costs less than the result_id, omitted and counts that would replace
-    it; the row data already shows is dropped without loss."""
+    it; the row data shows stays."""
     from nx_mcp.sidecar.proxy import _project
 
     feature = _ref(5, "feature", "EXTRUDE(2)")
@@ -882,7 +885,7 @@ def test_small_compact_result_needs_no_result_id():
     }
     store = _Store()
     compact = _project(full, store)
-    assert compact["changes"]["created"] == [helper] and "result_id" not in compact
+    assert compact["changes"]["created"] == [helper, feature] and "result_id" not in compact
     assert store.saved == [] and full["changes"]["created"] == [helper, feature]
 
 
@@ -912,7 +915,7 @@ def _pattern_envelope(instances):
     }
 
 
-def test_compact_pattern_lists_no_body_twice_and_shows_first_and_last():
+def test_compact_pattern_shows_first_and_last_bodies():
     from nx_mcp.sidecar.proxy import _project, _size
 
     full = _pattern_envelope(18)
@@ -922,10 +925,9 @@ def test_compact_pattern_lists_no_body_twice_and_shows_first_and_last():
     assert [b["id"] for b in data["bodies"]] == ["b:3", "b:116"]  # seed body, last instance
     assert data["new_bodies"] == 17 and data["count"] == 18
     assert compact["omitted"]["/data/bodies"] == {"total": 18, "returned": 2, "shown": "first_last"}
-    assert compact["changes"]["created"] == []
+    # Created keeps the main objects data names (pattern feature, new bodies): first, last.
+    assert [r["id"] for r in compact["changes"]["created"]] == ["f:10", "b:116"]
     assert compact["changes"]["counts"] == {"created": {"body": 17, "expression": 9, "feature": 19}}
-    ids = [r["id"] for r in data["bodies"]] + [r["id"] for r in compact["changes"]["created"]]
-    assert len(ids) == len(set(ids))
     assert store.saved == [full] and len(full["data"]["bodies"]) == 18
     assert _size(compact) < 1000 and _size(full) > 4000
 
@@ -950,7 +952,7 @@ def test_compact_boolean_shows_first_and_last_deleted_tool():
     }
     compact = _project(full, _Store())
     changes = compact["changes"]
-    assert changes["created"] == [] and changes["modified"] == []  # shown in data
+    assert changes["created"] == [feature] and changes["modified"] == [target]  # also in data
     assert changes["deleted"] == [tools[0], tools[-1]]
     assert changes["counts"] == {"deleted": {"body": 18}}
     assert compact["omitted"] == {

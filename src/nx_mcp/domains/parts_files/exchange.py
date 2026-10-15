@@ -128,7 +128,9 @@ class ExportData(TypedDict):
     surfaces: int | None
     shapes: int | None
     triangles: int | None
-    bounds: Bounds | None
+    bounds: Annotated[
+        Bounds | None, Doc("The file's extent; STEP, Parasolid, DWG: the exported bodies' box")
+    ]
     tolerances: dict | None
     part: result.Row
     part_saved: bool
@@ -616,6 +618,10 @@ def _verify(tx, format, facts, exported, selected, target, opts, log) -> dict:
         readback.expect(file_units == units, "file_units", file_units=file_units, part=units)
     if facts.get("min") is not None:
         report["bounds"] = _check_extent(tx, format, facts, exported, opts)
+    elif exported:  # STEP, Parasolid, DWG: the file states no extent; the bodies' box
+        with contextlib.suppress(Exception):
+            low, high = measure.bounds(tx, exported, exact=measure.wcs_is_absolute(tx))
+            report["bounds"] = {"min": list(low), "max": list(high)}
     return report
 
 

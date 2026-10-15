@@ -192,8 +192,9 @@ def nx_import_points(
     """Create points in the work part from a workspace text file of x y z rows (absolute,
     part units), e.g. a hull offset table. Spaces, tabs, commas or semicolons separate the
     numbers; header lines before the first row, blank lines and '#' comments are skipped;
-    2-10000 rows. Returns the first 500 point refs; nx_create_fit_curve fits a curve
-    through them (or reads the file itself with path)."""
+    2-10000 rows. The points are plain (non-associative) points, not a feature. Returns the
+    first 500 point refs; nx_create_fit_curve fits a curve through them (or reads the file
+    itself with path)."""
     rows = read_rows(path)
     made = import_rows(tx, path, rows)
     listed = [tx.ref(p, kind="point") for p in made[:MAX_LISTED]]
@@ -225,9 +226,27 @@ def _check(shape, count, degree, segments, tolerance, closed, field):
         if tolerance is not None and not float(tolerance) > 0:
             fail("NX_INVALID_ARGUMENT", "tolerance must be positive", field="/tolerance")
         need = (DEFAULT_DEGREE if degree is None else int(degree)) + 1
+    if count < need and shape == "spline" and degree is not None and count >= 2:
+        fail("NX_INVALID_ARGUMENT", f"A degree {degree} fit needs at least {need} points, got "
+             f"{count}", field="/degree",
+             hint=f"Send degree {count - 1} or lower, or fit more points")  # fmt: skip
     if count < need:
         fail("NX_INVALID_ARGUMENT", f"A {shape} fit needs at least {need} points, got {count}",
              field=field)  # fmt: skip
+
+
+def _check_spread(shape, coords, field):
+    """Circle and ellipse fits need points off one line (NX: "Unable to fit curve")."""
+    if shape not in ("circle", "ellipse"):
+        return
+    first = coords[0]
+    far = max(coords, key=lambda p: geom.dist(p, first))
+    axis = geom.sub(far, first)
+    size = geom.norm(axis)
+    off = max((geom.norm(geom.cross(axis, geom.sub(p, first))) for p in coords), default=0.0)
+    if size <= 0 or off <= 1e-6 * size * max(size, 1.0):
+        fail("NX_INVALID_ARGUMENT", f"The points lie on one line: no {shape} fits them",
+             field=field, hint='Send shape "line" for collinear points')  # fmt: skip
 
 
 def _configure(tx, b, shape, targets, degree, segments, tolerance, closed):
@@ -256,6 +275,21 @@ def _deviations(tx, fitted, coords) -> list[float]:
             if i % 500 == 0:
                 tx.checkpoint()
     return out
+
+
+def _one(tx, feature):
+    made = cc.output_curves(tx, feature)
+    readback.expect(len(made) == 1, "curves", "NX built more than one curve", count=len(made))
+    return made[0]
+
+
+def _backwards(tx, fitted, coords) -> bool:
+    """Whether an open fitted curve starts at the last point and ends at the first."""
+    start, end = curve.ends(tx, fitted)
+    first, last = coords[0], coords[-1]
+    return geom.dist(start, last) + geom.dist(end, first) < (
+        geom.dist(start, first) + geom.dist(end, last)
+    )
 
 
 def _shape_facts(tx, shape, fitted, degree, closed) -> dict:
@@ -296,6 +330,9 @@ def _shape_facts(tx, shape, fitted, degree, closed) -> dict:
         "best fit circle",
         "curve through points",
         "smooth points",
+        "approximate scanned points",
+        "point cloud",
+        "best fit",
     ),
     requires=("work_part", "no_active_sketch"),
     variants="shape",
@@ -322,8 +359,9 @@ def nx_create_fit_curve(
     """Create an associative least-squares curve fitted through points. Give point refs, or
     a workspace x y z file whose points are created first (as nx_import_points). spline:
     degree, and segments or a tolerance (default 0.01 mm); line; circle (radius, center);
-    ellipse. Returns max_deviation and mean_deviation, the measured point-to-curve
-    distances. For a curve exactly through few points use nx_create_spline."""
+    ellipse. An open spline runs from the first point to the last. Returns max_deviation and
+    mean_deviation, the measured point-to-curve distances. For a curve exactly through few
+    points use nx_create_spline."""
     source = args.exactly_one(points=points, path=path)
     rows = read_rows(path) if source == "path" else None
     count = len(rows) if rows is not None else len(points or [])
@@ -336,6 +374,10 @@ def nx_create_fit_curve(
             targets = [
                 select.one(tx, r, "point", field=f"/points/{i}") for i, r in enumerate(points)
             ]
+            with native(default="NX_ERROR"):
+                _check_spread(shape, [geom.xyz(p.Coordinates) for p in targets], field)
+        else:
+            _check_spread(shape, rows, field)
     cc.licensed(tx)
     degree = DEFAULT_DEGREE if degree is None else int(degree)
     if shape == "spline" and segments is None and tolerance is None:
@@ -349,9 +391,18 @@ def nx_create_fit_curve(
     with builders.build(tx, tx.part.Features.CreateFitCurveBuilder, None) as b:
         _configure(tx, b, shape, targets, degree, segments, tolerance, closed)
         feature = b.commit()
-    made = cc.output_curves(tx, feature)
-    readback.expect(len(made) == 1, "curves", "NX built more than one curve", count=len(made))
-    fitted = made[0]
+    fitted = _one(tx, feature)
+    backwards = not closed and _backwards(tx, fitted, coords)
+    if backwards and shape != "spline":
+        tx.warn("NX_NOTE", f"The fitted {shape} runs from the last point to the first")
+    elif backwards:
+        # NX 2406 fitted splines from the last point to the first: run it the file's way.
+        with builders.build(tx, tx.part.Features.CreateFitCurveBuilder, feature) as b:
+            b.HasReversedDirection = not bool(b.HasReversedDirection)
+            feature = b.commit() or feature
+        fitted = _one(tx, feature)
+        readback.expect(not _backwards(tx, fitted, coords), "direction",
+                        "The fitted curve runs from the last point to the first")  # fmt: skip
     facts = _shape_facts(tx, shape, fitted, degree, closed)
     gaps = _deviations(tx, fitted, coords)
     start, end = curve.ends(tx, fitted)

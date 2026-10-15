@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/freeform/curve_edit.json",
-  "scenario_sha256": "93bf85b8d4ff7ea7c5666a79bff064aaf3aed68c5a65ad688a97d87caa539608",
+  "scenario_sha256": "eac63ee9a9798304ce389e52cc3481661278fcf92d9d4e471506751fe9122e4c",
   "domain": "freeform",
   "covers": {
     "nx_create_bridge_curve": [],
@@ -15,14 +15,14 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_bridge_curve": "bb11a1ba3bb7525914a8f8848730368c2c31b3f4a4b50c28bd00fd85e2aa85bd",
-    "nx_create_joined_curve": "bb11a1ba3bb7525914a8f8848730368c2c31b3f4a4b50c28bd00fd85e2aa85bd",
-    "nx_create_mirror_curve": "bb11a1ba3bb7525914a8f8848730368c2c31b3f4a4b50c28bd00fd85e2aa85bd",
-    "nx_create_trim_curve": "bb11a1ba3bb7525914a8f8848730368c2c31b3f4a4b50c28bd00fd85e2aa85bd"
+    "nx_create_bridge_curve": "31e0b20599ebed926f66b2f38ecc40905c53988af12cea67eff27b74e53fe941",
+    "nx_create_joined_curve": "31e0b20599ebed926f66b2f38ecc40905c53988af12cea67eff27b74e53fe941",
+    "nx_create_mirror_curve": "31e0b20599ebed926f66b2f38ecc40905c53988af12cea67eff27b74e53fe941",
+    "nx_create_trim_curve": "31e0b20599ebed926f66b2f38ecc40905c53988af12cea67eff27b74e53fe941"
   },
-  "recorded": "2026-10-13T12:50:48Z",
+  "recorded": "2026-10-15T10:59:37Z",
   "passed": true,
-  "checks": 58,
+  "checks": 85,
   "failed_checks": 0,
   "steps": [
     {
@@ -107,7 +107,7 @@
       "call": "nx_create_joined_curve",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 5
     },
     {
       "index": 13,
@@ -171,6 +171,69 @@
       "setup": false,
       "passed": true,
       "checks": 4
+    },
+    {
+      "index": 22,
+      "call": "nx_create_trim_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 23,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 24,
+      "call": "nx_create_joined_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 25,
+      "call": "nx_create_bridge_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 26,
+      "call": "nx_create_bridge_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 27,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 28,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 29,
+      "call": "nx_create_trim_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 30,
+      "call": "nx_create_trim_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 3
     }
   ]
 }

@@ -68,7 +68,7 @@
     },
     "data.inside_sheet": true,
     "data.style.hidden_lines": true,
-    "data.style.hidden_font": 2,
+    "data.style.hidden_font": "dashed",
     "data.style.self_hidden": true,
     "data.construction_geometry": false,
     "data.sheet.name": "SHT1",

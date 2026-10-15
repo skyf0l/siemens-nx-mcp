@@ -24,7 +24,9 @@ NX 2406 measured (``scripts/dev_python.py``):
   the old placement and the cone reads 0), so the tool holds the view in Studio for the
   builder and the read-back and then puts its style back; the placement stays.
 - Colour has no NXOpen setter and no read-back: UF ``View.EditViewLight(name, attributes)``
-  sets it with the intensity, so the tool reports the colour it applied. The call resets
+  sets it with the intensity, so the tool reports the colour it applied. EditViewLight
+  refuses an intensity above 1 ("The second parameter passed in was invalid"), so it gets
+  at most 1 and the builder then sets the real intensity (0..10). The call resets
   the light's fall-off options to NX defaults, and its ``GenerateShadows`` means ray-traced
   hard shadows, so it is passed off and the builder puts the shadow type back. A later
   builder commit keeps the colour. The view shows it only after ``view.Regenerate()``.
@@ -40,8 +42,12 @@ NX 2406 measured (``scripts/dev_python.py``):
 - Captures: a strong red distant light raises the model's mean red in shaded and Studio
   ``nx_capture_view`` images by about 60 of 255, green and blue unchanged (acceptance
   ``display/lights``). True shading uses its own lighting (``nx_set_true_shading``).
+- A part that is not displayed answers for the displayed part's view (its own work view
+  reads no light on), so every tool shows the part it reads or changes (gate 4s).
 - All of this is part data, undone by the kernel's undo mark: a failure rolls back and
-  ``nx_undo_operation`` reverts a success (lights on, intensity, placement, colour).
+  ``nx_undo_operation`` reverts a success (lights on, intensity, placement, colour). In a
+  shared session the compensating undo sets on/off, intensity, shadows and placement back
+  (``@restorer``); a changed colour cannot be read back, so that undo is refused.
 
 NXOpen documents no licence for these calls; the ray-traced and Iray image based lighting
 flags and hard (ray-traced) shadows are never set.
@@ -54,11 +60,11 @@ import difflib
 import re
 from typing import Annotated, Literal, TypedDict
 
-from nx_mcp.core.catalogue import tool
+from nx_mcp.core.catalogue import restorer, tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Point3, Range, Text, Vec3
-from nx_mcp.kit import builders, display, geom, readback, result
+from nx_mcp.kit import builders, display, geom, readback, result, switching
 
 KINDS = {0: "ambient", 1: "distant", 2: "eye", 3: "point", 4: "spot", 6: "scene"}
 SCENE = {0: "ambient", 1: "left_top", 2: "top", 3: "right_top", 4: "front",
@@ -67,6 +73,7 @@ SHADOWED = ("distant", "point", "spot")  # NX: no shadows for ambient, eye or sc
 SHADOW_NAMES = ("NotSet", "SoftEdged", "HardEdged", "TranslucentHard")
 OBSERVER = 0  # UF light mode: fixed to the observer (view coordinates); 1 = to the part
 REACH = 100.0  # distance of a distant light's far end from the origin (direction only)
+EDIT_MAX = 1.0  # highest intensity UF View.EditViewLight takes (NX 2406)
 PRESETS = {f"lighting_{i}": f"Lighting{i}" for i in range(1, 6)}
 TAKES = {
     "color": ("ambient", "distant", "eye", "point", "spot"),
@@ -112,6 +119,7 @@ class LightData(TypedDict, total=False):
 
 class PresetData(TypedDict):
     preset: str
+    previous: str | None
     on: list[str]
     marks_part_modified: bool
 
@@ -237,7 +245,15 @@ def studio(tx, view):
 # ---- tools -------------------------------------------------------------------------------------
 
 
+def _shown_for_read(services, part, args) -> bool:
+    """Gate 4s asks only for a target that is not displayed: lights are read through the
+    displayed view, so that part is shown for the read and the engineer's tab comes back."""
+    return True
+
+
 @tool(
+    target="any",  # the displayed part, or the named or agent's only part
+    display_bound=(_shown_for_read,),
     effect="read",
     label="List lights",
     summary="List the scene lights",
@@ -258,13 +274,13 @@ def nx_list_lights(
     *,
     on_only: Annotated[bool, Doc("Only the lights that are on in the work view")] = False,
 ) -> LightsData:
-    """List the work part's lights with type, on/off in the work view and intensity. Lit
-    distant/point/spot lights add direction, position, target (model coords) and shadows;
-    spots their cone_angle while the view is in Studio style. Types: ambient, distant, eye,
-    point, spot, scene. preset: last lighting preset. NX has no colour read-back. Edit with
+    """List a part's lights with type, on/off in its model view and intensity (part X: X is
+    shown for the read). Lit distant/point/spot lights add direction, position, target
+    (model coords) and shadows; spots cone_angle in Studio style. Types: ambient, distant,
+    eye, point, spot, scene. preset: last lighting preset. No colour read-back. Edit:
     nx_set_light."""
     with tx.checks():
-        part = display.shown_part(tx, work=True)
+        part = display.shown_part(tx)
         view = display.model_view(tx, part)
         preset = _preset(tx, part, view)
     placed = _placed(tx, view)
@@ -330,7 +346,7 @@ def nx_set_light(
     NX cannot create lights: add one by turning on a spare (Distant 1, Point 1, Standard Z
     Spot); on=false removes it. Scene lights take on and intensity only; ambient/eye add
     color. Placing needs the light on. Shows in shaded/Studio views and captures; saved with
-    the part; undo with nx_undo_operation. Names: nx_list_lights."""
+    the part. Undo: nx_undo_operation (not a colour change). Names: nx_list_lights."""
     given = {"color": color, "direction": direction, "position": position, "target": target,
              "cone_angle": cone_angle, "shadows": shadows}  # fmt: skip
     if on is None and intensity is None and all(v is None for v in given.values()):
@@ -354,6 +370,7 @@ def nx_set_light(
                  hint="Add on=true to switch it on in the work view")  # fmt: skip
         before = _row(tx, part, view, light)
         shadow_before = _settings(tx, part, light)["shadow"] if kind in SHADOWED else 0
+        before_on = _on(part, view)
         if direction is not None:
             way = geom.unit([float(v) for v in direction], "/direction")
             source, aim = geom.scale(way, -REACH), [0.0, 0.0, 0.0]
@@ -370,6 +387,25 @@ def nx_set_light(
             if geom.dist(source, aim) <= geom.tol(source, aim):
                 fail("NX_INVALID_ARGUMENT", "target must differ from position", field="/target")
     was_modified = bool(part.IsModified)
+    row = _apply(tx, part, view, light, kind, on=on, intensity=intensity, rgb=rgb,
+                 source=source, aim=aim, cone_angle=cone_angle, shadows=shadows,
+                 shadow_before=shadow_before)  # fmt: skip
+    _verify(row, on, intensity, given)
+    tx.note_restore({"light": str(light.Name), "before": before, "after": row,
+                     "before_on": before_on, "color": rgb is not None})  # fmt: skip
+    out: LightData = {
+        "light": row,
+        "marks_part_modified": not was_modified and bool(part.IsModified),
+    }
+    if rgb is not None:
+        out["color"] = [round(v, 6) for v in rgb]
+    return out
+
+
+def _apply(tx, part, view, light, kind, *, on=None, intensity=None, rgb=None, source=None,
+           aim=None, cone_angle=None, shadows=None, shadow_before=0) -> LightRow:  # fmt: skip
+    """Switch, colour, intensity and placement of one light, then its row read back."""
+    placing = source is not None or aim is not None
     with native(default="NX_BUILD_FAILED"):
         if on is not None:
             light.SetEnabledInView(view, bool(on))
@@ -377,7 +413,8 @@ def nx_set_light(
         if rgb is not None:
             attributes = tx.uf.View.LightAttributes()
             attributes.Red, attributes.Green, attributes.Blue = (round(v * 255) for v in rgb)
-            attributes.Intensity = level
+            # NX 2406 refuses more than 1 here; the builder below sets the real intensity
+            attributes.Intensity = min(level, EDIT_MAX)
             attributes.IntensityFactor = tx.uf.View.LightIntensityFactor.INTENSITY_FACTOR_NONE
             attributes.GenerateShadows = False  # True means hard (ray-traced) shadows
             tx.uf.View.EditViewLight(str(light.Name), attributes)
@@ -398,15 +435,7 @@ def nx_set_light(
                 b.commit()
         with native(default="NX_ERROR"):
             view.Regenerate()  # NX 2406: an edited colour shows only after a regenerate
-        row = _row(tx, part, view, light)
-    _verify(row, on, intensity, given)
-    out: LightData = {
-        "light": row,
-        "marks_part_modified": not was_modified and bool(part.IsModified),
-    }
-    if rgb is not None:
-        out["color"] = [round(v, 6) for v in rgb]
-    return out
+        return _row(tx, part, view, light)
 
 
 def _shadow(tx, b, kind, shadows, before) -> None:
@@ -461,11 +490,12 @@ def nx_set_lighting_preset(tx: Tx, *, preset: Preset) -> PresetData:
     """Replace the lights on in the work view with an NX lighting preset. lighting_1 to
     lighting_5: NX's shaded view lighting sets; scene: all eight scene lights; default: NX's
     default set. Lights switched on with nx_set_light go off. Saved with the part; undo with
-    nx_undo_operation."""
+    nx_undo_operation (the lights on before come back), or apply the previous preset."""
     with tx.checks():
         part = display.shown_part(tx, work=True)
         view = display.model_view(tx, part)
-        _preset(tx, part, view)
+        before_preset = _preset(tx, part, view)
+        before_on = _on(part, view)
     was_modified = bool(part.IsModified)
     if preset in PRESETS:
         wanted = getattr(tx.nx.Display.Lighting.LightingCollectionType, PRESETS[preset])
@@ -484,5 +514,106 @@ def nx_set_lighting_preset(tx: Tx, *, preset: Preset) -> PresetData:
     if preset == "scene":
         scene = [str(x.Name) for x in _lights(part) if kind_of(x)[0] == "scene"]
         readback.expect(set(scene) <= set(on), "scene_lights_on", actual=on)
-    return {"preset": preset, "on": on,
+    tx.note_restore({"preset": before_preset, "before_on": before_on, "after_on": on})
+    return {"preset": preset, "previous": before_preset, "on": on,
             "marks_part_modified": not was_modified and bool(part.IsModified)}  # fmt: skip
+
+
+# ---- compensating undo (shared sessions) ---------------------------------------------------
+
+
+def _shown(tx):
+    """``(part, view, switch or None)``: the work part shown (a lights' view exists only on
+    the displayed part); ``switch`` puts the engineer's display back."""
+    part = tx.part
+    shown = tx.session.Parts.Display
+    switch = None
+    if not display.same(shown, part):
+        switch = switching.Switch(tx, part, "display").enter()
+    return part, display.model_view(tx, part), switch
+
+
+def _lights_on_now(tx, data, check) -> None:
+    """Refuse when the lights on differ from what the operation left (changed since)."""
+    part, view, switch = _shown(tx)
+    try:
+        now = _on(part, view)
+    finally:
+        if switch is not None:
+            switch.restore()
+    if sorted(now) != sorted(data[check]):
+        fail("NX_DEPENDENCY_ORDER", f"The lights on changed since: now {now}",
+             details={"on": now})  # fmt: skip
+
+
+@restorer("nx_set_light")
+def _restore_light(tx, data: dict, *, apply: bool) -> str:
+    """Put a light an ``nx_set_light`` changed back: on/off, intensity, shadows and its
+    placement (refused after a colour change: NX has no colour read-back)."""
+    name, before, after = str(data["light"]), data["before"], data["after"]
+    if data.get("color"):
+        fail("NX_UNSUPPORTED_OPTION", f"The colour of {name} cannot be read back, so it is not "
+             "set back", hint="Set the previous colour with nx_set_light")  # fmt: skip
+    part, view, switch = _shown(tx)
+    try:
+        light = _find(part, name)
+        kind, _scene = kind_of(light)
+        now = _row(tx, part, view, light)
+        if (
+            now.get("on") != after.get("on")
+            or abs(float(now.get("intensity", 0)) - float(after.get("intensity", 0))) > 1e-6
+        ):
+            fail("NX_DEPENDENCY_ORDER", f"{name} changed since: on {now.get('on')}, intensity "
+                 f"{now.get('intensity')}", details={"light": now})  # fmt: skip
+        if not apply:
+            return f"light {name}"
+        source = aim = None
+        placed = before.get("on") and before.get("fixed_to") != "view"  # model coordinates
+        if placed and kind == "distant" and before.get("direction") is not None:
+            source = geom.scale(geom.unit(before["direction"]), -REACH)
+            aim = [0.0, 0.0, 0.0]
+        elif placed and kind in ("point", "spot") and before.get("position"):
+            source = list(before["position"])
+            aim = list(before["target"]) if before.get("target") else None
+        shadows = before.get("shadows") if kind in SHADOWED else None
+        row = _apply(tx, part, view, light, kind, on=bool(before.get("on")),
+                     intensity=float(before["intensity"]), source=source, aim=aim,
+                     shadows=shadows)  # fmt: skip
+        readback.expect(row["on"] == bool(before.get("on")), "on", actual=row["on"])
+        readback.expect_close(row["intensity"], float(before["intensity"]), "intensity", 1e-6)
+        if data.get("before_on") is not None:
+            readback.expect(sorted(_on(part, view)) == sorted(data["before_on"]), "lights_on")
+    finally:
+        if switch is not None:
+            switch.restore()
+    return f"light {name} back to on={before.get('on')}, intensity {before.get('intensity')}"
+
+
+@restorer("nx_set_lighting_preset")
+def _restore_preset(tx, data: dict, *, apply: bool) -> str:
+    """Switch back on exactly the lights that were on before an ``nx_set_lighting_preset``
+    (and that preset when it was one of lighting_1..5)."""
+    _lights_on_now(tx, data, "after_on")
+    if not apply:
+        return "the previous lights"
+    part, view, switch = _shown(tx)
+    try:
+        wanted = set(data["before_on"])
+        previous = data.get("preset")
+        if previous in PRESETS:
+            with builders.build(tx, part.Views.CreateLighting, None) as b:
+                b.LightsShadedViewsLightingCollection = getattr(
+                    tx.nx.Display.Lighting.LightingCollectionType, PRESETS[previous]
+                )
+                b.commit()
+        with native(default="NX_BUILD_FAILED"):
+            for light in _lights(part):
+                if bool(light.GetEnabledInView(view)) != (str(light.Name) in wanted):
+                    light.SetEnabledInView(view, str(light.Name) in wanted)
+            view.Regenerate()
+        now = _on(part, view)
+        readback.expect(sorted(now) == sorted(wanted), "lights_on", actual=now)
+    finally:
+        if switch is not None:
+            switch.restore()
+    return f"the lights on before ({previous or 'user_defined'})"

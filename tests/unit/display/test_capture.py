@@ -47,7 +47,9 @@ def test_viewport_capture_reports_the_window_size_and_an_inline_image():
 def test_a_given_size_is_honoured_by_a_studio_render_of_the_shaded_view():
     nx = display_nx()
     ok = run(nx, "nx_capture_view", width=800, height=500, path="shots/v.png")
-    assert ok.ok and not ok.warnings, ok
+    assert ok.ok, ok
+    assert [w["code"] for w in ok.warnings] == ["NX_NOTE"]  # the quality switch is said
+    assert "1012x1794" in ok.warnings[0]["message"] and "800x500" in ok.warnings[0]["message"]
     assert ok.data["resolution"] == [800, 500] and ok.data["quality"] == "studio"
     assert files.png_size(root(nx) / "shots" / "v.png") == (800, 500)
     assert [c.kind for c in nx.captures] == ["viewport", "studio"]

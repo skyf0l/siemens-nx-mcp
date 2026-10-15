@@ -1,0 +1,139 @@
+{
+ "covers": {
+  "nx_create_tube": [],
+  "nx_create_helix": [],
+  "nx_create_rib": [
+   "perpendicular"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "gap",
+   "args": {
+    "placement": "xy",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       0,
+       0
+      ],
+      "end": [
+       50,
+       0
+      ]
+     },
+     {
+      "type": "line",
+      "start": [
+       60,
+       0
+      ],
+      "end": [
+       100,
+       0
+      ]
+     }
+    ],
+    "finish": true
+   }
+  },
+  {
+   "call": "nx_create_tube",
+   "args": {
+    "path": "$gap.data.sketch.id",
+    "outer_diameter": 4
+   },
+   "expect": {
+    "error.code": "NX_WRONG_GEOMETRY",
+    "error.field": "/path",
+    "error.details.gap": {
+     "close": 10,
+     "tol": 1e-06
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "c",
+   "args": {
+    "shape": "cylinder",
+    "origin": [
+     100,
+     0,
+     0
+    ],
+    "diameter": 20,
+    "height": 30
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "cf",
+   "args": {
+    "owner": "$c.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "order": "nearest",
+    "near": [
+     110,
+     0,
+     15
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_helix",
+   "args": {
+    "axis": "$cf.data.items.0.id",
+    "radius": 12,
+    "pitch": 4,
+    "turns": 2
+   },
+   "intent": "A helix about a cylinder face starts at the lower end of the face",
+   "expect": {
+    "data.axis.origin": {
+     "close": [
+      100,
+      0,
+      0
+     ],
+     "tol": 0.0001
+    },
+    "data.end.2": {
+     "close": 8,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_rib",
+   "args": {
+    "sketch": "$c.data.bodies.0.id",
+    "body": "$c.data.bodies.0.id",
+    "thickness": 2
+   },
+   "expect": {
+    "error.code": "NX_WRONG_KIND",
+    "error.field": "/sketch",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

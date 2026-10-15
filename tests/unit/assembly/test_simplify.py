@@ -97,6 +97,10 @@ def test_fills_holes_into_a_destination_part(nx):
     assert b.UseHoleDiameter and b.MaximumHoleSize.Value == 50
     assert b.UseBodySize and b.MinimumBodySize.Value == 2 and not b.UseBlendRadius
     assert b.UniteBodies is False
+    again = run(nx, "nx_create_simplified_assembly", part="asm", objects=[nx.a.ref],
+                destination_part="module")  # fmt: skip
+    assert again.error["field"] == "/destination_part" and again.mutation_outcome == "not_started"
+    assert len(again.error["details"]["bodies"]) == 1 and len(module.Bodies) == 1
 
 
 def test_refusals_and_an_empty_result(nx):

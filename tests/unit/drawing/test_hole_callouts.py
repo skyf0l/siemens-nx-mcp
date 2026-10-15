@@ -114,13 +114,17 @@ def test_callout_refusals_happen_before_nx():
     nx = holes_nx()
     neither = run(nx, "nx_create_drawing_dimension", view=nx.top.ref, kind="hole_callout")
     assert neither.error["code"] == "NX_INVALID_ARGUMENT" and neither.error["field"] == "/hole"
+    assert "exactly one" in neither.error["message"]
+    both = run(nx, "nx_create_drawing_dimension", view=nx.top.ref, kind="hole_callout",
+               hole="f:1", first=nx.hole.ref)  # fmt: skip
+    assert both.error["field"] == "/first" and "not both" in both.error["message"]
     second = run(nx, "nx_create_drawing_dimension", view=nx.top.ref, kind="hole_callout",
                  first=nx.hole.ref, second=nx.corner.ref)  # fmt: skip
     assert second.error["field"] == "/second"
     not_hole = run(nx, "nx_create_drawing_dimension", view=nx.top.ref, kind="hole_callout",
                    first=nx.corner.ref)  # fmt: skip
     assert not_hole.error["code"] == "NX_WRONG_KIND" and not_hole.error["field"] == "/first"
-    for result in (neither, second, not_hole):
+    for result in (neither, both, second, not_hole):
         assert result.mutation_outcome == "not_started"
     assert not nx.builders
 

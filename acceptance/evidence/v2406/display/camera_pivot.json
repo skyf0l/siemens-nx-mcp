@@ -1,0 +1,99 @@
+{
+  "format": 2,
+  "scenario": "acceptance/display/camera_pivot.json",
+  "scenario_sha256": "14053f4f69bf9ed2878f44b520f36e148ba0d1fdd04666dc20000bed0c5a96c3",
+  "domain": "display",
+  "covers": {
+    "nx_set_camera": [],
+    "nx_get_camera": []
+  },
+  "nx_version": "v2406",
+  "nx_build": "2406.9160",
+  "sources": {
+    "nx_set_camera": "51cbd96836b27d7a99931c68462311231f3edce72e7535979d0d42018548901a",
+    "nx_get_camera": "51cbd96836b27d7a99931c68462311231f3edce72e7535979d0d42018548901a"
+  },
+  "recorded": "2026-10-15T10:47:26Z",
+  "passed": true,
+  "checks": 24,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_set_visibility",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_set_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 6,
+      "call": "nx_set_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 7,
+      "call": "nx_set_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 8,
+      "call": "nx_set_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 9,
+      "call": "nx_get_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 10,
+      "call": "nx_set_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 11,
+      "call": "nx_set_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}

@@ -265,7 +265,15 @@ def _summary(a, say):
     effect="view",
     label="Create section view",
     summary=_summary,
-    keywords=("section view", "clipping plane", "cut view", "dynamic section", "cross section"),
+    keywords=(
+        "section view",
+        "clipping plane",
+        "cut view",
+        "dynamic section",
+        "cross section",
+        "look inside",
+        "see inside cut",
+    ),
     requires=("work_part",),
     cost="light",
     example={"plane": {"origin": [10, 0, 0], "normal": [1, 0, 0]}},
@@ -280,18 +288,20 @@ def nx_create_section_view(
 ) -> SectionData:
     """Cut the model view with a section plane, {origin, normal} or 'xz' + offset; the model
     is unchanged. The normal's side is hidden (hidden_side). Saved with the part until
-    nx_delete_objects (remove_with). One active at a time."""
+    nx_delete_objects (remove_with). One cuts at a time: a new one needs the cutting one
+    switched off (nx_edit_section_view enabled=false), which enabled=true turns back on."""
     origin, normal = _plane(plane, offset)
     with tx.checks():
         part, view = _context(tx)
         _note_reverts(tx, part, view)
         current = view.ActiveDynamicSection
-        if current is not None:
+        if current is not None and bool(view.DisplaySectioningToggle):
             fail(
                 "NX_ALREADY_EXISTS",
-                "A section is already active in the view",
-                hint="Move it with nx_edit_section_view(section=details.section.id, plane=...) "
-                "or delete it with nx_delete_objects",
+                "A section already cuts the view",
+                hint="Move it with nx_edit_section_view(section=details.section.id, plane=...), "
+                "switch it off there (enabled=false) to add another, or delete it with "
+                "nx_delete_objects",
                 details={"section": tx.ref(current, "section_view")},
             )
     with guarded(tx, part, view):
@@ -312,7 +322,15 @@ def nx_create_section_view(
     effect="view",
     label="Edit section view",
     summary="Edit section {section}",
-    keywords=("move section", "section plane", "enable section", "disable section", "cap"),
+    keywords=(
+        "move section",
+        "section plane",
+        "enable section",
+        "disable section",
+        "turn off section",
+        "switch section",
+        "cap",
+    ),
     requires=("work_part",),
     cost="light",
     example={"section": "sv:5", "enabled": False},
@@ -408,8 +426,15 @@ def list_sections(tx, owner, owner_kind):
 
 @deleter("section_view")
 def delete_sections(tx, objects):
+    """Delete sections and forget what create and edit remembered of them, by the tags
+    read before the delete (a deleted object's tag no longer reads back), so the listing
+    nx_delete_objects runs afterwards names no section as reverted."""
     part = tx.part
-    display.delete_sections(tx, part, display.model_view(tx, part), objects)
+    tags = [int(obj.Tag) for obj in objects]
     known = _remembered(tx, part)
-    for obj in objects:
-        known.pop(int(obj.Tag), None)
+    held = {tag: known.pop(tag) for tag in tags if tag in known}
+    try:
+        display.delete_sections(tx, part, display.model_view(tx, part), objects)
+    except BaseException:
+        known.update(held)  # nothing deleted: they are still the remembered sections
+        raise

@@ -44,6 +44,9 @@ def test_write_new_is_exclusive(tmp_path):
         files.write_new(target, b"zzz")
     assert caught.value.code == "NX_ALREADY_EXISTS"
     assert target.read_bytes() == b"abc"
+    with pytest.raises(NXError) as named:
+        files.write_new(target, b"zzz", root=tmp_path)
+    assert named.value.details == {"path": "d/f.dxf"}  # workspace-relative
 
 
 def test_png_size_reads_the_header_only(tmp_path):

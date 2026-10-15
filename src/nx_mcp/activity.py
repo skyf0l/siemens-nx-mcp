@@ -1,6 +1,6 @@
 """Agent activity history for the NX MCP panel and the workspace activity log.
 
-Standard library only: the NX-side control panel imports this. Each entry says
+Standard library and ``nx_mcp.core`` only: the NX-side control panel imports this. Each entry says
 what ran (the request summary), what it created, and what happened to the
 model when it failed. Read-only steps are grouped so they do not push model
 changes out of the short panel history. While two or more parts are loaded, every
@@ -16,6 +16,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from nx_mcp.core.errors import counted
 
 LINE_WIDTH = 84
 ENGINEER_CHANGE = "You changed the model — agent will re-read its references"
@@ -135,10 +137,10 @@ def created_name(result: dict[str, Any]) -> str | None:
     for kind in _MAIN_KINDS:
         main = [c for c in created if c.get("kind") == kind]
         if main:
-            return str(main[0]["name"]) if len(main) == 1 else f"{len(main)} {kind}s"
+            return str(main[0]["name"]) if len(main) == 1 else counted(len(main), kind)
     kinds = {c.get("kind") for c in created}
     if len(created) > 1 and len(kinds) == 1 and None not in kinds:
-        return f"{len(created)} {kinds.pop()}s"  # e.g. a rectangle's 4 curves
+        return counted(len(created), str(kinds.pop()))  # e.g. a rectangle's 4 curves
     return str(created[0]["name"])
 
 

@@ -198,6 +198,28 @@
    }
   },
   {
+   "call": "nx_create_projected_curve",
+   "intent": "Along -z onto the whole block: the top and the bottom are hit; the bottom one is flagged as far side",
+   "args": {
+    "curves": [
+     "$ln.data.curve.id"
+    ],
+    "faces": [
+     "$blk.data.bodies.0.id"
+    ],
+    "along": "vector",
+    "direction": "-z"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 2,
+    "data.far_curves": {
+     "count": 1
+    },
+    "warnings.0.code": "NX_UPDATE_WARNING"
+   }
+  },
+  {
    "call": "nx_check_model",
    "args": {},
    "expect": {

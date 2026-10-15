@@ -322,3 +322,96 @@ def test_reading_neither_table_nor_sheet_names_both_routes():
     assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/table"
     assert "nx_list_objects kind=drawing_table" in bad.error["hint"]
     assert "title block" in bad.error["hint"]
+
+
+def _block(nx, name):
+    block = type("TitleBlock", (Object,), {})(name)
+    block.OwningPart, block.IsOccurrence = nx.part, False
+    block.AnnotationOrigin = point(400, 20, 0)
+    nx.dependent[block.Tag] = (1, "SHT1@0")
+    return block
+
+
+def test_a_sheet_without_a_title_block_reads_its_tables(monkeypatch):
+    nx = grid_nx()
+    rev = revision(nx, [["A", "First"]], [10, 60])
+    nx.part.DraftingManager.TitleBlocks = []
+    ok = run(nx, "nx_get_drawing_table", sheet=nx.sheet_obj.ref)
+    assert ok.ok and ok.data["table"] is None, ok
+    assert [t["id"] for t in ok.data["tables"]] == [rev.data["table"]["id"]]
+    assert any("no title block" in w["message"] for w in ok.warnings)
+    monkeypatch.setattr(title_blocks, "read", lambda tx, obj: [])
+    monkeypatch.setattr(title_blocks, "sections", lambda tx, obj: [])
+    nx.part.DraftingManager.TitleBlocks = [_block(nx, "TB1"), _block(nx, "TB2")]
+    two = run(nx, "nx_get_drawing_table", sheet=nx.sheet_obj.ref)
+    assert two.error["code"] == "NX_AMBIGUOUS_REFERENCE" and "candidates" in two.error["hint"]
+    assert len(two.error["details"]["candidates"]) == 2
+
+
+def test_revision_rows_are_appended_below_the_current_ones():
+    nx = grid_nx()
+    rev = revision(nx, [["A", "First"], ["B", "Holes"]], [10, 60])
+    ref = rev.data["table"]["id"]
+    ok = run(nx, "nx_edit_drawing_table", table=ref, kind="revision", append_rows=[["C", "Slot"]])
+    assert ok.ok, ok
+    assert ok.data["rows"] == [["A", "First"], ["B", "Holes"], ["C", "Slot"]]
+    both = run(nx, "nx_edit_drawing_table", table=ref, kind="revision", rows=[["A", "x"]],
+               append_rows=[["D", "y"]])  # fmt: skip
+    assert both.error["field"] == "/append_rows" and both.mutation_outcome == "not_started"
+    short = run(nx, "nx_edit_drawing_table", table=ref, kind="revision", append_rows=[["D"]])
+    assert short.error["field"] == "/append_rows" and short.mutation_outcome == "not_started"
+
+
+def test_the_title_blocks_already_on_a_sheet_are_found_for_the_duplicate_warning():
+    nx = grid_nx()
+    other = nx.make_sheet("SHT2")
+    block = _block(nx, "TB1")
+    nx.part.DraftingManager.TitleBlocks = [block]
+    assert tables._title_blocks_on(nx.tx, nx.sheet_obj) == [block]
+    assert tables._title_blocks_on(nx.tx, other) == []
+
+
+class IdSymbols(list):
+    def __init__(self, nx, texts):
+        super().__init__()
+        self.nx, self.texts = nx, texts
+
+    def CreateIdSymbolBuilder(self, existing):
+        b = self.nx.builder("IdSymbolBuilder", existing)
+        b.UpperText, b.LowerText = self.texts[int(existing.Tag)], ""
+        return b
+
+
+def test_balloons_report_their_item_number_row_and_component(monkeypatch):
+    nx = grid_nx()
+    view = make_view(nx, nx.sheet_obj)
+    plist = Object("PARTS_LIST")
+    plist.OwningPart, plist.IsOccurrence = nx.part, False
+    component = Object("PIN_1")
+    component.OwningPart, component.IsOccurrence = nx.part, True
+    component.__class__ = type("Component", (Object,), {})
+    # NX attaches a balloon to the view's drafting curve of a component edge.
+    edge = NS(Tag=7777, OwningComponent=component)
+    curve = NS(Tag=7778, OwningComponent=None)
+    nx.uf.Draw.AskDraftingCurveParents = lambda tag: (1, [7777]) if int(tag) == 7778 else 1 / 0
+    nx.nx.TaggedObjectManager = NS(GetTaggedObject=lambda tag: {7777: edge}[int(tag)])
+    symbols = nx.part.Annotations.IdSymbols = IdSymbols(nx, {})
+
+    def show(shown):
+        balloon = Object("BALLOON")
+        balloon.OwningPart, balloon.IsOccurrence = nx.part, False
+        balloon.NumberOfAssociativities = 1
+        balloon.GetAssociativity = lambda i: NS(FirstObject=curve)
+        symbols.texts[int(balloon.Tag)] = "2"
+        symbols.append(balloon)
+
+    plist.ShowBalloonsInView = show
+    nx.part.Annotations.PartsLists.append(plist)
+    monkeypatch.setattr(tables, "table_info", lambda tx, obj, *a: {
+        "rows": [["1", "PLATE", "1"], ["2", "PIN", "2"]]})  # fmt: skip
+    ok = run(nx, "nx_create_balloons", parts_list=nx.ref_of(plist, "drawing_table"),
+             view=view.ref)  # fmt: skip
+    assert ok.ok, ok
+    balloon = ok.data["balloons"][0]
+    assert balloon["text"] == "2" and balloon["row"] == 1
+    assert balloon["component"]["id"] == nx.ref_of(component, "component")

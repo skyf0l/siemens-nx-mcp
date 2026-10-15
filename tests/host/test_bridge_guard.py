@@ -122,3 +122,22 @@ async def test_a_waiting_client_still_gets_its_answer():
         assert (await task) == {"ran": "nx_create_primitive"}
     finally:
         server.stop()
+
+
+def test_a_read_fails_fast_when_nx_does_not_take_it():
+    """A read waits READ_QUEUE_TIMEOUT at most (nothing ran, retry); others the full queue."""
+    assert bridge.queue_timeout("nx_list_parts") == bridge.READ_QUEUE_TIMEOUT < QUEUE_TIMEOUT
+    assert bridge.queue_timeout("nx_create_extrude") == QUEUE_TIMEOUT
+    assert bridge.queue_timeout("not_a_tool") == QUEUE_TIMEOUT
+    waits = {"nx_list_parts": 0.05, "nx_create_extrude": 5.0}
+    held = MainThreadDispatcher(lambda m, p: {}, timeout=5, queue_timeout_for=waits.get)
+    started = time.monotonic()
+    with pytest.raises(NXError) as caught:
+        held.call("nx_list_parts", {})
+    assert time.monotonic() - started < 2
+    assert caught.value.code == "NX_BUSY" and "waited 0 s" in caught.value.message
+    assert caught.value.details["mutation_outcome"] == "not_started"
+    broken = MainThreadDispatcher(lambda m, p: {}, timeout=5, queue_timeout=0.05,
+                                  queue_timeout_for=lambda m: 1 / 0)  # fmt: skip
+    with pytest.raises(NXError):  # a failing rule falls back to queue_timeout
+        broken.call("x", {})

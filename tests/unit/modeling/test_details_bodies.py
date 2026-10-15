@@ -1,6 +1,7 @@
 """Blend, chamfer, shell, draft, boolean, trim, scale, transform, face edits and materials
 (mirror and pattern: test_patterns) on the shared fake, through the real kernel."""
 
+import math
 from types import SimpleNamespace as NS
 
 import pytest
@@ -112,6 +113,19 @@ def test_chamfer_errors_point_at_the_field_and_say_what_to_send(args, field, wor
     assert words in bad.error["hint"], bad
 
 
+def tilts(nx, block, face, angle, volume):
+    """A draft commit that tilts ``face`` (a +x wall) by ``angle`` degrees about z."""
+    a = math.radians(angle)
+
+    def hook(b):
+        block.volume = volume
+        kind, origin, _normal = nx.face_data[face.Tag]
+        nx.face_data[face.Tag] = (kind, origin, (math.cos(a), 0.0, math.sin(a)))
+        return feature(nx, "DRAFT", [block])
+
+    nx.on_commit("DraftBuilder", hook)
+
+
 def test_shell_and_draft():
     nx = modeling_nx()
     block = nx.block(40, 20, 10)
@@ -125,14 +139,14 @@ def test_shell_and_draft():
     assert bad.error["code"] == "NX_WRONG_OWNER" and bad.changes["references"] == "preserved"
     side = nx.ref_of(block.face((1, 0, 0)), "face")
     bottom = nx.ref_of(block.face((0, 0, -1)), "face")
-    changes(nx, "DraftBuilder", block, 1950.0)
+    tilts(nx, block, block.face((1, 0, 0)), 5, 1950.0)
     drafted = run(nx, "nx_create_draft", faces=[side], stationary_face=bottom,
                   direction={"principal": "z"}, angle=5)  # fmt: skip
     assert drafted.ok, drafted
     assert nx.last("DraftBuilder").FaceSetAngleExpressionList.Append.calls[0][0][0].args[1] == "5.0"
     bottom = nx.ref_of(block.face((0, 0, -1)), "face")
     side = nx.ref_of(block.face((1, 0, 0)), "face")
-    changes(nx, "DraftBuilder", block, 1900.0)
+    tilts(nx, block, block.face((1, 0, 0)), 3, 1900.0)
     bare = run(nx, "nx_create_draft", faces=[side], stationary_face=bottom,
                direction="-z", angle="-3deg")  # fmt: skip
     assert bare.ok, bare  # a bare principal name is a direction
@@ -341,7 +355,7 @@ def test_materials_assign_verify_and_read():
 
 
 # ---------------------------------------------------------------------------
-# Live tester batch b25: guidance and short forms
+# Guidance and short forms
 
 
 def test_boolean_refuses_a_tool_apart_from_the_target_before_nx():

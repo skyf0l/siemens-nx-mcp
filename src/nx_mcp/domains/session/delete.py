@@ -19,10 +19,11 @@ from __future__ import annotations
 import contextlib
 from typing import Annotated, NoReturn, TypedDict
 
-from nx_mcp.core.catalogue import hooks, tool
-from nx_mcp.core.errors import fail
+from nx_mcp.core.catalogue import deleter, hooks, tool
+from nx_mcp.core.errors import fail, native, with_article
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Ref
+from nx_mcp.kit import expr as kexpr
 from nx_mcp.kit import readback
 from nx_mcp.kit.result import Row
 
@@ -43,7 +44,8 @@ DISPLAYED_KINDS = (
 )
 KIND_HINTS = {
     "body": "Delete the feature that made the body (nx_list_objects kind feature)",
-    "expression": "An expression goes with its feature; change it with nx_set_expression",
+    "expression": "A feature's expression goes with its feature (delete the feature); "
+    "change its value with nx_set_expression",
     "face": "Delete curves or constraints inside a sketch with nx_edit_sketch_curves, "
     "faces with nx_edit_faces, a body by deleting its feature",
 }
@@ -94,11 +96,62 @@ def _refuse_kind(tx, i: int, ref: str, obj, kind: str, deletable: list[str]) -> 
             )
     fail(
         "NX_WRONG_KIND",
-        f"{ref} is a {kind}; nx_delete_objects cannot delete that kind",
+        f"{ref} is {with_article(kind)}; nx_delete_objects cannot delete that kind",
         field=f"/objects/{i}",
         hint=hint,
         details=details,
     )
+
+
+def _expression_users(tx, exp) -> list[str]:
+    """What uses an expression: the expressions whose formula names it and the feature
+    that owns it as a parameter (names; empty: unused)."""
+    users = [str(getattr(e, "Name", "") or "") for e in kexpr.dependents(exp)]
+    tag = int(exp.Tag)
+    for feature in getattr(tx.part, "Features", None) or []:
+        query = getattr(feature, "GetExpressions", None)
+        with contextlib.suppress(Exception):
+            if query is not None and any(int(e.Tag) == tag for e in query() or []):
+                users.append(str(getattr(feature, "JournalIdentifier", "") or feature.Name))
+    return users
+
+
+@deleter("expression")
+def delete_expressions(tx, objects):
+    """A user expression nothing uses (``Expressions.Delete``); a feature's parameter goes
+    with its feature."""
+    for exp in objects:
+        users = _expression_users(tx, exp)
+        if users:
+            fail(
+                "NX_DEPENDENCY_ORDER",
+                f"Expression {exp.Name} is used by {', '.join(users[:5])}",
+                hint="Delete or edit what uses it first; a feature's parameter goes with its "
+                "feature",
+                details={"used_by": users[:20]},
+            )
+        with native(default="NX_DEPENDENCY_ORDER"):
+            tx.part.Expressions.Delete(exp)
+
+
+def _one_target(groups: dict) -> None:
+    """A sketch listed with its own sketch feature is deleted once, through the feature
+    (NX deletes the sketch with it; deleting both fails in NX)."""
+    features = {int(f.Tag) for f in groups.get("feature") or []}
+    sketches = groups.get("sketch")
+    if not features or not sketches:
+        return
+    kept = []
+    for sketch in sketches:
+        feature = None
+        with contextlib.suppress(Exception):
+            feature = sketch.Feature
+        if feature is None or int(feature.Tag) not in features:
+            kept.append(sketch)
+    if kept:
+        groups["sketch"] = kept
+    else:
+        del groups["sketch"]
 
 
 @tool(
@@ -120,6 +173,7 @@ def _refuse_kind(tx, i: int, ref: str, obj, kind: str, deletable: list[str]) -> 
     requires=("work_part",),
     cost="light",
     batchable=True,
+    previewable=True,
     example={"objects": ["f:12"]},
 )
 def nx_delete_objects(
@@ -129,10 +183,11 @@ def nx_delete_objects(
         list[Ref], Items(1, 100), Doc("Ids such as f:12 or s:3 to delete; mixed kinds allowed")
     ],
 ) -> DeleteData:
-    """Delete 1-100 objects (ids like f:12) of the work part in one undoable step.
+    """Delete 1-100 objects (ids like f:12) of the work part in one step.
     Kinds: feature, sketch, curve, component, explosion, traceline, annotation, dimension,
-    drawing_table, section_view, drawing_sheet, drawing_view; a body goes with its
-    feature. Objects NX deleted with them are dependents."""
+    drawing_table, section_view, drawing_sheet, drawing_view, unused expression; a body goes
+    with its feature. Objects NX deleted with them are dependents. nx_undo_operation reverts
+    a delete only until another part changes; suppress a feature to keep it recoverable."""
     deleters = hooks("deleter")
     groups: dict[str, list] = {}
     rows: dict[int, Row] = {}
@@ -144,10 +199,22 @@ def nx_delete_objects(
                 _refuse_kind(tx, i, ref, obj, kind, sorted(deleters))
             if kind != "component":  # a component's deleter checks it is a direct child
                 tx.resolve(ref, work_part=True)
+            if kind == "expression":
+                users = _expression_users(tx, obj)
+                if users:
+                    fail(
+                        "NX_DEPENDENCY_ORDER",
+                        f"{ref} ({obj.Name}) is used by {', '.join(users[:5])}",
+                        field=f"/objects/{i}",
+                        hint="Delete or edit what uses it first; a feature's parameter goes "
+                        "with its feature",
+                        details={"ref": ref, "used_by": users[:20]},
+                    )
             tag = int(obj.Tag)
             if tag not in rows:
                 rows[tag] = tx.ref(obj, kind)
                 groups.setdefault(kind, []).append(obj)
+        _one_target(groups)
     services = tx.services
     part = tx.part
     before = services.snapshot(part)
@@ -180,6 +247,12 @@ def nx_delete_objects(
             row = services.describe(entry, live=False)
             row["part"] = part_id
             dependents.append(row)
+    if len(list(services.parts() or [])) > 1:
+        tx.warn(
+            "NX_NOTE",
+            "nx_undo_operation reverts this delete only until another part changes (only "
+            "NX's undo brings deleted objects back)",
+        )
     return {
         "deleted": list(rows.values()),
         "dependents": dependents[:MAX_DEPENDENTS],

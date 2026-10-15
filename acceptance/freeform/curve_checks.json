@@ -1,0 +1,310 @@
+{
+ "covers": {
+  "nx_create_mirror_curve": [],
+  "nx_create_general_conic": [],
+  "nx_create_law_curve": [],
+  "nx_create_offset_curve": [],
+  "nx_create_isoparametric_curves": [
+   "uniform"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "a",
+   "args": {
+    "points": [
+     [
+      10,
+      0,
+      0
+     ],
+     [
+      30,
+      0,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "b",
+   "args": {
+    "points": [
+     [
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      20,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_mirror_curve",
+   "intent": "A curve in the mirror plane is skipped (its mirror would duplicate it); the other is mirrored",
+   "args": {
+    "curves": [
+     "$a.data.curve.id",
+     "$b.data.curve.id"
+    ],
+    "plane": "yz"
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 1,
+    "data.length": {
+     "close": 20,
+     "tol": 0.001
+    },
+    "data.symmetry_gap": {
+     "close": 0,
+     "tol": 0.001
+    },
+    "data.skipped": {
+     "contains": "$b.data.curve.id"
+    },
+    "warnings": {
+     "contains": {
+      "code": "NX_NOTE"
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_create_mirror_curve",
+   "intent": "Every curve in the plane: refused before NX",
+   "args": {
+    "curves": [
+     "$b.data.curve.id"
+    ],
+    "plane": "yz"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/curves",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_general_conic",
+   "intent": "Five zigzag points: no conic arc runs through them in order, refused at point 2",
+   "args": {
+    "method": "five_points",
+    "points": [
+     [
+      0,
+      0,
+      50
+     ],
+     [
+      10,
+      10,
+      50
+     ],
+     [
+      20,
+      -10,
+      50
+     ],
+     [
+      30,
+      10,
+      50
+     ],
+     [
+      40,
+      0,
+      50
+     ]
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/points/2",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_law_curve",
+   "intent": "A formula naming an unknown variable: the error names the axis field and the name",
+   "args": {
+    "x": {
+     "start": 0,
+     "end": 100
+    },
+    "y": {
+     "formula": "20*sin(360*t)*foo"
+    }
+   },
+   "expect": {
+    "error.code": "NX_INVALID_FORMULA",
+    "error.field": "/y/formula",
+    "error.details.unknown": {
+     "contains": "foo"
+    }
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "p",
+   "args": {
+    "points": [
+     [
+      0,
+      50,
+      0
+     ],
+     [
+      50,
+      50,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "q",
+   "args": {
+    "points": [
+     [
+      0,
+      80,
+      0
+     ],
+     [
+      50,
+      80,
+      0
+     ]
+    ],
+    "method": "through_points",
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_offset_curve",
+   "intent": "Two separate lines are not one string: refused before NX naming the loose curve",
+   "args": {
+    "curves": [
+     "$p.data.curve.id",
+     "$q.data.curve.id"
+    ],
+    "distance": 5
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/curves/1",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "cyl",
+   "args": {
+    "shape": "cylinder",
+    "diameter": 40,
+    "height": 60,
+    "origin": [
+     200,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "side",
+   "args": {
+    "owner": "$cyl.data.bodies.0.id",
+    "kind": "face",
+    "near": [
+     220,
+     0,
+     30
+    ]
+   }
+  },
+  {
+   "call": "nx_create_isoparametric_curves",
+   "intent": "u 3 on a cylinder: lines at 0, 180 and 360 deg, the last a seam copy (2 distinct)",
+   "args": {
+    "face": "$side.data.items.0.id",
+    "direction": "u",
+    "count": 3
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 3,
+    "data.distinct": 2,
+    "data.curves.0.family": "u",
+    "data.curves.0.length": {
+     "close": 60,
+     "tol": 0.001
+    },
+    "data.length": {
+     "close": 180,
+     "tol": 0.001
+    },
+    "warnings": {
+     "contains": {
+      "code": "NX_NOTE"
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_create_isoparametric_curves",
+   "intent": "uv 3: 3 lines (one a seam copy) and 3 circles, each tagged with its family",
+   "args": {
+    "face": "$side.data.items.0.id",
+    "direction": "uv",
+    "count": 3
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 6,
+    "data.distinct": 5,
+    "data.length": {
+     "close": 556.99113,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
+  }
+ ]
+}

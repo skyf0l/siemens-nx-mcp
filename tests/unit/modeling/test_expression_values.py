@@ -1,4 +1,4 @@
-"""Expression names and formulas as values (benchmark finding 4): gate 9 evaluates them in
+"""Expression names and formulas as values: gate 9 evaluates them in
 NX and the feature tools write the formula into the builder expression, so the feature
 follows later edits of the expression. Shared fake, real kernel."""
 

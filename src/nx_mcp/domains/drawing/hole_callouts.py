@@ -18,7 +18,7 @@ NX 2406 findings encoded here:
   alone is "Invalid selected objects". Labels are numbered across the part; rows are a
   title, a header (``Hole No.``, X, Y, Z), group rows (size text) and hole rows.
 - X and Y of a hole row run along the view's horizontal and vertical axes from the
-  ordinate origin. A live run found a table measured from another point of a straight
+  ordinate origin. NX 2406 can measure a table from another point of a straight
   origin edge than the requested end (cause not pinned down): the table is matched
   against every snap point of the edge; ``auto`` takes the one that matches (``origin``
   in the result, with a warning), an explicit snap point is refused naming the match.

@@ -296,6 +296,7 @@ sketch, `fc:88` face, `e:90` edge, `d:7` datum, `o:5` component).
 | `bodies` | Which bodies a call covers: `of(tx, obj)` (body, feature, component occurrence bodies), `scope(tx, "auto")`, `occurrences(component)`, `solids(found, field)`, `measurable(found, scoped)` (faceless bodies and, in a scope, topology optimization results are skipped). Body health after a build: `faulty`/`expect_sound` (UF consistency faults), `face_clashes`/`clashing_faces`/`clashing`/`expect_no_clash` (faces cutting other faces of the body, which UF consistency passes: a tube wider than its helix pitch), each `NX_BUILD_FAILED` with rollback; `scale_note` (bodies over 10 m) |
 | `capture` | `studio_png(tx, path, w, h, style=...)` (Studio Image Capture at the exact pixel size) and `viewport_png(tx, path, w, h)` (rasterises the graphics window at its own size; returns the actual size) |
 | `curve` | UF `Eval` on curves and edges: `evaluator(tx, curve)` (an `Evaluator`: `at`, `closest`, `fraction`), `ends`, `point_at`, `closest` (foot and unit tangent), `along` (pieces sorted from the source's start), `min_distance`, `point_distance` |
+| `deform` | Deformed components: `definition(part)` (the part's deformable definition), `ranges` (the min/max recorded with it), `deformation(tx, asm, c)`, `bodies_of(tx, c)` (the assembly bodies a deformation made), `out_of_range`/`range_messages(tx, asm)` (deformed values outside their range, as rows or warning texts for `nx_update_model`, `nx_update_assembly` and `nx_check_model`) |
 | `display` | Display state of the displayed part: `shown_part`, `model_view`, `camera`/`set_camera`, styles, appearance, datums, dynamic sections, and the `Snapshots` behind `restore_id` |
 | `facts` | `edge(tx, edge)` (line/arc data), `face_point(tx, face)` (a point inside a trimmed face), `on_object` |
 | `features` | The feature timeline as the Part Navigator shows it (`timeline`, `internal`) and each feature's state (`states`) |
@@ -1213,15 +1214,15 @@ caps in the test, never the table:
 
 | Item (characters of compact JSON) | Cap | Measured |
 |---|---|---|
-| `agent` profile listing (4 gateways + 14 core tools; paid every turn) | 15,880 + 15 per domain = 16,060 (12 domains) | 15,850 (about 4.2K tokens) |
+| `agent` profile listing (4 gateways + 14 core tools; paid every turn) | 15,880 + 15 per domain = 16,060 (12 domains) | 16,041 (about 4.2K tokens) |
 | `agent` server instructions (once per session) | 1,600 | 1,485 |
-| Full listing (name + description + input schema, call keys included) | mean 1,140 per listed tool | mean 1,067.5 over 270 tools (288,213, about 75.8K tokens) |
-| Tool definition (name + description + input schema, no call keys) | each 1,600; 3,000 for unions | max 1,589 (179 plain tools), 2,746 (87 unions) |
-| Tool definition drift (75th percentile per kind) | plain 1,050, union 1,860 | plain 1,003, union 1,722 |
-| `nx_find_tools` page (26 realistic queries) | row 170; rest of the page 400; 90th percentile page 1,640 | row max 163, rest max 385, 90th percentile 1,489.5 (max 1,784) |
-| `nx_find_tools` domain overview (empty query, one row per domain) | row 140; rest 375; no total | row max 125, rest 333 (1,558 in all) |
-| `nx_get_tool_schemas` entry, over the tool's definition | each 250; mean 85 | max 194, mean 78.6 |
-| Typical modeling task (overview, 3 searches, 4 schemas in one fetch) | 13,650 | 12,587 (about 3.3K tokens) |
+| Full listing (name + description + input schema, call keys included) | mean 1,265 per listed tool | mean 1,176.7 over 273 tools (321,245, about 84.5K tokens) |
+| Tool definition (name + description + input schema, no call keys) | each 1,600; 3,000 for unions | max 1,598 (181 plain tools), 2,999 (88 unions) |
+| Tool definition drift (75th percentile per kind) | plain 1,050, union 1,860 | plain 1,045, union 1,786.8 |
+| `nx_find_tools` page (26 realistic queries) | row 170; rest of the page 400; 90th percentile page 1,640 | row max 163, rest max 388, 90th percentile 1,492.5 (max 1,811) |
+| `nx_find_tools` domain overview (empty query, one row per domain) | row 140; rest 375; no total | row max 125, rest 336 (1,561 in all) |
+| `nx_get_tool_schemas` entry, over the tool's definition | each 250; mean 85 | max 243, mean 81.7 |
+| Typical modeling task (overview, 3 searches, 4 schemas in one fetch) | 13,650 | 12,977 (about 3.4K tokens) |
 
 <!-- END budget table -->
 

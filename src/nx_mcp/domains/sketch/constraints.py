@@ -54,8 +54,9 @@ from nx_mcp.core.types import (
     forbid_extra,
 )
 from nx_mcp.domains.sketch import common
+from nx_mcp.domains.sketch import dof as kdof
 from nx_mcp.domains.sketch.common import XY, Loose
-from nx_mcp.kit import builders, geom, readback, result, units
+from nx_mcp.kit import builders, expr, geom, readback, result, units
 from nx_mcp.kit import sketch as ksketch
 
 VERTEX = ("start", "end", "center")
@@ -88,7 +89,13 @@ class OneLine(TypedDict):
 
 class TwoCurves(TypedDict):
     type: Literal[
-        "parallel", "perpendicular", "equal_length", "equal_radius", "concentric", "tangent"
+        "parallel",
+        "perpendicular",
+        "collinear",
+        "equal_length",
+        "equal_radius",
+        "concentric",
+        "tangent",
     ]
     curves: Annotated[list[CurveRef], Items(2, 2)]
 
@@ -118,6 +125,7 @@ CONSTRAINT_TYPES = {
     "vertical": OneLine,
     "parallel": TwoCurves,
     "perpendicular": TwoCurves,
+    "collinear": TwoCurves,
     "equal_length": TwoCurves,
     "equal_radius": TwoCurves,
     "concentric": TwoCurves,
@@ -137,6 +145,7 @@ class _ConstraintType(TypedDict):
             "vertical",
             "parallel",
             "perpendicular",
+            "collinear",
             "equal_length",
             "equal_radius",
             "concentric",
@@ -177,6 +186,9 @@ CONSTRAINT_ALIASES = {
     "tangency": "tangent",
     "tangential": "tangent",
     "parallelism": "parallel",
+    "colinear": "collinear",
+    "collinearity": "collinear",
+    "in_line": "collinear",
     "mid_point": "midpoint",
     "point_on": "point_on_curve",
     "on_curve": "point_on_curve",
@@ -245,6 +257,11 @@ def _residual(tx, sk, kind, objs):
     if kind in ("parallel", "perpendicular"):
         c = abs(_cos(*(_direction(tx, sk, line) for line in objs["curves"])))
         return (1 - c if kind == "parallel" else c), 1e-9
+    if kind == "collinear":
+        a, b = objs["curves"]
+        s, e = _local(tx, sk, a, "start"), _local(tx, sk, a, "end")
+        ends = [_local(tx, sk, b, w) for w in ("start", "end")]
+        return max(_line_distance(s, e, p) for p in ends), geom.tol(s, e, *ends) * 10
     if kind == "equal_length":
         a, b = (geom.norm(_direction(tx, sk, line)) for line in objs["curves"])
         return abs(a - b), geom.tol([a, b])
@@ -292,8 +309,10 @@ def _residual(tx, sk, kind, objs):
 
 
 @contextlib.contextmanager
-def _refusal(what):
-    """NX's refusal of a duplicate or contradicting relation is ``solver_failed``."""
+def _refusal(what, field=None):
+    """NX's refusal of a duplicate or contradicting relation is ``solver_failed`` on the
+    item's ``field`` (910023 "Persistent relation already exists": an equal relation, or
+    one the existing ones imply, is there already)."""
     try:
         yield
     except NXError:
@@ -301,23 +320,36 @@ def _refusal(what):
     except Exception as error:
         native_error = classify(error, default="NX_BUILD_FAILED")
         text = str(error).lower()
-        if "already exists" in text or "constrain" in text:
+        if "already exists" in text:
             fail(
                 "NX_SKETCH_OVERCONSTRAINED",
                 f"NX refused the {what}: {error}",
-                hint="Diagnose with nx_check_sketch and remove the conflicting constraint",
+                field=field,
+                hint="The curves already have this relation, or the existing constraints "
+                "imply it (nx_get_sketch lists them): drop the item",
                 nx_code=native_error.nx_code,
             )
+        if "constrain" in text:
+            fail(
+                "NX_SKETCH_OVERCONSTRAINED",
+                f"NX refused the {what}: {error}",
+                field=field,
+                hint="Delete the constraint that contradicts it first (nx_get_sketch lists "
+                "the constraints of these curves), or drop the item",
+                nx_code=native_error.nx_code,
+            )
+        native_error.field = native_error.field or field
         raise native_error from error
 
 
-def _make_relation(tx, sk, kind, objs):
+def _make_relation(tx, sk, kind, objs, field=None):
     """The modern-solver ``SketchMake*Builder`` relations; the second curve moves."""
     nx, part = tx.nx, tx.part
     kept = ksketch.curve_labels(sk)
     names = {
         "parallel": "CreateSketchMakeParallelBuilder",
         "perpendicular": "CreateSketchMakePerpendicularBuilder",
+        "collinear": "CreateSketchMakeCollinearBuilder",
         "equal_length": "CreateSketchMakeEqualBuilder",
         "equal_radius": "CreateSketchMakeEqualBuilder",
         "coincident": "CreateSketchMakeCoincidentBuilder",
@@ -352,12 +384,12 @@ def _make_relation(tx, sk, kind, objs):
             )
         b.SetCreateConstraints(True)
         ksketch.relax_found_relations(b)
-        with _refusal(kind.replace("_", " ") + " constraint"):
+        with _refusal(kind.replace("_", " ") + " constraint", field):
             b.Commit()
-    ksketch.require_kept(sk, kept)
+    ksketch.require_kept(sk, kept, field)
 
 
-def _symmetric(tx, sk, objs):
+def _symmetric(tx, sk, objs, field=None):
     (a, c), centerline = objs["curves"], objs["centerline"]
     kept = ksketch.curve_labels(sk)
     with builders.build(tx, tx.part.Sketches.CreateSketchSymmetricBuilder) as b:
@@ -367,9 +399,9 @@ def _symmetric(tx, sk, objs):
         b.ConvertCenterlineToReference = False
         b.SetCreateConstraints(True)
         ksketch.relax_found_relations(b)
-        with _refusal("symmetric constraint"):
+        with _refusal("symmetric constraint", field):
             b.Commit()
-    ksketch.require_kept(sk, kept)
+    ksketch.require_kept(sk, kept, field)
 
 
 def _refuse_collapse(tx, sk, kind, objs, field):
@@ -403,7 +435,7 @@ def _refuse_collapse(tx, sk, kind, objs, field):
     )
 
 
-def _create_and_drag(tx, sk, kind, objs):
+def _create_and_drag(tx, sk, kind, objs, field=None):
     """Constraints the builders do not cover: create natively, then solve by a drag."""
     s = sk.sketch
     if kind in ("horizontal", "vertical"):
@@ -411,7 +443,7 @@ def _create_and_drag(tx, sk, kind, objs):
         create = (
             s.CreateHorizontalConstraint if kind == "horizontal" else s.CreateVerticalConstraint
         )
-        with _refusal(kind + " constraint"):
+        with _refusal(kind + " constraint", field):
             create(ksketch.constraint_geometry(tx, line))
         return ksketch.drag(tx, sk, line, "end")
     (src, which), target = objs["points"][0], objs["curves"][0]
@@ -424,7 +456,7 @@ def _create_and_drag(tx, sk, kind, objs):
     help_.Type = nx.Sketch.ConstraintGeometryHelpType.Point
     help_.Point = sk.point(goal)
     help_.Parameter = 0.0
-    with _refusal(kind.replace("_", " ") + " constraint"):
+    with _refusal(kind.replace("_", " ") + " constraint", field):
         if kind == "midpoint":
             s.CreateMidpointConstraint(point_geometry, target_geometry)
         s.CreatePointOnCurveConstraint(
@@ -433,9 +465,9 @@ def _create_and_drag(tx, sk, kind, objs):
     return ksketch.drag(tx, sk, src, which, goal)
 
 
-def _fix(tx, sk, objs):
+def _fix(tx, sk, objs, field=None):
     s = sk.sketch
-    with _refusal("fixed constraint"):
+    with _refusal("fixed constraint", field):
         if objs.get("points"):
             (curve, which) = objs["points"][0]
             s.CreateFixedConstraint(ksketch.constraint_geometry(tx, curve, which))
@@ -460,7 +492,7 @@ def _resolve_item(tx, sk, item, field):
     lines, arcs = ("line",), ("arc", "circle")
     if kind == "fixed" and bool(objs["curves"]) == bool(objs["points"]):
         fail("NX_INVALID_ARGUMENT", "fixed takes one curve or one point", field=field + "/curves")
-    if kind in ("horizontal", "vertical", "parallel", "perpendicular", "equal_length"):
+    if kind in ("horizontal", "vertical", "parallel", "perpendicular", "collinear", "equal_length"):
         for i, c in enumerate(objs["curves"]):
             _require(tx, c, lines, f"{field}/curves/{i}", "a sketch line")
     if kind in ("equal_radius", "concentric"):
@@ -541,18 +573,55 @@ def _not_created(tx, sk, kind, objs, field):
     )
 
 
+# NX's name of each constraint type where it differs from the tool's.
+NATIVE_TYPE = {"symmetric": "mirror"}
+
+
+def _uses(objs) -> set:
+    """``{(tag, point)}`` an item constrains: whole curves as ``curve``, vertices by name."""
+    uses = {(int(c.Tag), "curve") for c in objs["curves"]}
+    uses |= {(int(c.Tag), which) for c, which in objs["points"]}
+    if "centerline" in objs:
+        uses.add((int(objs["centerline"].Tag), "curve"))
+    return uses
+
+
+def _existing(tx, sk, kind, objs):
+    """A persistent constraint of the same type on the same geometry as the item, or None:
+    the item is then a no-op (NX would refuse it as "Persistent relation already exists")."""
+    if kind == "fixed" and objs["curves"]:
+        return None  # a plain Fixed on a line holds less than the fully fixed set
+    want = _uses(objs)
+    tags = {t for t, _w in want}
+    points = {(int(c.Tag), w) for c, w in objs["points"]}
+    native_kind = NATIVE_TYPE.get(kind, kind)
+    curve = objs["curves"][0] if objs["curves"] else objs["points"][0][0]
+    for c in ksketch.attached(tx, sk, curve):
+        if ksketch.constraint_type(tx, c) != native_kind:
+            continue
+        have = {(int(o.Tag), w) for o, w in (kdof.geometry(tx, c) or [])}
+        if {t for t, _w in have} == tags and points <= have:
+            return c
+    return None
+
+
 class AppliedConstraint(TypedDict, total=False):
     item: int
     type: str
     constraints: list[result.Row]
+    already_existed: Annotated[bool, Doc("The same constraint was there: nothing was added")]
     residual: float
     drag_status: str
 
 
-class ConstraintsData(TypedDict):
+class _ConstraintsData(TypedDict):
     sketch: result.Row
     constraints: list[AppliedConstraint]
     status: common.Status
+
+
+class ConstraintsData(_ConstraintsData, total=False):
+    moved: Annotated[list[str], Doc(common.MOVED_DOC)]
 
 
 @tool(
@@ -565,6 +634,7 @@ class ConstraintsData(TypedDict):
         "perpendicular",
         "tangent",
         "coincident",
+        "collinear",
         "fix",
         "relation",
     ),
@@ -586,34 +656,48 @@ def nx_create_sketch_constraints(
     ],
 ) -> ConstraintsData:
     """Add 1-50 geometric constraints to a sketch; each is solved and checked on the geometry.
-    The second curve moves; fixed geometry never moves. Conflicts roll back as solver_failed."""
+    The second curve moves (moved: others the solve moved); fixed geometry never moves. An
+    equal existing constraint is reused. Conflicts roll back as solver_failed."""
     named = common.natural_items(
         constraints, "type", list(CONSTRAINT_TYPES), "/constraints", CONSTRAINT_ALIASES
     )
-    items = common.check_items(named, CONSTRAINT_TYPES, "type", "/constraints")
+    items = common.check_items(
+        named, CONSTRAINT_TYPES, "type", "/constraints", "nx_create_sketch_constraints"
+    )
     tx.frame = "sketch_local"
+    with tx.checks():  # every ref and curve kind before the sketch is opened
+        pre = ksketch.Editing(tx, ksketch.resolve(tx, sketch), False)
+        for i, item in enumerate(items):
+            _resolve_item(tx, pre, item, f"/constraints/{i}")
     with ksketch.editing(tx, sketch) as sk:
         before = {int(c.Tag) for c in ksketch.constraints(tx, sk)}
         fixed = common.fixed_positions(tx, sk)
+        shapes = ksketch.shapes(tx, sk)
         applied: list[tuple] = []
         rows: list[AppliedConstraint] = []
+        touched: list = []
         for i, item in enumerate(items):
             tx.checkpoint(done=i, total=len(items))
             field, kind = f"/constraints/{i}", item["type"]
             objs = _resolve_item(tx, sk, item, field)
+            curves = _item_curves(objs)
+            touched += curves
+            row: AppliedConstraint = {"item": i, "type": kind}
+            same = _existing(tx, sk, kind, objs)
+            if same is not None:
+                row["constraints"] = [tx.ref(same, "sketch_constraint")]
+                row["already_existed"] = True
+                row["residual"] = _residual(tx, sk, kind, objs)[0]
+                rows.append(row)
+                continue
             _refuse_collapse(tx, sk, kind, objs, field)
             known = {int(c.Tag) for c in ksketch.constraints(tx, sk)}
-            row: AppliedConstraint = {"item": i, "type": kind}
-            if kind == "fixed":
-                _fix(tx, sk, objs)
-            elif kind == "symmetric":
-                _symmetric(tx, sk, objs)
-            elif kind in ("horizontal", "vertical", "midpoint", "point_on_curve"):
-                row["drag_status"] = _create_and_drag(tx, sk, kind, objs)
-            else:
-                _make_relation(tx, sk, kind, objs)
-            with native(default="NX_UPDATE_FAILED"):
-                sk.sketch.Update()
+            try:
+                _apply(tx, sk, kind, objs, row, field)
+            except NXError as error:
+                if error.code == "NX_SKETCH_OVERCONSTRAINED":
+                    common.explain_conflict(tx, sk, error, curves, before, field)
+                raise
             created = [c for c in ksketch.constraints(tx, sk) if int(c.Tag) not in known]
             if not created:
                 _not_created(tx, sk, kind, objs, field)
@@ -625,12 +709,8 @@ def nx_create_sketch_constraints(
                     field=field,
                     details={"residual": residual, "drag_status": row.get("drag_status")},
                 )
-            row.update(
-                {
-                    "constraints": [tx.ref(c, "sketch_constraint") for c in created],
-                    "residual": residual,
-                }
-            )
+            row["constraints"] = [tx.ref(c, "sketch_constraint") for c in created]
+            row["residual"] = residual
             applied.append((kind, objs, field))
             rows.append(row)
             common.require_fixed_unmoved(tx, fixed, field)
@@ -645,8 +725,43 @@ def nx_create_sketch_constraints(
                     field=field,
                     details={"residual": residual},
                 )
-        status = common.require_solved(tx, sk, before)
-        return {"sketch": tx.ref(sk.sketch, "sketch"), "constraints": rows, "status": status}
+        status = common.require_solved(tx, sk, before, touched)
+        data: ConstraintsData = {
+            "sketch": tx.ref(sk.sketch, "sketch"),
+            "constraints": rows,
+            "status": status,
+        }
+        moved = common.report_moved(tx, sk, shapes, _named_ids(tx, applied))
+        if moved:
+            data["moved"] = moved
+        return data
+
+
+def _item_curves(objs) -> list:
+    """The curves an item names (each once)."""
+    out = list(objs["curves"]) + [c for c, _w in objs["points"]]
+    if "centerline" in objs:
+        out.append(objs["centerline"])
+    return list({int(c.Tag): c for c in out}.values())
+
+
+def _named_ids(tx, applied) -> set:
+    """Ids of the curves the requests name (not reported as moved by the solve)."""
+    return {tx.ref(c, "curve")["id"] for _kind, objs, _f in applied for c in _item_curves(objs)}
+
+
+def _apply(tx, sk, kind, objs, row, field):
+    """Create and solve one constraint item."""
+    if kind == "fixed":
+        _fix(tx, sk, objs, field)
+    elif kind == "symmetric":
+        _symmetric(tx, sk, objs, field)
+    elif kind in ("horizontal", "vertical", "midpoint", "point_on_curve"):
+        row["drag_status"] = _create_and_drag(tx, sk, kind, objs, field)
+    else:
+        _make_relation(tx, sk, kind, objs, field)
+    with native(default="NX_UPDATE_FAILED"):
+        sk.sketch.Update()
 
 
 # ---------------------------------------------------------------------------
@@ -666,8 +781,12 @@ DIM_KINDS = (
 )
 
 
-# A number in part units (degrees for angle) or a unit string: '40 mm', '1.5 in', '30 deg'.
-Value = Annotated[float | Annotated[str, Text(40)], Doc("Part units or '40 mm'")]
+# A number in part units (degrees for angle), a unit string ('40 mm', '1.5 in', '30 deg')
+# or an NX expression name or formula ('width/2'), which keeps the dimension driven by it.
+Value = Annotated[float | Annotated[str, Text(40)], Doc("Part units, '40 mm' or a formula")]
+ExpName = Annotated[
+    str, Text(64, r"^[A-Za-z_][A-Za-z0-9_]{0,63}$"), Doc("Name of its expression, e.g. width")
+]
 
 
 class _DimKind(TypedDict):
@@ -692,10 +811,11 @@ class DimensionSpec(_DimKind, total=False):
     second: Target
     value: Annotated[
         float | Annotated[str, Text(40)],
-        Doc("Part units or '40 mm' (no formulas); angle: deg or '30 deg'; omit: the current size"),
+        Doc("Part units, '40 mm' or a formula ('w/2'); angle: deg or '30 deg'; omit: current size"),
     ]
     origin: XY
     reference: bool
+    name: ExpName
 
 
 # Synonyms agents use; case, spaces and hyphens are ignored anyway.
@@ -727,6 +847,7 @@ class OneCurveDimension(_OneCurveDim, total=False):
     value: Value
     origin: Point2
     reference: bool
+    name: ExpName
 
 
 class _AxisDim(TypedDict):
@@ -739,6 +860,7 @@ class AxisDimension(_AxisDim, total=False):
     value: Value
     origin: Point2
     reference: bool
+    name: ExpName
 
 
 class _PointDim(TypedDict):
@@ -751,6 +873,7 @@ class PointDimension(_PointDim, total=False):
     value: Value
     origin: Point2
     reference: bool
+    name: ExpName
 
 
 class _LinesDim(TypedDict):
@@ -762,10 +885,11 @@ class _LinesDim(TypedDict):
 class LinesDimension(_LinesDim, total=False):
     value: Annotated[
         float | Annotated[str, Text(40)],
-        Doc("Part units or '40 mm'; angle: degrees or '30 deg', 0 < angle < 180"),
+        Doc("Part units or '40 mm'; angle: between start->end directions, 0-180 deg"),
     ]
     origin: Point2
     reference: bool
+    name: ExpName
 
 
 class _PerpDim(TypedDict):
@@ -778,6 +902,7 @@ class PerpendicularDimension(_PerpDim, total=False):
     value: Value
     origin: Point2
     reference: bool
+    name: ExpName
 
 
 DIMENSION_TYPES = {
@@ -987,13 +1112,18 @@ class DimensionRow(TypedDict, total=False):
     expression: common.ExpressionRow
     value_before: float
     measured: float
+    supplement: Annotated[float, Doc("angle: the other side, 180 - measured")]
     reference: bool
 
 
-class DimensionsData(TypedDict):
+class _DimensionsData(TypedDict):
     sketch: result.Row
     dimensions: list[DimensionRow]
     status: common.Status
+
+
+class DimensionsData(_DimensionsData, total=False):
+    moved: Annotated[list[str], Doc(common.MOVED_DOC)]
 
 
 def _natural_dimension(item, field):
@@ -1018,7 +1148,8 @@ def _natural_dimension(item, field):
 
 
 def _value(tx, kind, value, field):
-    """A dimension value as a float in part units (degrees for angle)."""
+    """A dimension value as a float in part units (degrees for angle); an NX expression
+    name or formula is evaluated and kept (a ``Formula``: the dimension follows it)."""
     if value is None or not isinstance(value, str):
         return value
     dim = "angle" if kind == "angle" else "length"
@@ -1026,13 +1157,24 @@ def _value(tx, kind, value, field):
         return float(value)
     except ValueError:
         pass
+
+    def evaluate(formula, dim_, to, field=None):
+        return tx.services.evaluate_formula(formula, dim_, to, field=field, scratch=True)
+
     try:
-        return convert_quantity(value, dim, "deg" if dim == "angle" else units.part_units(tx))
+        return convert_quantity(
+            value,
+            dim,
+            "deg" if dim == "angle" else units.part_units(tx),
+            evaluate,
+            field + "/value",
+        )
     except ValueError as error:
         example = "'30 deg' or '0.5 rad'" if dim == "angle" else "'40 mm' or '1.5 in'"
         fail(
             "NX_INVALID_ARGUMENT",
-            f"value {value!r}: {error}; send a number or a string like {example}",
+            f"value {value!r}: {error}; send a number, a string like {example}, or an "
+            "expression formula ('width/2')",
             field=field + "/value",
         )
 
@@ -1046,6 +1188,59 @@ def _check_value(kind, value, field):
         fail(
             "NX_INVALID_ARGUMENT", "angle must be between 0 and 180 degrees", field=field + "/value"
         )
+
+
+def _check_names(tx, items):
+    """Expression names: identifiers, unused in the part and in the call, driving only."""
+    seen: dict[str, int] = {}
+    for i, item in enumerate(items):
+        name = item.get("name")
+        if name is None:
+            continue
+        where = f"/dimensions/{i}/name"
+        if item.get("reference"):
+            fail(
+                "NX_INVALID_ARGUMENT",
+                "A reference dimension has no expression to name",
+                field=where,
+                hint="Drop name, or make the dimension driving",
+            )
+        if name.lower() in seen:
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"name {name!r} is also given to dimension {seen[name.lower()]}",
+                field=where,
+            )
+        seen[name.lower()] = i
+        existing = next(
+            (e for e in tx.part.Expressions if str(e.Name).lower() == name.lower()), None
+        )
+        if existing is not None:
+            fail(
+                "NX_NAME_CONFLICT",
+                f"The part already has an expression {existing.Name}",
+                field=where,
+                hint="Choose another name; details.existing is that expression",
+                details={"existing": tx.ref(existing, "expression")["id"]},
+            )
+
+
+def _fully_constrained(tx, sk, items):
+    """Refuse a driving dimension on a fully constrained sketch before NX solves it."""
+    driving = [i for i, item in enumerate(items) if not item.get("reference")]
+    if not driving:
+        return
+    if ksketch.status(tx, sk)["status"] != "WellConstrained":
+        return
+    fail(
+        "NX_SKETCH_OVERCONSTRAINED",
+        "The sketch is fully constrained (no degree of freedom left): a driving dimension "
+        "would over-constrain it",
+        field=f"/dimensions/{driving[0]}",
+        hint="Add it with reference: true (it measures only), or delete a driving dimension "
+        "or constraint first (nx_edit_sketch_curves {type: delete, object})",
+        details={"state": "well_constrained", "dof": 0},
+    )
 
 
 @tool(
@@ -1070,83 +1265,55 @@ def nx_create_sketch_dimensions(
         list[DimensionSpec], Items(1, 50), Doc("Fields per kind: nx_get_tool_schemas(tool#kind)")
     ],
 ) -> DimensionsData:
-    """Add 1-50 driving or reference sketch dimensions; each returns its expression. The sketch
-    is solved to every value and read back; fixed geometry never moves. horizontal/vertical
-    measure the x/y extent (they do not make a line level). Edit a value later with
-    nx_set_expression."""
+    """Add 1-50 driving or reference sketch dimensions; each returns its expression. name names
+    it, a formula value keeps it driven. The sketch is solved to every value and read back;
+    fixed geometry never moves. horizontal/vertical measure the x/y extent (they do not make a
+    line level). Edit a value later with nx_set_expression."""
     named = common.natural_items(
         dimensions, "kind", list(DIM_KINDS), "/dimensions", DIMENSION_ALIASES
     )
     named = [_natural_dimension(item, f"/dimensions/{i}") for i, item in enumerate(named)]
-    items = common.check_items(named, DIMENSION_TYPES, "kind", "/dimensions")
+    items = common.check_items(
+        named, DIMENSION_TYPES, "kind", "/dimensions", "nx_create_sketch_dimensions"
+    )
     for i, item in enumerate(items):
         if item.get("value") is not None:
             item["value"] = _value(tx, item["kind"], item["value"], f"/dimensions/{i}")
+        if item.get("reference") and getattr(item.get("value"), "formula", None):
+            fail(
+                "NX_INVALID_ARGUMENT",
+                "A reference dimension measures only: it takes no formula",
+                field=f"/dimensions/{i}/value",
+            )
         _check_value(item["kind"], item.get("value"), f"/dimensions/{i}")
     tx.frame = "sketch_local"
+    with tx.checks():  # every ref, curve kind and name before the sketch is opened
+        pre = ksketch.Editing(tx, ksketch.resolve(tx, sketch), False)
+        for i, item in enumerate(items):
+            _Dim(tx, pre, item, f"/dimensions/{i}")
+        _check_names(tx, items)
     with ksketch.editing(tx, sketch) as sk:
+        _fully_constrained(tx, sk, items)
         before = {int(c.Tag) for c in ksketch.constraints(tx, sk)}
         fixed = common.fixed_positions(tx, sk)
+        shapes = ksketch.shapes(tx, sk)
         rows: list[DimensionRow] = []
         made: list[tuple] = []
+        touched: list = []
         for i, item in enumerate(items):
             tx.checkpoint(done=i, total=len(items))
             field = f"/dimensions/{i}"
             dim = _Dim(tx, sk, item, field)
-            value, reference = item.get("value"), bool(item.get("reference"))
-            size = dim.measure()
-            if value is None and size <= dim.tolerance():
-                fail(
-                    "NX_INVALID_ARGUMENT",
-                    "The geometry has no measurable size here; give a value",
-                    field=field + "/value",
-                )
-            if reference and value is not None and not dim.matches(size, value):
-                fail(
-                    "NX_INVALID_ARGUMENT",
-                    f"A reference dimension measures {size:.6g}; it cannot drive {value:.6g}",
-                    field=field + "/value",
-                )
-            constraint = dim.create()
-            # NX 2406: a reference dimension has no expression; ComputedSize measures it.
-            exp = getattr(constraint, "AssociatedExpression", None)
-            readback.expect(reference or exp is not None, f"dimensions/{i}/expression")
-            nx_size = float(
-                exp.Value if exp is not None else constraint.AssociatedDimension.ComputedSize
-            )
-            readback.expect(
-                dim.matches(nx_size, size),
-                f"dimensions/{i}/measured_by_nx",
-                message="NX measured different geometry than requested",
-                nx_value=nx_size,
-                expected=size,
-            )
-            target = size if value is None or reference else value
-            if value is not None and not reference:
-                with native(default="NX_INVALID_FORMULA"):
-                    tx.part.Expressions.EditExpression(exp, repr(float(value)))
-                ksketch.solve(tx, sk, [exp])
-            measured = dim.measure()
-            if not dim.matches(measured, target):
-                fail(
-                    "NX_CONSTRAINT_UNSATISFIED",
-                    "NX could not solve the sketch to the requested value; rolled back",
-                    field=field + "/value",
-                    details={"requested": target, "measured": measured},
-                )
-            common.require_fixed_unmoved(tx, fixed, field)
-            made.append((dim, target))
-            row: DimensionRow = {
-                "item": i,
-                "kind": dim.kind,
-                "dimension": tx.ref(constraint, "sketch_constraint"),
-                "value_before": size,
-                "measured": measured,
-                "reference": reference,
-            }
-            if exp is not None:
-                row["expression"] = common.expression_row(tx, exp)
-            rows.append(row)
+            curves = [c for c in (dim.a, dim.b) if c is not None]
+            touched += curves
+            try:
+                rows.append(_dimension(tx, sk, dim, item, i, made, fixed))
+            except NXError as error:
+                if error.code in ("NX_SKETCH_OVERCONSTRAINED", "NX_CONSTRAINT_UNSATISFIED"):
+                    common.explain_conflict(
+                        tx, sk, error, curves, before, field, reference=not item.get("reference")
+                    )
+                raise
         for i, (dim, target) in enumerate(made):  # later values must not break earlier ones
             measured = dim.measure()
             if not dim.matches(measured, target):
@@ -1156,5 +1323,75 @@ def nx_create_sketch_dimensions(
                     field=f"/dimensions/{i}",
                     details={"requested": target, "measured": measured},
                 )
-        status = common.require_solved(tx, sk, before)
-        return {"sketch": tx.ref(sk.sketch, "sketch"), "dimensions": rows, "status": status}
+        status = common.require_solved(tx, sk, before, touched, reference=True)
+        data: DimensionsData = {
+            "sketch": tx.ref(sk.sketch, "sketch"),
+            "dimensions": rows,
+            "status": status,
+        }
+        moved = common.report_moved(tx, sk, shapes, {tx.ref(c, "curve")["id"] for c in touched})
+        if moved:
+            data["moved"] = moved
+        return data
+
+
+def _dimension(tx, sk, dim, item, i, made, fixed) -> DimensionRow:
+    """Create one dimension, solve it to its value and read it back."""
+    field = f"/dimensions/{i}"
+    value, reference = item.get("value"), bool(item.get("reference"))
+    size = dim.measure()
+    if value is None and size <= dim.tolerance():
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "The geometry has no measurable size here; give a value",
+            field=field + "/value",
+        )
+    if reference and value is not None and not dim.matches(size, value):
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"A reference dimension measures {size:.6g}; it cannot drive {value:.6g}",
+            field=field + "/value",
+        )
+    constraint = dim.create()
+    # NX 2406: a reference dimension has no expression; ComputedSize measures it.
+    exp = getattr(constraint, "AssociatedExpression", None)
+    readback.expect(reference or exp is not None, f"dimensions/{i}/expression")
+    nx_size = float(exp.Value if exp is not None else constraint.AssociatedDimension.ComputedSize)
+    readback.expect(
+        dim.matches(nx_size, size),
+        f"dimensions/{i}/measured_by_nx",
+        message="NX measured different geometry than requested",
+        nx_value=nx_size,
+        expected=size,
+    )
+    target = size if value is None or reference else float(value)
+    if exp is not None and item.get("name"):
+        with native(default="NX_INVALID_ARGUMENT"):
+            tx.part.Expressions.Rename(exp, item["name"])
+    if value is not None and not reference:
+        with native(default="NX_INVALID_FORMULA"):
+            tx.part.Expressions.EditExpression(exp, expr.rhs(value))
+        ksketch.solve(tx, sk, [exp])
+    measured = dim.measure()
+    if not dim.matches(measured, target):
+        fail(
+            "NX_CONSTRAINT_UNSATISFIED",
+            "NX could not solve the sketch to the requested value; rolled back",
+            field=field + "/value",
+            details={"requested": target, "measured": measured},
+        )
+    common.require_fixed_unmoved(tx, fixed, field)
+    made.append((dim, target))
+    row: DimensionRow = {
+        "item": i,
+        "kind": dim.kind,
+        "dimension": tx.ref(constraint, "sketch_constraint"),
+        "value_before": size,
+        "measured": measured,
+        "reference": reference,
+    }
+    if dim.kind == "angle":
+        row["supplement"] = 180.0 - measured
+    if exp is not None:
+        row["expression"] = common.expression_row(tx, exp)
+    return row

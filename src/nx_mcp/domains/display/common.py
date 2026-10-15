@@ -49,6 +49,8 @@ class DisplayRow(TypedDict, total=False):
     blanked: bool
     color: int
     color_name: str
+    color_label: str
+    color_hex: str
     transparency: int | None
     faces_differ: int
     faces: list[FaceRow]
@@ -74,15 +76,16 @@ def _shown(tx, obj, kind, expand):
     return [obj]
 
 
-def targets(tx, refs, *, field="/objects", expand=False) -> list:
+def targets(tx, refs, *, field="/objects", expand=False, kinds=TARGET_KINDS) -> list:
     """Displayable objects of ``refs`` (unique by tag, in order).
 
     Features expand to their bodies and sketches to their curves; with ``expand``
-    components expand to the occurrence bodies they show.
+    components expand to the occurrence bodies they show. ``kinds``: the reference kinds
+    the tool takes (a wrong kind's error lists these).
     """
     found: dict = {}
     for i, ref in enumerate(refs):
-        obj = select.resolve(tx, ref, *TARGET_KINDS, field=f"{field}/{i}")
+        obj = select.resolve(tx, ref, *kinds, field=f"{field}/{i}")
         for value in _shown(tx, obj, kind_of(tx, obj), expand):
             found.setdefault(int(value.Tag), value)
     if not found:
@@ -110,13 +113,16 @@ def color_names(tx) -> dict[int, str]:
 
 
 def display_rows(tx, pairs) -> list[DisplayRow]:
-    """``[{object, blanked, color?, color_name?, transparency?, faces_differ?, faces?}]``
-    for ``(obj, record)`` pairs: one row per object, a body's faces only as
-    ``faces_differ`` (how many faces have another colour or transparency than the body)
-    and the first ``display.FACE_ROWS`` of them in ``faces``. ``color_name`` is given where
-    the index is a named colour; a body's transparency is None when its faces disagree."""
+    """``[{object, blanked, color?, color_name?, color_label?, color_hex?, transparency?,
+    faces_differ?, faces?}]`` for ``(obj, record)`` pairs: one row per object, a body's
+    faces only as ``faces_differ`` (how many faces have another colour or transparency than
+    the body) and the first ``display.FACE_ROWS`` of them in ``faces``. ``color_name`` is
+    given where the index is a named colour, ``color_label`` and ``color_hex`` from the
+    part's colour table; a body's transparency is None when its faces disagree."""
     records = {int(obj.Tag): record for obj, record in pairs}
-    names = color_names(tx) if any("color_index" in r for r in records.values()) else {}
+    coloured = any("color_index" in r for r in records.values())
+    names = color_names(tx) if coloured else {}
+    table = _palette(tx) if coloured else {}
     out: list[DisplayRow] = []
     for obj, record in pairs:
         row: DisplayRow = {
@@ -127,6 +133,9 @@ def display_rows(tx, pairs) -> list[DisplayRow]:
             row["color"] = int(record["color_index"])
             if row["color"] in names:
                 row["color_name"] = names[row["color"]]
+            if row["color"] in table:
+                label, rgb = table[row["color"]]
+                row["color_label"], row["color_hex"] = label, display.hex_of(rgb)
             transparency = record.get("transparency")
             if transparency is None and "faces" not in record:
                 transparency = _faces_transparency(obj, records)
@@ -139,6 +148,15 @@ def display_rows(tx, pairs) -> list[DisplayRow]:
                 row["faces"] = _face_rows(tx, odd[: display.FACE_ROWS])
         out.append(row)
     return out
+
+
+def _palette(tx) -> dict:
+    """The displayed part's colour table (``{}`` when NX does not report it)."""
+    try:
+        part = tx.session.Parts.Display
+        return display.palette(part) if part is not None else {}
+    except Exception:  # noqa: BLE001 - rows then carry the index alone
+        return {}
 
 
 def _face_rows(tx, odd) -> list[FaceRow]:

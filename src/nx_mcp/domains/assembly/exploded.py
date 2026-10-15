@@ -21,7 +21,7 @@ import json
 import math
 from typing import TYPE_CHECKING
 
-from nx_mcp.core.errors import fail, native
+from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.domains.assembly import common, structure
 from nx_mcp.kit import geom, model, readback
 from nx_mcp.kit import pose as kpose
@@ -62,10 +62,10 @@ def entry_row(tx, entry) -> ExplodedRow:
     at, ar = structure.pose(component)
     return {
         "component": common.component_row(tx, component, names, with_pose=False),
-        "translation": t,
-        "rotation": r,
-        "assembled_translation": at,
-        "assembled_rotation": ar,
+        "translation": common.tidy(t),
+        "rotation": common.tidy(r),
+        "assembled_translation": common.tidy(at),
+        "assembled_rotation": common.tidy(ar),
         "suppressed": hidden,
     }
 
@@ -221,6 +221,40 @@ def traces(tx, part, explosion) -> list:
 
 def endpoints(line):
     return geom.xyz(line.StartPoint.Coordinates), geom.xyz(line.EndPoint.Coordinates)
+
+
+def leg_directions(line) -> list | None:
+    """``[start, end]`` unit directions the trace legs leave their anchors, or None when
+    NX does not answer."""
+    try:
+        return [geom.unit(geom.xyz(d.Vector)) for d in (line.StartDirection, line.EndDirection)]
+    except Exception:
+        return None
+
+
+def trace_row(tx, line, explosion) -> dict:
+    """A trace's endpoints, anchor edges, percents, leg offsets and directions. A trace not
+    made by nx_create_explosion_trace has only its endpoints; one whose anchor edges are
+    gone says ``stale``."""
+    start, end = endpoints(line)
+    row: dict = {"trace": tx.ref(line, "traceline"), "explosion": tx.ref(explosion, "explosion"),
+                 "start": start, "end": end}  # fmt: skip
+    if is_managed(tx, line):
+        records = records_of(line)
+        try:
+            edges = anchor_edges(tx, explosion, records)
+        except NXError:
+            row["stale"] = True
+        else:
+            row["start_edge"], row["end_edge"] = (tx.ref(e, "edge") for e in edges)
+        row["start_percent"] = float(records[0]["percent"])
+        row["end_percent"] = float(records[1]["percent"])
+    with contextlib.suppress(Exception):
+        row["start_offset"], row["end_offset"] = float(line.StartOffset), float(line.EndOffset)
+    directions = leg_directions(line)
+    if directions is not None:
+        row["start_direction"], row["end_direction"] = directions
+    return row
 
 
 def refresh_traces(tx, explosion, mark=None) -> list:

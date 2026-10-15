@@ -143,3 +143,20 @@ def test_text_spots_clear_the_view_border_and_other_annotations():
     assert drawing.free_spot([150, 160], [0, 1], 10, taken) == [150.0, 170.0]
     assert drawing.free_spot([150, 190], [0, 1], 10, taken) == [150.0, 190.0]
     assert drawing.overlap(box, [190, 140, 300, 300]) and not drawing.overlap(box, [200, 0, 1, 1])
+
+
+def test_a_view_of_another_part_names_both_parts():
+    nx = drawing_nx()
+    sheet = nx.make_sheet()
+    view = nx.make_view(sheet)
+    nx.part.FullPath = "C:/ws/asm.prt"
+    sheet.views.remove(view)
+    view.OwningPart = NS(FullPath="C:/ws/plate.prt", Name="plate")
+    with pytest.raises(NXError) as error:
+        drawing.view_sheet(nx.tx, view, "/view")
+    assert error.value.code == "NX_WRONG_OWNER" and error.value.field == "/view"
+    assert "plate.prt" in error.value.message and "asm.prt" in error.value.message
+    view.OwningPart = nx.part  # in the part but on no sheet
+    with pytest.raises(NXError) as error:
+        drawing.view_sheet(nx.tx, view, "/view")
+    assert "one sheet" in error.value.message

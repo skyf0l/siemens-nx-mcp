@@ -89,7 +89,7 @@ class ImportOptions(TypedDict, total=False):
     sew: Annotated[bool, Doc("iges: sew surfaces into solids (default true)")]
     units: Annotated[
         Literal["mm", "in", "m"],
-        Doc("stl, dxf_dwg (mm/in): file unit (default part units)"),
+        Doc("stl, dxf_dwg (mm/in): file unit (default part units); .dxf new_part: its units"),
     ]
 
 
@@ -102,7 +102,7 @@ INFERRED: dict[str, ImportFormat] = {
     ".step": "step", ".stp": "step", ".igs": "iges", ".iges": "iges", ".x_t": "parasolid",
     ".x_b": "parasolid", ".stl": "stl", ".dxf": "dxf_dwg", ".dwg": "dxf_dwg",
 }  # fmt: skip
-FORMAT_DOC = "Default: from the path suffix; catia_v5 only when named"
+FORMAT_DOC = "Default: from the path suffix"
 
 
 class ImportData(TypedDict):
@@ -500,9 +500,9 @@ def nx_import_model(
     flatten: Annotated[bool, Doc("STEP: false keeps the assembly structure as components")] = True,
     options: ImportOptions | None = None,
 ) -> ImportData:
-    """Import a CAD file into the work part, or into a new part (new_part_path) made work part.
-    STEP, IGES, Parasolid .x_t/.x_b, STL (facet bodies), DXF/DWG (curves; target sketch puts
-    them in a finished sketch), CATIA V5; the path suffix picks the format."""
+    """Import a CAD file into the work part, or into a new part (new_part_path; reach it by
+    part). STEP, IGES, Parasolid .x_t/.x_b, STL (facet bodies), DXF/DWG (curves; target
+    sketch puts them in a finished sketch); the path suffix picks the format."""
     source = Path(path)
     suffix = source.suffix.lower()
     if format is None:
@@ -538,6 +538,19 @@ def nx_import_model(
             parts.check_new_name(tx, new_part_path, field="/new_part_path")
         elif tx.session.Parts.Work is None:
             fail("NX_NO_WORK_PART", "No work part is open", hint="Use target new_part")
+        if suffix == ".dxf" and options.get("units") and new_part_path is None:
+            have = kit_units.part_units(tx)
+            if options["units"] != have:
+                # NX 2406 takes DXF coordinates as numbers in the part's units, whatever
+                # the importer's unit says: an inch file into an mm part comes in 25.4x small.
+                fail(
+                    "NX_UNSUPPORTED_OPTION",
+                    f"NX imports DXF coordinates in the part's units ({have}); it cannot "
+                    f"convert a {options['units']} file into this part",
+                    field="/options/units",
+                    hint="Import with target new_part: the new part takes the file's units",
+                    retry="after_fix",
+                )
         target_sketch = ksketch.resolve(tx, sketch) if sketch is not None else None
     loaded_before = {int(p.Tag) for p in tx.session.Parts}
     previous = (tx.session.Parts.Work, tx.session.Parts.Display)
@@ -547,7 +560,8 @@ def nx_import_model(
     engineer = parts.engineer_tab(tx) if new_part_path is not None else None
     try:
         if new_part_path is not None:
-            made_part = new_part(tx, Path(new_part_path), "mm", display=engineer is None)
+            new_units = "in" if suffix == ".dxf" and options.get("units") == "in" else "mm"
+            made_part = new_part(tx, Path(new_part_path), new_units, display=engineer is None)
             if engineer is not None:
                 parts.activate(tx, made_part)
         part = tx.part
@@ -577,6 +591,14 @@ def nx_import_model(
         parts.give_back(tx, engineer, previous[0])
         guarded = parts.Presented(False, False, engineer, True)
         tx.warn("NX_NOTE", parts.shown_note(tx, part, guarded))
+    elif new_part_path is not None and previous[1] is not None and parts.crowded(tx, part):
+        # As nx_create_part: with two or more agent parts loaded the new part keeps its tab
+        # and the tab active before comes back.
+        with contextlib.suppress(Exception):
+            parts.give_back(tx, previous[1], previous[0])
+            if not parts.same_part(tx.session.Parts.Display, part):
+                kept = parts.Presented(False, False, previous[1])
+                tx.warn("NX_NOTE", parts.shown_note(tx, part, kept))
     _sweep(tx, root / "imports", folder)
     bodies, curves = made["bodies"], made["curves"]
     return {

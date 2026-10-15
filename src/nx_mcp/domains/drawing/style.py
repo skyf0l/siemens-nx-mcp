@@ -40,6 +40,9 @@ WIDTHS = {
         )
     },
 }
+# NX line fonts by their value (``Preferences.Font``): 0 Invisible ... 7 DottedDashed.
+FONTS = ("invisible", "solid", "dashed", "phantom", "centerline", "dotted", "long_dashed",
+         "dotted_dashed")  # fmt: skip
 RENDERING = {
     "fully_shaded": "FullyShaded",
     "partially_shaded": "PartiallyShaded",
@@ -62,10 +65,19 @@ PROPERTIES = {
 # ---- style ----------------------------------------------------------------------------
 
 
+def font_name(value):
+    """A font as its name (``dashed``); a name or an NX value 0-7 is accepted, other NX
+    values stay numbers."""
+    if isinstance(value, str):
+        return value
+    number = int(getattr(value, "value", value))
+    return FONTS[number] if 0 <= number < len(FONTS) else number
+
+
 def _native(tx, key, value):
     P = tx.nx.Preferences
     if key.endswith("font"):
-        return P.Font.ValueOf(int(value))
+        return P.Font.ValueOf(FONTS.index(value) if isinstance(value, str) else int(value))
     if key.endswith("width"):
         return getattr(P.Width, WIDTHS[value])
     if key == "rendering":
@@ -76,7 +88,7 @@ def _native(tx, key, value):
 def _plain(tx, key, value):
     P = tx.nx.Preferences
     if key.endswith("font"):
-        return int(getattr(value, "value", value))
+        return font_name(value)
     if key.endswith("width"):
         native = result.enum_name(value, P.Width)
         return next((k for k, v in WIDTHS.items() if v == native), native)

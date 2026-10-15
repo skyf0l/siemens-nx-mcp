@@ -86,6 +86,7 @@
    "expect": {"mutation_outcome": "committed", "data.components.0.suppressed": false, "data.components.1.suppressed": false}},
   {"call": "nx_edit_component", "args": {"components": ["$B.data.component.id"], "replace_with": "$run/cmp/asm_cmp_pin.prt"},
    "expect": {"mutation_outcome": "committed", "data.components.0.part_path": {"matches": "asm_cmp_pin\\.prt$"},
+              "data.components.0.name": "B2",
               "data.components.0.translation": {"close": [60, 0, 0], "tol": 1e-6}}},
   {"call": "nx_edit_component", "args": {"components": ["$B.data.component.id"], "reference_set": "SOLID"},
    "expect": {"error.code": "NX_NOT_FOUND", "error.field": "/reference_set", "mutation_outcome": "not_started"}},
