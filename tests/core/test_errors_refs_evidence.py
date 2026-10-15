@@ -276,3 +276,16 @@ def test_license_memory_and_gate_3_use_the_default_variant(monkeypatch):
         assert evidence.license_refusal(spec, {"size": 1}) is not None
     finally:
         evidence.forget_licenses()
+
+
+def test_a_remembered_license_refusal_expires(monkeypatch):
+    # A token pool used up for a moment may be free again: NX is asked again later.
+    spec = _variant_spec()
+    monkeypatch.setattr(evidence, "_CACHE", {"nx_v": {"v2406": {"variants": ["a"]}}})
+    error = errors.NXError("NX_LICENSE_UNAVAILABLE", "no tokens", nx_code=948801)
+    entry = evidence.remember_license(spec, "NX 2406", {"kind": "a"}, error)
+    assert evidence.license_refusal(spec, {"kind": "a"}) is not None
+    clock = entry["at"] + evidence.LICENSE_MEMORY_SECONDS + 1
+    monkeypatch.setattr(evidence.time, "time", lambda: clock)
+    assert evidence.license_refusal(spec, {"kind": "a"}) is None
+    assert evidence.licenses() == []

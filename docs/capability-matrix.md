@@ -3,14 +3,14 @@
 Generated from the catalogue (`nx_mcp.core.catalogue`) with the acceptance evidence in `src/nx_mcp/evidence/`; do not edit this table by hand.
 Run `python scripts/generate_capability_matrix.py` to regenerate, or add `--check` to detect drift.
 
-Canonical SHA-256 (catalogue evidence): `711554911741ce60b1b490c08d3f601216bb98edee0d3bb29ea70d4e1db43058`.
+Canonical SHA-256 (catalogue evidence): `e69514e5608a67adb6689e3da31921ae06d3bfb4aa584cd10642783bc2d5bb01`.
 
 These labels report recorded evidence, not certification or independent verification of its claims. A catalogue tool is Native-tested when the acceptance runner recorded machine-checked scenario evidence for an NX build (listed per variant); only that scope and build are covered. Without it the tool is Experimental, hidden from discovery and refused in production.
 
 | Tool classification | Count |
 | --- | ---: |
-| Native-tested | 267 |
-| Experimental | 2 |
+| Native-tested | 268 |
+| Experimental | 1 |
 
 ## Catalogue tools
 
@@ -141,9 +141,9 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_create_text | Native-tested | modeling | model | v2406: tested; 22 checks in acceptance/modeling/text.json |
 | nx_create_thicken | Native-tested | freeform | model | v2406: tested; 41 checks in acceptance/freeform/surface_checks.json |
 | nx_create_thread | Native-tested | modeling | model | v2406: tested; 48 checks in acceptance/modeling/thread_natural_args.json |
-| nx_create_topology_condition | Native-tested | optimization | model | v2406: extrude, fixed, force, keep_out, member_size, pinned, pressure, symmetry (untested: keep_in); 17 checks in acceptance/optimization/timeline.json |
+| nx_create_topology_condition | Native-tested | optimization | model | v2406: all variants; 17 checks in acceptance/optimization/timeline.json |
 | nx_create_topology_environment | Native-tested | optimization | model | v2406: all variants; 17 checks in acceptance/optimization/timeline.json |
-| nx_create_topology_study | Experimental | optimization | model | no acceptance evidence: hidden and refused in production |
+| nx_create_topology_study | Native-tested | optimization | model | v2406: tested; 71 checks in acceptance/optimization/bracket.json |
 | nx_create_transform | Native-tested | modeling | model | v2406: tested; 19 checks in acceptance/modeling/transform_copy_order.json |
 | nx_create_trim_body | Native-tested | modeling | model | v2406: all variants; 19 checks in acceptance/modeling/trim_body.json |
 | nx_create_trim_curve | Native-tested | freeform | model | v2406: all variants; 85 checks in acceptance/freeform/curve_edit.json |

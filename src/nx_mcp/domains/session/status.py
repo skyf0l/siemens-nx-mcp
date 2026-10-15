@@ -146,7 +146,7 @@ class _BridgeInfo(TypedDict):
     interactive: bool  # NX with the NX MCP panel
     session_id: str | None
     answered_from: str  # nx, snapshot (NX is running a step) or sidecar (bridge down)
-    # Tested tools/variants NX refused for a missing license this session (until restart):
+    # Tested tools/variants NX refused for a missing license in the last 15 minutes:
     # {tool, variant, nx_code, since, message}; hidden from discovery.
     license_unavailable: list[dict]
 

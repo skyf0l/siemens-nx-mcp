@@ -414,7 +414,7 @@ def _gate_evidence(spec, checked: Checked, services: Services) -> None:  # gate 
     )
     if refusal is None:
         # Session license memory: a tested tool/variant that NX refused for a missing
-        # license is refused before NX until NX restarts (also in development mode).
+        # license is refused before NX for 15 minutes (also in development mode).
         refusal = evidence.license_refusal(spec, checked.args)
     if refusal is not None:
         raise refusal

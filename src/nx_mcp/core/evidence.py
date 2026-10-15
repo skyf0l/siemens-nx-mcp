@@ -150,6 +150,9 @@ def _memory() -> dict:
     return holder.licenses
 
 
+LICENSE_MEMORY_SECONDS = 900.0  # a remembered license refusal is retried after this
+
+
 def remember_license(spec, build: str | None, args, error) -> dict | None:
     """Remember a license failure of a tested tool/variant for this NX session."""
     if getattr(error, "code", None) != "NX_LICENSE_UNAVAILABLE":
@@ -167,6 +170,7 @@ def remember_license(spec, build: str | None, args, error) -> dict | None:
         "variant": variant,
         "nx_code": getattr(error, "nx_code", None),
         "since": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "at": time.time(),
         "message": str(getattr(error, "message", error))[:300],
     }
     _memory().setdefault((spec.name, variant), entry)
@@ -174,10 +178,14 @@ def remember_license(spec, build: str | None, args, error) -> dict | None:
 
 
 def licenses() -> list[dict]:
-    """The remembered license failures of this NX session (for ``nx_get_status``)."""
-    return [
-        dict(e) for _, e in sorted(_memory().items(), key=lambda kv: (kv[0][0], kv[0][1] or ""))
-    ]
+    """The remembered license failures of this NX session (for ``nx_get_status``), the
+    last :data:`LICENSE_MEMORY_SECONDS` only: a floating or token license NX refused
+    because the pool was used up at that moment may be free again, so NX is asked again."""
+    memory = _memory()
+    now = time.time()
+    for key in [k for k, e in memory.items() if now - e.get("at", 0.0) > LICENSE_MEMORY_SECONDS]:
+        del memory[key]
+    return [dict(e) for _, e in sorted(memory.items(), key=lambda kv: (kv[0][0], kv[0][1] or ""))]
 
 
 def forget_licenses() -> None:
@@ -197,7 +205,7 @@ def license_error(entry: dict) -> NXError:
     return NXError(
         "NX_LICENSE_UNAVAILABLE",
         f"{name}: no NX license on this seat (remembered from {entry.get('since')}); "
-        "refused until NX restarts",
+        "refused for up to 15 minutes, then NX is asked again",
         hint="Tell the engineer which license is missing; use an alternative",
         nx_code=entry.get("nx_code"),
         details={

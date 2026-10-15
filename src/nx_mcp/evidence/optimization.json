@@ -20,6 +20,7 @@
         "extrude",
         "fixed",
         "force",
+        "keep_in",
         "keep_out",
         "member_size",
         "pinned",
@@ -40,6 +41,16 @@
         "connection",
         "scenery"
       ]
+    }
+  },
+  "nx_create_topology_study": {
+    "v2406": {
+      "checks": 71,
+      "recorded": "2026-10-15T14:09:05Z",
+      "scenario": "acceptance/optimization/bracket.json",
+      "scenario_sha256": "ef7af9a8b5fab5636373538b83daecf84226af4fa7d2d28d1636f2b292f6f1ae",
+      "source_sha256": "c54e42da1eb7cca8b80999c395b4946848062858de7b5a15806887053b56712c",
+      "variants": []
     }
   },
   "nx_get_topology_study": {
