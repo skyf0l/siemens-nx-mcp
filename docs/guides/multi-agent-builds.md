@@ -34,8 +34,8 @@ Write a `SPEC.md` in the project folder before any agent starts. Every brief poi
   once makes each of them wait behind the others (minutes for a light call) and delays every
   other agent. Send calls one after another, or a few at a time.
 - **No host reload or NX MCP update while builders run.** A reload refuses the calls that
-  arrive meanwhile and replaces the short refs (`b:123`); agents must list their objects
-  again afterwards.
+  arrive meanwhile. Short refs (`b:123`) are re-bound afterwards while NX still has their
+  objects; a ref that fails `NX_STALE_REFERENCE` must be listed again.
 - **One heavy call at a time across all agents.** Announce heavy calls in the briefs (section
   3) and have the orchestrator grant them in turn, or give heavy checks to one agent at the end.
 - **Save before any verification.** A save queued behind a hung call never runs; work done
@@ -57,19 +57,23 @@ Write a `SPEC.md` in the project folder before any agent starts. Every brief poi
 
 Heavy calls, which can hold NX for minutes:
 
-- `nx_check_model` and `nx_get_model_summary` on bodies with many faces, lofted faces most of
-  all (they run a face clash check);
+- `nx_check_model` with `clash: true` on bodies with many faces, lofted faces most of all
+  (the self-overlap check takes up to an hour on one large solid; by default it skips
+  solids over 2,000 faces and reports `complete: false`), and `nx_get_model_summary` or
+  bounds and mass on very large assemblies;
 - patterns of hundreds of instances, and unites of hundreds of bodies (unite in batches of
   at most 50 tools and check the volume after each);
 - interference checks and motion sweeps on large assemblies, and STEP export of the whole
   assembly.
 
-**Busy or dead?** `nx_get_status` answers while NX runs a step: `operation.tool` and
-`operation.elapsed_seconds` show the running call. A busy NX keeps the same
-`bridge.session_id` when it answers again; a new `session_id` means NX was restarted.
-Outside the MCP, an NX process whose CPU time keeps rising is computing, not waiting on a
-dialog. If `nx_get_status` reports the bridge unavailable but the NX process is alive and
-computing, wait: a heavy call can hold NX for most of an hour and NX then answers again.
+**Busy or dead?** `nx_get_status` answers within seconds while NX runs a step, hangs or is
+gone: `operation.tool` and `operation.elapsed_seconds` show the running call, and when NX
+itself cannot answer, `bridge.state` says `busy` (computing: wait), `blocked_by_dialog`
+(the engineer must answer a dialog), `unresponsive` or `down`, with `bridge.health.hint`
+saying what to do. A busy NX keeps the same `bridge.session_id` when it answers again; a
+new `session_id` means NX was restarted. A heavy call can hold NX for most of an hour and
+NX then answers again. Meanwhile reads give up after 30 s in the queue, and once one call
+has held NX unresponsive for 2 minutes other calls fail at once with `NX_BUSY` (nothing ran).
 
 **While waiting:**
 
@@ -101,10 +105,13 @@ instead of waiting idle for reports. A builder that loses the bridge reports it 
   for them.
 - **Do not assume numpy.** Neither NX's Python nor the agent's shell Python may have it:
   compute coordinates with the standard library (`math`) in a script, never by hand.
-- **Undo is per part and blocked by other agents' later work.** `nx_undo_operation` refuses
-  (`NX_CROSS_PART`) once any other part changed after your operation, and saves expire undo
-  marks. In multi-agent sessions remove a bad feature with `nx_delete_objects` or
-  `nx_set_feature_suppression` instead.
+- **Undo is per part.** Once another part changed after your operation, `nx_undo_operation`
+  and `nx_restore_checkpoint` compensate instead of using NX's undo: they delete what your
+  operations created (features, sketches, curves, points) and set back values whose tools
+  kept them (expressions, attributes, names, materials, poses). A delete or another edit
+  in between blocks them (`NX_CROSS_PART`; `nx_list_checkpoints` shows `restorable` and
+  `blocked_by`), and saves expire undo marks. Then fix forward: remove a bad feature with
+  `nx_delete_objects` or `nx_set_feature_suppression`.
 - **Leave no reference curves in a sketch that a feature uses.** An extra open curve becomes an
   extra body or a misleading error. Use a separate sketch for construction geometry.
 - **Check unite results.** After a unite of many bodies, the volume must be close to target
@@ -178,13 +185,14 @@ Tools:
 - Compute every coordinate with a Python script (standard library; do not assume numpy).
 - Pass "part": "<your file>" in every call without refs. Never save, close or modify a part
   you did not create.
-- Undo is blocked by other agents' work: remove a bad feature with nx_delete_objects or
+- Undo after other agents' work only removes what you created and sets values back; when
+  it refuses (NX_CROSS_PART), remove a bad feature with nx_delete_objects or
   nx_set_feature_suppression. Keep reference curves out of sketches used by features.
 
 Shared NX:
 - Save after each major feature and before every check or measurement.
-- Heavy calls (<list for this product, e.g. nx_check_model or nx_get_model_summary on
-  bodies over ~5,000 faces, unites of 50+ bodies>) only after "<how to get a turn>".
+- Heavy calls (<list for this product, e.g. nx_check_model with clash: true on bodies
+  over 2,000 faces, unites of 50+ bodies>) only after "<how to get a turn>".
   Never run two reads at once on one large body. One body per blade row.
 - If a call times out or NX stops answering: do not resend it; poll nx_get_status at most
   once a minute; query nx_get_operation before retrying a mutation; tell the orchestrator.

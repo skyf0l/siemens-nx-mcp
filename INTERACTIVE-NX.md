@@ -94,8 +94,14 @@ just after the busy check), the step is refused with `NX_MODAL_DIALOG_OPEN` and
 nothing ran; reads still answer. If a step itself opens a dialog that waits for an
 answer, the dialog is named in the activity list (a ⚠ line), in the log and in the
 step's result, and until someone answers it every other agent call is refused at once
-with `NX_MODAL_DIALOG_OPEN`; the status read still answers and names the dialog. The
-agent never clicks a dialog: it asks you to answer it.
+with `NX_MODAL_DIALOG_OPEN`; the status read still answers and names the dialog. If
+nobody answers it for 20 s, the panel puts an alert line on top and in its title and
+NX's taskbar button flashes, again every 2 minutes while it stays open. Dialogs NX MCP
+knows (Large Sketch Performance, Error During Update, Sheet Metal, License Not
+Available, ...) come with what to do. The agent never clicks a dialog: it asks you to
+answer it. NX MCP avoids the dialogs it knows: a failed update undoes itself during an
+agent step, and the sketch preference "Display Shaded Regions" is turned off for the
+session, so a large agent sketch never asks about region shading.
 
 **Your changes.** When you change the model between two agent steps (a feature, an
 expression, Ctrl+Z, hide/show, opening or closing a part), the next agent step
@@ -140,8 +146,11 @@ Picking Ask me first while the agent works pauses after the current step.
 `waiting_for_answer` (steps waiting on the card), `activity`, the step `running`
 now, `queue` (the steps waiting for NX at the moment of the read, also while a step
 runs, and how long the oldest has waited), `waiting` (the larger of the two counts),
-`busy` (any of these) and `blocked_by_dialog` while a dialog holds NX. No tool
-changes the mode: the agent asks you in chat when it needs another one.
+`busy` (any of these) and `blocked_by_dialog` while a dialog holds NX. The status read
+answers within seconds even while a long step holds NX, NX hangs or NX is gone: the MCP
+process then answers from outside NX (`bridge.state`: `busy`, `blocked_by_dialog`,
+`unresponsive` or `down`, with what runs and what to do). No tool changes the mode: the
+agent asks you in chat when it needs another one.
 
 The mode you pick is kept when the bridge restarts in the same NX session
 (development reloads, `.nx-mcp/ui-mode.json`). A new NX session starts in Auto.
@@ -160,12 +169,14 @@ side, p50 / p95 (previous transport in brackets): a status read 14 / 22 ms
 `NX_MCP_FAST_WAKE=0` (set for NX) falls back to the timer.
 
 A request may wait in NX's queue up to 135 s (busy engineer, unanswered card, another
-step running) and then has up to 120 s to run (a heavy step 330 s, a long one such as
+step running; a read 30 s, then `NX_BUSY`, nothing ran) and then has up to 120 s to run (a heavy step 330 s, a long one such as
 an import or export 1830 s); the MCP process waits for that plus 15 s. A step that
 could not start within 135 s of being sent, or whose agent gave up (cancelled the
 call), never runs later: it fails with `NX_CALL_EXPIRED` and the log says `Skipped
 ...: the agent stopped waiting`. If a step started but its answer was lost, its
-outcome is unknown: the agent checks it with `nx_get_operation` before retrying.
+outcome is unknown: the agent checks it with `nx_get_operation` before retrying. While
+one step has held NX for over 2 minutes without NX's window responding, other requests
+are not even sent: they fail at once with `NX_BUSY` and nothing ran.
 
 While two or more parts are loaded, every line of the panel history and of
 `.nx-mcp/activity.log` names the part file the step worked in first, e.g.

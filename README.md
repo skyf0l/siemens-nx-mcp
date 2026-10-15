@@ -9,7 +9,7 @@ render materials and decals, and exports (STEP, PDF, DXF/DWG and more). You keep
 working in NX while the agent works next to you.
 
 Tested on NX 2406. NX 2606 can host it, but until it is tested there it offers only
-the tools that read or change the view. The full list of tools (261) is in
+the tools that read or change the view. The full list of tools (269) is in
 [docs/tools.md](docs/tools.md).
 
 ## 1. Install
@@ -95,10 +95,11 @@ More about the panel: [INTERACTIVE-NX.md](INTERACTIVE-NX.md).
 | Problem | Fix |
 | --- | --- |
 | The agent says NX is not running | Start NX (step 2) and check that the NX MCP panel is open. NX takes a while to start; the panel appears once NX's main window is up |
-| The agent says NX is blocked by a dialog | Answer the dialog in NX; the agent never clicks NX dialogs |
+| The agent says NX is blocked by a dialog | Answer the dialog in NX; the agent never clicks NX dialogs. A dialog an agent step opened that stays unanswered for 20 s is flagged on the panel, and NX's taskbar button flashes |
+| The agent says NX is busy (`NX_BUSY`) | Another step still runs in NX and nothing new was started; the agent waits and retries. A long step (a large export, a check on a very large body) can hold NX for minutes |
 | The agent says you are busy in NX (`NX_UI_BUSY`) | Finish or cancel your NX command, then let the agent retry |
 | The agent says a part is yours (`NX_PART_NOT_GRANTED`) | Tick **Allow agent to change <part>** on the panel if you want it to |
-| The agent says a licence is missing (`NX_LICENSE_UNAVAILABLE`) | Some tools need extra NX licences. NX refuses them with this error, nothing is changed, and the agent stops offering that tool until NX restarts |
+| The agent says a licence is missing (`NX_LICENSE_UNAVAILABLE`) | Some tools need extra NX licences. NX refuses them with this error, nothing is changed, and the agent stops offering that tool for 15 minutes, then asks NX again |
 | No NX MCP panel | Play the journal again (step 2); with the optional auto-start, check `UGII_USER_DIR` and restart NX |
 | **nx** is not connected in the client | Check the path to `nx-mcp.exe` and that step 1 finished |
 

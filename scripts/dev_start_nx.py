@@ -9,6 +9,9 @@ from <UGII_USER_DIR>/startup at launch, so no journal has to be played by hand.
 NX inherits this environment: NX_MCP_WORKSPACE if set (else the hosts use
 <home>/NX_MCP_WORKSPACE, like the sidecar); --env NX_MCP_WORKSPACE=... overrides it.
 Without --user-dir no startup app loads; play nx_app/journals/start_2406.py instead.
+NX runs in <workspace>/.nx-mcp/nx-cwd: it writes scratch files to its working directory
+(udf_database.txt and dbc_udf_ascii.def when the hole and thread library loads), which
+then stay out of the checkout.
 """
 
 import argparse
@@ -47,9 +50,16 @@ def main() -> int:
     for item in args.env:
         name, _, value = item.partition("=")
         env[name] = value
+    workspace = Path(env.get("NX_MCP_WORKSPACE") or Path.home() / "NX_MCP_WORKSPACE")
+    cwd = workspace / ".nx-mcp" / "nx-cwd"
+    cwd.mkdir(parents=True, exist_ok=True)
     flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
     subprocess.Popen(
-        [str(base / "NXBIN" / "ugraf.exe")], env=env, creationflags=flags, close_fds=True
+        [str(base / "NXBIN" / "ugraf.exe")],
+        env=env,
+        cwd=cwd,
+        creationflags=flags,
+        close_fds=True,
     )
     deadline = time.monotonic() + args.wait
     while time.monotonic() < deadline:

@@ -25,3 +25,9 @@ htmlcov/
 
 # Personal Claude Code settings
 .claude/settings.local.json
+
+# Scratch files NX writes to its working directory (dev_start_nx.py runs NX elsewhere)
+udf_database.txt
+dbc_udf_ascii.def
+BodyCompare_result.html
+/outputs/

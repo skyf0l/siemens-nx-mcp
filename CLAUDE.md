@@ -14,7 +14,7 @@ authenticated loopback bridge. Design of record: `docs/design/architecture.md`
   `types.py`, `validate.py`, `kernel.py` (one gate order for every call), `tx.py`,
   `errors.py`, `references.py`, `receipts.py`, `evidence.py`, `summary.py`; several
   parts: `target.py` (gate 3t), `switching.py` (gate 4s), `marks.py`, `busy.py`,
-  `parking.py`.
+  `parking.py`, `undoable.py` (what an undo can compensate).
 - `kit/`: shared NX know-how, one module per subject (architecture.md 1.4): analysis_objects,
   args, bodies, builders, capture, curve, deform, display, drawing, explode, expr, facts,
   features, files, geom, kinematics, licenses, massprops, measure, model, parts, pose,
@@ -22,7 +22,9 @@ authenticated loopback bridge. Design of record: `docs/design/architecture.md`
 - `domains/<domain>/`: every public tool, one `@tool` function each (session,
   parts_files, sketch, modeling, freeform, assembly, motion, inspection, drawing,
   sheet_metal, display, optimization).
-- `host/dispatch.py` -> `core/kernel.py`, with `host/services.py` (`NXServices`).
+- `host/dispatch.py` -> `core/kernel.py`, with `host/services.py` (`NXServices`),
+  `host/quiet.py` (no NX prompts), `host/dialogs.py` (modal dialogs) and
+  `host/heartbeat.py` (NX-free: the sidecar's view of a busy or hung NX).
   Hosts: `nx_app/startup/nx_mcp_startup.py` (NX 2406 startup app; `nx_app/journals/start_2406.py`
   plays the same bootstrap), `nx_app/journals/start_2606.py` (2606),
   `nx_app/journals/start_batch.py` (batch, `nx_bridge.py`); `interactive.py` is the
@@ -89,7 +91,7 @@ journals did exactly that and were removed).
 ## Live NX development loop
 
 ```powershell
-python scripts/dev_start_nx.py --user-dir nx_app --env NX_MCP_DEV=1   # start NX 2406
+python scripts/dev_start_nx.py --user-dir nx_app --env NX_MCP_DEV=1   # start NX 2406 (cwd <workspace>/.nx-mcp/nx-cwd)
 python scripts/dev_lock.py acquire --owner <agent>                    # before any NX use
 python scripts/dev_reload.py --wait-ready        # reload host code; exit 1 prints the traceback
 python -m nx_mcp.acceptance run <domain>[/<name>] --owner <agent>     # replay scenarios (takes the lock)

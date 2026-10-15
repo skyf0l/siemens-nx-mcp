@@ -7,10 +7,11 @@ runner writes these files (``record``). A build key present means tested.
 Listings show only what can run: a tool's untested variants leave its schema enum
 and its ``tool#variant`` schemas, and a tool with no variant left is hidden
 (``variants_for``). Session license memory: a tested tool or variant that failed
-with ``NX_LICENSE_UNAVAILABLE`` is refused before NX for the rest of the NX
-session (``remember_license`` / ``license_refusal``); ``nx_get_status`` reports
-the list so the sidecar hides it too. The memory lives in the NX process and is
-kept across development host reloads, so only an NX restart clears it.
+with ``NX_LICENSE_UNAVAILABLE`` is refused before NX for ``LICENSE_MEMORY_SECONDS``
+(``remember_license`` / ``license_refusal``), then NX is asked again: a floating or
+token license may be free by then. ``nx_get_status`` reports the list so the sidecar
+hides it too. The memory lives in the NX process and is kept across development host
+reloads.
 """
 
 from __future__ import annotations
