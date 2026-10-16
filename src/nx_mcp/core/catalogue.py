@@ -4,12 +4,21 @@ A tool is one decorated function: its signature is the schema, its docstring the
 description, and the decorator carries everything else. Every rule below is
 checked at import; a violation raises :class:`CatalogueError`, so the sidecar
 refuses to start and ``dev_reload.py`` prints the error.
+
+One exception, in development only (``NX_MCP_DEV=1``: the development NX host, the
+acceptance runner's sidecar): a text longer than its budget (label, description, first
+sentence, field ``Doc``) registers the tool anyway with a logged warning
+(:func:`budget_warnings`), so one tool mid-edit cannot stop the catalogue from loading
+for everyone. Structural rules stay fatal there too; production stays strict, and the
+test suite fails on any such warning (``tests/core/test_catalogue.py``).
 """
 
 from __future__ import annotations
 
 import importlib
 import inspect
+import logging
+import os
 import pkgutil
 import re
 import string
@@ -103,6 +112,32 @@ FIELD_DOC_MAX = 120  # units, frame, range, the field's one gotcha
 
 class CatalogueError(Exception):
     """A tool or hook definition breaks a catalogue rule."""
+
+
+class _Budget(str):
+    """A text-length problem (a budget, not a structural rule): only a warning in
+    development (:func:`lenient`)."""
+
+
+_log = logging.getLogger(__name__)
+
+
+def lenient() -> bool:
+    """Development (``NX_MCP_DEV=1``): text-length problems are logged warnings, not
+    :class:`CatalogueError`. ``NX_MCP_CATALOGUE_STRICT=1`` keeps development strict."""
+    return os.environ.get("NX_MCP_DEV") == "1" and os.environ.get("NX_MCP_CATALOGUE_STRICT") != "1"
+
+
+def _settle(name: str, problems: list[str]) -> list[str]:
+    """Raise :class:`CatalogueError` for ``problems``, except that in development
+    (:func:`lenient`) text-length problems alone are taken out and returned."""
+    if not problems:
+        return []
+    if lenient() and all(isinstance(p, _Budget) for p in problems):
+        budget = list(problems)
+        problems.clear()
+        return budget
+    raise CatalogueError(f"{name}: " + "; ".join(problems))
 
 
 @dataclass(frozen=True)
@@ -265,6 +300,9 @@ RESERVED_PARAMS = frozenset({"intent", "detail", "operation_id", "expires_at", "
 RESERVED_OWNERS = frozenset({("nx_get_result", "detail")})
 _HOOKS: dict[str, dict[str, Callable]] = {name: {} for name in HOOKS}
 _LOADED = False
+# Development only (:func:`lenient`): tool name -> the text-length problems it was
+# registered with.
+_BUDGET_WARNINGS: dict[str, tuple[str, ...]] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -297,7 +335,7 @@ def _check_hint(hint, where: str, problems: list[str], *, seen=None) -> None:
     base, markers = unwrap(hint)
     doc = markers.get(Doc)
     if doc is not None and len(doc.text) > FIELD_DOC_MAX:
-        problems.append(f"{where}: Doc longer than {FIELD_DOC_MAX} characters")
+        problems.append(_Budget(f"{where}: Doc longer than {FIELD_DOC_MAX} characters"))
     if RefKind in markers:
         unknown = [k for k in markers[RefKind].kinds if k not in KINDS and k not in KIND_GROUPS]
         if unknown:
@@ -458,15 +496,19 @@ def make_spec(
         elif item not in REQUIRES:
             problems.append(f"unknown requires {item!r}")
     # Budgets (surface 1.7).
-    if not label or len(label) > LABEL_MAX:
+    if not label:
         problems.append(f"label must be 1-{LABEL_MAX} characters")
+    elif len(label) > LABEL_MAX:
+        problems.append(_Budget(f"label must be 1-{LABEL_MAX} characters"))
     description = normalise_doc(fn.__doc__)
     if not description:
         problems.append("the docstring is the description and is required")
     elif len(first_sentence(description)) > FIRST_SENTENCE_MAX:
-        problems.append(f"description first sentence exceeds {FIRST_SENTENCE_MAX} characters")
+        problems.append(
+            _Budget(f"description first sentence exceeds {FIRST_SENTENCE_MAX} characters")
+        )
     if len(description) > DESCRIPTION_MAX:
-        problems.append(f"description exceeds {DESCRIPTION_MAX} characters")
+        problems.append(_Budget(f"description exceeds {DESCRIPTION_MAX} characters"))
     keywords = tuple(keywords)
     if not 3 <= len(keywords) <= 8 or len(set(keywords)) != len(keywords):
         problems.append("keywords: 3-8 distinct entries")
@@ -513,8 +555,7 @@ def make_spec(
     returns = hints.get("return")
     if not is_typeddict(returns):
         problems.append("the return annotation must be a TypedDict")
-    if problems:
-        raise CatalogueError(f"{name}: " + "; ".join(problems))
+    budget = _settle(name, problems)
     # Defaults and example validate.
     for param in params.values():
         if not param.required and param.default is not None:
@@ -604,8 +645,12 @@ def make_spec(
         params, variant_values, target, switch, display_bound,
         effect=effect, domain=domain, requires=tuple(requires), runs=runs, problems=problems,
     )  # fmt: skip
-    if problems:
-        raise CatalogueError(f"{name}: " + "; ".join(problems))
+    budget += _settle(name, problems)
+    if budget:
+        _log.warning("%s: registered despite %s (development only)", name, "; ".join(budget))
+        _BUDGET_WARNINGS[name] = tuple(str(p) for p in budget)
+    else:
+        _BUDGET_WARNINGS.pop(name, None)
     if refresh_annotations is None:
         refresh_annotations = effect == "model" and domain in GEOMETRY_DOMAINS
     return ToolSpec(
@@ -879,3 +924,9 @@ def get(name: str) -> ToolSpec | None:
 
 def specs() -> list[ToolSpec]:
     return sorted(_REGISTRY.values(), key=lambda s: s.name)
+
+
+def budget_warnings() -> Mapping[str, tuple[str, ...]]:
+    """Tools registered in development despite a text-length problem (:func:`lenient`):
+    ``{name: problems}``; empty in production, where such a tool fails to register."""
+    return MappingProxyType(_BUDGET_WARNINGS)

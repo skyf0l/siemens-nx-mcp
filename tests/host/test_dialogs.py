@@ -226,10 +226,12 @@ def test_texts_are_read_only_for_confirmed_modal_dialogs():
 
     def texts(hwnd):
         read.append(hwnd)
+        if hwnd == 2:  # an unowned box: its title is read (it may be a known alert)
+            return "Work in Progress", (), ()
         return "Error During Update", ("Update failed",), ("&OK",)
 
     (found,) = dialogs.scan(PID, windows=lambda pid: windows, texts=texts)
-    assert read == [1]
+    assert read == [1, 2]
     assert (found.title, found.text, found.buttons) == ("Error During Update", "Update failed",
                                                         ("OK",))  # fmt: skip
 
@@ -488,3 +490,26 @@ def test_reads_fail_fast_in_auto_but_wait_for_the_card_in_ask_me_first(tmp_path)
     assert stub._queue_wait("nx_create_extrude") == QUEUE_TIMEOUT
     stub.mode = "ask"  # the engineer answers each call on the card: the full time
     assert stub._queue_wait("nx_list_parts") == QUEUE_TIMEOUT
+
+
+def test_an_unowned_known_alert_blocks_nx():
+    """A license or heartbeat alert may have no owner window: unowned, it counts only when
+    NX MCP knows its title and it has the proof (modal frame or NX's active window)."""
+    alert = sheet_metal_warning(hwnd=8, owner=0, owner_pid=0, title="", texts=(), buttons=())
+
+    def texts(hwnd):
+        return "Heartbeat Failure", ("Lost the license server.",), ("&OK",)
+
+    (found,) = dialogs.scan(PID, windows=lambda pid: [alert], texts=texts)
+    assert found.title == "Heartbeat Failure" and found.buttons == ("OK",)
+    plain = sheet_metal_warning(hwnd=8, owner=0, owner_pid=0, modal_frame=False, active=False)
+    assert dialogs.scan(PID, windows=lambda pid: [plain], texts=texts) == []
+    progress = sheet_metal_warning(hwnd=8, owner=0, owner_pid=0)
+    assert dialogs.scan(PID, windows=lambda pid: [progress],
+                        texts=lambda h: ("Work in Progress", (), ())) == []  # fmt: skip
+
+
+def test_only_nx_alerts_skip_the_busy_wait():
+    assert dialogs.is_alert("heartbeat failure ") and dialogs.is_alert("Heartbeat Failure - x")
+    assert not dialogs.is_alert("Sheet Metal") and not dialogs.is_alert(None)
+    assert all(dialogs.known(name) for name in dialogs.ALERTS)

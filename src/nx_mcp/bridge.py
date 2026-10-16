@@ -92,6 +92,14 @@ COST_RUN_SECONDS = {"heavy": 330.0, "long": 1830.0}
 # with NX_BUSY (nothing ran; retry), instead of waiting QUEUE_TIMEOUT behind a long step
 # or a blocked NX: it changes nothing, so retrying it later is always safe.
 READ_QUEUE_TIMEOUT = 30.0
+# A development snippet (``nx_dev_python``, development NX host only) stops itself after
+# its ``timeout`` argument (seconds of run time; 0: no limit), DEV_PYTHON_TIMEOUT when
+# omitted, at most DEV_PYTHON_TIMEOUT_MAX (``host/watchdog.py``). The bridge waits that
+# long plus DEV_PYTHON_MARGIN for its answer.
+DEV_PYTHON = "nx_dev_python"
+DEV_PYTHON_TIMEOUT = 120.0
+DEV_PYTHON_TIMEOUT_MAX = 1800.0
+DEV_PYTHON_MARGIN = 15.0
 
 
 def _cost(method: str) -> str | None:
@@ -125,6 +133,16 @@ def queue_timeout(method: str, base: float = QUEUE_TIMEOUT) -> float:
 def run_timeout(method: str, base: float = DISPATCHER_TIMEOUT) -> float:
     """How long NX may run ``method`` once started before its caller stops waiting."""
     return max(base, COST_RUN_SECONDS.get(_cost(method) or "", 0.0))
+
+
+def dev_python_seconds(params: dict[str, Any] | None) -> float:
+    """The time limit a development snippet asks for (``params["timeout"]``): the default
+    when omitted or malformed (the host refuses a malformed one), clipped to
+    0..DEV_PYTHON_TIMEOUT_MAX; 0 means no limit."""
+    value = (params or {}).get("timeout")
+    if value is None or isinstance(value, bool) or not isinstance(value, (int, float)):
+        return DEV_PYTHON_TIMEOUT
+    return min(max(float(value), 0.0), DEV_PYTHON_TIMEOUT_MAX)
 
 
 def client_timeout(method: str) -> float:
@@ -548,7 +566,7 @@ class MainThreadDispatcher:
         dispatcher timeout from its start for it to finish."""
         waits = self._queue_wait(pending.method)
         deadline = pending.queued_at + waits
-        limit = self._run_timeout(pending.method) if self._run_timeout else self._timeout
+        limit = self._run_limit(pending)
         while not pending.complete.wait(max(0.0, deadline - time.monotonic())):
             with self._lock:
                 started = pending.started
@@ -579,6 +597,19 @@ class MainThreadDispatcher:
                 retryable=True,
                 details={"mutation_outcome": "not_started", **self._running_row(pending)},
             )
+
+    def _run_limit(self, pending: _PendingBridgeCall) -> float:
+        """How long a started call may run before its caller stops waiting. With
+        per-method limits (``run_timeout``), a development snippet gets at least its
+        own time limit plus DEV_PYTHON_MARGIN, so its own timeout answer arrives first."""
+        if self._run_timeout is None:
+            return self._timeout
+        limit = self._run_timeout(pending.method)
+        if pending.method == DEV_PYTHON:
+            seconds = dev_python_seconds(pending.params)
+            if seconds > 0:
+                limit = max(limit, seconds + DEV_PYTHON_MARGIN)
+        return limit
 
     def _queue_wait(self, method: str) -> float:
         """How long ``method`` may wait in the queue (never raises)."""

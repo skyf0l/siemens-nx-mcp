@@ -91,7 +91,11 @@ def test_nx_dev_python_output_never_opens_the_listing_window(tmp_path):
     lw = s.session.ListingWindow
     host = NS(nx=s.nx, session=s.session, services=s)
     host.session.Parts.Work = None
-    s.dev_tools["nx_dev_python"] = lambda code: interactive.InteractiveHost._dev_python(host, code)
+    s.dev_tools["nx_dev_python"] = lambda code: interactive.InteractiveHost._dev_python(
+        host,
+        code,
+        allow_no_part=True,  # no work part: the snippet says it knows
+    )
     code = (
         "import sys\n"
         "print('from print')\n"

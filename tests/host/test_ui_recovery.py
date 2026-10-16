@@ -314,7 +314,10 @@ def test_auto_waits_while_the_engineer_is_busy_then_runs(host, rig):
     assert pending.complete.is_set() and pending.error is None and host.busy_wait is None
 
 
-def test_auto_busy_wait_times_out_as_not_started(host, rig):
+def test_auto_busy_wait_times_out_as_not_started(host, rig, monkeypatch):
+    from nx_mcp.host import dialogs
+
+    monkeypatch.setattr(dialogs, "scan", lambda *a, **k: [])  # no NX dialog open
     queue = _queue(host, "auto")
     rig.e.dev_tools["nx_test_edit"] = Mock(return_value={})
     pending = queue.submit("nx_test_edit")
@@ -327,6 +330,60 @@ def test_auto_busy_wait_times_out_as_not_started(host, rig):
     assert "Retry later" in pending.error.message
     rig.e.dev_tools["nx_test_edit"].assert_not_called()
     assert "busy in NX for 2 minutes" in host.panel_text()
+
+
+def test_a_known_nx_dialog_answers_a_busy_wait_at_once(host, rig, monkeypatch):
+    """A license or heartbeat alert open between agent calls is no engineer command: the
+    waiting call is answered NX_MODAL_DIALOG_OPEN with the dialog and its own hint at once,
+    not NX_UI_BUSY after BUSY_WAIT_SECONDS."""
+    from nx_mcp.host import dialogs
+
+    alert = dialogs.Dialog(9, "Heartbeat Failure", "Lost the connection to the server.")
+    monkeypatch.setattr(dialogs, "scan", lambda *a, **k: [alert])
+    queue = _queue(host, "auto")
+    rig.e.dev_tools["nx_test_edit"] = Mock(return_value={})
+    pending = queue.submit("nx_test_edit")
+    _busy(host)  # NX's main window is disabled under the dialog
+    host.tick()
+    error = pending.error
+    assert (
+        error.code == "NX_MODAL_DIALOG_OPEN" and error.details["mutation_outcome"] == "not_started"
+    )
+    assert "“Heartbeat Failure”" in error.message
+    assert error.hint.startswith(dialogs.known("Heartbeat Failure")[1])
+    assert error.details["dialogs"][0]["title"] == "Heartbeat Failure"
+    rig.e.dev_tools["nx_test_edit"].assert_not_called()
+    assert host.busy_wait is None
+
+
+@pytest.mark.parametrize(
+    ("title", "hint"),
+    [
+        ("Open Part File", "Ask the engineer to answer the NX dialog"),
+        ("Sheet Metal", "then call nx_activate_application"),  # its own hint
+    ],
+)
+def test_a_busy_wait_under_another_dialog_times_out_naming_it(host, rig, monkeypatch, title, hint):
+    """Any other modal dialog may be the engineer's own command: the call waits as for a
+    busy engineer, and at the timeout it is answered NX_MODAL_DIALOG_OPEN naming it."""
+    from nx_mcp.host import dialogs
+
+    box = dialogs.Dialog(11, title)
+    monkeypatch.setattr(dialogs, "scan", lambda *a, **k: [box])
+    queue = _queue(host, "auto")
+    rig.e.dev_tools["nx_test_edit"] = Mock(return_value={})
+    pending = queue.submit("nx_test_edit")
+    _busy(host)
+    host.tick()
+    assert not pending.complete.is_set() and host.busy_wait is pending
+    pending.seen_at -= interactive.BUSY_WAIT_SECONDS
+    host.tick()
+    assert pending.error.code == "NX_MODAL_DIALOG_OPEN"
+    assert f"“{title}”" in pending.error.message
+    assert pending.error.details["mutation_outcome"] == "not_started"
+    assert hint in pending.error.hint
+    rig.e.dev_tools["nx_test_edit"].assert_not_called()
+    assert "an NX dialog waited for your answer" in host.panel_text()
 
 
 def test_busy_signals_cover_dialogs_locks_menus_and_mouse(host):

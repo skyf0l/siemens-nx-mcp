@@ -1191,9 +1191,17 @@ other name lists are deleted. What holds today:
    - Take `scripts/dev_lock.py acquire --owner <agent>`, then run
      `scripts/dev_reload.py --wait-ready`, then `dev_lock.py release`. Keep each session under
      15 minutes. `python -m nx_mcp.acceptance run|call --owner <agent>` takes the lock
-     itself; `run --beside-engineer` replays scenarios while the engineer's own parts are
-     loaded (never touched).
-   - Look up builder members with `scripts/dev_python.py`.
+     itself and holds it for the whole run or call (refreshed every 30 s, released at the
+     end, also on an error); `run --beside-engineer` replays scenarios while the engineer's
+     own parts are loaded (never touched).
+   - A held lock is refreshed by its holder (`dev_lock.py refresh --owner <agent>`, or
+     `acquire` again); one not refreshed for 10 minutes is stale, and the next acquire takes
+     it over and names whose it was. A waiting `acquire` gives up when a process that
+     started it exits.
+   - Every `run` and `call` with the same `--owner` presents the caller id `dev-<owner>` to
+     NX: parts one call created are the owner's own in the next.
+   - Look up builder members with `scripts/dev_python.py`; a probe creates or opens its own
+     part under `smoke/<agent>/` first.
    - Use disposable parts under `smoke/<agent>/` only. Never modify, save or close parts you
      did not create, and never touch `.nx-mcp/ui-stop` or `.nx-mcp/dev-exit`.
 6. **Never** run git commands or install packages. Lint and format only your own files.

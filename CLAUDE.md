@@ -93,14 +93,34 @@ journals did exactly that and were removed).
 ```powershell
 python scripts/dev_start_nx.py --user-dir nx_app --env NX_MCP_DEV=1   # start NX 2406 (cwd <workspace>/.nx-mcp/nx-cwd)
 python scripts/dev_lock.py acquire --owner <agent>                    # before any NX use
-python scripts/dev_reload.py --wait-ready        # reload host code; exit 1 prints the traceback
-python -m nx_mcp.acceptance run <domain>[/<name>] --owner <agent>     # replay scenarios (takes the lock)
+python scripts/dev_lock.py refresh --owner <agent>                    # while you hold it (or acquire again)
+python scripts/dev_reload.py --owner <agent> --wait-ready  # reload host code; exit 1 prints the traceback
+python -m nx_mcp.acceptance run <domain>[/<name>] --owner <agent>     # replay scenarios (holds the lock)
 python -m nx_mcp.acceptance run <domain> --beside-engineer --owner <agent>  # with engineer parts loaded
 python -m nx_mcp.acceptance call --inline '[...]' --owner <agent>     # ad-hoc calls, no evidence
-python scripts/dev_python.py "print(dir(NXOpen.Features.HoleFeatureBuilder))"  # probe NXOpen
+python scripts/dev_python.py --owner <agent> "print(dir(NXOpen.Features.HoleFeatureBuilder))"  # probe NXOpen
 python -m nx_mcp.acceptance fold                 # rebuild src/nx_mcp/evidence/*.json
 python scripts/dev_lock.py release --owner <agent>
 ```
+
+- The lock: `run` and `call` hold it for their whole duration (every scenario, every
+  step), refresh it every 30 s and release it at the end, also on an error or Ctrl+C;
+  a lock you held before stays yours. A lock not refreshed for 10 minutes is stale: the
+  next acquire takes it over and prints whose it was. Holding it by hand (dev_reload,
+  dev_python), run `dev_lock.py refresh` at least every few minutes. A waiting
+  `acquire` gives up (exit 3) when a process that started it exits.
+- One owner, one caller: every `run` and `call` with the same `--owner` presents the
+  caller id `dev-<owner>` to NX, so parts one call created are yours in the next
+  (close them without `force`).
+- `dev_reload.py` and `dev_python.py` run only for the lock holder (`--owner`, exit 3
+  otherwise, NX untouched); `--force-unlocked` (a warning) is for the orchestrator when no
+  agent uses NX.
+- `dev_python.py` probes create or open their own part under `smoke/<agent>/` first
+  and never work in the parts that happen to be loaded: with no work part a probe is
+  refused (NXOpen calls on a missing part open NX's blocking "Null tag not allowed"
+  alert); `--no-part` is for a snippet that creates or opens its part itself. A probe
+  stops after `--timeout` seconds (default 120, between Python lines; one blocking NX
+  call cannot be interrupted).
 
 Changes to `nx_app/startup/nx_mcp_startup.py` need an NX restart. Keep sessions
 under 15 minutes. `scripts/dev_nx_windows.py` shows blocking NX dialogs; close a

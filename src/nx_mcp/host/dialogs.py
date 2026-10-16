@@ -15,7 +15,8 @@ ignored. When the host disabled the owner itself (it disables NX's main window
 while an agent call runs) that proves nothing, so the dialog must also have a modal frame
 (``DS_MODALFRAME`` / ``WS_EX_DLGMODALFRAME``, as the "Sheet Metal" warning has) or be
 the active window of NX's UI thread. NX's own "Work in Progress" progress box has no
-owner and is ignored.
+owner and is ignored; an unowned dialog counts only when NX MCP knows its title
+(:data:`KNOWN_DIALOGS`, a license or heartbeat alert) and it has the same proof.
 
 NX's message boxes (live NX 2406: "Edit Sketch: The edit causes curves or dimensions
 to be deleted." [OK]) are owned by a *hidden* "Information" ``#32770`` window that
@@ -179,6 +180,17 @@ KNOWN_DIALOGS = (
         "does not have",
     ),
 )
+
+
+# Known dialogs no engineer command opens (NX's own alerts): a call waiting for a busy
+# engineer is answered at once while one is open, instead of after the busy wait.
+ALERTS = ("Heartbeat Failure",)
+
+
+def is_alert(title: str | None) -> bool:
+    """Whether ``title`` names one of :data:`ALERTS` (start of the title, any case)."""
+    text = " ".join(str(title or "").split()).casefold()
+    return any(text.startswith(name.casefold()) for name in ALERTS)
 
 
 def known(title: str | None) -> tuple[str, str] | None:
@@ -347,13 +359,35 @@ def scan(
     pid = os.getpid() if pid is None else pid
     disabled = _owners(host_disabled)
     try:
-        modal = [w for w in (windows or _windows)(pid) if is_modal(w, pid, disabled)]
+        listed = (windows or _windows)(pid)
+        modal = [w for w in listed if is_modal(w, pid, disabled)]
+        loose = [w for w in listed if _unowned(w, pid)]
         read = texts if texts is not None else (_texts if windows is None else None)
         if read is not None:
             modal = [_with_texts(w, read) for w in modal]
-        return blocking(modal, pid, disabled)
+            loose = [_with_texts(w, read) for w in loose]
+        return blocking(modal, pid, disabled) + _known_unowned(loose)
     except Exception:
         return []  # A diagnostic must never fail the call it watches.
+
+
+def _unowned(w: Window, pid: int) -> bool:
+    """A visible, enabled, unowned ``#32770`` window of NX: not modal by the owner rule
+    (NX's "Work in Progress" box), but it may be an alert NX MCP knows by title."""
+    return w.pid == pid and w.cls == DIALOG_CLASS and w.visible and w.enabled and not w.owner
+
+
+def _known_unowned(windows: Iterable[Window]) -> list[Dialog]:
+    """Unowned dialogs whose title NX MCP knows (:data:`KNOWN_DIALOGS`: a license or
+    heartbeat alert may have no owner window) with the proof asked of a dialog whose
+    owner the host disabled: a modal frame, or the active window of NX's UI thread."""
+    found = []
+    for w in windows:
+        if known(w.title) is None or not (w.modal_frame or w.active):
+            continue
+        buttons = tuple(b.replace("&", "") for b in w.buttons if b and b != "X")
+        found.append(Dialog(w.hwnd, w.title, "\n".join(t for t in w.texts if t), buttons))
+    return found
 
 
 def _with_texts(w: Window, read) -> Window:

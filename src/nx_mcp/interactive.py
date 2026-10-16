@@ -20,7 +20,8 @@ them):
   and gives NX back. Reads never wait; other calls wait silently while the
   engineer is busy in an NX command or dialog (``engineer_busy``), at most
   BUSY_WAIT_SECONDS, and a non-read call is refused while a modal NX dialog is
-  open (``NX_MODAL_DIALOG_OPEN``). No request card: long steps simply run.
+  open (``NX_MODAL_DIALOG_OPEN``, also when it ends a busy wait: an open dialog is
+  never reported as a busy engineer). No request card: long steps simply run.
 - ``ask`` ("Ask me first", alias ``manual``): every call but the status read waits
   for the engineer's answer on the request card (Run once, Run & switch to Auto,
   Not now). The card shows one call at a time, the oldest waiting one, and an answer
@@ -176,6 +177,54 @@ def _running_tail(method):
 
 def _span(seconds):
     return f"{seconds // 60} minutes" if seconds >= 120 else f"{seconds} s"
+
+
+def check_dev_python(session, params):
+    """Refuse a development snippet before it touches NX (``not_started``): a bad
+    ``timeout`` or ``allow_no_part``, or no work part without ``allow_no_part``.
+    NXOpen calls on objects of a missing part (a null tag) open NX's blocking
+    "Null tag not allowed / Hit OK to continue" alert for everyone; a probe creates or
+    opens its own part first, or passes ``allow_no_part`` and does so itself."""
+    from nx_mcp.bridge import DEV_PYTHON_TIMEOUT_MAX
+
+    timeout = params.get("timeout")
+    if timeout is not None and (
+        isinstance(timeout, bool)
+        or not isinstance(timeout, (int, float))
+        or not 0 <= timeout <= DEV_PYTHON_TIMEOUT_MAX
+    ):
+        raise NXError(
+            "NX_INVALID_ARGUMENT",
+            f"timeout is the snippet's time limit in seconds, 0 to "
+            f"{DEV_PYTHON_TIMEOUT_MAX:g} (0: none); got {timeout!r}",
+            field="timeout",
+            details={"mutation_outcome": "not_started"},
+        )
+    allow = params.get("allow_no_part", False)
+    if not isinstance(allow, bool):
+        raise NXError(
+            "NX_INVALID_ARGUMENT",
+            f"allow_no_part is true or false; got {allow!r}",
+            field="allow_no_part",
+            details={"mutation_outcome": "not_started"},
+        )
+    if allow:
+        return
+    try:
+        work = session.Parts.Work
+    except Exception:
+        work = None
+    if work is None:
+        raise NXError(
+            "NX_NO_WORK_PART",
+            "No part is the work part in NX, so the snippet did not run: NXOpen calls on "
+            "objects of a missing part open NX's blocking 'Null tag not allowed' alert "
+            "for everyone.",
+            hint="Create or open the probe's own part first (a disposable part under "
+            "<workspace>/smoke/<agent>/), or pass allow_no_part (scripts/dev_python.py "
+            "--no-part) for a snippet that creates or opens its part itself",
+            details={"mutation_outcome": "not_started"},
+        )
 
 
 def remembered_mode(state_dir):
@@ -1438,6 +1487,8 @@ class InteractiveHost:
                 "(File > New or File > Open), then retry.",
                 details={"mutation_outcome": "not_started"},
             )
+        if method == DEV_PYTHON and method in getattr(self.services, "dev_tools", {}):
+            self._check_dev_python(params)  # before any NX call: no undo mark either
         self._check_engineer_change()
         self.last_method = method
         self.running_method = method
@@ -1854,6 +1905,25 @@ class InteractiveHost:
         self.busy_wait = None
         return self._run_light(first)
 
+    def _open_dialog_error(self, *, alerts_only=False):
+        """NX_MODAL_DIALOG_OPEN (``not_started``) for the first modal dialog NX shows now
+        (title, text and its own hint from ``host/dialogs.py`` KNOWN_DIALOGS), else None:
+        whether or not an agent call opened it. ``alerts_only``: only NX's own alerts
+        (``dialogs.ALERTS``), never a dialog of the engineer's command. Never raises."""
+        from nx_mcp.host import dialogs
+
+        try:
+            disabled = (self.main_hwnd,) if getattr(self, "window_disabled", False) else ()
+            found = dialogs.scan(host_disabled=disabled)
+        except Exception:
+            return None
+        if alerts_only:
+            found = [d for d in found if dialogs.is_alert(d.title)]
+        if not found:
+            return None
+        first = found[0]
+        return self._blocked_error({**first.row(), "hwnd": first.hwnd}, "not_started")
+
     def _gone(self, pending):
         """Whether a queued call's client gave up: it closed its socket (an MCP
         cancellation), or the call changes something and its ``expires_at`` passed."""
@@ -1917,21 +1987,38 @@ class InteractiveHost:
             self._engineer_had_nx = True
 
     def _wait_for_engineer(self, pending_calls):
-        """The engineer is busy in NX: wait, at most BUSY_WAIT_SECONDS per call."""
+        """The engineer is busy in NX: wait, at most BUSY_WAIT_SECONDS per call.
+
+        An open modal NX dialog always wins over "busy": NX's own alert (``dialogs.ALERTS``:
+        "Heartbeat Failure") answers the calls NX_MODAL_DIALOG_OPEN at once; any other
+        modal dialog may belong to the engineer's command and is waited for, but a call
+        that times out under it is answered NX_MODAL_DIALOG_OPEN with the dialog's title
+        and hint, never NX_UI_BUSY."""
         now = time.monotonic()
+        ids = {id(p) for p in pending_calls}
+        blocked = self._open_dialog_error(alerts_only=True)
+        if blocked is not None:
+            self.dispatcher.reject_where(lambda p: id(p) in ids, blocked)
+            self._set_notice("An agent step was not run: an NX dialog waits for your answer.")
+            self.busy_wait = None
+            return False
         expired = {id(p) for p in pending_calls if now - p.seen_at >= BUSY_WAIT_SECONDS}
         if expired:
             span = _span(BUSY_WAIT_SECONDS)
-            self.dispatcher.reject_where(
-                lambda p: id(p) in expired,
-                NXError(
+            error = self._open_dialog_error()
+            if error is not None:
+                self._set_notice(
+                    f"An agent step was not run: an NX dialog waited for your answer for {span}."
+                )
+            else:
+                error = NXError(
                     "NX_UI_BUSY",
                     f"The engineer was busy in an NX command for {span}, so the step did "
                     "not run. Retry later, or ask in chat when NX is free.",
                     retryable=True,
-                ),
-            )
-            self._set_notice(f"An agent step was not run: you were busy in NX for {span}.")
+                )
+                self._set_notice(f"An agent step was not run: you were busy in NX for {span}.")
+            self.dispatcher.reject_where(lambda p: id(p) in expired, error)
             self.busy_wait = None
             return False
         self.busy_wait = pending_calls[0]
@@ -2038,17 +2125,32 @@ class InteractiveHost:
             return True  # Unknown: do not block work on a failed probe.
         return loaded and application not in {"", "UG_APP_NOPART"}
 
-    def _dev_python(self, code):
+    def _check_dev_python(self, params):
+        """Refuse a development snippet before it touches NX (:func:`check_dev_python`)."""
+        check_dev_python(self.session, params)
+
+    def _dev_python(self, code, timeout=None, allow_no_part=False):
         """Run a Python snippet on the NX UI thread (development launcher only).
 
         Names: NXOpen, session, part (work part), services, resolve(id). Set
         `result` to return a value; print(), stderr and listing-window output are
         returned as stdout. A raised snippet is undone to the call's mark and the
         display and work parts it started with are shown again (dispatch.run_dev_tool).
+
+        Refused without a work part unless ``allow_no_part`` (:func:`check_dev_python`).
+        ``timeout``: seconds of run time (default ``bridge.DEV_PYTHON_TIMEOUT``, 0: none)
+        after which Python code in the snippet is stopped (``host/watchdog.py``) and the
+        call fails NX_CANCELLED, rolled back; one blocking NX call is never interrupted.
         """
         import contextlib
         import io
 
+        from nx_mcp.bridge import dev_python_seconds
+        from nx_mcp.host import watchdog
+
+        params = {"timeout": timeout, "allow_no_part": allow_no_part}
+        check_dev_python(self.session, params)  # also when called without execute()
+        seconds = dev_python_seconds(params)
         namespace = {
             "NXOpen": self.nx,
             "session": self.session,
@@ -2060,8 +2162,28 @@ class InteractiveHost:
         # print() and tracebacks/warnings written to stderr come back in the result,
         # never in NX's listing window; ListingWindow writes go to a file meanwhile
         # (dispatch.execute -> host/quiet.py) and are appended to stdout.
-        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
-            exec(compile(code, "<nx_dev_python>", "exec"), namespace)  # noqa: S102 - dev only
+        compiled = compile(code, "<nx_dev_python>", "exec")
+        try:
+            with (
+                contextlib.redirect_stdout(output),
+                contextlib.redirect_stderr(output),
+                watchdog.deadline(seconds),
+            ):
+                exec(compiled, namespace)  # noqa: S102 - dev only
+        except watchdog.ProbeTimeout as stop:
+            raise NXError(
+                "NX_CANCELLED",
+                f"The snippet ran longer than its {stop.seconds:g} s time limit and was "
+                f"stopped at {stop.where}; its changes were rolled back.",
+                hint="Make the probe shorter, or pass a larger timeout "
+                "(scripts/dev_python.py --timeout SECONDS; 0: none)",
+                details={
+                    "timeout_seconds": stop.seconds,
+                    "stopped_at": stop.where,
+                    "traceback": stop.stack,
+                    "stdout": output.getvalue()[-4000:],
+                },
+            ) from None
         return {
             "status": "success",
             "stdout": output.getvalue()[-20000:],

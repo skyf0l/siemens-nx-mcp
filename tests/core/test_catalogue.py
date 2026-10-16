@@ -57,6 +57,13 @@ def _documented(doc: str, field_doc: str = "Size"):
     return nx_create_sized
 
 
+@pytest.fixture(autouse=True)
+def _strict(monkeypatch):
+    """These rules are checked as in production, whatever the developer's shell sets."""
+    monkeypatch.delenv("NX_MCP_DEV", raising=False)
+    monkeypatch.delenv("NX_MCP_CATALOGUE_STRICT", raising=False)
+
+
 def test_text_limits_follow_tool_surface_1_7():
     """Description at most 500 characters (first sentence 120), field doc at most 120."""
     first = "Size the sample " + "x" * (catalogue.FIRST_SENTENCE_MAX - 17) + "."
@@ -71,6 +78,64 @@ def test_text_limits_follow_tool_surface_1_7():
     ):
         with pytest.raises(CatalogueError, match=message):
             spec(_documented(doc, field_doc), example={"size": 1})
+
+
+LONG_TEXTS = (
+    ("Size " + "x" * catalogue.FIRST_SENTENCE_MAX + ".", "Size", "Size", "first sentence"),
+    ("Size it. " + "y" * catalogue.DESCRIPTION_MAX + ".", "Size", "Size", "exceeds 500"),
+    ("Size it.", "z" * (catalogue.FIELD_DOC_MAX + 1), "Size", "Doc longer than 120"),
+    ("Size it.", "Size", "L" * (catalogue.LABEL_MAX + 1), "label must be"),
+)
+
+
+@pytest.mark.parametrize(("doc", "field_doc", "label", "message"), LONG_TEXTS)
+def test_development_registers_a_tool_with_a_long_text_and_warns(
+    monkeypatch, caplog, doc, field_doc, label, message
+):
+    """One tool mid-edit must not stop the catalogue from loading for every development
+    agent (NX_MCP_DEV=1); production raises (test_text_limits_follow_tool_surface_1_7)."""
+    monkeypatch.setenv("NX_MCP_DEV", "1")
+    try:
+        with caplog.at_level("WARNING", logger="nx_mcp.core.catalogue"):
+            built = spec(_documented(doc, field_doc), label=label, example={"size": 1})
+        assert built.name == "nx_create_sized"
+        (warned,) = catalogue.budget_warnings()["nx_create_sized"]
+        assert message in warned and message in caplog.text
+        assert "development only" in caplog.text
+        # NX_MCP_CATALOGUE_STRICT=1 keeps development strict.
+        monkeypatch.setenv("NX_MCP_CATALOGUE_STRICT", "1")
+        with pytest.raises(CatalogueError, match=message):
+            spec(_documented(doc, field_doc), label=label, example={"size": 1})
+    finally:
+        catalogue._BUDGET_WARNINGS.pop("nx_create_sized", None)
+
+
+def test_development_keeps_structural_rules_fatal(monkeypatch):
+    monkeypatch.setenv("NX_MCP_DEV", "1")
+    long_doc = "Size " + "x" * catalogue.FIRST_SENTENCE_MAX + "."
+    with pytest.raises(CatalogueError, match="keywords") as raised:  # with a length problem
+        spec(_documented(long_doc), keywords=("one",), example={"size": 1})
+    assert "first sentence" in str(raised.value)  # every problem is named
+    with pytest.raises(CatalogueError, match="label must be"):  # an empty label is no budget
+        spec(_documented("Size it."), label="", example={"size": 1})
+    with pytest.raises(CatalogueError, match="docstring"):
+        spec(_documented(""), example={"size": 1})
+    assert "nx_create_sized" not in catalogue.budget_warnings()
+
+
+def test_no_catalogue_tool_breaks_a_text_budget():
+    """The suite stays strict: a tool registered in development despite a long text
+    (catalogue.budget_warnings) fails here."""
+    loaded = catalogue.load()
+    assert {n: w for n, w in catalogue.budget_warnings().items() if n in loaded} == {}
+    for s in loaded.values():
+        assert len(s.label) <= catalogue.LABEL_MAX, s.name
+        assert len(s.description) <= catalogue.DESCRIPTION_MAX, s.name
+        assert len(catalogue.first_sentence(s.description)) <= catalogue.FIRST_SENTENCE_MAX, s.name
+        for param in s.params.values():
+            problems: list[str] = []
+            catalogue._check_hint(param.hint, "/" + param.name, problems)
+            assert problems == [], (s.name, problems)
 
 
 def _named(fn, name):

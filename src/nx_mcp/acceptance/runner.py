@@ -27,6 +27,11 @@ projection, to check ``result_id`` and ``omitted``); ``expect`` paths address th
 envelope (``ok``, ``data``, ``error.code``/``category``, ``mutation_outcome``). Only
 steps with an ``expect`` count as checks.
 
+``run`` and ``call`` hold ``scripts/dev_lock.py``'s lock for their whole duration
+(:class:`DevLock`: acquired once, refreshed every 30 s, released at the end) and present
+the caller id ``dev-<owner>`` to NX (:func:`caller_id`): parts one call with an
+``--owner`` created are that owner's own in its next call or run.
+
 A run writes ``acceptance/evidence/<nx-version>/<domain>/<name>.json`` with the
 deterministic proof only (scenario and tool source digests, NX build, per-step
 pass/fail and check counts, one ``recorded`` time): a file that differs from the
@@ -50,6 +55,7 @@ import re
 import shutil
 import sys
 import tempfile
+import threading
 import time
 import uuid
 from collections.abc import Callable
@@ -66,6 +72,7 @@ from nx_mcp.workspace import default_workspace
 # points NX_MCP_SOURCE_ROOT at its source/ folder.
 ROOT = Path(os.environ.get("NX_MCP_SOURCE_ROOT") or Path(__file__).resolve().parents[3])
 SCENARIOS = ROOT / "acceptance"
+DEV_LOCK_SCRIPT = ROOT / "scripts" / "dev_lock.py"
 EVIDENCE = SCENARIOS / "evidence"
 STEP_KEYS = {"call", "args", "save", "expect", "setup", "intent", "detail", "direct"}
 ENGINEER = "engineer"  # a step that edits NX as the engineer would (development only)
@@ -318,7 +325,9 @@ async def engineer_edit(args: dict) -> dict:
     client = DescriptorBridgeClient(str(path))
     try:
         snippet = "result = None\n" + code + _NOTICE
-        result = await client.call("nx_dev_python", {"code": snippet})
+        # The engineer may act with no work part (open or create one): the probe guard's
+        # opt-in, since the scenario's own code decides what it touches.
+        result = await client.call("nx_dev_python", {"code": snippet, "allow_no_part": True})
     except Exception as error:
         problem = {"code": getattr(error, "code", "NX_ERROR"), "message": str(error)}
         return {"ok": False, "error": problem}
@@ -468,14 +477,31 @@ def source_digest(tool: str) -> str | None:
     return file_sha256(Path(path)) if path else None
 
 
+class LockLost(RuntimeError):
+    """The dev lock this runner held went to someone else (taken over as stale)."""
+
+
 class DevLock:
-    """``scripts/dev_lock.py`` held by the runner for its whole run.
+    """``scripts/dev_lock.py`` held by the runner for its whole run (all scenarios of a
+    ``run``, all steps of a ``call``): acquired once, refreshed every ``beat`` seconds by
+    a heartbeat thread, released at the end (also on an error or Ctrl+C; use it as a
+    ``with`` block). It never changes hands in between: a lock found taken over raises
+    :class:`LockLost` at the next :meth:`refresh` instead of being re-acquired.
 
     ``release`` gives up only a lock this runner acquired: an agent that holds the
     lock (``dev_lock.py acquire --owner``) and runs ``call``/``run`` keeps it."""
 
-    def __init__(self, workspace: Path, owner: str, *, wait: float = 1800, stale: float = 20):
-        script = ROOT / "scripts" / "dev_lock.py"
+    def __init__(
+        self,
+        workspace: Path,
+        owner: str,
+        *,
+        wait: float = 1800,
+        stale_seconds: float | None = None,
+        beat: float | None = None,
+        echo: Callable[[str], None] | None = print,
+    ):
+        script = DEV_LOCK_SCRIPT
         spec = importlib.util.spec_from_file_location("nx_mcp_dev_lock", script)
         if spec is None or spec.loader is None:
             raise RuntimeError(f"Cannot load {script}")
@@ -484,30 +510,87 @@ class DevLock:
         self.path = self.module.lock_path(str(workspace))
         self.owner = owner
         self.wait = wait
-        self.stale = stale * 60
+        self.stale = self.module.STALE_SECONDS if stale_seconds is None else stale_seconds
+        self.beat = self.module.BEAT_SECONDS if beat is None else beat
+        self.echo = echo or (lambda _text: None)
         self.inherited: bool | None = None
+        self.held = False
+        self.lost: str | None = None  # who holds it now, once the heartbeat lost it
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
 
     def acquire(self) -> None:
+        """Wait for the lock (up to ``wait`` seconds), then keep it fresh; a second
+        acquire only refreshes it."""
+        if self.held:
+            self.refresh()
+            return
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        if self.inherited is None:  # the first acquire: was the lock already the owner's?
-            current = self.module.read(self.path)
-            self.inherited = bool(current and current.get("owner") == self.owner)
+        current = self.module.read(self.path)
+        self.inherited = bool(current and current.get("owner") == self.owner)
         deadline = time.monotonic() + self.wait
-        while not self.module.try_acquire(self.path, self.owner, self.stale):
+        told = False
+        while True:
+            acquired, note = self.module.try_acquire(self.path, self.owner, self.stale)
+            if acquired:
+                break
             if time.monotonic() > deadline:
-                raise TimeoutError(f"dev lock held: {self.module.read(self.path)}")
-            time.sleep(5)
+                raise TimeoutError(f"dev lock {self.module.describe(self.module.read(self.path))}")
+            if not told:
+                self.echo(
+                    f"Waiting for the dev lock, {self.module.describe(self.module.read(self.path))}"
+                )
+                told = True
+            time.sleep(min(self.module.POLL_SECONDS, max(self.wait, 0.05)))
+        if note and note != "refreshed":
+            self.echo(f"Dev lock: {note}")
+        self.held, self.lost = True, None
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._heartbeat, name="dev-lock", daemon=True)
+        self._thread.start()
 
-    refresh = acquire
+    def _heartbeat(self) -> None:
+        while not self._stop.wait(self.beat):
+            try:
+                if not self.module.refresh(self.path, self.owner):
+                    self.lost = self.module.describe(self.module.read(self.path))
+                    self.echo(f"Dev lock lost: {self.lost}")
+                    return
+            except Exception:  # a busy guard or a file error: try again next beat
+                continue
+
+    def refresh(self) -> None:
+        """Refresh now; :class:`LockLost` when the lock is no longer this owner's."""
+        if self.lost is None and self.held and self.module.refresh(self.path, self.owner):
+            return
+        self.lost = self.lost or self.module.describe(self.module.read(self.path))
+        raise LockLost(f"the dev lock of {self.owner} was lost: {self.lost}")
 
     def release(self) -> None:
-        """Release the lock this runner acquired; a lock the owner already held before
-        the run (``dev_lock.py acquire`` by the agent) stays theirs."""
-        if self.inherited:
-            return
-        current = self.module.read(self.path)
-        if current and current.get("owner") == self.owner:
-            self.path.unlink(missing_ok=True)
+        """Stop refreshing and release the lock this runner acquired; a lock the owner
+        already held before the run (``dev_lock.py acquire`` by the agent) stays theirs."""
+        self._stop.set()
+        if self._thread is not None and self._thread is not threading.current_thread():
+            self._thread.join(timeout=5)
+        self._thread = None
+        held, self.held = self.held, False
+        if held and not self.inherited and self.lost is None:
+            self.module.release(self.path, self.owner)
+
+    def __enter__(self) -> DevLock:
+        self.acquire()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.release()
+
+
+def caller_id(owner: str) -> str:
+    """The caller id the sidecar of ``owner``'s runs presents to NX (``core/busy.py``):
+    the same for every ``run`` and ``call`` with that ``--owner``, so the parts one call
+    created are the owner's own in the next."""
+    slug = re.sub(r"[^A-Za-z0-9_.-]", "", owner)[:48] or "anonymous"
+    return "dev-" + slug
 
 
 def descriptor_path() -> Path | None:
@@ -519,9 +602,18 @@ def descriptor_path() -> Path | None:
     return None
 
 
+def sidecar_args(caller: str | None = None) -> list[str]:
+    """The sidecar's ``python`` arguments: ``nx_mcp.server``, or with a fixed caller id
+    (:mod:`nx_mcp.acceptance.sidecar_launch`) when ``caller`` is given."""
+    if caller is None:
+        return ["-m", "nx_mcp.server"]
+    return ["-m", "nx_mcp.acceptance.sidecar_launch", caller]
+
+
 @contextlib.asynccontextmanager
-async def sidecar(workspace: Path):
-    """A stdio MCP client session of a fresh ``python -m nx_mcp.server``."""
+async def sidecar(workspace: Path, caller: str | None = None):
+    """A stdio MCP client session of a fresh ``python -m nx_mcp.server``; ``caller``: the
+    caller id it presents to NX (:func:`caller_id`), else its own random one."""
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
 
@@ -532,7 +624,7 @@ async def sidecar(workspace: Path):
     descriptor = descriptor_path()
     if descriptor is not None:
         env["NX_MCP_BRIDGE_DESCRIPTOR"] = str(descriptor)
-    params = StdioServerParameters(command=sys.executable, args=["-m", "nx_mcp.server"], env=env)
+    params = StdioServerParameters(command=sys.executable, args=sidecar_args(caller), env=env)
     with open(os.devnull, "w") as quiet:
         async with (
             stdio_client(params, errlog=quiet) as (read, write),
@@ -871,11 +963,9 @@ async def run(
     paths = scenario_files(names)
     for path in paths:
         load_scenario(path)  # Format errors stop the run before NX is touched.
-    lock = DevLock(workspace, owner)
-    lock.acquire()
     failed = 0
-    try:
-        async with sidecar(workspace) as session:
+    with DevLock(workspace, owner) as lock:  # one lock for all scenarios, kept fresh
+        async with sidecar(workspace, caller_id(owner)) as session:
             build = await nx_version(session)
             run_id = time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
             print(f"NX {build[1]} ({build[0]}), run {run_id}, owner {owner}")
@@ -891,7 +981,12 @@ async def run(
                 "scenarios": [],
             }
             for path in paths:
-                lock.refresh()
+                try:
+                    lock.refresh()
+                except LockLost as error:
+                    print(f"ABORTED before {relative(path)}: {error}")
+                    failed += 1
+                    break
                 print(f"{relative(path)}")
                 blocking = blocking_parts(
                     await loaded_parts(session), workspace, beside_engineer=beside_engineer
@@ -916,8 +1011,6 @@ async def run(
                 failed += not record["passed"]
             log["finished"] = utc_now()
             print(f"Run log: {write_run_log(workspace, log)}")
-    finally:
-        lock.release()
     return 1 if failed else 0
 
 
@@ -925,10 +1018,9 @@ async def call(
     steps: list[dict], *, workspace: Path, owner: str, limit: int = 600, keep: bool = False
 ) -> int:
     """Ad-hoc steps through the same client (the live development loop); no evidence."""
-    lock = DevLock(workspace, owner)
-    lock.acquire()
-    try:
-        async with sidecar(workspace) as session:
+    results: list[StepResult] = []
+    with DevLock(workspace, owner) as lock:  # one lock for all steps, kept fresh
+        async with sidecar(workspace, caller_id(owner)) as session:
             run_dir = workspace / "smoke" / owner
             run_dir.mkdir(parents=True, exist_ok=True)
             special = {"$run": str(run_dir)}
@@ -962,8 +1054,11 @@ async def call(
                 )
             if cleanup["closed"] or cleanup["failed"]:
                 print(f"cleanup: closed {len(cleanup['closed'])}, problems {cleanup['failed']}")
-    finally:
-        lock.release()
+        try:
+            lock.refresh()
+        except LockLost as error:
+            print(f"WARNING: {error}")
+            return 1
     return 0 if results and all(r.passed for r in results) else 1
 
 
@@ -1052,7 +1147,9 @@ def main(argv: list[str] | None = None) -> int:
     call_parser.add_argument("--limit", type=int, default=600, help="characters per result")
     call_parser.add_argument("--keep", action="store_true", help="leave new parts loaded")
     for p in (run_parser, call_parser):
-        p.add_argument("--owner", required=True, help="dev_lock.py owner")
+        p.add_argument(
+            "--owner", required=True, help="dev_lock.py owner, also the caller identity in NX"
+        )
         p.add_argument("--workspace", default=str(default_workspace()))
     sub.add_parser("fold", help="build src/nx_mcp/evidence/<domain>.json from evidence files")
     args = parser.parse_args(argv)
