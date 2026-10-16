@@ -10,8 +10,9 @@ unmodified part; STL (``StlCreator``) tessellates the loaded bodies. JT
 writes edited bodies as last saved (a moved body stays where it was saved), new bodies
 as they are. DXF/DWG (``DexManager.CreateDxfdwgCreator``, model data exported 3D, display
 part, ``FileSaveFlag`` false) writes faceted faces (3DFACE in a block placed by one
-INSERT, NX 2406) and needs the ``ug_to_dxf`` license (asked before NX). The translator
-writes into
+INSERT, NX 2406); its external translator needs the ``ug_to_dxf`` license: when it writes
+no file and its log says a license is missing, the export is ``NX_LICENSE_UNAVAILABLE``
+(``details.license`` ``ug_to_dxf``); NX is never asked first. The translator writes into
 ``.nx-mcp/staging``; the file is read back (``neutral``: schema, units, solids or
 triangles, extent against the bodies) and published without overwriting anything.
 
@@ -176,6 +177,24 @@ def _license_proof(syslog: tuple[Path | None, int], log: Path) -> str | None:
     return None
 
 
+def _dxf_refused(tx, log: Path) -> None:
+    """The DXF/DWG translator wrote no file: ``NX_LICENSE_UNAVAILABLE`` when its log says a
+    license is missing; else ``NX_EXPORT_FAILED`` noting a ``ug_to_dxf`` the license
+    server does not list (a note only: the translator decides)."""
+    proof = _license_proof((None, 0), log)
+    if proof is not None:
+        fail("NX_LICENSE_UNAVAILABLE", f"NX refused the {DXF_LICENSE} translator: {proof}",
+             hint=f"Tell the engineer the {DXF_LICENSE} license is missing; use another format",
+             details={"license": DXF_LICENSE})  # fmt: skip
+    if licenses.served(tx, (DXF_LICENSE,)) is False:
+        fail("NX_EXPORT_FAILED",
+             f"The DXF/DWG translator wrote no file; NX's license server does not list "
+             f"{DXF_LICENSE}, the license it needs",
+             hint=f"Tell the engineer the {DXF_LICENSE} license may be missing; use another "
+             "format", details={"license": DXF_LICENSE, "license_check": "missing",
+                                "translator_log": _tail(log)})  # fmt: skip
+
+
 def _tail(path: Path) -> str | None:
     try:
         return path.read_text(errors="replace")[-LOG_TAIL:]
@@ -336,9 +355,6 @@ def nx_export_model(
             # The file translators skip components (IGES, Parasolid) or load them from the
             # assembly's folder (STEP): select the loaded occurrence bodies instead.
             selected = list(exported)
-        if format in ("dxf", "dwg"):
-            licenses.require(tx, (DXF_LICENSE,), "DXF/DWG export needs the NX DXF/DWG "
-                             "translator license (ug_to_dxf)", by_argument=True)  # fmt: skip
         settings = _export_settings(format)
     modified = bool(part.IsModified)
     file_before = _saving.fingerprint(parts.file_of(part))
@@ -365,6 +381,8 @@ def nx_export_model(
                 with contextlib.suppress(Exception):
                     builder.Destroy()
         written = _written(temp)
+        if written is None and format in ("dxf", "dwg"):
+            _dxf_refused(tx, log)
         if written is None:
             fail(
                 "NX_EXPORT_FAILED",

@@ -60,19 +60,24 @@ def nx_edit_face_region(
         selected = select.faces(tx, faces, "/faces")
         body = common.one_body(selected, "/faces")
         vector = select.direction(tx, direction, "/direction") if direction is not None else None
-        sync_relate.require_synchronous(tx, "Offset Region" if action == "offset" else "Pull Face")
     before = measure.volume(tx, body)
     planes = sync_common.planes(tx, selected)
     d = float(distance)
     if action == "offset":
-        with builders.build(tx, tx.part.Features.CreateAdmOffsetRegionBuilder, None) as b:
+        with (
+            sync_relate.synchronous(tx),
+            builders.build(tx, tx.part.Features.CreateAdmOffsetRegionBuilder, None) as b,
+        ):
             builders.fill(tx, b.FaceToOffset.FaceCollector, selected, "Face")
             expr.drive(b.Distance, -d if d < 0 else distance)
             b.ReverseDirection = d < 0
             feature = b.commit()
         offsets = sync_common.moved_planes(tx, selected, planes, lambda n: d)
     else:
-        with builders.build(tx, tx.part.Features.CreatePullFaceBuilder, None) as b:
+        with (
+            sync_relate.synchronous(tx),
+            builders.build(tx, tx.part.Features.CreatePullFaceBuilder, None) as b,
+        ):
             builders.fill(tx, b.FaceToPull, selected, "Face")
             sync_common.distance_motion(tx, b.Motion, vector, distance)
             feature = b.commit()

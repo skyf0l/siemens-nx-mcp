@@ -2,6 +2,7 @@
   "nx_run_motion_sweep": {
     "v2406": {
       "checks": 38,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T11:03:21Z",
       "scenario": "acceptance/motion/steering_linkage.json",
       "scenario_sha256": "ac63941c25a9ea6831d5f905cd8ecc2be25c1a8954879f9ee0cbc0ae5bf772d3",

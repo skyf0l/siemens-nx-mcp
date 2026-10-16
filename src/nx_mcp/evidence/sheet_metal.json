@@ -2,10 +2,11 @@
   "nx_create_sheet_metal_feature": {
     "v2406": {
       "checks": 11,
-      "recorded": "2026-10-15T11:28:48Z",
+      "nx_build": "2406.9160",
+      "recorded": "2026-10-16T13:17:35Z",
       "scenario": "acceptance/sheet_metal/three_bend_corner.json",
       "scenario_sha256": "fe0be90a3540b4c56acda34e47216997b5224d8ac99422567aefc59f10cd21ff",
-      "source_sha256": "bf3fd67fcbf3614ac852a3481d8b19132a27603a0e2d699d391486c90c3c3fcf",
+      "source_sha256": "5a12d8b234b8b4194fd0d688e86a3da6904baa4654667ca69556965d041160c9",
       "variants": [
         "bead",
         "bend",
@@ -43,17 +44,19 @@
   "nx_export_bend_list": {
     "v2406": {
       "checks": 43,
-      "recorded": "2026-10-15T11:27:51Z",
+      "nx_build": "2406.9160",
+      "recorded": "2026-10-16T13:16:49Z",
       "scenario": "acceptance/sheet_metal/default_followers.json",
       "scenario_sha256": "8331124dc8721d3dc071663a98c38c3d255a3c454bdff3ee5a56eb54c7f767ac",
-      "source_sha256": "f14dc1f88a5052c11815ad2ae161745190afae4de6a9df04aff28f92713cad74",
+      "source_sha256": "a4e655ff974b41425477e2a217d4b17bdcb4dc9f96eeecdd8ef4147337ae2f5b",
       "variants": []
     }
   },
   "nx_export_flat_pattern": {
     "v2406": {
       "checks": 14,
-      "recorded": "2026-10-15T11:28:22Z",
+      "nx_build": "2406.9160",
+      "recorded": "2026-10-16T13:17:13Z",
       "scenario": "acceptance/sheet_metal/inch.json",
       "scenario_sha256": "068e2ea6b438fb6885532ecc0ab27981957cc46092d2ac9992e9301ff7816124",
       "source_sha256": "d488204612e7c07f7eeaf354ebe78f2c01ef7abf14e72f43defe9f2f584f4594",
@@ -63,17 +66,19 @@
   "nx_get_bend_list": {
     "v2406": {
       "checks": 43,
-      "recorded": "2026-10-15T11:27:51Z",
+      "nx_build": "2406.9160",
+      "recorded": "2026-10-16T13:16:49Z",
       "scenario": "acceptance/sheet_metal/default_followers.json",
       "scenario_sha256": "8331124dc8721d3dc071663a98c38c3d255a3c454bdff3ee5a56eb54c7f767ac",
-      "source_sha256": "f14dc1f88a5052c11815ad2ae161745190afae4de6a9df04aff28f92713cad74",
+      "source_sha256": "a4e655ff974b41425477e2a217d4b17bdcb4dc9f96eeecdd8ef4147337ae2f5b",
       "variants": []
     }
   },
   "nx_get_sheet_metal": {
     "v2406": {
       "checks": 14,
-      "recorded": "2026-10-15T11:28:22Z",
+      "nx_build": "2406.9160",
+      "recorded": "2026-10-16T13:17:13Z",
       "scenario": "acceptance/sheet_metal/inch.json",
       "scenario_sha256": "068e2ea6b438fb6885532ecc0ab27981957cc46092d2ac9992e9301ff7816124",
       "source_sha256": "3454f129b2bc6b67a30e503008b92761eeaceb5c96944ae256c116d6957be74c",
@@ -83,7 +88,8 @@
   "nx_get_sheet_metal_defaults": {
     "v2406": {
       "checks": 25,
-      "recorded": "2026-10-15T11:28:05Z",
+      "nx_build": "2406.9160",
+      "recorded": "2026-10-16T13:16:59Z",
       "scenario": "acceptance/sheet_metal/flat_pattern_axes.json",
       "scenario_sha256": "eb69e2e8b0ed051ac2e879cd39be3e869928a3aae7e66aecde22a2e8bbd94b66",
       "source_sha256": "2eea7d3fd0cee2ffe8184fa55b1cefaa01f5f86ee96f54eaa2a0dddf80d0afc9",
@@ -93,7 +99,8 @@
   "nx_set_sheet_metal_defaults": {
     "v2406": {
       "checks": 14,
-      "recorded": "2026-10-15T11:28:22Z",
+      "nx_build": "2406.9160",
+      "recorded": "2026-10-16T13:17:13Z",
       "scenario": "acceptance/sheet_metal/inch.json",
       "scenario_sha256": "068e2ea6b438fb6885532ecc0ab27981957cc46092d2ac9992e9301ff7816124",
       "source_sha256": "2eea7d3fd0cee2ffe8184fa55b1cefaa01f5f86ee96f54eaa2a0dddf80d0afc9",

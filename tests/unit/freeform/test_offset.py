@@ -3,7 +3,7 @@
 import pytest
 
 from tests.kit import run
-from tests.unit.freeform.fakes import face, flat, freeform_nx, made, sheet
+from tests.unit.freeform.fakes import face, flat, freeform_nx, made, nx_refuses, sheet
 
 
 def plate(nx, z=0.0, normal=(0, 0, 1)):
@@ -34,7 +34,7 @@ def test_offset_faces_by_signed_distance_reads_back_samples():
     ok = run(nx, "nx_create_offset_surface", faces=[f.ref], distance="-5 mm")
     assert ok.ok, ok
     b = nx.last("OffsetSurfaceBuilder")
-    assert nx.license_queries == ["nx_freeform_1"]
+    assert nx.license_queries == []  # NX decides: never asked first
     assert b.Tolerance == pytest.approx(0.001)
     face_set = nx.face_sets[0]
     assert face_set.Offset.RightHandSide == "-5.0"
@@ -110,14 +110,24 @@ def test_offset_rejections_before_nx(args, field):
     assert not nx.builders
 
 
-def test_offset_without_license_refuses_before_the_builder():
+def test_offset_without_license_reports_nx_refusal():
     nx = freeform_nx()
     f = plate(nx)
-    nx.licenses["nx_freeform_1"] = False
+    nx_refuses(nx, "OffsetSurfaceBuilder", "nx_freeform_1")
     bad = run(nx, "nx_create_offset_surface", faces=[f.ref], distance=1)
-    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE"
+    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and bad.error["nx_code"] == 948801
     assert bad.error["details"]["license"] == "nx_freeform_1"
-    assert not nx.builders
+    assert bad.error["details"]["license_check"] == "missing" and nx.live_builders == 0
+    assert bad.mutation_outcome == "rolled_back"
+
+
+def test_offset_runs_although_the_license_server_lists_no_freeform():
+    nx = freeform_nx()
+    f = plate(nx)
+    offset_commit(nx, 1)
+    nx.licenses["nx_freeform_1"] = False  # an alternative may license it: NX decides
+    ok = run(nx, "nx_create_offset_surface", faces=[f.ref], distance=1)
+    assert ok.ok, ok
 
 
 def test_offset_faulty_body_rolls_back():

@@ -216,9 +216,11 @@ def nx_create_isoparametric_curves(
             fail("NX_INVALID_ARGUMENT", "between_points takes exactly 2 points", field="/points")
         if method != "through_points":
             args.need(count=count)
-    cc.licensed(tx)
     B = tx.nx.Features.IsoparametricCurvesBuilder
-    with builders.build(tx, tx.part.Features.CreateIsoparametricCurvesBuilder, None) as b:
+    with (
+        cc.licensed(tx),
+        builders.build(tx, tx.part.Features.CreateIsoparametricCurvesBuilder, None) as b,
+    ):
         b.SelectObject.Value = target
         b.Associative = True
         b.Direction = getattr(
@@ -354,12 +356,12 @@ def nx_create_isocline_curves(
         targets = _faces(tx, faces, "/faces")
         along = select.direction(tx, direction, "/direction")
         angles = _angles(method, angle, start_angle, end_angle, step)
-    licenses.require(
-        tx, ISOCLINE_LICENSES, "Isocline curves need a Modeling or Studio freeform license"
-    )
     B = tx.nx.Features.IsoclineCurveBuilder
     collection = tx.part.Features.FreeformCurveCollection
-    with builders.build(tx, collection.CreateIsoclineCurveBuilder, None) as b:
+    with (
+        licenses.attempt(tx, ISOCLINE_LICENSES),
+        builders.build(tx, collection.CreateIsoclineCurveBuilder, None) as b,
+    ):
         builders.fill(tx, b.Face, targets, "Face")
         b.ReferenceDirection = builders.direction(tx, along)
         b.IsAssociative = True
@@ -421,10 +423,12 @@ def nx_create_curve_on_surface(
         for i in range(1, len(pts)):
             if geom.dist(pts[i], pts[i - 1]) <= geom.tol(pts[i], pts[i - 1]):
                 fail("NX_INVALID_ARGUMENT", "Consecutive points coincide", field=f"/points/{i}")
-    cc.licensed(tx)
     tol = units.part_tolerance(tx)
     B = tx.nx.Features.CurveOnSurfaceBuilder
-    with builders.build(tx, tx.part.Features.CreateCurveOnSurfaceBuilder, None) as b:
+    with (
+        cc.licensed(tx),
+        builders.build(tx, tx.part.Features.CreateCurveOnSurfaceBuilder, None) as b,
+    ):
         builders.fill(tx, b.Faces, targets, "Face")
         b.CurveType = B.CurveTypeEnum.Spline
         b.AssociativeToggle = True

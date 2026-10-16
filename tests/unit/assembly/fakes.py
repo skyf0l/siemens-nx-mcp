@@ -30,6 +30,7 @@ from types import SimpleNamespace as NS
 from nx_mcp.kit import geom
 from nx_mcp.kit import pose as kpose
 from tests.kit import fake_nx
+from tests.kit.attributes import UserAttributes
 from tests.kit.kernel import services
 from tests.kit.objects import Body, Collection, Edge, Face, Object, matrix, point
 from tests.kit.parts import FilePart, with_parts
@@ -387,7 +388,7 @@ class TracePoint:
         self.blanked = True
 
 
-class Traceline(Object):
+class Traceline(UserAttributes, Object):
     def __init__(self, fake, explosion, start, end):
         super().__init__("TRACELINE")
         self.explosion = explosion
@@ -399,15 +400,6 @@ class Traceline(Object):
 
     def AskExplosion(self):
         return self.explosion
-
-    def SetAttribute(self, name, value):
-        self.attributes[name] = value
-
-    def GetStringAttribute(self, name):
-        return self.attributes[name]
-
-    def HasUserAttribute(self, name, *_):
-        return name in self.attributes
 
 
 # ---- the fake ------------------------------------------------------------------------------

@@ -220,13 +220,16 @@ def test_a_deviation_nx_drops_fails_the_read_back():
     assert nx.live_builders == 0
 
 
-def test_the_drafting_license_is_asked_before_nx():
+def test_nx_decides_the_drafting_license_and_its_refusal_names_it():
     nx = symbols_nx()
     nx.session.LicenseManager = NS(CheckPresence=lambda feature: False)
     nx.sheet_obj.Open()
-    bad = run(nx, "nx_create_sheet_symbol", symbol="id", text="1", origin=[300, 250])
+    ok = run(nx, "nx_create_sheet_symbol", symbol="id", text="1", origin=[300, 250])
+    assert ok.ok, ok  # the license server's answer never stops NX
+    nx.refuse("IdSymbolBuilder", 948801, "License Error, its token feature does not exist.")
+    bad = run(nx, "nx_create_sheet_symbol", symbol="id", text="2", origin=[300, 250])
     assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and bad.mutation_outcome != "committed"
-    assert not nx.builders
+    assert bad.error["details"]["license"] == "drafting" and nx.live_builders == 0
 
 
 def test_symbols_on_view_geometry_get_no_overlap_warning():

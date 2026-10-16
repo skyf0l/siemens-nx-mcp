@@ -27,8 +27,22 @@ def check_contents(bundle: Path, version: str) -> None:
         ]
     if not evidence:
         raise SystemExit(f"{wheel.name} lacks nx_mcp/evidence/*.json (pyproject package-data)")
-    if not (bundle / "source" / "nx_app" / "startup" / "nx_mcp_startup.py").is_file():
-        raise SystemExit("The release source lacks nx_app/startup/nx_mcp_startup.py")
+    for name in ("startup/nx_mcp_startup.py", "journals/start.py"):
+        if not (bundle / "source" / "nx_app" / name).is_file():
+            raise SystemExit(f"The release source lacks nx_app/{name}")
+
+
+def tested_builds(evidence: Path) -> list[str]:
+    """The NX build keys (``v2406``) with acceptance evidence in ``evidence/*.json``.
+
+    Reads the files directly: the release build environment does not install nx_mcp."""
+    builds: set[str] = set()
+    for path in sorted(evidence.glob("*.json")):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        for entries in (data.get("tools", data) or {}).values():
+            if isinstance(entries, dict):
+                builds.update(entries)
+    return sorted(builds)
 
 
 def main():
@@ -106,6 +120,8 @@ def main():
             "source_date_epoch": int(epoch),
             "python": "3.12",
             "platform": "win_amd64",
+            # NX builds the acceptance evidence covers; README.md has the support policy.
+            "nx_tested_builds": tested_builds(source / "src" / "nx_mcp" / "evidence"),
             "repository": "https://github.com/skyf0l/siemens-nx-mcp",
             "based_on": ["https://github.com/DreamEnding/NX_MCP", "https://github.com/xuio/NX_MCP"],
         }

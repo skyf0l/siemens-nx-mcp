@@ -49,7 +49,7 @@ def test_n_sided_fills_a_closed_curve_loop(kind, native):
     types = nx.nx.Features.NSidedSurfaceBuilder.SurfaceType
     assert b.Type is getattr(types, native)
     assert b.PositionTolerance == pytest.approx(0.001)
-    assert nx.license_queries == ["nx_freeform_1"]
+    assert nx.license_queries == []  # NX decides: never asked first
     assert ok.data["type"] == kind and ok.data["continuity"] == "g0"
     assert ok.data["gap"] == pytest.approx(0) and ok.data["area"] == pytest.approx(100)
     assert [f["boundary"] for f in ok.data["boundary"]] == [c.ref for c in loop]

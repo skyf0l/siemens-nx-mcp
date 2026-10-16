@@ -141,7 +141,7 @@ def test_tangent_plane_to_sphere_and_argument_refusals():
     assert same.error["field"] == "/to"
 
 
-def test_the_synchronous_licence_is_asked_before_any_builder():
+def test_nx_refusing_the_synchronous_licence_is_reported_naming_it():
     nx, a, b = setup()
     asked = []
 
@@ -150,13 +150,26 @@ def test_the_synchronous_licence_is_asked_before_any_builder():
         return False
 
     nx.session.LicenseManager = NS(CheckPresence=presence)
+    nx.refuse(
+        "CoplanarBuilder",
+        948801,
+        "License Error, The check out of a feature failed because its token feature does not exist.",
+    )
     no = relate(nx, a.face((0, 0, 1)), "coplanar", b.face((0, 0, 1)))
-    assert no.error["code"] == "NX_LICENSE_UNAVAILABLE" and no.mutation_outcome == "not_started"
-    assert asked == ["nx_synchronous"] and not nx.builders
+    assert no.error["code"] == "NX_LICENSE_UNAVAILABLE" and no.mutation_outcome != "committed"
+    assert no.error["details"]["license"] == "nx_synchronous" and nx.live_builders == 0
+    assert asked == ["nx_synchronous"]  # asked only to explain NX's refusal
     top = nx.ref_of(a.face((0, 0, 1)), "face")
+    nx.refuse(
+        "AdmMoveFaceBuilder",
+        948801,
+        "License Error, The check out of a feature failed because its token feature does not exist.",
+    )
     move = run(nx, "nx_edit_faces", faces=[top], action="move", distance=2, direction="z")
     assert move.error["code"] == "NX_LICENSE_UNAVAILABLE", move
-    assert move.error["details"]["argument_license"] is True
+    # The license follows the action, the tool's variant: remembered per action.
+    assert move.error["details"]["license"] == "nx_synchronous"
+    assert "argument_license" not in move.error["details"]
     nx.on_commit("OffsetFaceBuilder", lambda b_: (setattr(a, "volume", 8800.0),
                                                    feature(nx, "OFFSET", [a]))[1])  # fmt: skip
     offset = run(nx, "nx_edit_faces", faces=[top], action="offset", distance=1)

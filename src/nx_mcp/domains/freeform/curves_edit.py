@@ -47,7 +47,6 @@ from nx_mcp.kit import (
     builders,
     expr,
     geom,
-    licenses,
     measure,
     readback,
     result,
@@ -157,11 +156,12 @@ def nx_create_bridge_curve(
         if geom.dist(p0, p1) <= cc.gap_tolerance(tx, p0, p1):
             fail("NX_INVALID_ARGUMENT", "The two ends touch: there is nothing to bridge",
                  field="/end")  # fmt: skip
-    licenses.require(tx, (cc.LICENSE, "nx_freeform_1"),
-                     f"Bridge curves need the {cc.LICENSE} license")  # fmt: skip
     kinds = tx.nx.Features.BridgeCurveBuilderEx
     continuity = tx.nx.GeometricUtilities.Continuity.ContinuityTypes
-    with builders.build(tx, tx.part.Features.CreateBridgeCurveBuilderEx, None) as b:
+    with (
+        cc.licensed(tx, "nx_freeform_1"),
+        builders.build(tx, tx.part.Features.CreateBridgeCurveBuilderEx, None) as b,
+    ):
         b.StartObjectType = kinds.StartObjectTypes.Section
         b.EndObjectType = kinds.EndObjectTypes.Section
         builders.curve_section(tx, [first], start=p0, into=b.StartSection)
@@ -243,10 +243,12 @@ def nx_create_joined_curve(
                 if kind == "gap" else "Join one chain without branches: leave out a branch",
                 details=details,
             )  # fmt: skip
-    cc.licensed(tx)
     source = measure.length(tx, objs)
     try:
-        with builders.build(tx, tx.part.Features.CreateJoinCurvesBuilder, None) as b:
+        with (
+            cc.licensed(tx),
+            builders.build(tx, tx.part.Features.CreateJoinCurvesBuilder, None) as b,
+        ):
             tol = units.part_tolerance(tx)
             b.DistanceTolerance = tol
             b.AngleTolerance = 0.5
@@ -305,13 +307,15 @@ def nx_create_mirror_curve(
             fail("NX_INVALID_ARGUMENT", "Every curve lies in the mirror plane: its mirror would "
                  "coincide with it", field="/curves",
                  hint="Pick a plane the curves are not in")  # fmt: skip
-    cc.licensed(tx)
     skipped = [curves[i] for i in flat]
     objs = [c for i, c in enumerate(objs) if i not in flat]
     if skipped:
         tx.warn("NX_NOTE", f"Skipped {', '.join(skipped)}: in the mirror plane, the mirror "
                 "would duplicate the curve")  # fmt: skip
-    with builders.build(tx, tx.part.Features.CreateMirrorCurveBuilder, None) as b:
+    with (
+        cc.licensed(tx),
+        builders.build(tx, tx.part.Features.CreateMirrorCurveBuilder, None) as b,
+    ):
         builders.curve_section(tx, objs, into=b.Curve)
         b.PlaneOption = tx.nx.Features.MirrorCurveBuilder.PlaneOptions.NewPlane
         b.NewPlane = cc.plane_object(tx, origin, normal)
@@ -464,11 +468,13 @@ def nx_create_trim_curve(
         cut, locations = _cuts(tx, obj, table, closed, planes, at, segments)
         field = "/planes" if planes is not None else ("/at" if at is not None else "/segments")
         _interior(tx, obj, locations, field, closed)
-    cc.licensed(tx)
     source = measure.length(tx, obj)
     kinds = tx.nx.Features.TrimCurve2Builder
     method_kinds = tx.nx.GeometricUtilities.TrimCurveBoundingObjectBuilder.Method
-    with builders.build(tx, tx.part.Features.CreateTrimCurve2FeatureBuilder, None) as b:
+    with (
+        cc.licensed(tx),
+        builders.build(tx, tx.part.Features.CreateTrimCurve2FeatureBuilder, None) as b,
+    ):
         builders.curve_section(tx, [obj], into=b.CurveToTrim)
         for origin, normal in cut:
             bounding = b.CreateTrimCurveBoundingObjectBuilder()

@@ -1316,6 +1316,9 @@ def nx_create_sheet_metal_feature(
     shown = drawing.in_modeling(tx) if leave else contextlib.nullcontext()
     kept = parts.keeping_application(tx) if leave else contextlib.nullcontext()
     with shown, kept, builders.build(tx, factory, None) as b:
+        # Builders derived from SheetmetalBaseBuilder (tab, flanges, bend, cutouts...) take
+        # the application context; bead, dimple, louver, gusset and the other form
+        # builders have no such member: a branch on the builder class, not on the build.
         if b.has("SetApplicationContext"):
             b.SetApplicationContext(sm.ApplicationContext.NxSheetMetal)
         CONFIGURE[operation](tx, b, i)

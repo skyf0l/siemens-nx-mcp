@@ -203,8 +203,10 @@ def nx_create_section_curves(
     with tx.checks():
         objs, faces = cc.solids(tx, objects, "/objects")
         stations, how = _stations(tx, method, plane, count, spacing, axis, angle)
-    cc.licensed(tx)
-    with builders.build(tx, tx.part.Features.CreateSectionCurveBuilder, None) as b:
+    with (
+        cc.licensed(tx),
+        builders.build(tx, tx.part.Features.CreateSectionCurveBuilder, None) as b,
+    ):
         _configure(tx, b, objs, stations, how)
         feature = b.commit()
     curves = cc.output_curves(tx, feature)
@@ -256,9 +258,11 @@ def nx_create_intersection_curve(
             faces2 = []
             _o, origin, normal = select.plane(tx, plane, "/plane")
             cut = (origin, normal)
-    cc.licensed(tx)
     tol = units.part_tolerance(tx)
-    with builders.build(tx, tx.part.Features.CreateIntersectionCurveBuilder, None) as b:
+    with (
+        cc.licensed(tx),
+        builders.build(tx, tx.part.Features.CreateIntersectionCurveBuilder, None) as b,
+    ):
         b.Associative = True
         b.Tolerance = tol
         b.CurveFitData.Tolerance = tol

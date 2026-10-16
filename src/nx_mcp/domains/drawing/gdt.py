@@ -234,7 +234,9 @@ def _pmi_letter(tx, obj, field):
             raise
         fail("NX_LICENSE_UNAVAILABLE",
              f"Reading a PMI datum letter needs the PMI datum license: {error.message}",
-             field=field, nx_code=error.nx_code, details={"argument_license": True},
+             field=field, nx_code=error.nx_code,
+             details={"argument_license": True,
+                      "license": error.details.get("license") or "geometric_tol"},
              hint="Reference drafting datum symbols (view_datum_feature), or give no datums")  # fmt: skip
 
 

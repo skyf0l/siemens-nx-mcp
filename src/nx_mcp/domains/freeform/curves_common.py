@@ -34,9 +34,11 @@ class CurvesData(TypedDict):
     length: float  # total, part units
 
 
-def licensed(tx) -> None:
-    """``NX_LICENSE_UNAVAILABLE`` before any builder when the seat lacks ``solid_modeling``."""
-    licenses.require(tx, (LICENSE,), f"These curve features need the {LICENSE} license")
+def licensed(tx, *alternatives: str):
+    """The context of curve feature work (``solid_modeling``, or one of ``alternatives``):
+    NX's license refusal inside becomes ``NX_LICENSE_UNAVAILABLE`` naming it
+    (``kit.licenses.attempt``)."""
+    return licenses.attempt(tx, (LICENSE, *alternatives))
 
 
 def strings(tx, refs, field) -> list:

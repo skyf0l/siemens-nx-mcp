@@ -311,10 +311,11 @@ def nx_create_sheet_sketch(
     plans = [plan(item, f"/curves/{i}") for i, item in enumerate(curves)]
     with tx.checks():
         target = sheet_of(tx, sheet, "/sheet") if sheet is not None else open_or_only_sheet(tx)
-    licenses.require(tx, ("drafting", "solid_modeling"),
-                     "Sketching on a drawing sheet needs a drafting or modeling license")  # fmt: skip
     part, nx = tx.part, tx.nx
-    with drawing.on_sheet(tx, target, part) as sh:
+    with (
+        licenses.attempt(tx, ("drafting", "solid_modeling")),
+        drawing.on_sheet(tx, target, part) as sh,
+    ):
         quiet_sheet_sketch(tx)
         with builders.build(tx, part.Sketches.CreateSketchInDraftingBuilder) as b:
             sk = b.commit()

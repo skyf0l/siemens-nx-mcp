@@ -1,5 +1,7 @@
 """nx_export_model 3D DXF/DWG (DxfdwgCreator, model data) and the DXF model reader."""
 
+from pathlib import Path
+
 import pytest
 
 from nx_mcp.core import evidence
@@ -122,13 +124,41 @@ def test_dwg_selected_body(dxf, root):
     assert (root / "m.dwg").read_bytes()[:6] == b"AC1018"
 
 
-def test_dxf_without_its_license_is_refused_before_nx(dxf, root):
+class Unlicensed(DxfdwgCreator):
+    """The external translator without its license: no file, the reason in its log."""
+
+    def __init__(self, fake, log="ug_to_dxf: License not found"):
+        super().__init__(fake)
+        self.log = log
+
+    def Commit(self):
+        Path(self.OutputFile).with_suffix(".log").write_text(self.log)
+
+
+def test_dxf_is_tried_although_the_license_server_lists_no_translator(dxf, root):
     modified_part(dxf)
+    dxf.licensed = {}  # the seat may hold it another way: the translator decides
+    ok = call(dxf, exchange.nx_export_model, part="m", path="m.dxf")
+    assert ok.ok, ok
+    assert (root / "m.dxf").exists()
+
+
+def test_dxf_translator_license_refusal_names_ug_to_dxf(dxf, root):
+    modified_part(dxf)
+    dxf.session.DexManager.CreateDxfdwgCreator = lambda: Unlicensed(dxf)
+    bad = call(dxf, exchange.nx_export_model, part="m", path="m.dxf")
+    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE", bad
+    assert bad.error["details"]["license"] == "ug_to_dxf"
+    assert "License not found" in bad.error["message"]
+    assert not (root / "m.dxf").exists()
+    evidence.forget_licenses()
+    # No reason in the log: what the license server says is only a note.
+    dxf.session.DexManager.CreateDxfdwgCreator = lambda: Unlicensed(dxf, "translator log")
     dxf.licensed = {}
     bad = call(dxf, exchange.nx_export_model, part="m", path="m.dxf")
-    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and bad.mutation_outcome == "not_started"
-    assert bad.error["details"]["license"] == "ug_to_dxf" and not dxf.exporters
-    assert not (root / "m.dxf").exists()
+    assert bad.error["code"] == "NX_EXPORT_FAILED", bad
+    assert bad.error["details"]["license_check"] == "missing"
+    assert bad.error["details"]["license"] == "ug_to_dxf"
 
 
 def test_dxf_without_model_data_fails(dxf, root, monkeypatch):

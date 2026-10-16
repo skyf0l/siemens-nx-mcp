@@ -16,6 +16,7 @@ from unittest.mock import Mock
 import pytest
 
 from tests.kit import fake_nx
+from tests.kit.attributes import UserAttributes
 from tests.kit.fake import DrawingSheet, Factories, Node
 from tests.kit.objects import Object, matrix, point
 
@@ -45,22 +46,8 @@ class AutoNS:
         setattr(self._base, name, value)
 
 
-class Attributes:
-    """String user attributes like NXOpen objects have them."""
-
-    def _attrs(self):
-        if not hasattr(self, "_attr_store"):
-            self._attr_store = {}
-        return self._attr_store
-
-    def HasUserAttribute(self, name, *_):
-        return name in self._attrs()
-
-    def GetStringAttribute(self, name):
-        return self._attrs()[name]
-
-    def SetAttribute(self, name, value):
-        self._attrs()[name] = value
+class Attributes(UserAttributes):
+    """String user attributes like NXOpen objects have them (``tests.kit.attributes``)."""
 
 
 def _view_class(native):

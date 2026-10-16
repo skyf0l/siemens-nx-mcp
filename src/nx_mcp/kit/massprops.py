@@ -173,15 +173,14 @@ def to_local(pose, point) -> list:
 # Licenses
 
 
-def require_license(tx, feature=ADV_ASSEMBLIES, what="This tool") -> None:
-    """``NX_LICENSE_UNAVAILABLE`` before any change when ``feature`` is not served
-    (``kit.licenses``; NX cannot tell: NX decides)."""
-    licenses.require(
-        tx,
-        (feature,),
-        f"{what} needs the NX license feature {feature} (Advanced Assemblies)",
-        hint="Tell the engineer the license is missing",
-    )
+LICENSES = (ADV_ASSEMBLIES,)
+
+
+def licensed(tx):
+    """The context of NX weight management and component group work: NX's license
+    refusal inside becomes ``NX_LICENSE_UNAVAILABLE`` naming ``adv_assemblies``
+    (``kit.licenses.attempt``)."""
+    return licenses.attempt(tx, LICENSES)
 
 
 # ---------------------------------------------------------------------------
@@ -223,7 +222,7 @@ def assert_weight(tx, obj, level, mass, center_mm=None) -> None:
     if uf is None or enums is None:
         fail("NX_VERSION_UNSUPPORTED", "This NX has no UF Weight (assembly weight management)")
     states = enums.StateType
-    with native(default="NX_BUILD_FAILED"):
+    with licensed(tx), native(default="NX_BUILD_FAILED"):
         props = uf.AskProps(obj.Tag, enums.UnitsType.UNITS_KMM)
         props.Units = enums.UnitsType.UNITS_KMM
         props.Accuracy = ASSERT_ACCURACY
@@ -248,7 +247,7 @@ def clear_weight(tx, obj, level) -> None:
     uf, _enums = _weight(tx)
     if uf is None:
         fail("NX_VERSION_UNSUPPORTED", "This NX has no UF Weight (assembly weight management)")
-    with native(default="NX_BUILD_FAILED"):
+    with licensed(tx), native(default="NX_BUILD_FAILED"):
         if level == "part":
             uf.DeletePartAssertion(obj.Tag)
         else:

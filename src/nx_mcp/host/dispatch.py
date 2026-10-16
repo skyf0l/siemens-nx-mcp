@@ -13,7 +13,9 @@ under ``details.envelope`` for the sidecar (step F3).
 
 Part ownership (gate 6): every call owns the parts it loads (created or opened
 when not already loaded); the engineer grants a part on the NX MCP panel
-(:func:`grant_state`, :func:`set_grant`). ``NX_MCP_DEV=1`` turns the gate off.
+(:func:`grant_state`, :func:`set_grant`). The gate is on in development mode
+(``NX_MCP_DEV=1``) too; a development snippet (``nx_dev_python``, the acceptance
+runner's engineer steps) is not a catalogue call and acts outside it.
 
 Development tools (``services.dev_tools``, only ``nx_dev_python`` from the
 development launcher) run under one visible undo mark that rolls back on failure; a
@@ -270,11 +272,9 @@ def _roll_back_dev(services, mark, shown) -> dict:
 def grant_state(services) -> dict | None:
     """The panel's grant checkbox for the work part: None when it is not shown.
 
-    Shown in production only, for a work part the agent neither created nor
-    opened: ``{"name": <part name>, "granted": bool}``.
+    Shown for a work part the agent neither created nor opened, in development mode
+    too (gate 6 is always on): ``{"name": <part name>, "granted": bool}``.
     """
-    if services.dev:
-        return None
     part = services.work_part()
     if part is None or services.created(part):
         return None

@@ -141,8 +141,9 @@ class _BridgeInfo(TypedDict):
     # connected; else (answered by the sidecar): busy, blocked_by_dialog, unresponsive,
     # not_answering, down or unknown
     state: str
-    nx_version: str | None  # build key, e.g. v2406
-    nx_build: str | None  # NX's own version text
+    nx_version: str | None  # build key, e.g. v2406 (evidence gates by it)
+    nx_build: str | None  # NX's own full build, e.g. 2406.9160
+    build_tested: bool  # NX MCP has acceptance evidence for this build
     interactive: bool  # NX with the NX MCP panel
     session_id: str | None
     answered_from: str  # nx, snapshot (NX is running a step) or sidecar (bridge down)
@@ -153,6 +154,14 @@ class _BridgeInfo(TypedDict):
 
 class BridgeInfo(_BridgeInfo, total=False):
     health: HealthInfo  # only when answered_from is sidecar: why NX did not answer
+    # Only when not empty: tools that failed on this untested build because NX lacks an
+    # NXOpen member, {tool, variant, build, member, since}; refused and hidden this session.
+    version_unsupported: list[dict]
+    # Untested builds only: NX's undo self-test before the first change, {state (passed,
+    # failed, skipped), reason, at, seconds}; None before it ran.
+    self_test: dict | None
+    # Untested builds only, when agents may only read and view: why.
+    read_only: str
 
 
 class PartInfo(TypedDict):
@@ -306,17 +315,42 @@ def running_info(
 
 
 def _bridge(build, *, state, interactive, session_id, answered_from) -> BridgeInfo:
+    from nx_mcp.core import evidence
     from nx_mcp.core.evidence import build_key, licenses
 
-    return {
+    nx = answered_from != "sidecar"  # the session memory lives in NX
+    tested = evidence.known_build(build_key(build))
+    out: BridgeInfo = {
         "state": state,
         "nx_version": build_key(build),
         "nx_build": str(build) if build else None,
+        "build_tested": tested,
         "interactive": interactive,
         "session_id": session_id,
         "answered_from": answered_from,
-        "license_unavailable": licenses() if answered_from != "sidecar" else [],
+        "license_unavailable": licenses() if nx else [],
     }
+    failed = evidence.version_failures() if nx else []
+    if failed:
+        out["version_unsupported"] = failed
+    if not tested and nx:
+        out["self_test"] = evidence.self_test_result()
+        reason = read_only_reason()
+        if reason:
+            out["read_only"] = reason
+    return out
+
+
+def read_only_reason() -> str | None:
+    """Why agents may only read and view on this untested NX build, else None."""
+    from nx_mcp.core import evidence
+
+    if evidence.untested_mode() == "read_only":
+        return "NX_MCP_UNTESTED=read_only"
+    result = evidence.self_test_result()
+    if result is not None and result.get("state") == "failed":
+        return f"NX's undo self-test failed: {result.get('reason') or 'no reason given'}"
+    return None
 
 
 def _select(data: dict, include) -> dict:

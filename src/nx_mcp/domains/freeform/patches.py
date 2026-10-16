@@ -3,8 +3,8 @@
 NX 2406 lessons kept here:
 
 - ``CreateNSidedSurfaceBuilder`` and ``CreateRuledBuilder`` need the basic freeform
-  license (``nx_freeform_1``), checked with ``LicenseManager.CheckPresence`` before the
-  builder is created; neither enters the Studio application.
+  license (``nx_freeform_1``); NX's refusal is reported naming it
+  (``kit.licenses.attempt``); neither enters the Studio application.
 - N-sided: the boundary goes into the builder's own ``OuterLoop`` section; ``Type``
   ``TrimmedPatch`` (one face trimmed to the boundary, ``TrimToBoundary``) or
   ``TriangularPatch`` (one face per boundary segment; a single closed circle gives
@@ -256,10 +256,12 @@ def nx_create_n_sided_surface(
                  "opening per call", field="/boundary",
                  hint="List every curve or edge around one opening, end to end")  # fmt: skip
         adjacent = _adjacent(tx, objs, boundary, faces, continuity)
-    common.licensed(tx)
     F = tx.nx.Features
     G = tx.nx.GeometricUtilities
-    with builders.build(tx, tx.part.Features.CreateNSidedSurfaceBuilder, None) as b:
+    with (
+        common.licensed(tx),
+        builders.build(tx, tx.part.Features.CreateNSidedSurfaceBuilder, None) as b,
+    ):
         types = F.NSidedSurfaceBuilder.SurfaceType
         b.Type = types.TrimmedPatch if type == "trimmed" else types.TriangularPatch
         b.PositionTolerance = tol
@@ -462,9 +464,11 @@ def nx_create_ruled(
         [seed0, *[o for o in objs[0] if o is not seed0]],
         [seed1, *[o for o in objs[1] if o is not seed1]],
     ]
-    common.licensed(tx)
     G = tx.nx.GeometricUtilities
-    with builders.build(tx, tx.part.Features.CreateRuledBuilder, None) as b:
+    with (
+        common.licensed(tx),
+        builders.build(tx, tx.part.Features.CreateRuledBuilder, None) as b,
+    ):
         builders.curve_section(tx, order[0], start0, into=b.FirstSection)
         builders.curve_section(tx, order[1], start1, into=b.SecondSection)
         if walks[0][1] and second_closed:

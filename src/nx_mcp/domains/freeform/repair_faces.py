@@ -3,8 +3,8 @@
 NX 2406 lessons kept here (probed live):
 
 - ``FreeformSurfaceCollection.CreateFillHoleBuilder`` (the modeling one, not the facet
-  body one) needs ``solid_modeling`` and its option setters ``nx_freeform_1``; both
-  are asked first. The opening goes into its own ``CurveChain`` section.
+  body one) needs ``solid_modeling`` and its option setters ``nx_freeform_1`` too; NX's
+  refusal names the one the license server lacks. The opening goes into its own ``CurveChain`` section.
   ``DefaultEdgeContinuity`` is G1 and is NOT applied to edges added after it is set:
   every border needs a ``BorderContinuity`` item (``SetBorderTypeItems``), else NX
   keeps G1 and a square rim of a ruled tube fails "Some edge cannot have G1
@@ -49,9 +49,8 @@ ANALYTIC = {16: "cylinder", 17: "cone", 18: "sphere", 19: "torus", 22: "plane"}
 
 
 def _license(tx, *features):
-    for feature in features:
-        licenses.require(tx, (feature,), f"This NX seat has no {feature} license for this command",
-                         strict=True)  # fmt: skip
+    """The context of work that needs every one of ``features`` (``kit.licenses.attempt``)."""
+    return licenses.attempt(tx, features, every=True)
 
 
 class FillHoleData(common.SheetData):
@@ -125,13 +124,15 @@ def nx_create_fill_hole(
         points = [p for o in objs for p in surface_loops.curve_points(tx, o)]
         rim_sheets = [x for x in tx.part.Bodies if int(x.Tag) in owners]
         open_before = len(surface_loops.free_edges(rim_sheets))
-    _license(tx, MODELING, FREEFORM)
     part = tx.part
     H = tx.nx.Features.FillHoleBuilder
     kind = H.ContinuityTypes.G1 if continuity == "g1" else H.ContinuityTypes.G0
     before = {int(b.Tag) for b in part.Bodies}
     collection = part.Features.FreeformSurfaceCollection
-    with builders.build(tx, collection.CreateFillHoleBuilder, None) as b:
+    with (
+        _license(tx, MODELING, FREEFORM),
+        builders.build(tx, collection.CreateFillHoleBuilder, None) as b,
+    ):
         b.DefaultEdgeContinuity = kind
         builders.curve_section(tx, objs, into=b.CurveChain)
         b.Tolerance = tol
@@ -207,8 +208,10 @@ def nx_create_refit_face(
         points += [curve.point_at(tx, e, 0.5) for e in target.GetEdges()]
         body = target.GetBody()
         area_before = measure.area(tx, [target])
-    _license(tx, MODELING)
-    with builders.build(tx, tx.part.Features.CreateRefitFaceBuilder, None) as b:
+    with (
+        _license(tx, MODELING),
+        builders.build(tx, tx.part.Features.CreateRefitFaceBuilder, None) as b,
+    ):
         b.Face.Value = target
         b.RefitControl.Tolerance = tol
         feature = b.commit()

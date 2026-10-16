@@ -44,7 +44,7 @@ from typing import Any, NoReturn, cast
 from nx_mcp.core import busy, evidence, parking, switching
 from nx_mcp.core import marks as undo_marks
 from nx_mcp.core import target as targets
-from nx_mcp.core.errors import CATEGORIES, NXError, classify, fail
+from nx_mcp.core.errors import CATEGORIES, NXError, classify, fail, missing_member
 from nx_mcp.core.receipts import ANY_PART, Receipts, new_operation_id
 from nx_mcp.core.references import GENERIC_NAME as _GENERIC
 from nx_mcp.core.tx import Services, Tx, check_owned
@@ -408,10 +408,18 @@ def _suffixed(spec, args, field, given: str, resolved: Path, marker, services) -
     )
 
 
-def _gate_evidence(spec, checked: Checked, services: Services) -> None:  # gate 3
-    refusal = evidence.check(
-        spec, evidence.build_key(services.build), checked.args, dev=bool(services.dev)
-    )
+def _gate_evidence(spec, checked: Checked, services: Services, top=False) -> None:  # gate 3
+    """Evidence (``core/evidence.py``): tested here, or tested on another build and allowed
+    here. ``top``: a top-level call, which on an untested build runs NX's undo self-test
+    first when it is the session's first changing call (:func:`_self_test`)."""
+    key, dev = evidence.build_key(services.build), bool(services.dev)
+    refusal = evidence.check(spec, key, checked.args, dev=dev)
+    changing = top and spec.effect not in evidence.READ_EFFECTS
+    if refusal is None and changing and _self_test(spec, services):
+        refusal = evidence.check(spec, key, checked.args, dev=dev)  # failed: reads only
+    if refusal is None and not dev:
+        # Session version memory: a tool that met a missing NXOpen member on this build.
+        refusal = evidence.version_refusal(spec, checked.args)
     if refusal is None:
         # Session license memory: a tested tool/variant that NX refused for a missing
         # license is refused before NX for 15 minutes (also in development mode).
@@ -423,6 +431,69 @@ def _gate_evidence(spec, checked: Checked, services: Services) -> None:  # gate 
 def _remember_license(spec, args, services: Services, error) -> None:
     with contextlib.suppress(Exception):
         evidence.remember_license(spec, services.build, args, error)
+
+
+def _self_test(spec, services: Services) -> bool:
+    """NX's undo self-test (``Services.self_test(tx)``: a block made and undone in a scratch
+    part, never in the engineer's), once per NX session on an untested build, before its
+    first changing call; the result is kept with the session memory
+    (``evidence.self_test_result``) and a failure leaves read and view tools only.
+    Returns whether it ran now."""
+    hook = getattr(services, "self_test", None)
+    if not callable(hook) or evidence.self_test_result() is not None:
+        return False
+    if evidence.known_build(evidence.build_key(services.build)):
+        return False
+    started = time.monotonic()
+    try:
+        result = dict(hook(Tx(services, spec, operation_id=None)) or {})
+    except Exception as error:
+        result = {"state": "failed", "reason": f"{type(error).__name__}: {error}"}
+    if result.get("state") not in ("passed", "failed", "skipped"):
+        result["state"] = "failed"
+    result.setdefault("reason", None)
+    result["at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+    result["seconds"] = round(time.monotonic() - started, 3)
+    evidence.set_self_test(result)
+    return True
+
+
+def _version_net(spec, args, services: Services, exc, error: NXError) -> NXError:
+    """Gate 15: a tool without evidence on this build that met a missing NXOpen member
+    (an AttributeError on an NXOpen object, class or module, NX itself not refusing) is
+    ``NX_VERSION_UNSUPPORTED`` and is remembered for the NX session (not in development
+    mode); so is ``kit.builders.first`` finding none of its names. On a build where the
+    tool is tested it stays the internal error it is (our bug)."""
+    try:
+        details = error.details
+        if details.get("child_tool") or details.get("remembered_from"):
+            return error  # a batch step (its own spec remembered it), or a refusal
+        variant = spec.variant_of(args if isinstance(args, dict) else {})
+        if evidence.available(spec, evidence.build_key(services.build), variant):
+            return error
+        if error.code == "NX_VERSION_UNSUPPORTED":
+            member = details.get("member")  # kit.builders.first
+            if member:
+                details.setdefault("tool", spec.name)
+                details.setdefault("variant", variant)
+                details.setdefault("build", services.build)
+                if not services.dev:
+                    evidence.remember_version(
+                        spec, services.build, variant, member, error.message, "MissingFactory"
+                    )
+            return error
+        member = missing_member(exc)
+        if member is None or error.nx_code is not None:
+            return error
+        found = evidence.version_unsupported(spec, services.build, variant, member)
+        found.trace = error.trace
+        if not services.dev:
+            evidence.remember_version(
+                spec, services.build, variant, member, error.message, type(exc).__name__
+            )
+        return found
+    except Exception:
+        return error
 
 
 def _gate_requires(spec, services: Services, *, explicit: bool = False) -> None:  # gate 4
@@ -480,9 +551,9 @@ def _gate_ownership(spec, services: Services, args: dict) -> dict | None:  # gat
 
     A call given its ``new_part`` path works in a part it creates (agent-owned), so
     the current work part is not checked; the after-handler check still undoes any
-    change to a part the agent does not own.
+    change to a part the agent does not own. Development mode does not turn it off.
     """
-    if services.dev or spec.effect not in ("model", "file"):
+    if spec.effect not in ("model", "file"):
         return None
     in_new_part = spec.new_part is not None and args.get(spec.new_part) is not None
     if spec.effect == "model" and not in_new_part:
@@ -816,17 +887,24 @@ ALERT_FEATURES_MAX = 4000
 ALERTS_LISTED = 10
 
 
-def feature_messages(feature, kinds=("error", "warning")) -> list[tuple[str, str]]:
+def feature_messages(
+    feature, kinds=("error", "warning"), problems: list | None = None
+) -> list[tuple[str, str]]:
     """``[(kind, message)]`` NX attaches to ``feature`` (``error``, ``warning``,
-    ``information``), in order without repeats; ``[]`` where NX cannot say. Never raises."""
+    ``information``), in order without repeats; ``[]`` where NX cannot say (``problems``
+    gets the reader that could not answer, once). Never raises."""
     readers = dict(ALERT_READERS, information="GetFeatureInformationalMessages")
     out: list[tuple[str, str]] = []
     for kind in kinds:
         read = getattr(feature, readers[kind], None)
         try:
-            messages = list(read() or []) if callable(read) else []
+            if not callable(read):
+                raise AttributeError(readers[kind])
+            messages = list(read() or [])
         except Exception:  # a feature NX cannot answer for has no alerts to report
             messages = []
+            if problems is not None and readers[kind] not in problems:
+                problems.append(readers[kind])
         for message in messages:
             text = str(message).strip()
             if text and (kind, text) not in out:
@@ -834,10 +912,11 @@ def feature_messages(feature, kinds=("error", "warning")) -> list[tuple[str, str
     return out
 
 
-def feature_alerts(services, part) -> dict | None:
+def feature_alerts(services, part, problems: list | None = None) -> dict | None:
     """``{tag: (feature, frozenset((kind, message)))}`` of the user-visible features of
     ``part`` that report errors or warnings; None when they cannot be read (no part, more
-    than ``ALERT_FEATURES_MAX`` features). Services may supply ``feature_alerts(part)``."""
+    than ``ALERT_FEATURES_MAX`` features). Services may supply ``feature_alerts(part)``.
+    ``problems`` gets the readers NX could not answer (:func:`feature_messages`)."""
     hook = getattr(services, "feature_alerts", None)
     if callable(hook):
         try:
@@ -854,7 +933,7 @@ def feature_alerts(services, part) -> dict | None:
     for feature in features:
         if getattr(feature, "IsInternal", False):
             continue
-        pairs = frozenset(feature_messages(feature))
+        pairs = frozenset(feature_messages(feature, problems=problems))
         if pairs:
             with contextlib.suppress(Exception):
                 out[int(feature.Tag)] = (feature, pairs)
@@ -869,13 +948,15 @@ def _feature_row(services, feature) -> dict:
         return {"kind": "feature", "name": name}
 
 
-def new_alerts(services, part, before: dict | None) -> list[dict]:
+def new_alerts(services, part, before: dict | None, problems: list | None = None) -> list[dict]:
     """``[{feature: row, kind, message}]``: the feature errors and warnings of ``part``
     that were not there before the call (``before`` from :func:`feature_alerts`), at most
     ``ALERTS_LISTED``. ``[]`` when ``before`` is None."""
     if before is None or part is None:
         return []
-    after = feature_alerts(services, part)
+    after = feature_alerts(services, part, problems)
+    if after is None and problems is not None and "Features" not in problems:
+        problems.append("Features")
     if not after:
         return []
     out: list[dict] = []
@@ -909,15 +990,22 @@ def _alert_warning(alert: dict) -> dict:
     }
 
 
-def update_failures(services) -> list[dict]:
+def update_failures(services, problems: list | None = None) -> list[dict]:
     """``[{feature: row, message, nx_code}]`` of NX's update error list (``UpdateManager.
     ErrorList``): after "Update undo happened" it names the feature whose update failed
     (NX 2406 measured: the blend, when a block edit left its edge too short). Read before
-    the rollback clears the list; ``[]`` where NX cannot say."""
+    the rollback clears the list; ``[]`` where NX cannot say (``problems`` gets
+    ``UpdateManager.ErrorList``)."""
     out: list[dict] = []
-    with contextlib.suppress(Exception):
+    try:
         errors = services.session.UpdateManager.ErrorList
-        for i in range(min(int(errors.Length), ALERTS_LISTED)):
+        count = int(errors.Length)
+    except Exception:
+        if problems is not None:
+            problems.append("UpdateManager.ErrorList")
+        return out
+    with contextlib.suppress(Exception):
+        for i in range(min(count, ALERTS_LISTED)):
             with contextlib.suppress(Exception):
                 info = errors.GetErrorInfo(i)
                 obj = info.ErrorObject
@@ -947,7 +1035,33 @@ def _unchanged_measure(details: dict) -> bool:
     return abs(new - old) <= 1e-9 * max(1.0, abs(old))
 
 
-def explain_failure(services, part, before_alerts: dict | None, error: NXError) -> NXError:
+UNVERIFIED = (
+    "{build} is not tested with NX MCP and NX could not answer {what}: the result is not "
+    "verified; check it (nx_check_model, measurements)"
+)
+
+
+def unverified(services) -> bool:
+    """Whether the call runs on an untested NX build, where a check NX cannot answer is
+    reported (``NX_UNVERIFIED``) instead of passing silently (fail closed)."""
+    try:
+        return not evidence.known_build(evidence.build_key(services.build))
+    except Exception:
+        return False
+
+
+def _unverified_warning(services, problems: list) -> dict | None:
+    """The ``NX_UNVERIFIED`` warning for the readers in ``problems`` on an untested build."""
+    if not problems or not unverified(services):
+        return None
+    what = ", ".join(dict.fromkeys(str(p) for p in problems))
+    message = UNVERIFIED.format(build=evidence.build_label(services.build), what=what)
+    return {"code": "NX_UNVERIFIED", "message": message}
+
+
+def explain_failure(
+    services, part, before_alerts: dict | None, error: NXError, problems: list | None = None
+) -> NXError:
     """Gate 15, before the rollback: say what NX reported about the failed call.
 
     An update failure names its failing features (``details.failed_features``: NX's update
@@ -956,9 +1070,9 @@ def explain_failure(services, part, before_alerts: dict | None, error: NXError) 
     is ``NX_BUILD_FAILED`` (``geometry_failed``, fix the input) instead of a report to the
     engineer. Never raises."""
     try:
-        alerts = new_alerts(services, part, before_alerts)
+        alerts = new_alerts(services, part, before_alerts, problems)
         if error.code == "NX_UPDATE_FAILED" and "failed_features" not in error.details:
-            failed = update_failures(services) or [
+            failed = update_failures(services, problems) or [
                 {"feature": a["feature"], "message": a["message"]}
                 for a in alerts
                 if a["kind"] == "error"
@@ -1086,6 +1200,7 @@ def run(spec, args, ctx: Context) -> dict:
     observer = None
     watched = None
     alerts: dict | None = None  # NX feature alerts before the handler (gate 11)
+    unanswered: list = []  # NX readers that could not answer (NX_UNVERIFIED)
     bound: switching.Bound | None = None
     handler_started = handler_done = False
     args, keys = targets.split_call_keys(spec, args)  # part/expires_at in arguments
@@ -1122,7 +1237,7 @@ def run(spec, args, ctx: Context) -> dict:
         _gate_refs(spec, checked, services)  # 3r
         _gate_paths(spec, checked, services, target)  # 2
         _gate_variant(spec, checked, services, target)  # 3
-        _gate_evidence(spec, checked, services)  # 3
+        _gate_evidence(spec, checked, services, True)  # 3 (top: the self-test may run)
         bound = switching.enter(  # 4s: the target becomes current (core/switching.py)
             spec, checked.args, target, services, explicit=part_text is not None
         )
@@ -1147,7 +1262,9 @@ def run(spec, args, ctx: Context) -> dict:
         if spec.effect == "model":  # 8
             phases.lap("gates")
             before = services.snapshot(part) if part is not None else {}
-            alerts = feature_alerts(services, part)
+            alerts = feature_alerts(services, part, unanswered)
+            if alerts is None and part is not None:
+                unanswered.append("Features")
             floor = _ref_floor(services)
             mark = services.set_mark("NX MCP: " + spec.label)
             phases.lap("snapshot")
@@ -1184,9 +1301,12 @@ def run(spec, args, ctx: Context) -> dict:
         changes = None
         if spec.effect == "model":
             seen, after = _readback_parts(spec, services, tx, part, before, mark)  # 11
-            for alert in new_alerts(services, part, alerts):  # NX's new feature alerts
+            for alert in new_alerts(services, part, alerts, unanswered):  # NX's new alerts
                 if not any(alert["message"] in str(w.get("message")) for w in tx.warnings):
                     tx.warnings.append(_alert_warning(alert))
+            unchecked = _unverified_warning(services, unanswered)
+            if unchecked is not None:  # an untested build: never a silent pass
+                tx.warnings.append(unchecked)
             phases.lap("readback")
             retired = services.invalidate(seen, after, spec.invalidates == "topology")  # 12
             phases.lap("invalidate")
@@ -1248,9 +1368,14 @@ def run(spec, args, ctx: Context) -> dict:
         return envelope
     except BaseException as exc:  # 15 (SystemExit/KeyboardInterrupt from a handler too)
         error = classify(exc)
+        error = _version_net(spec, raw_args, services, exc, error)
         _remember_license(spec, raw_args, services, error)
         if spec.effect == "model" and handler_started and part is not None:
-            error = explain_failure(services, part, alerts, error)  # before the rollback
+            # before the rollback
+            error = explain_failure(services, part, alerts, error, unanswered)
+            unchecked = _unverified_warning(services, unanswered)
+            if unchecked is not None and tx is not None:
+                tx.warnings.append(unchecked)
         touched = bool(
             handler_started
             and (
@@ -1636,6 +1761,7 @@ def run_child(
         return result
     except Exception as exc:
         error = classify(exc)
+        error = _version_net(spec, args, services, exc, error)
         _remember_license(spec, args, services, error)
         error.details.setdefault("child_index", index)
         error.details.setdefault("child_tool", spec.name)

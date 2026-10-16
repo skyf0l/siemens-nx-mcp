@@ -4,7 +4,16 @@ import pytest
 
 from tests.kit import run
 from tests.kit.fake import FakeSection
-from tests.unit.freeform.fakes import curve, edge, face, flat, freeform_nx, made, sheet
+from tests.unit.freeform.fakes import (
+    curve,
+    edge,
+    face,
+    flat,
+    freeform_nx,
+    made,
+    nx_refuses,
+    sheet,
+)
 
 RIM = [[-10, -10, 30], [10, -10, 30], [10, 10, 30], [-10, 10, 30]]
 BSURFACE = 43
@@ -55,7 +64,7 @@ def test_fill_hole_sews_a_g0_patch_into_the_sheet():
     items = b.SetBorderTypeItems.calls[0][0][0]
     assert [i.BorderObject for i in items] == rim[::-1]
     assert all(i.Continuity is H.ContinuityTypes.G0 for i in items)
-    assert nx.license_queries == ["solid_modeling", "nx_freeform_1"]
+    assert nx.license_queries == []  # NX decides: never asked first
     assert ok.data["sewn"] is True and ok.data["faces"] == 5
     assert ok.data["free_edges"] == 0 and ok.data["closed"] is True
     assert ok.data["bodies"][0]["id"] == tube.ref and nx.live_builders == 0
@@ -92,11 +101,14 @@ def test_fill_hole_refusals_before_nx():
     assert ok.ok, ok  # curves can be filled as a separate G0 sheet
 
 
-def test_fill_hole_without_license_refuses_before_the_builder():
+def test_fill_hole_refusal_names_the_license_the_server_lacks():
     nx, _tube, rim = tube_nx()
-    nx.licenses["nx_freeform_1"] = False
+    nx_refuses(nx, "FillHoleBuilder", "nx_freeform_1")  # solid_modeling stays listed
     bad = run(nx, "nx_create_fill_hole", boundary=[e.ref for e in rim])
-    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and not nx.builders
+    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and bad.error["nx_code"] == 948801
+    assert bad.error["details"]["license"] == "nx_freeform_1"
+    assert bad.error["details"]["license_check"] == "missing" and nx.live_builders == 0
+    assert bad.error["details"]["licenses_all"] == ["solid_modeling", "nx_freeform_1"]
 
 
 # ---------------------------------------------------------------------------
@@ -131,7 +143,7 @@ def test_refit_face_within_tolerance():
     b = nx.last("RefitFaceBuilder")
     assert b.Face.Value is f and b.RefitControl.Tolerance == pytest.approx(0.02)
     assert ok.data["deviation"] == pytest.approx(0) and ok.data["samples"] == 26
-    assert nx.license_queries == ["solid_modeling"] and nx.live_builders == 0
+    assert nx.license_queries == [] and nx.live_builders == 0
 
 
 def test_refit_face_out_of_tolerance_rolls_back():

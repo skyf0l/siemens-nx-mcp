@@ -12,12 +12,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_set_component_mass": "32b5e59317b6b58a55845f832727a642ceb1c6f60f4d4966372dceb5e18be7b3",
-    "nx_create_component_group": "32b5e59317b6b58a55845f832727a642ceb1c6f60f4d4966372dceb5e18be7b3",
-    "nx_list_component_groups": "32b5e59317b6b58a55845f832727a642ceb1c6f60f4d4966372dceb5e18be7b3",
-    "nx_edit_component_group": "32b5e59317b6b58a55845f832727a642ceb1c6f60f4d4966372dceb5e18be7b3"
+    "nx_set_component_mass": "3af1676171739847d5bd94ded0ac3209e0c4ac4bfad449c4a19b8be205edfac9",
+    "nx_create_component_group": "3af1676171739847d5bd94ded0ac3209e0c4ac4bfad449c4a19b8be205edfac9",
+    "nx_list_component_groups": "3af1676171739847d5bd94ded0ac3209e0c4ac4bfad449c4a19b8be205edfac9",
+    "nx_edit_component_group": "3af1676171739847d5bd94ded0ac3209e0c4ac4bfad449c4a19b8be205edfac9"
   },
-  "recorded": "2026-10-15T10:59:17Z",
+  "recorded": "2026-10-16T13:14:24Z",
   "passed": true,
   "checks": 88,
   "failed_checks": 0,

@@ -2,6 +2,7 @@
   "nx_capture_view": {
     "v2406": {
       "checks": 65,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:51:22Z",
       "scenario": "acceptance/display/natural_args.json",
       "scenario_sha256": "a2aa14dc314d87cbc1687bf9b3b6a6ad0abe0f335f13841e5864f6f4138b6e02",
@@ -12,6 +13,7 @@
   "nx_create_decal": {
     "v2406": {
       "checks": 62,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T11:46:02Z",
       "scenario": "acceptance/display/visual_materials.json",
       "scenario_sha256": "565875c408a91ad641d313148fd2e195ba025abba917ff9c45a51f47c6b044cc",
@@ -22,6 +24,7 @@
   "nx_create_section_view": {
     "v2406": {
       "checks": 24,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T11:45:41Z",
       "scenario": "acceptance/display/sections_switch.json",
       "scenario_sha256": "ba351a3951b8e3f62beb4759cd2f38a73fa6b72a093fac9b992975d9d6af29ed",
@@ -32,6 +35,7 @@
   "nx_delete_decal": {
     "v2406": {
       "checks": 62,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T11:46:02Z",
       "scenario": "acceptance/display/visual_materials.json",
       "scenario_sha256": "565875c408a91ad641d313148fd2e195ba025abba917ff9c45a51f47c6b044cc",
@@ -42,6 +46,7 @@
   "nx_edit_section_view": {
     "v2406": {
       "checks": 24,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T11:45:41Z",
       "scenario": "acceptance/display/sections_switch.json",
       "scenario_sha256": "ba351a3951b8e3f62beb4759cd2f38a73fa6b72a093fac9b992975d9d6af29ed",
@@ -52,6 +57,7 @@
   "nx_get_appearance": {
     "v2406": {
       "checks": 69,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:51:26Z",
       "scenario": "acceptance/display/natural_values.json",
       "scenario_sha256": "6fe1e95abe4eab2a3f09df2fcb8a332735f1777b72a8ba6af04ffad7bd1c8308",
@@ -62,6 +68,7 @@
   "nx_get_camera": {
     "v2406": {
       "checks": 54,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:51:43Z",
       "scenario": "acceptance/display/view_directions.json",
       "scenario_sha256": "d2f2264b4e2545297445dbe15c5ee08458334ca2b282f4499c93de28c7618375",
@@ -72,6 +79,7 @@
   "nx_get_true_shading": {
     "v2406": {
       "checks": 39,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:51:07Z",
       "scenario": "acceptance/display/lights_background.json",
       "scenario_sha256": "4daa1a76f84937b9197284af9672b7d444c25a868b4a03d5933820191c79d663",
@@ -82,6 +90,7 @@
   "nx_get_visual_material": {
     "v2406": {
       "checks": 62,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T11:46:02Z",
       "scenario": "acceptance/display/visual_materials.json",
       "scenario_sha256": "565875c408a91ad641d313148fd2e195ba025abba917ff9c45a51f47c6b044cc",
@@ -92,6 +101,7 @@
   "nx_list_lights": {
     "v2406": {
       "checks": 39,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:51:07Z",
       "scenario": "acceptance/display/lights_background.json",
       "scenario_sha256": "4daa1a76f84937b9197284af9672b7d444c25a868b4a03d5933820191c79d663",
@@ -102,6 +112,7 @@
   "nx_list_visual_materials": {
     "v2406": {
       "checks": 62,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T11:46:02Z",
       "scenario": "acceptance/display/visual_materials.json",
       "scenario_sha256": "565875c408a91ad641d313148fd2e195ba025abba917ff9c45a51f47c6b044cc",
@@ -112,6 +123,7 @@
   "nx_restore_display": {
     "v2406": {
       "checks": 58,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:51:52Z",
       "scenario": "acceptance/display/visibility_assembly.json",
       "scenario_sha256": "1d2c5ea49bea3ebbabfc9bf1efa9f306902c3a0141437723363b13edc800cb66",
@@ -122,6 +134,7 @@
   "nx_save_presentation": {
     "v2406": {
       "checks": 12,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T11:45:36Z",
       "scenario": "acceptance/display/presentation_paths.json",
       "scenario_sha256": "3af593497737d20c08fe51bb0e857a9e7507194128d6fc0edfd58de5e7e29560",
@@ -132,6 +145,7 @@
   "nx_set_appearance": {
     "v2406": {
       "checks": 69,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:51:26Z",
       "scenario": "acceptance/display/natural_values.json",
       "scenario_sha256": "6fe1e95abe4eab2a3f09df2fcb8a332735f1777b72a8ba6af04ffad7bd1c8308",
@@ -142,6 +156,7 @@
   "nx_set_camera": {
     "v2406": {
       "checks": 54,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:51:43Z",
       "scenario": "acceptance/display/view_directions.json",
       "scenario_sha256": "d2f2264b4e2545297445dbe15c5ee08458334ca2b282f4499c93de28c7618375",
@@ -152,6 +167,7 @@
   "nx_set_highlight": {
     "v2406": {
       "checks": 10,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:50:36Z",
       "scenario": "acceptance/display/highlight.json",
       "scenario_sha256": "3357803482e5442c32991fad8fba3d687446d4a790e2f1117915d8da332a3f90",
@@ -162,6 +178,7 @@
   "nx_set_light": {
     "v2406": {
       "checks": 39,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:51:07Z",
       "scenario": "acceptance/display/lights_background.json",
       "scenario_sha256": "4daa1a76f84937b9197284af9672b7d444c25a868b4a03d5933820191c79d663",
@@ -172,6 +189,7 @@
   "nx_set_lighting_preset": {
     "v2406": {
       "checks": 39,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:51:07Z",
       "scenario": "acceptance/display/lights_background.json",
       "scenario_sha256": "4daa1a76f84937b9197284af9672b7d444c25a868b4a03d5933820191c79d663",
@@ -182,6 +200,7 @@
   "nx_set_true_shading": {
     "v2406": {
       "checks": 62,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T11:46:02Z",
       "scenario": "acceptance/display/visual_materials.json",
       "scenario_sha256": "565875c408a91ad641d313148fd2e195ba025abba917ff9c45a51f47c6b044cc",
@@ -192,6 +211,7 @@
   "nx_set_visibility": {
     "v2406": {
       "checks": 58,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:51:52Z",
       "scenario": "acceptance/display/visibility_assembly.json",
       "scenario_sha256": "1d2c5ea49bea3ebbabfc9bf1efa9f306902c3a0141437723363b13edc800cb66",
@@ -202,6 +222,7 @@
   "nx_set_visual_material": {
     "v2406": {
       "checks": 62,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T11:46:02Z",
       "scenario": "acceptance/display/visual_materials.json",
       "scenario_sha256": "565875c408a91ad641d313148fd2e195ba025abba917ff9c45a51f47c6b044cc",

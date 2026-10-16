@@ -9,13 +9,26 @@
 Creating, configuring and committing run under ``core.errors.native`` with
 ``default="NX_BUILD_FAILED"``; ``Destroy()`` always runs, and a failing
 ``Destroy()`` never hides the error that is already propagating.
+
+NX builds differ in members. Which helper to use:
+
+- ``b.option(name, value)``: an optional setting; absent on this build, skipped (the
+  call still does what was asked). Never for a value the caller asked for or the result
+  depends on: assign it (``b.Associative = associative``), so a build without it fails
+  instead of silently doing something else.
+- ``b.has(name)``: a branch on what this builder offers (no fallback needed).
+- ``first(owner, "CreateXBuilder1", "CreateXBuilder")``: a member the tool cannot work
+  without, under one of several names (a newer factory and its older one); none of them
+  is ``NX_VERSION_UNSUPPORTED`` naming them. Never ``getattr(...) or ...``: a missing
+  name then fails as an internal error instead.
 """
 
 from __future__ import annotations
 
 import contextlib
+import types
 
-from nx_mcp.core.errors import fail, native
+from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.kit import facts, geom, units
 
 _OWN = ("native", "committed", "_codes")
@@ -48,7 +61,8 @@ class Builder:
         """Set an option only where this NX build has it; returns whether it was set.
 
         NX 2406 lacks some options newer builds offer (``AllowPartialDelete`` on
-        Delete Face), and their absence must not fail the call.
+        Delete Face), and their absence must not fail the call. Only for NX defaults
+        the result does not depend on: a requested value is assigned directly.
         """
         if not hasattr(self.native, name):
             return False
@@ -104,6 +118,32 @@ def destroy(*builders):
             first = first or error
     if first is not None:
         raise first
+
+
+def first(owner, *names: str):
+    """The first of ``names`` this NX build's ``owner`` has (``owner.<name>``), e.g. a
+    newer factory then its older one; none: ``NX_VERSION_UNSUPPORTED`` naming them
+    (``details.member``), which the kernel remembers on an untested build."""
+    if not names:
+        raise ValueError("first() needs at least one member name")
+    for name in names:
+        found = getattr(owner, name, None)
+        if found is not None:
+            return found
+    if isinstance(owner, types.ModuleType):
+        where = prefix = owner.__name__
+    else:
+        kind = owner if isinstance(owner, type) else type(owner)
+        where, module = kind.__qualname__, str(getattr(kind, "__module__", ""))
+        prefix = f"{module}.{where}" if module.startswith("NXOpen") else where
+    member = prefix + "." + "|".join(names)
+    raise NXError(
+        "NX_VERSION_UNSUPPORTED",
+        f"This NX build has none of {', '.join(names)} on {where}: an NXOpen call the tool "
+        "needs is missing; nothing changed",
+        hint="Do not retry on this build; find another tool with nx_find_tools; tell the engineer",
+        details={"member": member},
+    )
 
 
 def point(tx, p):

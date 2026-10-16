@@ -35,7 +35,6 @@ NX 2406 findings encoded here (probed live):
 
 from __future__ import annotations
 
-import json
 import re
 from typing import Annotated, TypedDict
 
@@ -45,7 +44,18 @@ from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Name, Point3, Text, forbid_extra
 from nx_mcp.domains.assembly import common
 from nx_mcp.domains.assembly.common import ComponentId, ComponentRow
-from nx_mcp.kit import builders, deform, expr, features, licenses, measure, model, readback, result
+from nx_mcp.kit import (
+    builders,
+    deform,
+    expr,
+    features,
+    licenses,
+    measure,
+    model,
+    readback,
+    records,
+    result,
+)
 
 FLEXIBLE, FLEXED = deform.FLEXIBLE, deform.FLEXED
 RANGE_ATTRIBUTE = deform.RANGE_ATTRIBUTE
@@ -214,10 +224,11 @@ def nx_create_deformable_definition(
                      f"{exp.Name} = {current:g} lies outside [{item['min']:g}, {item['max']:g}]",
                      field=f"/expressions/{i}", hint="Widen the range or edit the value first")  # fmt: skip
             chosen.append(exp)
-        licenses.require(tx, ("solid_modeling",), "Defining a deformable part needs a "
-                         "solid modeling license")  # fmt: skip
     data_type = tx.nx.Features.DeformDefinitionBuilder.JaDeformDefinitionExpData
-    with builders.build(tx, part.Features.CreateDeformDefinitionBuilder) as b:
+    with (
+        licenses.attempt(tx, ("solid_modeling",)),
+        builders.build(tx, part.Features.CreateDeformDefinitionBuilder) as b,
+    ):
         b.SetName(name)
         b.SetMemberFeatures(members)
         for item, exp in zip(expressions, chosen, strict=True):
@@ -246,7 +257,7 @@ def nx_create_deformable_definition(
     }
     if ranges:
         with native(default="NX_BUILD_FAILED"):
-            feature.SetAttribute(RANGE_ATTRIBUTE, json.dumps(ranges, sort_keys=True))
+            records.set_json(tx, feature, RANGE_ATTRIBUTE, ranges, sort_keys=True)
     rows: list[VaryingRow] = []
     for exp in chosen:
         low, high = ranges.get(str(exp.Name), (None, None))
@@ -437,11 +448,9 @@ def nx_set_component_deformation(
                  "template (made in an older NX)", field="/component",
                  hint="Ask the engineer to redefine the part as deformable in this NX")  # fmt: skip
         existing = _deformation(tx, assembly, c)
-        licenses.require(tx, ("assemblies",), "Deforming a component needs an assemblies "
-                         "license")  # fmt: skip
     part_values = {name: expr.value_or_none(tx, own[name]) for name in own}
     try:
-        with native(default="NX_BUILD_FAILED"):
+        with licenses.attempt(tx, ("assemblies",)), native(default="NX_BUILD_FAILED"):
             if existing is None:
                 _create(tx, assembly, c, prototype, wanted)
             else:

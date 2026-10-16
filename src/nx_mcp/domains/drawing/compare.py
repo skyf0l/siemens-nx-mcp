@@ -146,12 +146,14 @@ def nx_check_drawing_changes(
         if not list(part.DrawingSheets):
             fail("NX_WRONG_APPLICATION", "The work part has no drawing sheet",
                  hint="Compare a drawing part; create sheets with nx_create_drawing_sheet")  # fmt: skip
-        licenses.require(tx, ("drafting",), "Drawing compare needs a drafting license")
     before = {int(p.Tag) for p in tx.session.Parts}
     try:
-        with builders.build(
-            tx, part.DrawingCompare.CreateCompareReportBuilder, str(against), False
-        ) as b:
+        with (
+            licenses.attempt(tx, ("drafting",)),
+            builders.build(
+                tx, part.DrawingCompare.CreateCompareReportBuilder, str(against), False
+            ) as b,
+        ):
             summary = str(b.SummaryStatusLine or "").strip()
             lines = [_lines(b.GetSummary()), _lines(b.GetChangesSummary())]
             lines.append(_lines(b.GetDetailSummary()))

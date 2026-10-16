@@ -4,7 +4,7 @@ intersected with target bodies (rudder/outboard/propeller envelopes, clearance c
 NX 2406 lessons kept here (probed live with a d4 x 6 cylinder and a 70 x 20 x 6 block):
 
 - ``SweepFeatureCollection.CreateSweptVolumeBuilder`` needs the basic freeform license
-  (``nx_freeform_1``), asked before the builder.
+  (``nx_freeform_1``); NX's refusal is reported naming it.
 - ``ToolBody`` takes a body collector; NX accepts only a body made by a cylinder,
   revolve or cylindrical extrude ("The tool body must be a revolved feature, cylindrical
   extrude, or a cylinder feature"). ``ToolPath`` is the builder's own section.
@@ -209,15 +209,17 @@ def nx_create_swept_volume(
                 hint=f"Pass {least} or more, or omit tolerance for the default",
                 details={"minimum": floor, "units": units.part_units(tx)},
             )
-    licenses.require(tx, (LICENSE,), f"This NX seat has no {LICENSE} license for this command",
-                     strict=True)  # fmt: skip
     part = tx.part
     before = measure.volume(tx, found)
     features = _feature_tags(part)
     G = tx.nx.GeometricUtilities.BooleanOperation.BooleanType
     try:
-        with builders.build(tx, part.Features.SweepFeatureCollection.CreateSweptVolumeBuilder,
-                            None) as b:  # fmt: skip
+        with (
+            licenses.attempt(tx, (LICENSE,)),
+            builders.build(
+                tx, part.Features.SweepFeatureCollection.CreateSweptVolumeBuilder, None
+            ) as b,
+        ):
             b.ToolBody = builders.collector(tx, [body], "Body")
             builders.curve_section(tx, curves, start=curve.ends(tx, curves[0])[0], into=b.ToolPath)
             b.DistanceTolerance = tol

@@ -2,8 +2,8 @@
 
 NX 2406 lessons kept here:
 
-- ``CreateBoundedPlaneBuilder`` needs the basic freeform license (``nx_freeform_1``),
-  asked before the builder; its only input is its own ``BoundingCurves`` section.
+- ``CreateBoundedPlaneBuilder`` needs the basic freeform license (``nx_freeform_1``):
+  NX's refusal names it (``kit.licenses.attempt``); its only input is its own ``BoundingCurves`` section.
 - Every closed loop goes into that one section; a loop inside another becomes a hole
   (a 40 x 20 rectangle with a circle r 5 inside: one face, area 800 - 25 pi).
 - A native refusal is ``NX_BUILD_FAILED`` with ``nx_code``.
@@ -152,8 +152,10 @@ def nx_create_bounded_plane(
             )
         if len(loops) > 1:
             _one_outer(tx, objs, loops, boundary, _origin, normal)
-    common.licensed(tx)
-    with builders.build(tx, tx.part.Features.CreateBoundedPlaneBuilder, None) as b:
+    with (
+        common.licensed(tx),
+        builders.build(tx, tx.part.Features.CreateBoundedPlaneBuilder, None) as b,
+    ):
         builders.curve_section(tx, objs, into=b.BoundingCurves)
         feature = b.commit()
     bodies = common.feature_bodies(feature)

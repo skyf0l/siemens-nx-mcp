@@ -7,9 +7,17 @@ import pytest
 
 from nx_mcp.core import evidence
 from tests.kit import run
+from tests.kit.objects import NXException
 from tests.unit.assembly.fakes import assembly_nx, place
 
 RZ90 = [[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]
+LICENSE_ERROR = "License Error, The check out of a feature failed because its token feature..."
+
+
+def checkout(nx):
+    """NX's own license check (``nx.licensed`` False: refused with 948801)."""
+    if not nx.licensed:
+        raise NXException(948801, LICENSE_ERROR)
 
 
 class Weight:
@@ -35,6 +43,7 @@ class Weight:
         return [sum(c.r[j][i] * d[j] for j in range(3)) for i in range(3)]  # R^T d
 
     def AssertCompProps(self, tag, props):
+        checkout(self.nx)
         center = props.CenterOfMass if props.CofmState == 2 else None
         if center is not None:
             center = self._local(tag, center)  # given in the assembly frame
@@ -75,7 +84,11 @@ class Group:
 
 
 class Groups(list):
+    nx = None
+
     def CreateComponentGroup(self, name):
+        if self.nx is not None:
+            checkout(self.nx)
         if any(g.Name.casefold() == name.casefold() for g in self):
             raise RuntimeError("Component set with given name already exists in part")
         g = Group(name)
@@ -92,6 +105,7 @@ def nx():
     nx.licensed = True
     nx.session.LicenseManager = NS(CheckPresence=lambda name: nx.licensed)
     nx.asm.ComponentGroups = Groups([Group("AllComponents")])
+    nx.asm.ComponentGroups.nx = nx
     session = nx.session
     set_mark, undo = session.SetUndoMark, session.UndoToMark
     saved = {}
@@ -164,10 +178,12 @@ def test_refusals_change_nothing(nx):
     for extra, field in cases:
         bad = run(nx, "nx_set_component_mass", part="asm", component=nx.tank.ref, **extra)
         assert bad.error["field"] == field and bad.mutation_outcome == "not_started", bad
-    nx.licensed = False
+    nx.licensed = False  # the license server lists nothing and NX refuses the assertion
     denied = run(nx, "nx_set_component_mass", part="asm", component=nx.tank.ref, mass=1)
-    assert denied.error["code"] == "NX_LICENSE_UNAVAILABLE"
-    assert denied.mutation_outcome == "not_started" and nx.weight.data == {}
+    assert denied.error["code"] == "NX_LICENSE_UNAVAILABLE" and denied.error["nx_code"] == 948801
+    assert denied.error["details"]["license"] == "adv_assemblies"
+    assert denied.error["details"]["license_check"] == "missing"
+    assert denied.mutation_outcome == "rolled_back" and nx.weight.data == {}
     nx.licensed = True
     evidence.forget_licenses()  # the kernel refuses a denied tested tool until NX restarts
     child = nx.assembly.add(nx.pin, "nested", ([0, 0, 0], RZ90), parent=nx.engine)
@@ -210,6 +226,7 @@ def test_create_replace_and_list_component_groups(nx):
     denied = run(nx, "nx_create_component_group", part="asm", name="Fuel",
                  components=[nx.tank.ref])  # fmt: skip
     assert denied.error["code"] == "NX_LICENSE_UNAVAILABLE"
+    assert denied.error["details"]["license"] == "adv_assemblies"
     assert [g.Name for g in nx.asm.ComponentGroups] == ["AllComponents", "Propulsion"]
 
 

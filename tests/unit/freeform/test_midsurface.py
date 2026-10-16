@@ -3,7 +3,7 @@
 import pytest
 
 from tests.kit import run
-from tests.unit.freeform.fakes import face, flat, made, sheet
+from tests.unit.freeform.fakes import face, flat, made, nx_refuses, sheet
 from tests.unit.freeform.support import curves_nx
 
 KINDS = {
@@ -57,7 +57,7 @@ def test_midsurface_auto_pairs_the_plate():
     assert ok.data["method"] == "auto" and ok.data["sheet"] is True
     assert ok.data["half_thickness"] == {"min": pytest.approx(2), "max": pytest.approx(2)}
     assert ok.data["asymmetry"] is None and ok.data["samples"] == 9
-    assert nx.license_queries == ["solid_modeling"] and nx.live_builders == 0
+    assert nx.license_queries == [] and nx.live_builders == 0
 
 
 def test_midsurface_face_pairs_is_equidistant():
@@ -117,11 +117,13 @@ def test_midsurface_refuses_a_sheet_as_the_solid():
     assert bad.error["code"] == "NX_WRONG_GEOMETRY" and bad.error["field"] == "/body"
 
 
-def test_midsurface_without_license_refuses_before_the_builder():
+def test_midsurface_without_license_reports_nx_refusal():
     nx, plate = mid_nx()
-    nx.licenses["solid_modeling"] = False
+    nx_refuses(nx, "MidSurfaceBuilder", "solid_modeling")
     bad = run(nx, "nx_create_midsurface", body=nx.ref_of(plate, "body"))
-    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and not nx.builders
+    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and bad.error["nx_code"] == 948801
+    assert bad.error["details"]["license"] == "solid_modeling"
+    assert bad.error["details"]["license_check"] == "missing" and nx.live_builders == 0
 
 
 def test_midsurface_face_pairs_must_face_each_other():

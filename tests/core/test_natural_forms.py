@@ -162,14 +162,16 @@ def test_the_evidence_refusal_names_the_available_variants(monkeypatch):
     spec = widget()
     monkeypatch.setattr(evidence, "_CACHE", {spec.name: {"v2406": {"variants": ["hole"]}}})
     refusal = evidence.check(spec, "v2406", {"kind": "bend"})
-    assert "variant 'bend' is not tested; available here: 'hole'" in refusal.message
+    assert "variant 'bend' is not tested on any NX build; available here: 'hole'" in (
+        refusal.message
+    )
     assert refusal.details["available"] == ["hole"]
 
 
 def test_the_kernel_lists_the_offered_variants_in_production(tmp_path, monkeypatch):
     spec = widget()
     monkeypatch.setattr(evidence, "_CACHE", {spec.name: {"v2406": {"variants": ["plain"]}}})
-    svc = FakeServices(tmp_path, dev=False)
+    svc = FakeServices(tmp_path, dev=False, owns_all=False)
     out = kernel.run(spec, {"kind": "holes!"}, kernel.Context(svc))
     assert out["error"]["field"] == "/kind" and "expected one of 'plain'" in out["error"]["message"]
 

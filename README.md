@@ -8,8 +8,8 @@ measurements and surface analysis, drawings, part families, Knowledge Fusion rul
 render materials and decals, and exports (STEP, PDF, DXF/DWG and more). You keep
 working in NX while the agent works next to you.
 
-Tested on NX 2406. NX 2606 can host it, but until it is tested there it offers only
-the tools that read or change the view. The full list of tools (269) is in
+Tested on NX 2406; NX 2412 to 2606 are expected to work (see
+[Supported NX versions](#supported-nx-versions)). The full list of tools (269) is in
 [docs/tools.md](docs/tools.md).
 
 ## 1. Install
@@ -27,11 +27,13 @@ This creates `.venv\Scripts\nx-mcp.exe`, the program your AI client starts.
 
 ## 2. Start NX with the MCP add-on
 
-Start NX, press **Alt+F8** (Play Journal) and run `nx_app\journals\start_2406.py`
-from this folder (`start_2606.py` for NX 2606). A small **NX MCP** panel opens: the
-add-on runs until you close NX. Do this each time you start NX.
+Start NX, press **Alt+F8** (Play Journal) and run `nx_app\journals\start.py` from
+this folder, whatever your NX release (`start_2406.py` and `start_2606.py` do the
+same). It lists the NX build, its Python version and any NXOpen part it cannot load,
+then a small **NX MCP** panel opens: the add-on runs until you close NX. Do this each
+time you start NX. Playing it again never starts a second add-on in the same NX.
 
-Optional, to start it automatically with NX 2406: run this once, then restart NX.
+Optional, to start it automatically with NX: run this once, then restart NX.
 
 ```powershell
 setx UGII_USER_DIR "C:\path\to\siemens-nx-mcp\nx_app"
@@ -90,6 +92,52 @@ environment variable (milliseconds, e.g. `300000`) for Claude Code.
 
 More about the panel: [INTERACTIVE-NX.md](INTERACTIVE-NX.md).
 
+## Supported NX versions
+
+| NX release | Support |
+| --- | --- |
+| 2406 | **Tested**: the tools are checked on live NX before a release |
+| 2412, 2506, 2512, 2606 | **Expected to work**: every NXOpen call NX MCP makes exists there, but it is not tested on them |
+| 2306, 2312 | **Best effort**: some tools may fail (about 35 on 2306, 8 on 2312) |
+
+NX's own Python must be 3.10 or newer: `start.py` refuses an older one and says so.
+The MCP program needs Python 3.10 or newer too.
+
+On a release it was not tested on, the agent is offered every tool tested on another
+release, marked untested. A tool that fails there because NX lacks a call it needs
+reports `NX_VERSION_UNSUPPORTED`: nothing is changed, and the tool is not offered again
+until NX restarts. Set `NX_MCP_UNTESTED=read_only` for NX and the client to offer
+only the tools that read or change the view on such a release.
+
+`.venv\Scripts\python -m nx_mcp.report --capabilities` writes
+`<workspace>\.nx-mcp\capabilities.html`, a page for you only: per domain, the tools
+tested on your NX, offered untested, not supported there, and refused for a licence in
+this NX session.
+
+**Reporting a problem.** Run `.venv\Scripts\python -m nx_mcp.report` while NX runs: it
+writes `<workspace>\nx-mcp-report-<build>-<date>.json` (NX, NX MCP, Python and Windows
+versions, the tools that failed for a missing NXOpen call, the last verify's counts;
+never licences, error messages, part names, paths or user names). Check it, then attach
+it to an issue with the lines `start.py` printed, the tool name, the error code the
+agent got, and `<workspace>\.nx-mcp\resident-error.txt` if the add-on did not start.
+Leave out which NX licences or modules you have, and your parts, drawings and file
+names; a small part made only to show the problem is welcome.
+
+**Verifying your NX release** (to make it a tested one). With NX running and no part
+loaded in it, from this folder:
+
+```powershell
+.venv\Scripts\python -m nx_mcp.acceptance verify --owner <your-name>
+```
+
+It replays every acceptance scenario on new parts under `<workspace>\smoke\` (or only
+the domains you name, e.g. `verify modeling sketch`) and closes them; it refuses to
+start while other parts are loaded, and counts a tool NX refuses for a licence as
+skipped without recording it. Scenarios that play the engineer need NX started with
+`NX_MCP_DEV=1`; without it they are skipped. At the end it prints the files under
+`acceptance\evidence\<build>\` to send (in a pull request or attached to an issue) and a
+summary. Those files hold only pass/fail, check counts, error codes and numbers.
+
 ## Troubleshooting
 
 | Problem | Fix |
@@ -99,7 +147,7 @@ More about the panel: [INTERACTIVE-NX.md](INTERACTIVE-NX.md).
 | The agent says NX is busy (`NX_BUSY`) | Another step still runs in NX and nothing new was started; the agent waits and retries. A long step (a large export, a check on a very large body) can hold NX for minutes |
 | The agent says you are busy in NX (`NX_UI_BUSY`) | Finish or cancel your NX command, then let the agent retry |
 | The agent says a part is yours (`NX_PART_NOT_GRANTED`) | Tick **Allow agent to change <part>** on the panel if you want it to |
-| The agent says a licence is missing (`NX_LICENSE_UNAVAILABLE`) | Some tools need extra NX licences. NX refuses them with this error, nothing is changed, and the agent stops offering that tool for 15 minutes, then asks NX again |
+| The agent says a licence is missing (`NX_LICENSE_UNAVAILABLE`) | Some tools need extra NX licences. NX MCP lets NX decide: when NX refuses, nothing is changed, the error names the licence feature the command needs (`details.license`) so you know which one to ask for, and the agent stops offering that tool for 15 minutes, then asks NX again. Only the few commands where NX would otherwise block on its "License Not Available" dialog (switching applications, Topology Optimization, variational sweep) are checked first |
 | No NX MCP panel | Play the journal again (step 2); with the optional auto-start, check `UGII_USER_DIR` and restart NX |
 | **nx** is not connected in the client | Check the path to `nx-mcp.exe` and that step 1 finished |
 

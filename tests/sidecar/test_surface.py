@@ -199,11 +199,12 @@ async def test_schemas_for_tools_and_variants(tmp_path, tested):
     )["data"]
     datum, listing = data["tools"]
     assert datum["input_schema"]["properties"]["method"] == {"const": "offset"}
-    assert datum["example"] == OFFSET and datum["evidence"] == {"v2406": ["offset"]}
+    assert datum["example"] == OFFSET  # tested on the connected build: no marker
+    assert "evidence" not in datum and "tested" not in datum
     assert datum["requires"] == ["work_part", "no_active_sketch"]
     assert "operation_id" not in datum["input_schema"]["properties"]
     assert "data" in datum["output_schema"]["properties"]
-    assert listing["evidence"] == {"v2406": True}
+    assert "evidence" not in listing and "tested" not in listing
     assert [m["name"] for m in data["not_found"]] == ["nx_nope"]
     wrong = body(
         await agent.call_tool("nx_get_tool_schemas", {"names": ["nx_create_datum_plane#zig"]})
@@ -261,7 +262,7 @@ async def test_variants_of_one_tool_share_their_schema_once(tmp_path, every_tool
             if key not in ("name", "input_schema"):
                 assert grouped.get(key, own.get(key)) == value, (v, key)
     assert grouped["description"] == singles[variants[0]]["description"]
-    assert "example" not in grouped and "evidence" in grouped
+    assert "example" not in grouped and "evidence" not in grouped
     alone, _ = await fetch(names)
     assert len(alone.content[0].text) < separate
 

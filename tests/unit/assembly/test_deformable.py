@@ -11,6 +11,7 @@ from types import SimpleNamespace as NS
 import pytest
 
 from tests.kit import run
+from tests.kit.attributes import UserAttributes
 from tests.kit.objects import Body, Collection, Feature, NXException, Object
 from tests.unit.assembly.fakes import assembly_nx, place
 
@@ -49,21 +50,12 @@ class LiveExpr(Object):
         return self.Value
 
 
-class Attributed(Feature):
+class Attributed(UserAttributes, Feature):
     def __init__(self, name, kind):
         super().__init__(name)
         self.FeatureType = kind
         self.attributes = {}
         self.parents = []
-
-    def HasUserAttribute(self, title, _type, _index):
-        return title in self.attributes
-
-    def GetStringAttribute(self, title):
-        return self.attributes[title]
-
-    def SetAttribute(self, title, value):
-        self.attributes[title] = value
 
     def GetParents(self):
         return list(self.parents)

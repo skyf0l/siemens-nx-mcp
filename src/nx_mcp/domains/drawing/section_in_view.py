@@ -180,9 +180,8 @@ def nx_set_view_sectioning(
             for i, r in enumerate(objects)
         ]
         _drawn(tx, shown, targets, objects)
-    licenses.require(tx, ("drafting",), "Section in View needs a drafting license")
     native = MODES[mode]
-    with drawing.on_sheet(tx, _sheet) as _sh:
+    with licenses.attempt(tx, ("drafting",)), drawing.on_sheet(tx, _sheet) as _sh:
         quiet_sheet_sketch(tx)
         with builders.build(tx, tx.part.DraftingViews.CreateSectionInViewBuilder) as b:
             b.Views.Add(shown)

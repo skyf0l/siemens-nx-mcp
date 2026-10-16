@@ -47,6 +47,7 @@ def test_status_reports_bridge_parts_workspace_without_a_panel():
         "state": "connected",
         "nx_version": "v2406",
         "nx_build": "v2406",
+        "build_tested": True,
         "interactive": False,
         "session_id": "kit",
         "answered_from": "nx",
@@ -359,3 +360,29 @@ def test_dialog_rows_use_iso_times():
     row = st.dialog_row({"title": "T", "hwnd": 5, "since": 0.0}, now=30.0)
     assert row == {"title": "T", "since": "1970-01-01T00:00:00Z", "seconds": 30}
     assert st.dialog_row(None) is None
+
+
+def test_status_on_an_untested_build_reports_the_self_test_and_failed_tools(monkeypatch):
+    from nx_mcp.core import catalogue, evidence
+
+    monkeypatch.delenv("NX_MCP_UNTESTED", raising=False)
+    nx = fake_nx()
+    services(nx).build = "2512.1000"
+    bridge = run(nx, "nx_get_status", include=["bridge"]).data["bridge"]
+    assert bridge["nx_version"] == "v2512" and bridge["nx_build"] == "2512.1000"
+    assert bridge["build_tested"] is False and bridge["self_test"] is None
+    assert "read_only" not in bridge and "version_unsupported" not in bridge
+    evidence.set_self_test({"state": "failed", "reason": "the undo failed"})
+    spec = catalogue.get("nx_create_blend")
+    evidence.remember_version(spec, "2512.1000", None, "NXOpen.Features.X.Y")
+    bridge = run(nx, "nx_get_status", include=["bridge"]).data["bridge"]
+    assert bridge["self_test"]["state"] == "failed"
+    assert bridge["read_only"] == "NX's undo self-test failed: the undo failed"
+    assert [r["tool"] for r in bridge["version_unsupported"]] == ["nx_create_blend"]
+    evidence.set_self_test(None)
+    monkeypatch.setenv("NX_MCP_UNTESTED", "read_only")
+    assert st.read_only_reason() == "NX_MCP_UNTESTED=read_only"
+    # The sidecar answering for NX knows no session memory.
+    seen = st.sidecar_envelope("w", {"state": "down"}, {}, build="2512.1000")
+    assert seen["data"]["bridge"]["build_tested"] is False
+    assert "self_test" not in seen["data"]["bridge"]

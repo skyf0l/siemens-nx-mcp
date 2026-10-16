@@ -2,6 +2,7 @@
   "nx_activate_part": {
     "v2406": {
       "checks": 44,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:45:00Z",
       "scenario": "acceptance/parts_files/parts_checks.json",
       "scenario_sha256": "410c92e4a11b38c4ef775b8d76efdb6a18219f4644fd64ac66f142d3597c9a01",
@@ -12,6 +13,7 @@
   "nx_close_part": {
     "v2406": {
       "checks": 58,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:44:57Z",
       "scenario": "acceptance/parts_files/part_ownership.json",
       "scenario_sha256": "f125c6e93da7dbf33639ae755df07fb41d3bef0b9c4e91c9aa9542222b1ad2d1",
@@ -22,6 +24,7 @@
   "nx_create_directory": {
     "v2406": {
       "checks": 44,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:45:00Z",
       "scenario": "acceptance/parts_files/parts_checks.json",
       "scenario_sha256": "410c92e4a11b38c4ef775b8d76efdb6a18219f4644fd64ac66f142d3597c9a01",
@@ -32,6 +35,7 @@
   "nx_create_part": {
     "v2406": {
       "checks": 44,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:45:00Z",
       "scenario": "acceptance/parts_files/parts_checks.json",
       "scenario_sha256": "410c92e4a11b38c4ef775b8d76efdb6a18219f4644fd64ac66f142d3597c9a01",
@@ -42,6 +46,7 @@
   "nx_create_part_family": {
     "v2406": {
       "checks": 44,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:45:00Z",
       "scenario": "acceptance/parts_files/parts_checks.json",
       "scenario_sha256": "410c92e4a11b38c4ef775b8d76efdb6a18219f4644fd64ac66f142d3597c9a01",
@@ -52,16 +57,18 @@
   "nx_delete_kf_rule": {
     "v2406": {
       "checks": 54,
-      "recorded": "2026-10-15T11:45:06Z",
+      "nx_build": "2406.9160",
+      "recorded": "2026-10-16T13:01:12Z",
       "scenario": "acceptance/parts_files/kf_merge.json",
       "scenario_sha256": "7f488d4827ed5c402f1fffac2775bbbfd6215dba7195d0e897d46a3c029e84d6",
-      "source_sha256": "0d52a146cd666f6f761f4eda3e581406044094ddb750ea1113c023925c541315",
+      "source_sha256": "5e7026f330bc4557d007dcc7292cbd3a03b900d2d76b5b71210a698b212a9e50",
       "variants": []
     }
   },
   "nx_download_file": {
     "v2406": {
       "checks": 36,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:39:46Z",
       "scenario": "acceptance/parts_files/download_file.json",
       "scenario_sha256": "8591dd2a2be0758a2f965a61fba68b4f2aa6f50104e0dd0d743ebc5539109972",
@@ -77,6 +84,7 @@
   "nx_export_assembly": {
     "v2406": {
       "checks": 15,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T11:43:22Z",
       "scenario": "acceptance/parts_files/subfolder_components.json",
       "scenario_sha256": "60d99ff22f2725fc3ea27c24d9ce2e6d2bee826c56f3aa502ec72f141536681e",
@@ -90,10 +98,11 @@
   "nx_export_model": {
     "v2406": {
       "checks": 41,
-      "recorded": "2026-10-15T10:43:13Z",
+      "nx_build": "2406.9160",
+      "recorded": "2026-10-16T12:59:54Z",
       "scenario": "acceptance/parts_files/export_model_assembly.json",
       "scenario_sha256": "41e36045a20dbb12f13b8e8f780768485e619a3ab5343a2bc1f060e8731eb6df",
-      "source_sha256": "b1ed01a0cd93c39029b5215b7e0b37dd4020121e70e98b614663f9f173d3f677",
+      "source_sha256": "1f20870242cea8faacb3ab5030088cca1b0403076e85b13e46dbc34fbdac269f",
       "variants": [
         "dwg",
         "dxf",
@@ -108,6 +117,7 @@
   "nx_export_profile": {
     "v2406": {
       "checks": 33,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T11:44:58Z",
       "scenario": "acceptance/parts_files/profile_options.json",
       "scenario_sha256": "5aaf5a0a82e5b6e831654edc76cbba66102f708fa274e5b90e56189e32cacd1d",
@@ -118,6 +128,7 @@
   "nx_get_attributes": {
     "v2406": {
       "checks": 181,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:39:29Z",
       "scenario": "acceptance/parts_files/attributes.json",
       "scenario_sha256": "d218a549384ac0d821b8183661876b95b3b7027c68300ed6773a43f413b0480c",
@@ -128,16 +139,18 @@
   "nx_get_kf_rules": {
     "v2406": {
       "checks": 39,
-      "recorded": "2026-10-15T12:14:17Z",
+      "nx_build": "2406.9160",
+      "recorded": "2026-10-16T13:01:14Z",
       "scenario": "acceptance/parts_files/kf_rules.json",
       "scenario_sha256": "62de35a82bb725ef35796fb38d4c1fd4fe47a8da0d0f4a99085c13ab54e7d560",
-      "source_sha256": "0d52a146cd666f6f761f4eda3e581406044094ddb750ea1113c023925c541315",
+      "source_sha256": "5e7026f330bc4557d007dcc7292cbd3a03b900d2d76b5b71210a698b212a9e50",
       "variants": []
     }
   },
   "nx_get_part_family": {
     "v2406": {
       "checks": 29,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:44:54Z",
       "scenario": "acceptance/parts_files/part_family.json",
       "scenario_sha256": "9376554fc42596fd71cd97adce391eddbb6e50280f67397f139b0cea3678e724",
@@ -148,6 +161,7 @@
   "nx_import_model": {
     "v2406": {
       "checks": 33,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T11:44:58Z",
       "scenario": "acceptance/parts_files/profile_options.json",
       "scenario_sha256": "5aaf5a0a82e5b6e831654edc76cbba66102f708fa274e5b90e56189e32cacd1d",
@@ -164,6 +178,7 @@
   "nx_list_files": {
     "v2406": {
       "checks": 23,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:44:38Z",
       "scenario": "acceptance/parts_files/list_files.json",
       "scenario_sha256": "a8429a8b5aeafe9a875bf2fcbbef6f54fb505060b8792b30219ba80ece905807",
@@ -174,6 +189,7 @@
   "nx_list_parts": {
     "v2406": {
       "checks": 19,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:44:41Z",
       "scenario": "acceptance/parts_files/list_parts.json",
       "scenario_sha256": "837df5e4e05b49f1c41c5c857929f553482b6a683e757209c65003399e75774f",
@@ -184,6 +200,7 @@
   "nx_open_part": {
     "v2406": {
       "checks": 15,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T11:43:22Z",
       "scenario": "acceptance/parts_files/subfolder_components.json",
       "scenario_sha256": "60d99ff22f2725fc3ea27c24d9ce2e6d2bee826c56f3aa502ec72f141536681e",
@@ -194,6 +211,7 @@
   "nx_save_part": {
     "v2406": {
       "checks": 18,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:31:01Z",
       "scenario": "acceptance/session/refs_survive_undo_save.json",
       "scenario_sha256": "09d8f8a554443ca6938e99c219386f94bd2e4097f89846614c2facc5663e27ac",
@@ -204,6 +222,7 @@
   "nx_set_attributes": {
     "v2406": {
       "checks": 44,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T10:45:00Z",
       "scenario": "acceptance/parts_files/parts_checks.json",
       "scenario_sha256": "410c92e4a11b38c4ef775b8d76efdb6a18219f4644fd64ac66f142d3597c9a01",
@@ -214,10 +233,11 @@
   "nx_set_kf_rule": {
     "v2406": {
       "checks": 39,
-      "recorded": "2026-10-15T12:14:17Z",
+      "nx_build": "2406.9160",
+      "recorded": "2026-10-16T13:01:14Z",
       "scenario": "acceptance/parts_files/kf_rules.json",
       "scenario_sha256": "62de35a82bb725ef35796fb38d4c1fd4fe47a8da0d0f4a99085c13ab54e7d560",
-      "source_sha256": "0d52a146cd666f6f761f4eda3e581406044094ddb750ea1113c023925c541315",
+      "source_sha256": "5e7026f330bc4557d007dcc7292cbd3a03b900d2d76b5b71210a698b212a9e50",
       "variants": [
         "child",
         "dynamic"
@@ -227,16 +247,18 @@
   "nx_update_kf_rules": {
     "v2406": {
       "checks": 39,
-      "recorded": "2026-10-15T12:14:17Z",
+      "nx_build": "2406.9160",
+      "recorded": "2026-10-16T13:01:14Z",
       "scenario": "acceptance/parts_files/kf_rules.json",
       "scenario_sha256": "62de35a82bb725ef35796fb38d4c1fd4fe47a8da0d0f4a99085c13ab54e7d560",
-      "source_sha256": "0d52a146cd666f6f761f4eda3e581406044094ddb750ea1113c023925c541315",
+      "source_sha256": "5e7026f330bc4557d007dcc7292cbd3a03b900d2d76b5b71210a698b212a9e50",
       "variants": []
     }
   },
   "nx_upload_file": {
     "v2406": {
       "checks": 62,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T11:45:01Z",
       "scenario": "acceptance/parts_files/upload_file.json",
       "scenario_sha256": "26f5b1d230f3b4c0e43624ae40ef93bbd632cae8a3cab0e6df976ac74567a674",

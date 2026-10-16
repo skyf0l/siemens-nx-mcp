@@ -6,6 +6,7 @@ import pytest
 
 from tests.kit import run
 from tests.kit.kernel import services
+from tests.kit.objects import NXException
 from tests.unit.sheet_metal.fakes import FLAT, sm_nx
 
 BA_90 = math.pi / 2 * (3.0 + 0.33 * 2.0)  # 5.749114556...
@@ -63,6 +64,44 @@ def test_a_flat_pattern_gives_direction_and_the_bend_sequence():
     b = nx.last("BendListBuilder")
     assert b.PopulateBendListFromView.calls[0][0][0].Name == "FLAT-PATTERN#1"
     assert b.commits == 0 and nx.live_builders == 0
+
+
+def _refuse(*_):
+    raise NXException(948801, "License Error, its token feature does not exist.")
+
+
+def test_a_default_flat_pattern_nx_refuses_falls_back_to_the_layers_with_a_note():
+    nx = sm_nx()
+    body, first, second = bracket(nx)
+    feature = nx.flat_pattern(body, up=[second], down=[first.opposite], sequence=[(7, "A")])
+    feature.GetBendUpCenterLines = _refuse  # needs nx_sheet_metal: a Flexible PCB seat
+    ok = run(nx, "nx_get_bend_list")
+    assert ok.ok, ok
+    assert ok.data["flat_pattern"] is None and ok.data["direction_from"] == "top_layer"
+    assert [i["direction"] for i in ok.data["items"]] == ["up", "down"]
+    assert ok.data["sequence"] == []
+    note = ok.warnings[0]
+    assert note["code"] == "NX_NOTE" and "nx_sheet_metal" in note["message"]
+
+
+def test_a_named_flat_pattern_nx_refuses_reports_the_license():
+    nx = sm_nx()
+    body, first, second = bracket(nx)
+    feature = nx.flat_pattern(body, up=[second], down=[first.opposite])
+    feature.GetBendUpCenterLines = _refuse
+    bad = run(nx, "nx_get_bend_list", flat_pattern=feature.ref)
+    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE"
+    assert bad.error["details"]["license"] == "nx_sheet_metal"
+
+
+def test_the_bend_sequence_alone_may_be_refused():
+    nx = sm_nx()
+    body, first, second = bracket(nx)
+    nx.flat_pattern(body, up=[second], down=[first.opposite], sequence=[(7, "A")])
+    nx.part.Features.SheetmetalManager.CreateBendListBuilder = _refuse
+    ok = run(nx, "nx_get_bend_list")
+    assert ok.ok and ok.data["direction_from"] == "flat_pattern", ok
+    assert ok.data["sequence"] == [] and "no bend sequence" in ok.warnings[0]["message"]
 
 
 def test_bend_list_pages_its_rows():

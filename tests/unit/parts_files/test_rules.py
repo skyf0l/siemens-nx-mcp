@@ -182,6 +182,8 @@ class RuleManager:
         return self.update_errors
 
     def RegenerateAll(self):
+        if self.nx.refused:  # NX's own license check of Knowledge Fusion
+            raise NXException(948801, "License Error, its token feature does not exist.")
         self.regenerated += 1
 
 
@@ -195,7 +197,7 @@ def kf(nx):
         ParameterRule=lambda name, value: (name, value),
         RuleType=NS(**{v: v for v in rules.RULE_TYPES.values()}),
     )
-    nx.licensed = True
+    nx.licensed, nx.refused = True, False
     nx.session.LicenseManager = NS(CheckPresence=lambda name: nx.licensed)
     evidence.forget_licenses()
     yield rm
@@ -408,10 +410,15 @@ def test_update_errors_and_license(nx, kf):
     out = kfset(nx, kind="dynamic", name="z", formula="1")
     assert out.error["code"] == "NX_UPDATE_FAILED"
     kf.update_errors = 0
-    nx.licensed = False
+    nx.licensed = False  # the license server lists none: NX is asked all the same
     out = call(nx, rules.nx_update_kf_rules)
-    assert out.error["code"] == "NX_LICENSE_UNAVAILABLE"
-    assert out.mutation_outcome == "not_started" and kf.regenerated == 0
+    assert out.ok and kf.regenerated == 1, out
+    nx.refused = True
+    out = call(nx, rules.nx_update_kf_rules)
+    assert out.error["code"] == "NX_LICENSE_UNAVAILABLE" and kf.regenerated == 1
+    assert out.error["details"]["license"] == "ug_kf_execute"
+    assert out.error["details"]["licenses"] == ["ug_kf_execute", "ug_kf_author"]
+    assert out.error["details"]["license_check"] == "missing"
 
 
 def test_update_regenerates(nx, kf):

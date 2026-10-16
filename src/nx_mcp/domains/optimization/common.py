@@ -7,8 +7,9 @@ NX 2406 (probed live):
   (``session.TopologyOptimizationTaskEnvironment``: ``SetFeatureToEdit`` + ``Enter`` ...
   ``Exit``; ``SetCancelled`` before ``Exit`` discards the task's changes). The feature ref
   (kind ``feature``) is the study's ref; ``nx_delete_objects`` deletes it.
-- Every study call checks the license first (``LicenseManager.CheckPresence``): entering the
-  task without ``des_top_opt`` would open NX's blocking "License Not Available" dialog.
+- Every study call checks the license first (``LicenseManager.CheckPresence``, strict):
+  entering the task without ``des_top_opt`` would open NX's blocking "License Not
+  Available" dialog instead of raising (one of the few license pre-checks, kit.licenses).
 - Builders take typed ``Null`` arguments (``Study.Null``, not None). Support, mass-target
   and shape-constraint builders commit but return None; ``GetAllOptimizationConstraints``
   never lists the mass target, so it is read back as the feature's Kilogram expression.
@@ -33,7 +34,9 @@ from typing import TypedDict
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.kit import geom, licenses, measure, result, select, units
 
-# Either feature unlocks Topology Optimization for Designers (NXOpen.xml license notes).
+# Either feature unlocks the Topology Optimization task (its Enter/Exit, per NX's NXOpen
+# reference). Performance Predictor's nx_perf_predictor serves the solve and the study
+# builders but not entering the task, so it is not accepted here.
 LICENSES = ("des_top_opt", "sc_des_topol_opt")
 LICENSE_HINT = (
     "Ask the engineer for the Topology Optimization for Designers license (feature "

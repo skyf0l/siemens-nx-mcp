@@ -297,8 +297,18 @@ class KitServices(Services):
 
     def owns(self, part):
         """Every part is the agent's, except those a test put in ``foreign`` (the
-        engineer's own parts: never counted by gate 3t)."""
-        return self.part_key(part) not in self.foreign
+        engineer's own parts: never counted by gate 3t) and did not grant (a test's
+        ``granted``: the engineer ticked the panel's checkbox)."""
+        return self.part_key(part) not in self.foreign or self._granted(part)
+
+    def created(self, part):
+        """Created or opened by the agent: owned (a test may replace ``owns``) and not
+        only granted."""
+        return bool(self.owns(part)) and not self._granted(part)
+
+    def _granted(self, part) -> bool:
+        granted = getattr(self, "granted", None)
+        return bool(granted is not None and granted(part))
 
     def own(self, part):
         self.owned.add(self.part_key(part))

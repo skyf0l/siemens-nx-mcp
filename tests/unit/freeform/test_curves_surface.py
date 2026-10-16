@@ -8,7 +8,7 @@ import pytest
 
 from nx_mcp.core import evidence
 from tests.kit import run
-from tests.unit.freeform.fakes import face, flat
+from tests.unit.freeform.fakes import face, flat, nx_refuses
 from tests.unit.freeform.support import curves_nx, made
 
 ISO = "IsoparametricCurvesBuilder"
@@ -145,11 +145,14 @@ def test_isocline_takes_a_studio_license_too_and_refuses_without_either():
     nx.licenses["studio_free_form"] = True
     ok = run(nx, "nx_create_isocline_curves", faces=[nx.ref_of(f, "face")], direction="z", angle=30)
     assert ok.ok, ok
-    nx.licenses["studio_free_form"] = False
+    nx_refuses(nx, INC, "studio_free_form")
     bad = run(
         nx, "nx_create_isocline_curves", faces=[nx.ref_of(f, "face")], direction="z", angle=30
     )
-    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and len(nx.builders) == 1
+    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and bad.error["nx_code"] == 948801
+    assert bad.error["details"]["license"] == "solid_modeling"
+    assert bad.error["details"]["license_check"] == "missing" and nx.live_builders == 0
+    assert bad.error["details"]["licenses"] == ["solid_modeling", "studio_free_form"]
     evidence.forget_licenses()
 
 

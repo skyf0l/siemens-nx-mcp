@@ -39,7 +39,11 @@ def test_catalogue_failure_raises_kernel_error_with_envelope(rig):
 
 
 def test_untested_model_tool_is_refused_in_production(rig, monkeypatch):
+    from nx_mcp.core import evidence
+
     monkeypatch.delenv("NX_MCP_DEV", raising=False)
+    tested = {"nx_create_datum_plane": {"v2406": {"variants": ["offset"]}}}
+    monkeypatch.setattr(evidence, "_CACHE", tested)  # point_normal: tested nowhere
     with pytest.raises(KernelError) as error:
         rig.run(
             "nx_create_datum_plane",

@@ -2,7 +2,7 @@
 
 NX 2406 lessons kept here (probed live on a 40 x 20 x 4 plate at z 0..4):
 
-- The three builders need Modeling's license (``solid_modeling``), asked first.
+- The three builders need Modeling's license (``solid_modeling``), named when NX refuses.
 - ``CreateMidSurfaceBuilder`` pairs faces itself: its ``FacePairing.InputSolidBodies``
   collector takes the solid (progressive pairing, the default); the plate gives one
   800 mm^2 face at z 2. The solid stays (not hidden).
@@ -203,17 +203,22 @@ def nx_create_midsurface(
             pair = common.sheets(tx, sheets, "/sheets")
             if int(pair[0].Tag) == int(pair[1].Tag):
                 fail("NX_INVALID_ARGUMENT", "Give two different sheets", field="/sheets/1")
-    licenses.require(tx, (LICENSE,), f"This NX seat has no {LICENSE} license for this command")
     part = tx.part
     before = {int(x.Tag) for x in part.Bodies}
     if method == "auto":
-        with builders.build(tx, part.Features.CreateMidSurfaceBuilder, None) as b:
+        with (
+            licenses.attempt(tx, (LICENSE,)),
+            builders.build(tx, part.Features.CreateMidSurfaceBuilder, None) as b,
+        ):
             builders.fill(tx, b.FacePairing.InputSolidBodies, [solid], "Body", sheets=True)
             b.DistanceTolerance = units.part_tolerance(tx)
             feature = b.commit()
         sides = [list(solid.GetFaces())] if solid is not None else []  # auto needs body
     elif method == "face_pairs":
-        with builders.build(tx, part.Features.CreateMidSurfaceByFacePairsBuilder, None) as b:
+        with (
+            licenses.attempt(tx, (LICENSE,)),
+            builders.build(tx, part.Features.CreateMidSurfaceByFacePairsBuilder, None) as b,
+        ):
             b.BodySelection.Add(solid)
             builders.fill(tx, b.SideOneSelection, firsts, "Face")
             builders.fill(tx, b.SideTwoSelection, seconds, "Face")
@@ -221,7 +226,10 @@ def nx_create_midsurface(
             feature = b.commit()
         sides = [firsts, seconds]
     else:
-        with builders.build(tx, part.Features.CreateMidSurfaceByTwoSheetsBuilder, None) as b:
+        with (
+            licenses.attempt(tx, (LICENSE,)),
+            builders.build(tx, part.Features.CreateMidSurfaceByTwoSheetsBuilder, None) as b,
+        ):
             builders.fill(tx, b.FirstSheetBody, [pair[0]], "Body", sheets=True)
             builders.fill(tx, b.SecondSheetBody, [pair[1]], "Body", sheets=True)
             feature = b.commit()

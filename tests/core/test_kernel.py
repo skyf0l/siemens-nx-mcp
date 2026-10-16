@@ -216,7 +216,8 @@ def test_rollback_of_one_part_keeps_refs_of_other_parts(svc, tmp_path):
     feature = other.add("feature", "THERE")
     there = ref(svc, feature, "feature")
     other_part = svc.references.row(other, "part")["id"]
-    bad = run(svc, "nx_create_block", size=1, fail_with="NX_BUILD_FAILED")
+    # two agent parts loaded: the call names its part (gate 3t)
+    bad = run(svc, "nx_create_block", size=1, fail_with="NX_BUILD_FAILED", part="a.prt")
     assert bad["mutation_outcome"] == "rolled_back"
     assert svc.references.resolve(there, ("feature",)) is feature
     assert svc.references.resolve(other_part, ("part",)) is other
@@ -256,9 +257,9 @@ def test_a_touched_part_is_read_back_like_the_work_part(svc, tmp_path):
             feature.errors.append("link broken")
         return {"feature": tx.ref(feature), "size": size}
 
-    ok = _with_handler(svc, in_component, size=1)
+    ok = _with_handler(svc, in_component, size=1, part="a.prt")  # two agent parts: 3t
     assert ok["ok"] and [r["name"] for r in ok["changes"]["created"]] == ["LINK"], ok
-    bad = _with_handler(svc, in_component, size=1, error_feature=True)
+    bad = _with_handler(svc, in_component, size=1, error_feature=True, part="a.prt")
     assert bad["error"]["code"] == "NX_UPDATE_FAILED" and "link broken" in bad["error"]["message"]
     assert bad["mutation_outcome"] == "rolled_back" and [o.Name for o in other.objects] == ["LINK"]
 
@@ -375,13 +376,13 @@ def test_bad_operation_id_is_invalid_argument(svc):
 
 
 def test_evidence_gate_in_production(tmp_path, monkeypatch):
-    svc = FakeServices(tmp_path, dev=False)
+    svc = FakeServices(tmp_path, dev=False, owns_all=False)
     svc.own(svc.part)
     monkeypatch.setattr(evidence, "_CACHE", {})
     unknown = run(svc, "nx_create_block", size=1)
     assert unknown["error"]["code"] == "NX_VERSION_UNSUPPORTED"
     assert unknown["mutation_outcome"] == "not_started"
-    assert run(svc, "nx_get_count")["ok"]  # unknown build: read tools still run
+    assert not run(svc, "nx_get_count")["ok"]  # tested nowhere: refused, reads too
     monkeypatch.setattr(evidence, "_CACHE", {"nx_get_count": {"v2406": {"variants": []}}})
     known = run(svc, "nx_create_block", size=1)
     assert known["error"]["code"] == "NX_VERSION_UNSUPPORTED"
@@ -405,7 +406,7 @@ def test_requires_gate_names_the_tool_to_run(svc):
 
 def test_ownership_gate_in_production(tmp_path, monkeypatch):
     monkeypatch.setattr(evidence, "_CACHE", {"nx_create_block": {"v2406": {}}})
-    svc = FakeServices(tmp_path, dev=False)
+    svc = FakeServices(tmp_path, dev=False, owns_all=False)
     bad = run(svc, "nx_create_block", size=1)
     assert bad["error"]["code"] == "NX_PART_NOT_GRANTED"
     assert bad["error"]["category"] == "engineer_control"
@@ -415,7 +416,7 @@ def test_ownership_gate_in_production(tmp_path, monkeypatch):
 
 def test_a_call_in_a_new_part_skips_the_work_part_check(tmp_path, monkeypatch):
     monkeypatch.setattr(evidence, "_CACHE", {"nx_import_block": {"v2406": {}}})
-    svc = FakeServices(tmp_path, dev=False)  # the engineer's part is the work part
+    svc = FakeServices(tmp_path, dev=False, owns_all=False)  # the work part is the engineer's
     engineer = svc.part
     into_work = run(svc, "nx_import_block")
     assert into_work["error"]["code"] == "NX_PART_NOT_GRANTED"
@@ -442,7 +443,7 @@ def test_change_to_a_foreign_part_forces_rollback(tmp_path, monkeypatch):
     from tests.core.fakes import FakePart
 
     monkeypatch.setattr(evidence, "_CACHE", {"nx_create_block": {"v2406": {}}})
-    svc = FakeServices(tmp_path, dev=False)
+    svc = FakeServices(tmp_path, dev=False, owns_all=False)
     svc.own(svc.part)
     foreign = FakePart(tmp_path / "engineer.prt")
     svc.extra_parts.append(foreign)
@@ -837,7 +838,7 @@ def test_restorable_needs_a_view_effect():
 def production(tmp_path, monkeypatch):
     names = ("nx_create_block", "nx_save_other", "nx_create_steps")
     monkeypatch.setattr(evidence, "_CACHE", {n: {"v2406": {}} for n in names})
-    return FakeServices(tmp_path, dev=False)
+    return FakeServices(tmp_path, dev=False, owns_all=False)
 
 
 def test_not_granted_error_tells_the_agent_to_ask_the_engineer(production):
@@ -861,11 +862,45 @@ def test_file_tools_check_the_part_they_save(production, tmp_path):
     assert run(production, "nx_save_other", part=part_ref)["ok"]
 
 
-def test_development_mode_never_gates(svc, tmp_path):
+def test_development_mode_keeps_the_ownership_gate(tmp_path, monkeypatch):
+    """NX_MCP_DEV=1 never turns gate 6 off: the engineer's parts stay protected."""
+    monkeypatch.setenv("NX_MCP_DEV", "1")
+    names = ("nx_create_block", "nx_save_other")
+    monkeypatch.setattr(evidence, "_CACHE", {n: {"v2406": {}} for n in names})
+    svc = FakeServices(tmp_path, dev=True, owns_all=False)  # the work part is the engineer's
     engineer = FakePart(tmp_path / "engineer.prt")
+    engineer.IsModified = True
     svc.extra_parts.append(engineer)
-    assert run(svc, "nx_save_other", part=ref(svc, engineer, "part"))["ok"]
+    saved = run(svc, "nx_save_other", part=ref(svc, engineer, "part"))
+    assert saved["error"]["code"] == "NX_PART_NOT_GRANTED" and engineer.IsModified
+    bad = run(svc, "nx_create_block", size=1)
+    assert bad["error"]["code"] == "NX_PART_NOT_GRANTED" and svc.part.objects == []
+    assert bad["mutation_outcome"] == "not_started"
+    svc.own(svc.part)  # a part the agent created or opened
     assert run(svc, "nx_create_block", size=1)["ok"]
+
+
+def test_development_mode_rolls_back_a_change_to_the_engineers_part(tmp_path, monkeypatch):
+    monkeypatch.setenv("NX_MCP_DEV", "1")
+    names = ("nx_create_block", "nx_save_other")
+    monkeypatch.setattr(evidence, "_CACHE", {n: {"v2406": {}} for n in names})
+    svc = FakeServices(tmp_path, dev=True, owns_all=False)
+    svc.own(svc.part)
+    foreign = FakePart(tmp_path / "engineer.prt")
+    svc.extra_parts.append(foreign)
+
+    def sneaky(tx, *, size):
+        foreign.add("feature")
+        return {"feature": {}, "size": size}
+
+    spec = SPECS["nx_create_block"]
+    object.__setattr__(spec, "handler", sneaky)
+    try:
+        bad = run(svc, "nx_create_block", size=1)
+    finally:
+        object.__setattr__(spec, "handler", tools.nx_create_block)
+    assert bad["error"]["code"] == "NX_PART_NOT_GRANTED"
+    assert bad["mutation_outcome"] == "rolled_back" and foreign.objects == []
 
 
 # -- long operations -----------------------------------------------------------------------
@@ -989,3 +1024,121 @@ def test_a_failing_redo_step_undoes_the_steps_redone(svc, registered):
     assert blocks(svc) == 0 and svc.undo_history() == []
     assert [s["operation_id"] for s in svc.redo_steps()] == ["op_block_one", "op_block_two"]
     assert svc.store.get("op_block_one")["reverted_by"] == "op_redo_both"
+
+
+# -- untested NX builds -----------------------------------------------------------------
+
+NXOPEN_BUILDER = type("BlockFeatureBuilder", (), {"__module__": "NXOpen.Features"})
+
+
+def _swap_handler(monkeypatch, tool, handler):
+    monkeypatch.setitem(SPECS, tool, dataclasses.replace(SPECS[tool], handler=handler))
+
+
+def test_an_untested_build_runs_tools_tested_elsewhere_and_warns_what_nx_cannot_say(
+    tmp_path, monkeypatch
+):
+    monkeypatch.delenv("NX_MCP_UNTESTED", raising=False)
+    monkeypatch.setattr(evidence, "_CACHE", {"nx_create_block": {"v2406": {}}})
+    svc = FakeServices(tmp_path, dev=False, build="2512.1000")
+    svc.part.add("feature")  # fake features read no warning messages: NX cannot answer
+    ok = run(svc, "nx_create_block", size=1)
+    assert ok["ok"], ok
+    [unverified] = [w for w in ok["warnings"] if w["code"] == "NX_UNVERIFIED"]
+    assert "NX 2512.1000 is not tested" in unverified["message"]
+    assert "GetFeatureWarningMessages" in unverified["message"]
+    tested = run(FakeServices(tmp_path / "t", dev=False), "nx_create_block", size=1)
+    assert tested["ok"] and not any(w["code"] == "NX_UNVERIFIED" for w in tested["warnings"])
+
+
+def test_update_failures_report_what_nx_could_not_read():
+    problems: list = []
+    assert kernel.update_failures(SimpleNamespace(session=None), problems) == []
+    assert problems == ["UpdateManager.ErrorList"]
+    assert kernel.update_failures(SimpleNamespace(session=None)) == []
+
+
+def test_the_self_test_runs_once_before_the_first_change_and_a_failure_leaves_reads(
+    tmp_path, monkeypatch
+):
+    monkeypatch.delenv("NX_MCP_UNTESTED", raising=False)
+    monkeypatch.setattr(
+        evidence, "_CACHE", {"nx_create_block": {"v2406": {}}, "nx_get_count": {"v2406": {}}}
+    )
+    svc = FakeServices(tmp_path, dev=False, build="2512.1000")
+    calls = []
+    svc.self_test = lambda tx: calls.append(tx.spec.name) or {"state": "failed", "reason": "x"}
+    assert run(svc, "nx_get_count")["ok"] and calls == []  # reads never trigger it
+    refused = run(svc, "nx_create_block", size=1)
+    assert calls == ["nx_create_block"]
+    assert refused["error"]["code"] == "NX_VERSION_UNSUPPORTED"
+    assert "only read and view" in refused["error"]["message"]
+    assert refused["mutation_outcome"] == "not_started" and svc.part.objects == []
+    assert evidence.self_test_result()["state"] == "failed"
+    run(svc, "nx_create_block", size=1)
+    assert calls == ["nx_create_block"]  # once per NX session
+    assert run(svc, "nx_get_count")["ok"]
+
+
+def test_a_passing_self_test_lets_changes_run_and_a_tested_build_never_runs_it(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(evidence, "_CACHE", {"nx_create_block": {"v2406": {}}})
+    calls = []
+    for build in ("2406.9160", "2512.1000"):
+        svc = FakeServices(tmp_path / build, dev=False, build=build)
+        svc.self_test = lambda tx: calls.append(1) or {"state": "passed"}
+        assert run(svc, "nx_create_block", size=1)["ok"]
+    assert calls == [1] and evidence.self_test_result()["seconds"] >= 0
+
+
+def test_a_missing_nxopen_member_on_an_untested_build_is_unsupported_and_remembered(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(evidence, "_CACHE", {"nx_create_block": {"v2406": {}}})
+    svc = FakeServices(tmp_path, dev=False, build="2512.1000")
+    svc.self_test = lambda tx: {"state": "passed"}
+
+    def missing(tx, **_):
+        tx.part.add("feature", "HALF")
+        return NXOPEN_BUILDER().SetNewThing  # NX 2512 lacks it
+
+    _swap_handler(monkeypatch, "nx_create_block", missing)
+    failed = run(svc, "nx_create_block", size=1)
+    error = failed["error"]
+    assert error["code"] == "NX_VERSION_UNSUPPORTED" and error["retry"] == "never"
+    assert error["category"] == "unavailable" and "nothing changed" in error["message"]
+    assert error["details"]["member"] == "NXOpen.Features.BlockFeatureBuilder.SetNewThing"
+    assert error["details"]["build"] == "2512.1000" and error["hint"].startswith("Do not retry")
+    assert failed["mutation_outcome"] == "rolled_back" and svc.part.objects == []
+    assert [e["tool"] for e in evidence.version_failures()] == ["nx_create_block"]
+    again = run(svc, "nx_create_block", size=1)  # refused before NX for the session
+    assert again["mutation_outcome"] == "not_started"
+    assert again["error"]["details"]["remembered_from"]
+
+
+def test_a_missing_member_on_a_tested_build_stays_our_bug(tmp_path, monkeypatch):
+    monkeypatch.setattr(evidence, "_CACHE", {"nx_create_block": {"v2406": {}}})
+    svc = FakeServices(tmp_path, dev=False)
+    _swap_handler(monkeypatch, "nx_create_block", lambda tx, **_: NXOPEN_BUILDER().Gone)
+    failed = run(svc, "nx_create_block", size=1)
+    assert failed["error"]["code"] == "NX_ERROR"
+    assert failed["error"]["details"]["nx_member"].endswith("BlockFeatureBuilder.Gone")
+    assert evidence.version_failures() == []
+
+
+def test_builders_first_refusal_is_remembered_on_an_untested_build(tmp_path, monkeypatch):
+    from nx_mcp.kit import builders
+
+    monkeypatch.setattr(evidence, "_CACHE", {"nx_create_block": {"v2406": {}}})
+    svc = FakeServices(tmp_path, dev=False, build="2512.1000")
+    svc.self_test = lambda tx: {"state": "passed"}
+    _swap_handler(
+        monkeypatch,
+        "nx_create_block",
+        lambda tx, **_: builders.first(NXOPEN_BUILDER(), "CreateX1", "CreateX"),
+    )
+    failed = run(svc, "nx_create_block", size=1)
+    assert failed["error"]["code"] == "NX_VERSION_UNSUPPORTED"
+    assert failed["error"]["details"]["member"].endswith("BlockFeatureBuilder.CreateX1|CreateX")
+    assert evidence.version_failures()[0]["tool"] == "nx_create_block"

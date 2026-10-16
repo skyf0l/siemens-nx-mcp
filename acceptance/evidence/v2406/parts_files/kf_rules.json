@@ -14,11 +14,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_get_kf_rules": "0d52a146cd666f6f761f4eda3e581406044094ddb750ea1113c023925c541315",
-    "nx_set_kf_rule": "0d52a146cd666f6f761f4eda3e581406044094ddb750ea1113c023925c541315",
-    "nx_update_kf_rules": "0d52a146cd666f6f761f4eda3e581406044094ddb750ea1113c023925c541315"
+    "nx_get_kf_rules": "5e7026f330bc4557d007dcc7292cbd3a03b900d2d76b5b71210a698b212a9e50",
+    "nx_set_kf_rule": "5e7026f330bc4557d007dcc7292cbd3a03b900d2d76b5b71210a698b212a9e50",
+    "nx_update_kf_rules": "5e7026f330bc4557d007dcc7292cbd3a03b900d2d76b5b71210a698b212a9e50"
   },
-  "recorded": "2026-10-15T12:14:17Z",
+  "recorded": "2026-10-16T13:01:14Z",
   "passed": true,
   "checks": 39,
   "failed_checks": 0,

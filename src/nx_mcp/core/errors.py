@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import contextlib
 import os
+import re
 import traceback
+import types
 from typing import Any, NoReturn
 
 # category -> (retry, codes, default hint)
@@ -179,9 +181,11 @@ CODES: dict[str, str] = {code: cat for cat, (_r, codes, _h) in CATEGORIES.items(
 # NX_VIEW_OVERLAP    drawing views overlap on the sheet
 # NX_NO_EFFECT       the call succeeded but changed nothing visible yet (a next step is needed)
 # NX_NOTE            an informational note, not a model problem (NX default density, ...)
+# NX_UNVERIFIED      an untested NX build could not answer a check: verify the result
 WARNING_CODES = frozenset(
     {
         "NX_UPDATE_WARNING",
+        "NX_UNVERIFIED",
         "NX_APPROXIMATED",
         "NX_PARTIAL_PAGE",
         "NX_MODAL_DIALOG",
@@ -200,6 +204,22 @@ RETRY_VALUES = frozenset(
 LICENSE_ERROR_CODES = frozenset({948801, 949895})
 # NX messages of a license refusal raised under another code (a module or token checkout).
 LICENSE_ERROR_TEXT = ("license error", "not enough tokens", "license feature is not available")
+# A license feature NX names in a refusal ('feature "nx_sheet_metal"', "feature: drafting",
+# "feature nx_freeform_1"): quoted, after a colon, or an unquoted name with an underscore.
+# NX 2406's 948801 text names none ("its token feature does not exist").
+LICENSE_NAME = re.compile(
+    r"""feature\s*(?:[:=]\s*["'(\[]?\s*([A-Za-z][\w.-]*)|["'(\[]\s*([A-Za-z][\w.-]*)\s*["')\]]"""
+    r"""|([A-Za-z][A-Za-z0-9]*_[\w-]+))""",
+    re.IGNORECASE,
+)
+
+
+def license_named(text: str) -> str | None:
+    """The license feature an NX refusal message names, or None."""
+    found = LICENSE_NAME.search(str(text or ""))
+    return next((g for g in found.groups() if g), None) if found else None
+
+
 # "Update undo happened.": an update failed and NX undid it, as the host's update
 # failure action (host/quiet.py) asks instead of opening "Error During Update".
 UPDATE_UNDONE_CODE = 670024
@@ -438,6 +458,45 @@ def _native_code(error: BaseException) -> int | None:
         return None
 
 
+def nxopen_member(error: BaseException) -> str | None:
+    """``NXOpen.Features.BlockFeatureBuilder.Foo`` when ``error`` is an AttributeError for
+    a member an NXOpen object, class or module lacks (``.obj``/``.name``, Python 3.10+);
+    None for any other error."""
+    if not isinstance(error, AttributeError):
+        return None
+    name, obj = getattr(error, "name", None), getattr(error, "obj", None)
+    if not name or obj is None:
+        return None
+    if isinstance(obj, types.ModuleType):
+        module, owner = obj.__name__, ""
+    elif isinstance(obj, type):
+        module, owner = str(getattr(obj, "__module__", "")), obj.__qualname__
+    else:
+        module, owner = str(getattr(type(obj), "__module__", "")), type(obj).__qualname__
+    if module != "NXOpen" and not module.startswith("NXOpen."):
+        return None
+    return ".".join(p for p in (module, owner, str(name)) if p)
+
+
+def missing_member(error: BaseException | None) -> str | None:
+    """The NXOpen member (:func:`nxopen_member`) that ``error`` or an exception it was
+    raised from (``__cause__``, ``__context__``) failed to find, else None."""
+    seen: set[int] = set()
+    pending = [error]
+    while pending and len(seen) < 16:
+        current = pending.pop(0)
+        if current is None or id(current) in seen:
+            continue
+        seen.add(id(current))
+        member = nxopen_member(current)
+        if member is None and isinstance(current, NXError):
+            member = current.details.get("nx_member")
+        if member:
+            return str(member)
+        pending += [current.__cause__, current.__context__]
+    return None
+
+
 def classify(error: BaseException, codes: dict | None = None, default: str = "NX_ERROR") -> NXError:
     """The :class:`NXError` for any exception (see ``native()`` for the rules)."""
     if isinstance(error, NXError):
@@ -461,6 +520,9 @@ def _classify(error, nx_code, details, codes, default) -> NXError:
     if nx_code in LICENSE_ERROR_CODES or (
         nx_code is not None and any(words in text for words in LICENSE_ERROR_TEXT)
     ):
+        named = license_named(str(error))
+        if named:  # the feature NX named; kit.licenses.attempt adds the one the tool tried
+            details["license"] = named
         return NXError(
             "NX_LICENSE_UNAVAILABLE",
             "This NX seat has no license for the NX command this tool uses: " + str(error),
@@ -478,6 +540,9 @@ def _classify(error, nx_code, details, codes, default) -> NXError:
         return NXError(codes[nx_code], str(error), nx_code=nx_code, details=details)
     if nx_code is None:
         # A Python exception, not a native NX one.
+        member = nxopen_member(error)
+        if member is not None:  # the kernel decides: our bug, or a build without it
+            details["nx_member"] = member
         return NXError("NX_ERROR", f"{type(error).__name__}: {error}", details=details)
     if nx_code in KNOWN_NX_CODES and default in GENERIC_DEFAULTS:
         code, hint = KNOWN_NX_CODES[nx_code]

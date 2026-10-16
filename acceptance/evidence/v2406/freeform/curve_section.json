@@ -13,9 +13,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_section_curves": "6938a6cea3cc9b92cfe08d86d5acefd03fde12cd594d912f909aff996da31d05"
+    "nx_create_section_curves": "974b0d9eeeb65556b086ff2e7b91e9400cbaeb343e43b2b21c35c47c7400c757"
   },
-  "recorded": "2026-10-15T10:59:53Z",
+  "recorded": "2026-10-16T13:14:54Z",
   "passed": true,
   "checks": 35,
   "failed_checks": 0,

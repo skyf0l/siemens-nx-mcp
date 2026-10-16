@@ -117,10 +117,12 @@ def nx_create_projected_curve(
             _o, origin, normal = select.plane(tx, plane, "/plane")
             cut = (origin, normal)
         ray = select.direction(tx, direction, "/direction") if along == "vector" else None
-    cc.licensed(tx)
     F = tx.nx.Features.ProjectCurveBuilder
     tol = units.part_tolerance(tx)
-    with builders.build(tx, tx.part.Features.CreateProjectCurveBuilder, None) as b:
+    with (
+        cc.licensed(tx),
+        builders.build(tx, tx.part.Features.CreateProjectCurveBuilder, None) as b,
+    ):
         b.Tolerance = tol
         b.CurveFitData.Tolerance = tol
         builders.curve_section(tx, sources, into=b.SectionToProject)
@@ -216,10 +218,12 @@ def nx_create_combined_projection(
             fail("NX_INVALID_ARGUMENT", "first and second share a curve", field="/second")
         d1 = _view(tx, first_direction, one, "/first_direction")
         d2 = _view(tx, second_direction, two, "/second_direction")
-    cc.licensed(tx)
     tol = units.part_tolerance(tx)
     factory = tx.part.Features.CreateCombinedProjectionBuilder
-    with builders.build(tx, factory, None) as b:
+    with (
+        cc.licensed(tx),
+        builders.build(tx, factory, None) as b,
+    ):
         b.CurveFitData.Tolerance = tol
         builders.curve_section(tx, one, into=b.Curve1)
         builders.curve_section(tx, two, into=b.Curve2)

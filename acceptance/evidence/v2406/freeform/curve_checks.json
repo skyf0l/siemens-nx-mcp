@@ -15,13 +15,13 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_mirror_curve": "31e0b20599ebed926f66b2f38ecc40905c53988af12cea67eff27b74e53fe941",
-    "nx_create_general_conic": "8a3be2981f1a5d6094bfb1157a56137f9101f0f1cb10190bab89b1e0d89c780b",
-    "nx_create_law_curve": "8a3be2981f1a5d6094bfb1157a56137f9101f0f1cb10190bab89b1e0d89c780b",
-    "nx_create_offset_curve": "c32e0245afc432b4717616ed01662c9fc4c06d2c0e1e10cd70d126fb4bfd5aaa",
-    "nx_create_isoparametric_curves": "45239e1b92c11f407d17376355e513ca13ca029e61845ac5ddf7e07b987d6415"
+    "nx_create_mirror_curve": "e282ed3d71edd3b70ad03c444486aed48be3d16028e534aa3e0b2fbb211880bc",
+    "nx_create_general_conic": "cd431628bc778fb846084872c057faeb874523f6a5a77cb3f2654087a756082b",
+    "nx_create_law_curve": "cd431628bc778fb846084872c057faeb874523f6a5a77cb3f2654087a756082b",
+    "nx_create_offset_curve": "b16cdbd71e99d9293091d8c0e0ad408760a55c18ce5dea4fdb4746b41102043e",
+    "nx_create_isoparametric_curves": "25266992e3067b9193d35248769c0450e61494c07ca5d8335ae14b56badee672"
   },
-  "recorded": "2026-10-15T10:59:30Z",
+  "recorded": "2026-10-16T13:14:34Z",
   "passed": true,
   "checks": 30,
   "failed_checks": 0,

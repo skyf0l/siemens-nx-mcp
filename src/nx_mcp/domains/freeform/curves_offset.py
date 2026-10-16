@@ -289,7 +289,6 @@ def nx_create_offset_curve(
         sources = cc.strings(tx, curves, "/curves")
         _chained(tx, sources)
         axis = select.direction(tx, direction, "/direction") if direction is not None else None
-    cc.licensed(tx)
     sources = _in_chain_order(tx, sources)
     values = (distance, height, angle)
     flip = method == "draft" and axis is not None
@@ -298,7 +297,8 @@ def nx_create_offset_curve(
     sided = toward is not None and method != "axial_3d" and not flat
     normal = cc.chain_normal(tx, sources, "/curves") if sided else None
     reverse = sided and _side_reversed(tx, method, sources, values, axis, toward, flip, normal)
-    feature, seed = _build(tx, method, sources, values, axis, reverse, flip)
+    with cc.licensed(tx):
+        feature, seed = _build(tx, method, sources, values, axis, reverse, flip)
     made = cc.output_curves(tx, feature)
     low, high = _measured(tx, made, sources)
     limit = cc.gap_tolerance(tx)

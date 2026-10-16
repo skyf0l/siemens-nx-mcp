@@ -8,9 +8,9 @@ NX 2406 findings (live, ``kit.massprops`` has the API details):
   ``AskProps`` of the component returns it in the component's part frame, so only
   direct components of the work part are asserted as occurrences; ``level part``
   (UF ``AssertPartProps``, part frame) serves nested ones and every use of a part.
-- Assertions, their deletion and component groups need ``adv_assemblies``: the license
-  is checked (``CheckPresence``, a query) before any change. The kernel's undo mark
-  rolls assertions and new groups back.
+- Assertions, their deletion and component groups need ``adv_assemblies``: NX's license
+  refusal is reported as ``NX_LICENSE_UNAVAILABLE`` naming it (``kit.licenses.attempt``).
+  The kernel's undo mark rolls assertions and new groups back.
 - Group names are unique without regard to case and may hold spaces; the four system
   groups (AllComponents, ...) are never listed by default nor redefined.
 """
@@ -118,7 +118,6 @@ def nx_set_component_mass(
         if before is not None:
             previous = {"mass": before["mass"],
                         "center_of_gravity": _assembly_center(tx, before, pose)}  # fmt: skip
-        mp.require_license(tx, what="NX weight management")
     row = tx.ref(c, "component")
     part_name = kparts.file_of(prototype).replace("\\", "/").rsplit("/", 1)[-1]
     if clear:
@@ -272,13 +271,12 @@ def nx_create_component_group(
             fail("NX_ALREADY_EXISTS", f"A component group {existing.Name} already exists",
                  field="/name", details={"existing": str(existing.Name)},
                  hint="Set replace=true to redefine it")  # fmt: skip
-        mp.require_license(tx, what="Component groups")
     replaced_members = (
         [tx.ref(c, "component")["id"] for c in mp.group_members(existing)]
         if existing is not None
         else None
     )
-    with native(default="NX_BUILD_FAILED"):
+    with mp.licensed(tx), native(default="NX_BUILD_FAILED"):
         if existing is None:
             group = part.ComponentGroups.CreateComponentGroup(name)
         else:
@@ -395,17 +393,16 @@ def nx_edit_component_group(
             if clash is not None and clash is not group:
                 fail("NX_ALREADY_EXISTS", f"A component group {clash.Name} already exists",
                      field="/new_name", details={"existing": str(clash.Name)})  # fmt: skip
-        mp.require_license(tx, what="Component groups")
     old = str(group.Name)
     if delete:
-        with native(default="NX_BUILD_FAILED"):
+        with mp.licensed(tx), native(default="NX_BUILD_FAILED"):
             tx.session.UpdateManager.AddToDeleteList([group])
         model.update(tx)
         readback.expect(mp.find_group(part, old) is None, "deleted",
                         "NX kept the component group")  # fmt: skip
         return {"deleted": old, "remaining": [str(g.Name) for g, _m in mp.groups(part)]}
     assert new_name is not None
-    with native(default="NX_BUILD_FAILED"):
+    with mp.licensed(tx), native(default="NX_BUILD_FAILED"):
         got = result.rename(tx, group, new_name)
     readback.expect(got.casefold() == new_name.casefold(), "name", "NX did not rename the group",
                     actual=got)  # fmt: skip

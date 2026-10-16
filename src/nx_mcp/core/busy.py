@@ -16,6 +16,9 @@ after every committed changing call and after the host tracks the parts a call l
 (``Services.track``: development snippets and failed calls included), and the parts an
 earlier host generation listed are adopted before it is rewritten. A part matches its row
 by tag *and* file: a part the engineer closed and opened again (a new tag) is theirs.
+The engineer's panel grants are kept there too (tag, file and name): a host reload keeps
+a granted part granted, while a new NX process (another pid), a part closed and opened
+again (a new tag) or a part saved under another file is not granted any more.
 
 **Rules** (:func:`refuse_engineer`, :func:`refuse_close`, :func:`refuse_activate`):
 
@@ -188,55 +191,72 @@ def _file(part) -> str:
     return str(getattr(part, "FullPath", "") or "").replace("\\", "/").casefold()
 
 
+def _grant_row(part) -> dict:
+    return {"file": _file(part), "name": str(getattr(part, "Name", "") or "")}
+
+
 def persist(services) -> None:
-    """Write the tag, file and caller of every loaded agent part (never raises).
+    """Write the tag, file and caller of every loaded agent part and the tag, file and
+    name of every loaded part the engineer granted (never raises).
 
     Adopts the rows of an earlier host generation first (a first call after a reload
     must not drop them) and writes only when the rows changed."""
     path = _owners_path(services)
-    if path is None:
-        return
+    if path is None or _table(services).get("adopting"):
+        return  # adopt() restores grants one by one: never write a partial file
     adopt(services)
     with contextlib.suppress(Exception):
         owners = _owners(services)
-        rows = {}
+        rows, granted = {}, {}
         for part in services.parts() or []:
             key, tag = services.part_key(part), _tag(part)
+            if tag is not None and _granted(services, part):
+                granted[str(tag)] = _grant_row(part)
             # a part this call loaded is owned only after it (``Services.track``)
             if tag is None or (key not in owners and engineer(services, part)):
                 continue
             rows[str(tag)] = {"file": _file(part), "caller": (owners.get(key) or {}).get("caller")}
+        payload = {"parts": rows, "granted": granted}
         table = _table(services)
-        if table.get("persisted") == rows and path.exists():
+        if table.get("persisted") == payload and path.exists():
             return
-        table["persisted"] = rows
+        table["persisted"] = payload
         path.parent.mkdir(parents=True, exist_ok=True)
         temp = path.with_suffix(".tmp")
-        temp.write_text(json.dumps({"pid": os.getpid(), "parts": rows}), encoding="utf-8")
+        temp.write_text(json.dumps({"pid": os.getpid(), **payload}), encoding="utf-8")
         os.replace(temp, path)
 
 
 def adopt(services) -> None:
     """Once per services (a host start or reload): the loaded parts the owners file lists
-    for this NX process (same tag and file) are agent parts again, with their caller.
-    Never raises."""
+    for this NX process (same tag and file) are agent parts again, with their caller, and
+    the parts it lists as granted (same tag, file and name) are granted again. Never
+    raises."""
     table = _table(services)
     if table.get("adopted"):
         return
     table["adopted"] = True
     path = _owners_path(services)
-    with contextlib.suppress(Exception):
-        saved = json.loads(path.read_text(encoding="utf-8")) if path else {}
-        if saved.get("pid") != os.getpid():
-            return
-        rows = saved.get("parts") or {}
-        for part in services.parts() or []:
-            row = rows.get(str(_tag(part)))
-            if not row or row.get("file") != _file(part):
-                continue
-            if engineer(services, part):
-                services.own(part)
-            _owners(services).setdefault(services.part_key(part), {"caller": row.get("caller")})
+    table["adopting"] = True
+    try:
+        with contextlib.suppress(Exception):
+            saved = json.loads(path.read_text(encoding="utf-8")) if path else {}
+            if saved.get("pid") != os.getpid():
+                return
+            rows = saved.get("parts") or {}
+            grants = saved.get("granted") or {}
+            for part in services.parts() or []:
+                with contextlib.suppress(Exception):
+                    if grants.get(str(_tag(part))) == _grant_row(part):
+                        services.grant(part)
+                row = rows.get(str(_tag(part)))
+                if not row or row.get("file") != _file(part):
+                    continue
+                if engineer(services, part):
+                    services.own(part)
+                _owners(services).setdefault(services.part_key(part), {"caller": row.get("caller")})
+    finally:
+        table.pop("adopting", None)
 
 
 # ---------------------------------------------------------------------------

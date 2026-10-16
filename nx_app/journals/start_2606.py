@@ -1,16 +1,7 @@
-"""Play once in the open NX UI. Returns immediately; NX retains the UI-thread host."""
+# nx: threaded
+"""Same as start.py, which starts NX MCP on any NX build; kept for existing shortcuts."""
 
-import os
-import sys
+import runpy
 from pathlib import Path
 
-root = Path(__file__).resolve().parents[2] / "src"
-sys.path.insert(0, str(root))
-from nx_mcp.interactive import start  # noqa: E402 - NX journal loads this checkout first
-from nx_mcp.workspace import default_workspace  # noqa: E402
-
-descriptor = os.environ.get(
-    "NX_MCP_UI_DESCRIPTOR",
-    str(Path(os.environ["LOCALAPPDATA"]) / "nx-mcp" / "interactive-bridge.json"),
-)
-start(str(default_workspace()), descriptor)
+runpy.run_path(str(Path(__file__).resolve().with_name("start.py")))

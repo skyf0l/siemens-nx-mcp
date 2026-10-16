@@ -10,11 +10,15 @@
 Catalogue tools are listed from their specs (schema, docstring, MCP annotations
 from ``effect``) and dispatched through :class:`CatalogueProxy`.
 
-Listings follow the connected NX build (gate 3): tools and variants without
-evidence there, and those NX refused for a missing license this session, are
-left out of tools/list, nx_find_tools and nx_get_tool_schemas. Before NX
-connects they follow the default supported build (``evidence.DEFAULT_BUILD``)
-and say so; when that changes, the server sends ``tools/list_changed``.
+Listings follow the connected NX build (gate 3, ``core/evidence.py``): tools and
+variants with evidence there, and on an untested build those with evidence on any
+build, marked untested (nx_find_tools: ``listing: {build, tested: false}`` and a note on
+the first page; nx_get_tool_schemas: ``tested: false`` per entry). Tools tested nowhere,
+those NX refused for a missing license this session and those that failed on this
+build for a missing NXOpen member are left out of tools/list, nx_find_tools and
+nx_get_tool_schemas. A tested build adds no marker. Before NX connects listings follow
+the default supported build (``evidence.DEFAULT_BUILD``) and say so; when the listing
+changes, the server sends ``tools/list_changed``.
 """
 
 from __future__ import annotations
@@ -88,6 +92,17 @@ NOT_AVAILABLE_RANK, NOT_AVAILABLE_ROWS = 3, 3
 # words than this, or joining tasks (``,`` ``;`` ``+`` "and" "then"), earns a hint to split
 # the tasks into ``queries`` (a long single task, "assembly constraints status", does not).
 FIND_LIMIT, QUERIES_LIMIT, MAX_QUERY_WORDS = 10, 5, 5
+# nx_find_tools on an untested NX build: said once per connection or listing change, on a
+# first page (``listing.note``).
+UNTESTED_NOTE = (
+    "{build} is not tested with NX MCP: tools tested on other builds are offered; verify "
+    "results (nx_check_model, measurements). NX_VERSION_UNSUPPORTED means this tool cannot "
+    "run here: do not retry, pick another."
+)
+READ_ONLY_NOTE = (
+    "{build} is not tested with NX MCP and agents may only read here ({reason}): only read "
+    "and view tools are offered."
+)
 TASK_JOINS = re.compile(r"[,;+&]|\b(?:and|then|also)\b", re.IGNORECASE)
 FULL_INSTRUCTIONS = (
     "Siemens NX integration. Runtime support varies by NX version; no general certification "
@@ -136,6 +151,7 @@ class Surface:
         store = artifacts.install(mcp, workspace)
         self.proxy = CatalogueProxy(bridge, workspace, store, build=build)
         self._listed: tuple | None = None  # proxy.signature() of the last tools/list
+        self._noted: tuple | None = None  # proxy.signature() when the untested note was given
         self.entries = [
             gateways.Entry(
                 s.name,
@@ -224,13 +240,19 @@ class Surface:
                 detail="compact" if self.profile == "agent" else "full",
             )
         error = (answer.structuredContent or {}).get("error") or {}
+        details = error.get("details") or {}
         if error.get("code") == "NX_LICENSE_UNAVAILABLE":
-            details = error.get("details") or {}
             known = details.get("remembered_from") and evidence.remembered(
                 self.proxy.licenses, details.get("tool"), details.get("variant")
             )
             if not known:
                 await self.proxy.refresh(force=True)  # NX now remembers it
+        elif error.get("code") == "NX_VERSION_UNSUPPORTED" and details.get("member"):
+            known = evidence.remembered(
+                self.proxy.versions, details.get("tool"), details.get("variant")
+            )
+            if not known:
+                await self.proxy.refresh(force=True)  # NX remembers the missing member
         await self.notify_if_changed()
         return answer
 
@@ -252,8 +274,11 @@ class Surface:
             return await self.proxy.call(spec, arguments, intent=intent, detail=detail)
         args = arguments if isinstance(arguments, dict) else {}
         entry = self.proxy.remembered(spec, spec.variant_of(args)) if spec is not None else None
+        failed = self.proxy.failed(spec, spec.variant_of(args)) if spec is not None else None
         if entry is not None:
             error = evidence.license_error(entry)
+        elif failed is not None:
+            error = evidence.version_error(failed)
         else:
             error = self.unknown(name, field=None if direct else "/tool")
         return result(failure(str(name), error, "not_started"))
@@ -334,14 +359,17 @@ class Surface:
         }
         if self.profile == "agent" and entry.name in CORE_TOOLS:
             row["core"] = True  # also listed as an MCP tool of its own
-        if not self.proxy.tested(self.specs[entry.name]):
+        # Untested here; on an untested build the page says it once (``listing``).
+        if self.proxy.build_tested() and not self.proxy.tested(self.specs[entry.name]):
             row["tested"] = False
         if matched is not None:
             row["matched"] = list(matched)
         return row
 
-    def build_note(self) -> dict[str, Any]:
-        """The build listings follow, and whether it is assumed (NX not connected)."""
+    def build_note(self, first: bool = True) -> dict[str, Any] | None:
+        """The build listings follow, when it needs saying: assumed (NX not connected) or
+        untested (``tested: false``, with :data:`UNTESTED_NOTE` on a ``first`` page once
+        per connection or listing change); None on a tested, connected build."""
         build, assumed = self.proxy.listing()
         note: dict[str, Any] = {"build": build}
         if assumed:
@@ -350,6 +378,19 @@ class Surface:
                 f"NX is not connected: tools listed for the default supported build {build}; "
                 "the list may change when NX connects"
             )
+            return note
+        if self.proxy.build_tested():
+            return None
+        note["tested"] = False
+        signature = self.proxy.signature()
+        if first and self._noted != signature:
+            self._noted = signature
+            shown = evidence.build_label(self.proxy.nx_build())
+            if self.proxy.read_only():
+                reason = self.proxy.read_only_reason or "NX_MCP_UNTESTED=read_only"
+                note["note"] = READ_ONLY_NOTE.format(build=shown, reason=reason)
+            else:
+                note["note"] = UNTESTED_NOTE.format(build=shown)
         return note
 
     def _search(self, query: str, request) -> tuple[list, bool, list[str], str]:
@@ -437,7 +478,9 @@ class Surface:
                 "No tool matches these words: try others, or pass a domain below with an "
                 "empty query to list its tools"
             )
-        data["listing"] = self.build_note()
+        listing = self.build_note(first=not request.offset)
+        if listing is not None:
+            data["listing"] = listing
         end = min(request.offset + limit, len(hits))
         return result(
             {
@@ -472,7 +515,9 @@ class Surface:
         data: dict[str, Any] = {"results": results, "call_with": self.call_with()}
         if any(not item["total"] for item in results):
             data["hint"] = "Some queries match no tool: try other words, or an empty query"
-        data["listing"] = self.build_note()
+        listing = self.build_note(first=not request.offset)
+        if listing is not None:
+            data["listing"] = listing
         return result(
             {
                 "ok": True,
@@ -497,18 +542,21 @@ class Surface:
 
     def _overview(self, effect) -> CallToolResult:
         """An empty query: the domain overview."""
+        data: dict[str, Any] = {
+            "domains": self._domains(effect),
+            "hint": "Search with task words (e.g. 'revolve', 'sketch polyline'), or "
+            "pass domain with an empty query to list one domain's tools",
+            "call_with": self.call_with(),
+        }
+        listing = self.build_note()
+        if listing is not None:
+            data["listing"] = listing
         return result(
             {
                 "ok": True,
                 "tool": "nx_find_tools",
                 "mutation_outcome": "not_applicable",
-                "data": {
-                    "domains": self._domains(effect),
-                    "hint": "Search with task words (e.g. 'revolve', 'sketch polyline'), or "
-                    "pass domain with an empty query to list one domain's tools",
-                    "call_with": self.call_with(),
-                    "listing": self.build_note(),
-                },
+                "data": data,
             }
         )
 
@@ -547,16 +595,16 @@ class Surface:
                 out["example"] = example
             if spec.requires:
                 out["requires"] = list(spec.requires)
+            # Tested on this build adds nothing; else ``tested: false`` (the tool) or
+            # ``untested_variants`` (offered variants tested on other builds only, or
+            # untested ones development mode offers for evidence runs).
             build = self.proxy.listing()[0]
             entry = spec.evidence.get(build) if build else None
             if entry is not None:
-                # true: the tool, and every variant it has, is tested on this build.
                 variants = entry.get("variants") or []
-                complete = set(variants) >= set(spec.variant_values())
-                out["evidence"] = {build: True if complete else variants}
-                if isinstance(spec.variants, str) and not complete:
+                if isinstance(spec.variants, str):
                     untested = [v for v in offered if v not in variants]
-                    if untested:  # development mode offers them for evidence runs
+                    if untested:
                         out["untested_variants"] = untested
             else:
                 out["tested"] = False

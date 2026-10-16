@@ -1,4 +1,4 @@
-"""``python -m nx_mcp.acceptance run|call|fold`` (see :mod:`nx_mcp.acceptance.runner`)."""
+"""``python -m nx_mcp.acceptance run|verify|call|fold`` (see :mod:`nx_mcp.acceptance.runner`)."""
 
 import sys
 

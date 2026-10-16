@@ -17,7 +17,6 @@ NX 2406 findings encoded here:
 from __future__ import annotations
 
 import contextlib
-import json
 import math
 from typing import TYPE_CHECKING
 
@@ -25,6 +24,7 @@ from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.domains.assembly import common, structure
 from nx_mcp.kit import geom, model, readback
 from nx_mcp.kit import pose as kpose
+from nx_mcp.kit import records as krecords
 
 if TYPE_CHECKING:  # explosions imports this module
     from nx_mcp.domains.assembly.explosions import ExplodedRow
@@ -200,12 +200,12 @@ def anchor_positions(tx, explosion, records) -> list:
 
 def is_managed(tx, line) -> bool:
     with contextlib.suppress(Exception):
-        return bool(line.HasUserAttribute(TRACE_ATTRIBUTE, tx.nx.NXObject.AttributeType.String, -1))
+        return krecords.has(tx, line, TRACE_ATTRIBUTE)
     return False
 
 
-def records_of(line) -> list:
-    return json.loads(line.GetStringAttribute(TRACE_ATTRIBUTE))
+def records_of(tx, line) -> list:
+    return list(krecords.get_json(tx, line, TRACE_ATTRIBUTE, []))
 
 
 def traces(tx, part, explosion) -> list:
@@ -240,7 +240,7 @@ def trace_row(tx, line, explosion) -> dict:
     row: dict = {"trace": tx.ref(line, "traceline"), "explosion": tx.ref(explosion, "explosion"),
                  "start": start, "end": end}  # fmt: skip
     if is_managed(tx, line):
-        records = records_of(line)
+        records = records_of(tx, line)
         try:
             edges = anchor_edges(tx, explosion, records)
         except NXError:
@@ -263,7 +263,7 @@ def refresh_traces(tx, explosion, mark=None) -> list:
     pending = []
     for line in traces(tx, part, explosion):
         if is_managed(tx, line):
-            pending.append((line, anchor_positions(tx, explosion, records_of(line))))
+            pending.append((line, anchor_positions(tx, explosion, records_of(tx, line))))
     for line, positions in pending:
         with native(default="NX_BUILD_FAILED"):
             if math.dist(*positions) <= 1e-9:

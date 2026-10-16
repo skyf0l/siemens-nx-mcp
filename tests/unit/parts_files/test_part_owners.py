@@ -54,7 +54,7 @@ def engineer_part(nx, name="eng.prt"):
 
 def test_the_engineers_part_is_never_closed_even_forced_in_development_mode(nx):
     eng = engineer_part(nx)
-    assert services(nx).dev  # gate 6 is off: the rule holds anyway
+    assert services(nx).dev  # development mode: the rule holds there too
     for args in ({}, {"force": True}, {"save": True}):
         refused = close(nx, "eng", A, **args)
         assert refused.error["code"] == "NX_ENGINEER_PART", refused

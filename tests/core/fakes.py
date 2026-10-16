@@ -62,8 +62,11 @@ class FakePart:
 
 
 class FakeServices(Services):
-    def __init__(self, root: Path, *, units="mm", dev=True, build="v2406"):
+    def __init__(self, root: Path, *, units="mm", dev=True, build="v2406", owns_all=True):
         self.root = Path(root)
+        # Every part is the agent's; False: only the ``owned`` ones (gate 6 refuses the
+        # rest, the engineer's), in development mode too.
+        self.owns_all = owns_all
         self.workspace = Workspace(self.root)
         self.store = OperationStore(self.root)
         self.session_id = "s1"
@@ -211,7 +214,7 @@ class FakeServices(Services):
         }
 
     def owns(self, part):
-        return self.part_key(part) in self.owned
+        return self.owns_all or self.part_key(part) in self.owned
 
     def own(self, part):
         self.owned.add(self.part_key(part))

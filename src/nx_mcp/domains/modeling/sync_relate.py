@@ -61,15 +61,10 @@ TAKES = {
 TOL = 1e-5  # relative: NX's modeling tolerance, not the floating-point one
 
 
-def require_synchronous(tx, what: str, *, by_argument: bool = False) -> None:
-    """``NX_LICENSE_UNAVAILABLE`` before any builder when the seat does not serve NX
-    Synchronous (``kit.licenses``; NX cannot tell: the builder decides)."""
-    licenses.require(
-        tx,
-        (SYNC_LICENSE,),
-        f"{what} needs the NX Synchronous license ({SYNC_LICENSE}), which this seat lacks",
-        by_argument=by_argument,
-    )
+def synchronous(tx, *, by_argument: bool = False):
+    """The context of NX Synchronous work: NX's license refusal inside becomes
+    ``NX_LICENSE_UNAVAILABLE`` naming ``nx_synchronous`` (``kit.licenses.attempt``)."""
+    return licenses.attempt(tx, (SYNC_LICENSE,), by_argument=by_argument)
 
 
 class _RelateData(common.FeatureData):
@@ -306,11 +301,13 @@ def nx_edit_face_relation(
             point = (
                 kargs.vec3(through, "/through") if through is not None else _through(tx, moving, m)
             )
-        require_synchronous(tx, f"Make {relation.capitalize()}")
     before = measure.volume(tx, body)
     part = tx.part
     rule = part.ScRuleFactory.CreateRuleFaceDumb([moving, *group])
-    with builders.build(tx, getattr(part.Features, FACTORIES[relation]), None) as b:
+    with (
+        synchronous(tx),
+        builders.build(tx, getattr(part.Features, FACTORIES[relation]), None) as b,
+    ):
         if relation == "offset":
             b.MotionFace.Value = moving
             expr.drive(b.OffsetValue, distance)

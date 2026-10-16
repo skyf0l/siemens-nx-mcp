@@ -17,7 +17,10 @@ the tool as ``"$0.data.sketch"``, an ``nx_run_batch`` step reference). A step wi
 Python snippet in NX through the bridge's development tool (``NX_MCP_DEV=1``; names as
 ``scripts/dev_python.py``; ``$run`` in the code is the run directory) and then lets the interactive host check its mark
 fingerprint as it does before every agent call, so the edit becomes an engineer change
-(an undo-history barrier) and never an agent operation. ``expect``
+(an undo-history barrier) and never an agent operation. The part-ownership gate stays
+on in development: an engineer step acts outside it, but a part it loads is the run's
+own (the host tracks what a development call loads), so a scenario that needs an
+engineer part removes it from ``services.owned_parts`` in an engineer step. ``expect``
 values take ``$name...`` strings the same way (other ``$`` text such as ``$~C`` stays).
 Every call goes through the stdio MCP client of a fresh
 ``python -m nx_mcp.server`` (agent profile): catalogue read tools through
@@ -40,10 +43,24 @@ no diff. Run details (run id, owner, part path, times, step seconds and result
 digests, cleanup, commit) go to the local run log
 ``<workspace>/.nx-mcp/acceptance-runs/<run-id>.json``. ``fold`` builds
 ``src/nx_mcp/evidence/<domain>.json`` from passing evidence files only.
+
+A failing run's ``<name>.last-failure.json`` says why in public terms only
+(:func:`public_error`, :func:`public_failure`): error codes, categories and fields, the
+missing NXOpen member of ``NX_VERSION_UNSUPPORTED``, check paths, operators and numbers;
+never NX's message (it can name a licence feature or a part), a path or a name. A run NX
+refused a licence in writes no evidence at all: it would tell which licences the seat
+lacks (``fold`` first rewrites older failure records so, :func:`scrub_failure_records`).
+
+``verify`` is ``run`` for a volunteer on another NX build: every scenario (or the given
+domains), refused beside parts it did not create or when NX MCP only reads there, the
+console in public terms, licence refusals counted as skipped; then a fold, the list of
+``acceptance/evidence/<build>/**`` files to contribute, a summary and
+``<workspace>/.nx-mcp/verify-last.json`` (counts for ``python -m nx_mcp.report``).
 """
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import contextlib
 import datetime as _dt
@@ -266,9 +283,19 @@ class StepResult:
             out["failures"] = self.failures
         return out
 
+    def public_error(self) -> dict | None:
+        """The step's error as evidence keeps it (:func:`public_error`), else ``None``."""
+        outcome = self.result if isinstance(self.result, dict) else {}
+        problem = outcome.get("error")
+        if outcome.get("ok", True) or not isinstance(problem, dict):
+            return None
+        return public_error(problem)
+
     def proof(self, scrub: Callable[[str], str] = str) -> dict:
         """The evidence entry: only what a re-run reproduces, plus why a failed step
-        failed (``error`` code and message, ``failures``) with local paths scrubbed."""
+        failed in public terms only: the error's code, category and field, and each
+        failed check's path, operator and numbers (:func:`public_failure`). NX's own
+        message never goes there: it can name a licence feature, a part or a path."""
         out: dict[str, Any] = {
             "index": self.index,
             "call": self.call,
@@ -278,12 +305,155 @@ class StepResult:
         }
         if self.passed:
             return out
-        error = self.error()
+        error = self.public_error()
         if error:
-            out["error"] = {k: None if v is None else scrub(str(v)) for k, v in error.items()}
+            out["error"] = error
         if self.failures:
-            out["failures"] = [scrub(f) for f in self.failures]
+            out["failures"] = [public_failure(scrub(f)) for f in self.failures]
         return out
+
+
+# ---------------------------------------------------------------------------
+# What evidence and verify may say about a failure (privacy scrub)
+
+LICENSE_CODE = "NX_LICENSE_UNAVAILABLE"
+_CODE = re.compile(r"[A-Z][A-Z0-9_]{1,63}")
+_CATEGORY = re.compile(r"[a-z][a-z_]{0,39}")
+_FIELD = re.compile(r"[A-Za-z0-9_/#.\-]{0,120}")
+_MEMBER = re.compile(r"[A-Za-z_][A-Za-z0-9_.]{0,120}")
+_PATH = r"[A-Za-z0-9_.\-]{1,160}"
+_NUMBER = r"[-+0-9.eE,\[\]]+"
+
+
+def public_error(problem: dict) -> dict:
+    """``{code, category, field}`` of an error envelope (``member`` too for
+    ``NX_VERSION_UNSUPPORTED``: the NXOpen member this NX build lacks). Anything that
+    is not a plain token (a message, a path, a part or licence name) is left out."""
+    code = str(problem.get("code") or "")
+    out: dict[str, Any] = {"code": code if _CODE.fullmatch(code) else "NX_ERROR"}
+    for key, pattern in (("category", _CATEGORY), ("field", _FIELD)):
+        value = problem.get(key)
+        if isinstance(value, str) and value and pattern.fullmatch(value):
+            out[key] = value
+    details = problem.get("details")
+    member = details.get("member") if isinstance(details, dict) else problem.get("member")
+    unsupported = out["code"] == "NX_VERSION_UNSUPPORTED"
+    if unsupported and isinstance(member, str) and _MEMBER.fullmatch(member):
+        out["member"] = member
+    return out
+
+
+def _numbers(text: str, op: str = "") -> Any:
+    """``text`` (a ``repr``) as a number or a list of numbers, else ``None``; for
+    ``count`` the length of the listed value."""
+    try:
+        value = ast.literal_eval(text.strip())
+    except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+        return None
+    if op == "count" and isinstance(value, (list, tuple, dict, str)):
+        return len(value)
+
+    def number(v: Any) -> bool:
+        return isinstance(v, (int, float)) and not isinstance(v, bool) and v == v
+
+    if number(value):
+        return value
+    if isinstance(value, (list, tuple)) and value and all(number(v) for v in value):
+        return list(value)
+    return None
+
+
+def _checked(path: str, op: str, wanted: Any, actual: Any) -> str:
+    if wanted is None or actual is None:
+        return f"{path}: {op} failed"
+
+    def text(value: Any) -> str:
+        return json.dumps(value, separators=(",", ":"))
+
+    return f"{path}: {op} failed (wanted {text(wanted)}, actual {text(actual)})"
+
+
+def public_failure(text: str) -> str:
+    """A failure line as evidence keeps it: the error code, the check's path and operator
+    and its numbers; never NX's message, a wanted or actual text, a path or a name.
+    Idempotent: a public line comes back unchanged."""
+    text = str(text)
+    found = re.match(r"unexpected error ([A-Za-z0-9_]+)", text)
+    if found:
+        code = found.group(1)
+        return f"unexpected error {code if _CODE.fullmatch(code) else 'NX_ERROR'}"
+    found = re.match(r"(argument|expect): (\$[A-Za-z_][A-Za-z0-9_.]{0,160})", text)
+    if found:
+        return f"{found.group(1)}: {found.group(2).rstrip('.')} unresolved"
+    found = re.match(r"call failed: ([A-Za-z_][A-Za-z0-9_]{0,60})", text)
+    if found:
+        return f"call failed: {found.group(1)}"
+    found = re.match(rf"({_PATH}): missing\b", text)
+    if found:
+        return f"{found.group(1)}: missing"
+    found = re.fullmatch(
+        rf"({_PATH}): ([a-z_]+) failed(?: \(wanted ({_NUMBER}), actual ({_NUMBER})\))?", text
+    )  # already public
+    if found:
+        path, op, wanted, actual = found.groups()
+        return _checked(path, op, _numbers(wanted or ""), _numbers(actual or ""))
+    found = re.fullmatch(rf"({_PATH}): ([a-z_]+) (.*) failed \(actual (.*)\)", text, re.DOTALL)
+    if found:
+        path, op, wanted, actual = found.groups()
+        return _checked(path, op, _numbers(wanted), _numbers(actual, op))
+    return "check failed"
+
+
+def license_refused(record: dict) -> bool:
+    """Whether NX refused a licence in this run: such a run is never recorded, since a
+    failure record would tell which licences this seat lacks."""
+    for step in record.get("steps") or []:
+        if (step.get("error") or {}).get("code") == LICENSE_CODE:
+            return True
+        failures = step.get("failures") or []
+        if any(str(f).startswith(f"unexpected error {LICENSE_CODE}") for f in failures):
+            return True
+    return False
+
+
+def scrub_record(record: dict) -> dict | None:
+    """``record`` (an evidence file) with its failed steps in public terms only
+    (:func:`public_error`, :func:`public_failure`); ``None`` when NX refused a licence
+    in it (the record must not be kept). Passing steps are unchanged."""
+    if not record.get("passed") and license_refused(record):
+        return None
+    steps = []
+    for step in record.get("steps") or []:
+        if step.get("passed"):
+            steps.append(step)
+            continue
+        clean = {k: step[k] for k in ("index", "call", "setup", "passed", "checks") if k in step}
+        if isinstance(step.get("error"), dict):
+            clean["error"] = public_error(step["error"])
+        if step.get("failures"):
+            clean["failures"] = [public_failure(f) for f in step["failures"]]
+        steps.append(clean)
+    return {**record, "steps": steps}
+
+
+def scrub_failure_records(root: Path = EVIDENCE) -> list[str]:
+    """Rewrite every ``*.last-failure.json`` under ``root`` in public terms; delete one
+    where NX refused a licence. Returns what changed (paths relative to ``root``)."""
+    changed: list[str] = []
+    for path in sorted(Path(root).glob("*/*/*.last-failure.json")):
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        clean = scrub_record(record)
+        name = path.relative_to(root).as_posix()
+        if clean is None:
+            path.unlink()
+            changed.append(f"removed {name} (a licence refusal is never recorded)")
+        elif clean != record:
+            path.write_bytes(dump(clean))
+            changed.append(f"scrubbed {name}")
+    return changed
 
 
 async def call_tool(
@@ -611,16 +781,20 @@ def sidecar_args(caller: str | None = None) -> list[str]:
 
 
 @contextlib.asynccontextmanager
-async def sidecar(workspace: Path, caller: str | None = None):
+async def sidecar(workspace: Path, caller: str | None = None, *, development: bool = True):
     """A stdio MCP client session of a fresh ``python -m nx_mcp.server``; ``caller``: the
-    caller id it presents to NX (:func:`caller_id`), else its own random one."""
+    caller id it presents to NX (:func:`caller_id`), else its own random one.
+    ``development`` (default): a development sidecar, which offers untested tools."""
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
 
     env = dict(os.environ)
     env["NX_MCP_WORKSPACE"] = str(workspace)
     env["NX_MCP_SURFACE"] = "agent"
-    env["NX_MCP_DEV"] = "1"  # untested tools must run to earn their first evidence
+    if development:
+        env["NX_MCP_DEV"] = "1"  # untested tools must run to earn their first evidence
+    else:
+        env.pop("NX_MCP_DEV", None)
     descriptor = descriptor_path()
     if descriptor is not None:
         env["NX_MCP_BRIDGE_DESCRIPTOR"] = str(descriptor)
@@ -637,6 +811,17 @@ async def sidecar(workspace: Path, caller: str | None = None):
 async def nx_version(session) -> tuple[str, str]:
     """``(build key, build text)`` reported by the bridge."""
     status = await call_tool(session, "nx_get_status", {"include": ["bridge"]}, intent=None)
+    return build_of(status)
+
+
+async def bridge_status(session) -> tuple[tuple[str, str], dict]:
+    """``((build key, build text), bridge section)`` of ``nx_get_status``."""
+    status = await call_tool(session, "nx_get_status", {"include": ["bridge"]}, intent=None)
+    return build_of(status), (status.get("data") or {}).get("bridge") or {}
+
+
+def build_of(status: dict) -> tuple[str, str]:
+    """``(build key, build text)`` of an ``nx_get_status`` result."""
     if not status.get("ok"):
         raise RuntimeError(f"nx_get_status failed: {status.get('error')}")
     bridge = (status.get("data") or {}).get("bridge") or {}
@@ -651,18 +836,24 @@ async def nx_version(session) -> tuple[str, str]:
 # Running scenarios
 
 
-def _echo(result: StepResult) -> None:
+def _echo(result: StepResult, *, public: bool = False) -> None:
     mark = "pass" if result.passed else "FAIL"
     kind = "setup" if result.setup else f"{result.checks} checks"
     print(f"  [{result.index:2}] {mark} {result.call} ({kind}, {result.seconds:.1f} s)")
     for failure in result.failures:
-        print(f"         - {failure}")
+        print(f"         - {public_failure(failure) if public else failure}")
+
+
+def _public_echo(result: StepResult) -> None:
+    _echo(result, public=True)
 
 
 async def run_scenario(
-    session, path: Path, *, workspace: Path, run_id: str, build
+    session, path: Path, *, workspace: Path, run_id: str, build, public: bool = False
 ) -> tuple[dict, dict]:
-    """Run one scenario: ``(evidence, details)``, the committed proof and its run-log entry."""
+    """Run one scenario: ``(evidence, details)``, the committed proof and its run-log entry.
+    ``public`` (``verify``): the console shows each failure in public terms only
+    (:func:`public_failure`) and cleanup problems as a count."""
     data = load_scenario(path)
     domain = path.parent.name
     run_dir = workspace / "smoke" / run_id
@@ -680,14 +871,20 @@ async def run_scenario(
     before = await loaded_parts(session)
     try:
         steps = await run_steps(
-            session, data["steps"], special, label=f"{domain}/{path.stem}", echo=_echo
+            session,
+            data["steps"],
+            special,
+            label=f"{domain}/{path.stem}",
+            echo=_public_echo if public else _echo,
         )
     finally:
         # Keep NX fast: close what the scenario loaded, even when a step failed.
         cleanup = await close_new_parts(
             session, before, data.get("cleanup", "close"), own_dir=run_dir, workspace=workspace
         )
-    for message in cleanup.get("failed", []):
+    if public and cleanup.get("failed"):
+        print(f"  cleanup: {len(cleanup['failed'])} scenario part(s) could not be closed")
+    for message in [] if public else cleanup.get("failed", []):
         print(f"  cleanup: {message}")
     finished = utc_now()
     passed = len(steps) == len(data["steps"]) and all(s.passed for s in steps)
@@ -922,12 +1119,18 @@ def same_proof(path: Path, record: dict) -> bool:
     return bool(proof(existing) == proof(record))
 
 
-def write_evidence(record: dict, root: Path = EVIDENCE) -> tuple[Path, bool]:
-    """Passing runs replace ``<name>.json``; a failing run is kept beside it.
+def write_evidence(record: dict, root: Path = EVIDENCE) -> tuple[Path | None, bool]:
+    """Passing runs replace ``<name>.json``; a failing run is kept beside it, in public
+    terms only (:func:`scrub_record`). A run NX refused a licence in is not written at
+    all (``(None, False)``): a failure record would tell which licences this seat lacks.
 
     Write-if-changed: a file equal to ``record`` in everything but ``recorded`` stays
     untouched, so an unchanged re-run yields no diff. Returns ``(path, changed)``.
     """
+    clean = scrub_record(record)
+    if clean is None:
+        return None, False
+    record = clean
     folder = root / record["nx_version"] / record["domain"]
     folder.mkdir(parents=True, exist_ok=True)
     name = Path(record["scenario"]).stem
@@ -1002,12 +1205,16 @@ async def run(
                     session, path, workspace=workspace, run_id=run_id, build=build
                 )
                 written, changed = write_evidence(record, evidence_root)
-                details.update(evidence=relative(written), evidence_changed=changed)
+                where = relative(written) if written else None
+                details.update(evidence=where, evidence_changed=changed)
                 log["scenarios"].append(details)
                 write_run_log(workspace, log)  # after each scenario: a crash keeps the rest
                 verdict = "PASS" if record["passed"] else "FAIL"
-                note = "" if changed else " (unchanged)"
-                print(f"  {verdict}: {record['checks']} checks -> {relative(written)}{note}")
+                if written is None:
+                    print(f"  {verdict}: NX refused a licence; no evidence written")
+                else:
+                    note = "" if changed else " (unchanged)"
+                    print(f"  {verdict}: {record['checks']} checks -> {where}{note}")
                 failed += not record["passed"]
             log["finished"] = utc_now()
             print(f"Run log: {write_run_log(workspace, log)}")
@@ -1063,6 +1270,199 @@ async def call(
 
 
 # ---------------------------------------------------------------------------
+# Verify: a volunteer's run on another NX build
+
+VERIFY_SUMMARY = Path(".nx-mcp") / "verify-last.json"  # under the workspace (nx_mcp.report)
+
+
+def needs_engineer(path: Path) -> bool:
+    """Whether a scenario plays the engineer (``nx_dev_python``: NX with NX_MCP_DEV=1)."""
+    return any(step["call"] == ENGINEER for step in load_scenario(path)["steps"])
+
+
+async def engineer_steps_available() -> bool:
+    """Whether NX runs development snippets (started with ``NX_MCP_DEV=1``): a snippet
+    that touches nothing."""
+    from nx_mcp.bridge import DescriptorBridgeClient
+
+    path = descriptor_path()
+    if path is None:
+        return False
+    try:
+        client = DescriptorBridgeClient(str(path))
+        await client.call("nx_dev_python", {"code": "result = None", "allow_no_part": True})
+    except Exception:
+        return False
+    return True
+
+
+def _failure_summary(record: dict) -> dict:
+    """``{scenario, codes, members}`` of a failed run, in public terms only."""
+    codes: set[str] = set()
+    members: set[str] = set()
+    for step in record.get("steps") or []:
+        error = step.get("error") or {}
+        if error.get("code"):
+            codes.add(str(error["code"]))
+        if error.get("member"):
+            members.add(str(error["member"]))
+    scenario = Path(record["scenario"])
+    out: dict[str, Any] = {
+        "scenario": f"{scenario.parent.name}/{scenario.stem}",
+        "codes": sorted(codes),
+    }
+    if members:
+        out["members"] = sorted(members)
+    return out
+
+
+def write_verify_summary(workspace: Path, summary: dict) -> Path:
+    """``<workspace>/.nx-mcp/verify-last.json``: the last verify's counts (field report)."""
+    path = Path(workspace) / VERIFY_SUMMARY
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_name(path.name + ".tmp")
+    temp.write_bytes(dump(summary))
+    os.replace(temp, path)
+    return path
+
+
+def read_verify_summary(workspace: Path) -> dict | None:
+    try:
+        data = json.loads((Path(workspace) / VERIFY_SUMMARY).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+async def verify(
+    names,
+    *,
+    workspace: Path,
+    owner: str,
+    evidence_root: Path = EVIDENCE,
+    out_dir: Path = core_evidence.EVIDENCE_DIR,
+) -> int:
+    """``verify``: every scenario (or those of ``names``) on the connected NX build, for a
+    volunteer on another NX build. Refuses to start beside parts it did not create (no
+    ``--beside-engineer``) or when NX MCP only reads there; holds the dev lock for the
+    whole run; writes evidence for the build in public terms only (a run NX refused a
+    licence in is skipped and never written), folds it, and prints the evidence files to
+    contribute and a summary. 0: all ran passed; 1: a scenario failed; 2: refused."""
+    paths = scenario_files(names)
+    for path in paths:
+        load_scenario(path)  # Format errors stop the run before NX is touched.
+    counts = {"passed": 0, "failed": 0, "license": 0, "development": 0}
+    failures: list[dict] = []
+    with DevLock(workspace, owner) as lock:
+        async with sidecar(workspace, caller_id(owner)) as session:
+            build, bridge = await bridge_status(session)
+            tested = bool(bridge.get("build_tested"))
+            print(f"NX {build[1]} ({build[0]}): {'tested' if tested else 'untested'} NX build")
+            if bridge.get("read_only"):
+                print(
+                    "REFUSED: NX MCP runs only read and view tools on this NX "
+                    "(NX_MCP_UNTESTED=read_only, or NX's undo self-test failed). Unset "
+                    "NX_MCP_UNTESTED for NX and restart it; if the self-test failed, send "
+                    "the field report instead (python -m nx_mcp.report)."
+                )
+                return 2
+            blocking = blocking_parts(await loaded_parts(session), workspace)
+            if blocking:
+                print(
+                    f"REFUSED: {len(blocking)} part(s) are loaded in NX that verify did not "
+                    "create. Save and close every part in NX (or start NX again), then "
+                    "run verify again."
+                )
+                return 2
+            engineer_ok = True
+            if any(needs_engineer(p) for p in paths):
+                engineer_ok = await engineer_steps_available()
+                if not engineer_ok:
+                    print(
+                        "Note: scenarios that play the engineer need NX started with "
+                        "NX_MCP_DEV=1; they are skipped."
+                    )
+            run_id = time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
+            log: dict[str, Any] = {
+                "run_id": run_id,
+                "owner": owner,
+                "command": "verify",
+                "commit": commit_sha(),
+                "nx_version": build[0],
+                "nx_build": build[1],
+                "started": utc_now(),
+                "finished": None,
+                "scenarios": [],
+            }
+            aborted = False
+            for path in paths:
+                try:
+                    lock.refresh()
+                except LockLost as error:
+                    print(f"ABORTED before {relative(path)}: {error}")
+                    aborted = True
+                    break
+                print(f"{relative(path)}")
+                if not engineer_ok and needs_engineer(path):
+                    counts["development"] += 1
+                    print("  SKIPPED: needs NX started with NX_MCP_DEV=1")
+                    continue
+                if blocking_parts(await loaded_parts(session), workspace):
+                    print("  ABORTED: a part verify did not create was loaded meanwhile")
+                    aborted = True
+                    break
+                record, details = await run_scenario(
+                    session, path, workspace=workspace, run_id=run_id, build=build, public=True
+                )
+                written, _ = write_evidence(record, evidence_root)
+                details.update(evidence=relative(written) if written else None)
+                log["scenarios"].append(details)
+                write_run_log(workspace, log)  # after each scenario: a crash keeps the rest
+                if record["passed"]:
+                    counts["passed"] += 1
+                    print(f"  PASS: {record['checks']} checks")
+                elif written is None:
+                    counts["license"] += 1
+                    print("  SKIPPED: NX refused a licence (nothing recorded)")
+                else:
+                    counts["failed"] += 1
+                    failures.append(_failure_summary(scrub_record(record) or record))
+                    print(f"  FAIL: {', '.join(failures[-1]['codes']) or 'checks failed'}")
+            log["finished"] = utc_now()
+            write_run_log(workspace, log)
+    _, problems = fold(evidence_root, out_dir)
+    # Only what this run wrote: the files to include in a contribution.
+    files = sorted({str(d["evidence"]) for d in log.get("scenarios", []) if d.get("evidence")})
+    skipped = counts["license"] + counts["development"]
+    summary = {
+        "format": 1,
+        "nx_version": build[0],
+        "nx_build": build[1],
+        "build_tested": tested,
+        "finished": utc_now(),
+        "complete": not aborted,
+        "scenarios": len(paths),
+        "passed": counts["passed"],
+        "failed": counts["failed"],
+        "skipped": skipped,
+        "failed_scenarios": failures,
+    }
+    write_verify_summary(workspace, summary)
+    if problems:
+        print(f"Fold: {len(problems)} evidence file(s) of a changed scenario were left out")
+    print(f"Files to include in a contribution ({len(files)}):")
+    for name in files:
+        print(f"  {name}")
+    print(
+        f"Summary: {counts['passed']} passed, {counts['failed']} failed, {skipped} skipped "
+        f"({counts['license']} NX refused a licence, {counts['development']} need "
+        f"NX_MCP_DEV=1) of {len(paths)} scenarios on NX {build[1]}"
+        + ("; ABORTED before the end" if aborted else "")
+    )
+    return 1 if counts["failed"] or aborted else 0
+
+
+# ---------------------------------------------------------------------------
 # Fold
 
 
@@ -1109,6 +1509,7 @@ def fold(
                     checks=record["checks"],
                     recorded=record["recorded"],
                     directory=temp,
+                    nx_build=record.get("nx_build"),
                 )
         out_dir.mkdir(parents=True, exist_ok=True)
         written = {p.name for p in Path(temp).glob("*.json")}
@@ -1141,12 +1542,20 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="run while the engineer's own parts are loaded (never touched)",
     )
+    verify_parser = sub.add_parser(
+        "verify",
+        help="run every scenario (or the given domains) on this NX build for a contribution",
+    )
+    verify_parser.add_argument("scenarios", nargs="*", help="domain, domain/name or file (all)")
+    verify_parser.add_argument(
+        "--evidence", type=Path, default=EVIDENCE, help="evidence root (acceptance/evidence)"
+    )
     call_parser = sub.add_parser("call", help="run ad-hoc steps (no evidence)")
     call_parser.add_argument("file", nargs="?", help="JSON list of steps")
     call_parser.add_argument("--inline", help="JSON list of steps")
     call_parser.add_argument("--limit", type=int, default=600, help="characters per result")
     call_parser.add_argument("--keep", action="store_true", help="leave new parts loaded")
-    for p in (run_parser, call_parser):
+    for p in (run_parser, verify_parser, call_parser):
         p.add_argument(
             "--owner", required=True, help="dev_lock.py owner, also the caller identity in NX"
         )
@@ -1154,6 +1563,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("fold", help="build src/nx_mcp/evidence/<domain>.json from evidence files")
     args = parser.parse_args(argv)
     if args.command == "fold":
+        for change in scrub_failure_records(EVIDENCE):
+            print(change)
         folded, problems = fold()
         for tool, builds in sorted(folded.items()):
             for build, entry in sorted(builds.items()):
@@ -1172,6 +1583,15 @@ def main(argv: list[str] | None = None) -> int:
                 owner=args.owner,
                 evidence_root=args.evidence.resolve(),
                 beside_engineer=args.beside_engineer,
+            )
+        )
+    if args.command == "verify":
+        return asyncio.run(
+            verify(
+                args.scenarios,
+                workspace=workspace,
+                owner=args.owner,
+                evidence_root=args.evidence.resolve(),
             )
         )
     if bool(args.file) == bool(args.inline):

@@ -101,10 +101,10 @@ def point_gap(tx, obj, point) -> float | None:
 FREEFORM_LICENSE = "nx_freeform_1"  # basic freeform: offset surface, N-sided, ruled
 
 
-def licensed(tx, feature: str = FREEFORM_LICENSE) -> None:
-    """``NX_LICENSE_UNAVAILABLE`` before any builder when the seat lacks ``feature``
-    (``kit.licenses``; NX cannot tell: the builder decides)."""
-    licenses.require(tx, (feature,), f"This NX seat has no {feature} license for this command")
+def licensed(tx, feature: str = FREEFORM_LICENSE):
+    """The context of NX work that needs ``feature``: NX's license refusal inside becomes
+    ``NX_LICENSE_UNAVAILABLE`` naming it (``kit.licenses.attempt``)."""
+    return licenses.attempt(tx, (feature,))
 
 
 def explain(error: NXError, hint: str, **details) -> NXError:

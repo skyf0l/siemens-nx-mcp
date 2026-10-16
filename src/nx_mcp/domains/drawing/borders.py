@@ -202,10 +202,9 @@ def nx_set_sheet_borders(
         target = sheet_of(tx, sheet, "/sheet") if sheet is not None else open_or_only_sheet(tx)
         length, height = drawing.size(target)
         _check_values(zone_size, margins, border_width, length, height)
-    licenses.require(tx, ("drafting",), "Borders and zones need a drafting license")
     D = tx.nx.Drawings
     collection = tx.part.Drafting.BordersAndZonesObjects
-    with drawing.on_sheet(tx, target) as sh:
+    with licenses.attempt(tx, ("drafting",)), drawing.on_sheet(tx, target) as sh:
         existing = _existing(target)
         if existing is None:  # a new frame: omitted switches are on
             borders = True if borders is None else borders

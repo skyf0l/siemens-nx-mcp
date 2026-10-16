@@ -189,8 +189,10 @@ def nx_create_assembly_cut(
     tool_items = [(c, found) for name, c, found in chosen if name == "tools"]
     before = [measure.volume(tx, found) for _c, found in target_items]
     part = tx.part
-    licenses.require(tx, ("solid_modeling",), "Assembly Cut needs a solid modeling license")
-    with builders.build(tx, part.Features.CreateAssemblyCutBuilder, None) as b:
+    with (
+        licenses.attempt(tx, ("solid_modeling",)),
+        builders.build(tx, part.Features.CreateAssemblyCutBuilder, None) as b,
+    ):
         with native(default="NX_BUILD_FAILED"):
             b.TargetBody.Add([body for _c, found in target_items for body in found])
             b.ToolBody.Add([body for _c, found in tool_items for body in found])

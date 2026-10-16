@@ -162,11 +162,10 @@ def nx_create_part_family_table(
         columns, members = family_rows(tx, part)
         target = sheet_of(tx, sheet, "/sheet") if sheet is not None else open_or_only_sheet(tx)
         on_sheet_point(target, origin, "/origin")  # a table off the sheet is refused
-    licenses.require(tx, ("drafting",), "Part family tables need a drafting license")
     A = tx.nx.Annotations
     factory = part.Annotations.PartFamilyTables.CreatePartFamilyTableBuilder
     before = _sections(part)
-    with drawing.on_sheet(tx, target, part) as sh:
+    with licenses.attempt(tx, ("drafting",)), drawing.on_sheet(tx, target, part) as sh:
         with builders.build(tx, factory, A.Table.Null) as b:
             set_origin(tx, b.Origin, sh, origin)
             table = commit(b, "part family table")

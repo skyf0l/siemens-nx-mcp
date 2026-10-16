@@ -33,7 +33,7 @@ from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Angle, Doc, PathTo, RefTo, SheetLength, SheetPoint
 from nx_mcp.domains.drawing.common import SheetArg, open_or_only_sheet, sheet_of, update
-from nx_mcp.kit import builders, drawing, files, licenses, readback, result, select
+from nx_mcp.kit import builders, drawing, files, readback, result, select
 
 SUFFIXES = (".png", ".jpg", ".jpeg", ".tif", ".tiff")
 FORMATS = {".png": "png", ".jpg": "jpg", ".jpeg": "jpg", ".tif": "tif", ".tiff": "tif"}
@@ -384,7 +384,6 @@ def nx_set_sheet_image(
         before = {int(i.Tag) for i in tx.part.Annotations.DraftingImages}
         plan = _plan(tx, path, image, sheet, position, anchor, width, height, rotation,
                      lock_aspect)  # fmt: skip
-    licenses.require(tx, ("drafting",), "Sheet images need a drafting license")
     with drawing.on_sheet(tx, plan["sheet"]) as sh:
         made = _commit(tx, plan, sh)
         update(tx)

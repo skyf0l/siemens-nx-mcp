@@ -18,15 +18,16 @@ authenticated loopback bridge. Design of record: `docs/design/architecture.md`
 - `kit/`: shared NX know-how, one module per subject (architecture.md 1.4): analysis_objects,
   args, bodies, builders, capture, curve, deform, display, drawing, explode, expr, facts,
   features, files, geom, kinematics, licenses, massprops, measure, model, parts, pose,
-  positioning, readback, result, select, sketch, snapshots, surface, switching, units.
+  positioning, readback, records, result, select, selftest, sketch, snapshots, surface,
+  switching, units.
 - `domains/<domain>/`: every public tool, one `@tool` function each (session,
   parts_files, sketch, modeling, freeform, assembly, motion, inspection, drawing,
   sheet_metal, display, optimization).
 - `host/dispatch.py` -> `core/kernel.py`, with `host/services.py` (`NXServices`),
   `host/quiet.py` (no NX prompts), `host/dialogs.py` (modal dialogs) and
   `host/heartbeat.py` (NX-free: the sidecar's view of a busy or hung NX).
-  Hosts: `nx_app/startup/nx_mcp_startup.py` (NX 2406 startup app; `nx_app/journals/start_2406.py`
-  plays the same bootstrap), `nx_app/journals/start_2606.py` (2606),
+  Hosts: `nx_app/startup/nx_mcp_startup.py` (startup app, any NX build; `nx_app/journals/start.py`
+  plays the same bootstrap, `start_2406.py`/`start_2606.py` are shims for it),
   `nx_app/journals/start_batch.py` (batch, `nx_bridge.py`); `interactive.py` is the
   UI-thread host and panel. Workspace: `NX_MCP_WORKSPACE`, else `<home>/NX_MCP_WORKSPACE`
   (`workspace.default_workspace()`); NX and the sidecar must use the same one.
@@ -68,20 +69,26 @@ authenticated loopback bridge. Design of record: `docs/design/architecture.md`
 - Files go through the workspace checks on both process boundaries.
 - Live NX: hold the dev lock, use disposable parts under `<workspace>/smoke/<agent>/`,
   close the parts you created when done. Never modify, save or close parts you did
-  not create, and never touch `.nx-mcp/ui-stop` or `.nx-mcp/dev-exit`.
+  not create, and never touch `.nx-mcp/ui-stop` or `.nx-mcp/dev-exit`. `NX_MCP_DEV=1`
+  keeps the part-ownership gate on: catalogue tools refuse the engineer's parts
+  (`NX_PART_NOT_GRANTED`, `NX_ENGINEER_PART`) unless they ticked the panel checkbox;
+  `nx_dev_python` acts outside the gate, so never point it at their parts.
 - Panel modes: Auto (default, also in development) and Ask me first. Only the engineer
   changes the mode (no tool does); never click the panel or NX dialogs.
 - No git commands or package installs unless asked; lint only your own files.
 
-## NX 2406 host
+## NX host (2406 tested, any build)
 
-NX 2406 runs the host as the startup application `nx_app/startup/nx_mcp_startup.py`;
+NX runs the host as the startup application `nx_app/startup/nx_mcp_startup.py`;
 its first line `# nx: threaded` keeps it loaded for the session and a UI-thread timer
 ticks the host. Keep that line first. In an NX started without `nx_app`, play
-`nx_app/journals/start_2406.py`: also `# nx: threaded` first (NX then runs it in its
-main interpreter, which outlives the journal; without the line it runs in a
-sub-interpreter unloaded on return), it calls the same bootstrap's `play()` and only
-reports "already running" when the startup app or an earlier play hosts the bridge.
+`nx_app/journals/start.py` (`start_2406.py` and `start_2606.py` run it): also
+`# nx: threaded` first (NX then runs it in its main interpreter, which outlives the
+journal; without the line it runs in a sub-interpreter unloaded on return). It prints
+the NX build (tested or not), Python (3.10+ required, older refused) and missing NXOpen
+namespaces, then calls the same bootstrap's `play()`, which only reports "already
+running" when the startup app or an earlier play hosts the bridge, in this interpreter
+or another (a process-wide named marker: never two hosts in one NX).
 The bootstrap imports the NXOpen namespaces tools use once at start
 (`interactive.NXOPEN_NAMESPACES`); a tool needing another namespace asks the orchestrator
 to add it. Never hold NX's main loop in a long-running journal: NX work that needs the loop
@@ -91,7 +98,7 @@ journals did exactly that and were removed).
 ## Live NX development loop
 
 ```powershell
-python scripts/dev_start_nx.py --user-dir nx_app --env NX_MCP_DEV=1   # start NX 2406 (cwd <workspace>/.nx-mcp/nx-cwd)
+python scripts/dev_start_nx.py --user-dir nx_app --env NX_MCP_DEV=1   # start NX (found, or --nx-root; cwd <workspace>/.nx-mcp/nx-cwd)
 python scripts/dev_lock.py acquire --owner <agent>                    # before any NX use
 python scripts/dev_lock.py refresh --owner <agent>                    # while you hold it (or acquire again)
 python scripts/dev_reload.py --owner <agent> --wait-ready  # reload host code; exit 1 prints the traceback
@@ -99,6 +106,7 @@ python -m nx_mcp.acceptance run <domain>[/<name>] --owner <agent>     # replay s
 python -m nx_mcp.acceptance run <domain> --beside-engineer --owner <agent>  # with engineer parts loaded
 python -m nx_mcp.acceptance call --inline '[...]' --owner <agent>     # ad-hoc calls, no evidence
 python scripts/dev_python.py --owner <agent> "print(dir(NXOpen.Features.HoleFeatureBuilder))"  # probe NXOpen
+python -m nx_mcp.acceptance verify [<domain>...] --owner <agent>  # a volunteer's run on another NX build
 python -m nx_mcp.acceptance fold                 # rebuild src/nx_mcp/evidence/*.json
 python scripts/dev_lock.py release --owner <agent>
 ```
@@ -111,7 +119,13 @@ python scripts/dev_lock.py release --owner <agent>
   `acquire` gives up (exit 3) when a process that started it exits.
 - One owner, one caller: every `run` and `call` with the same `--owner` presents the
   caller id `dev-<owner>` to NX, so parts one call created are yours in the next
-  (close them without `force`).
+  (close them without `force`). A part the engineer allowed on the panel stays allowed
+  across `dev_reload` (same NX process, tag and file).
+- Failure records (`*.last-failure.json`) keep error codes, check paths and numbers
+  only; a run NX refused a licence in writes no evidence (`fold` rewrites older ones).
+  `verify` is `run` for volunteers on another NX build: no `--beside-engineer`, licence
+  refusals skipped, then a fold and the evidence files to contribute;
+  `python -m nx_mcp.report` writes their field report.
 - `dev_reload.py` and `dev_python.py` run only for the lock holder (`--owner`, exit 3
   otherwise, NX untouched); `--force-unlocked` (a warning) is for the orchestrator when no
   agent uses NX.

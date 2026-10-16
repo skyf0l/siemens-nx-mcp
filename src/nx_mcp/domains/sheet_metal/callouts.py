@@ -23,7 +23,7 @@ from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import BodyRef, Doc, FaceRef, Items, Point3
 from nx_mcp.domains.sheet_metal import common
-from nx_mcp.kit import builders, drawing, geom, model, readback, result, select
+from nx_mcp.kit import builders, drawing, geom, model, readback, records, result, select
 
 MANAGED = "NX_MCP_MEASURED_PMI_V1"
 KINDS = {"body": "Body", "bend": "Bend"}
@@ -138,7 +138,7 @@ def nx_create_sheet_metal_callout(
             "position": [float(v) for v in position],
         }
         for value in values:
-            value.SetAttribute(MANAGED, json.dumps(record, sort_keys=True))
+            records.set_json(tx, value, MANAGED, record, sort_keys=True)
     model.update(tx)
     return {
         "annotations": [tx.ref(v, "annotation") for v in values],
@@ -208,7 +208,7 @@ def refresh_callouts(tx, objects):
     for obj in _managed(tx, part):
         if wanted is not None and int(obj.Tag) not in wanted:
             continue
-        raw = obj.GetStringAttribute(MANAGED)
+        raw = records.get_text(tx, obj, MANAGED)
         if raw == "disabled":
             continue
         record = json.loads(raw)
@@ -219,8 +219,8 @@ def refresh_callouts(tx, objects):
         text = lines(record["kind"], measured, tx.units.get("length") or "", True)
         position = geom.xyz(obj.AnnotationOrigin)
         for value in _commit(tx, obj, record["kind"], body, faces, text, position):
-            value.SetAttribute(MANAGED, json.dumps({**record, "measured": measured},
-                                                   sort_keys=True))  # fmt: skip
+            records.set_json(tx, value, MANAGED, {**record, "measured": measured},
+                             sort_keys=True)  # fmt: skip
             out.append(tx.ref(value, "annotation"))
         tx.checkpoint()
     return out

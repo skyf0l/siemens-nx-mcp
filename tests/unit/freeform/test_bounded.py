@@ -4,7 +4,16 @@ import pytest
 
 from tests.kit import run
 from tests.kit.fake import FakeSection
-from tests.unit.freeform.fakes import curve, edge, face, flat, freeform_nx, made, sheet
+from tests.unit.freeform.fakes import (
+    curve,
+    edge,
+    face,
+    flat,
+    freeform_nx,
+    made,
+    nx_refuses,
+    sheet,
+)
 
 RECT = [[0, 0, 0], [40, 0, 0], [40, 20, 0], [0, 20, 0]]
 
@@ -45,7 +54,7 @@ def test_bounded_plane_fills_a_closed_loop():
     assert ok.ok, ok
     b = nx.last("BoundedPlaneBuilder")
     assert b.BoundingCurves.rules == [("CurveDumb", loop[::-1])]
-    assert nx.license_queries == ["nx_freeform_1"]
+    assert nx.license_queries == []  # NX decides: never asked first
     assert ok.data["loops"] == 1 and ok.data["area"] == pytest.approx(800)
     assert [abs(v) for v in ok.data["normal"]] == pytest.approx([0, 0, 1])
     assert ok.data["gap"] == pytest.approx(0) and ok.data["sheet"] is True
@@ -82,11 +91,14 @@ def test_bounded_plane_refuses_a_repeated_curve():
     assert bad.error["field"] == "/boundary" and not nx.builders
 
 
-def test_bounded_plane_without_license_refuses_before_the_builder():
+def test_bounded_plane_without_license_reports_nx_refusal_naming_the_license():
     nx = bounded_nx()
-    nx.licenses["nx_freeform_1"] = False
+    nx_refuses(nx, "BoundedPlaneBuilder", "nx_freeform_1")
     bad = run(nx, "nx_create_bounded_plane", boundary=[c.ref for c in rect_curves(nx)])
-    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and not nx.builders
+    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and bad.error["nx_code"] == 948801
+    assert bad.error["details"]["license"] == "nx_freeform_1"
+    assert bad.error["details"]["license_check"] == "missing" and nx.live_builders == 0
+    assert nx.builders  # NX was asked: the license server's answer is only a note
 
 
 def test_bounded_plane_that_misses_the_boundary_rolls_back():

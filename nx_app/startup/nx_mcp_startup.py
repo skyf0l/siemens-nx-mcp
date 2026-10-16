@@ -1,10 +1,10 @@
 # nx: threaded
-"""NX MCP bridge bootstrap for NX 2406: a startup application and a playable journal.
+"""NX MCP bridge bootstrap: a startup application and a playable journal, any NX build.
 
 NX loads this file at launch from <dir>/startup for every <dir> it scans for
 applications (UGII_USER_DIR, UGII_SITE_DIR, or an entry in custom_dirs.dat) and
-calls startup(). nx_app/journals/start_2406.py, played in any graphical NX,
-imports this file and calls play() instead. The "# nx: threaded" flag on line 1
+calls startup(). nx_app/journals/start.py, played in any graphical NX, imports
+this file, prints environment() and calls play() instead. The "# nx: threaded" flag on line 1
 (of this file and of the journal) makes NX run the code in its main Python
 interpreter, which stays loaded for the whole NX session; a journal without it
 runs in a sub-interpreter that NX unloads when the journal returns. A timer on a
@@ -12,7 +12,9 @@ hidden window ticks the bridge host on NX's UI thread between NX commands, so
 NX's main loop is never blocked: no journal keeps running, there is no "Work in
 Progress" window, and first-time NX work (the Modeling application, the PDF
 exporter) cannot deadlock. One bootstrap per NX process: both entry points share
-sys.modules["nx_mcp_startup"], so a second play only reports the running host.
+sys.modules["nx_mcp_startup"], so a second play only reports the running host; a
+copy loaded in another interpreter of the same NX (sys.modules is per interpreter)
+finds the process-wide marker armed() creates and does not start a second bridge.
 
 Environment:
   NX_MCP_WORKSPACE     workspace shared with the MCP sidecar (default <home>/NX_MCP_WORKSPACE,
@@ -53,6 +55,10 @@ TICK_MS = 50
 RESTART_ATTEMPTS = 5  # Per reload request; then the request is dropped.
 RESTART_BACKOFF_MAX = 8.0  # Seconds between attempts after a failed restart.
 MODULE_NAME = "nx_mcp_startup"  # Where a played journal finds the running bootstrap.
+MINIMUM_PYTHON = (3, 10)  # pyproject.toml requires-python; NX's own Python must match.
+# A named kernel object exists once per NX process, whatever interpreter created it,
+# and disappears with the process: the process-wide "a bootstrap is armed here" mark.
+MARKER = f"Local\\NxMcpBootstrap-{os.getpid()}"
 
 state = {
     "restart_failures": 0,
@@ -65,6 +71,7 @@ state = {
     "keep": [],  # This module's own native delegates.
     "busy": False,
     "loader": None,  # "startup app" or "journal": what armed this bootstrap.
+    "marker": None,  # Handle of the process-wide MARKER this bootstrap created.
 }
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -176,6 +183,91 @@ def foreign_bootstrap_window():
     return bool(hwnd) and hwnd != state.get("hwnd")
 
 
+def create_marker():
+    """Create this process's marker (kept open until NX exits); None when unsupported."""
+    try:
+        import _winapi
+
+        return _winapi.CreateFileMapping(
+            _winapi.INVALID_HANDLE_VALUE, 0, _winapi.PAGE_READWRITE, 0, 8, MARKER
+        )
+    except (ImportError, OSError, AttributeError):
+        return None
+
+
+def marker_exists():
+    """True when some bootstrap in this NX process, in any interpreter, armed itself."""
+    try:
+        import _winapi
+
+        handle = _winapi.OpenFileMapping(_winapi.FILE_MAP_READ, False, MARKER)
+    except (ImportError, OSError, AttributeError):
+        return False
+    _winapi.CloseHandle(handle)
+    return True
+
+
+def foreign_bootstrap():
+    """True when a bootstrap this state does not know armed itself in this NX process:
+    one loaded in another (sub-)interpreter, where sys.modules is not shared."""
+    if state["armed"]:
+        return False
+    return marker_exists() or foreign_bootstrap_window()
+
+
+def python_problem(version=None):
+    """Why this Python cannot host NX MCP, or None."""
+    version = tuple(version or sys.version_info)
+    if version[:2] >= MINIMUM_PYTHON:
+        return None
+    minimum = ".".join(str(part) for part in MINIMUM_PYTHON)
+    found = ".".join(str(part) for part in version[:3])
+    return (
+        f"NX MCP needs Python {minimum} or newer; this NX runs Python {found}. "
+        f"Use an NX release whose Python is {minimum} or newer (support policy: README.md)."
+    )
+
+
+def environment():
+    """Lines a played journal prints first: NX build, Python, NXOpen namespaces.
+
+    Never raises: what cannot be found is reported as such."""
+    lines = []
+    try:
+        if str(SRC) not in sys.path:
+            sys.path.insert(0, str(SRC))
+        import NXOpen
+
+        from nx_mcp.core import evidence
+        from nx_mcp.nx_bridge import detect_nx_version
+
+        build = detect_nx_version(NXOpen.Session.GetSession())
+        key = evidence.build_key(build)
+        tested = {b for builds in evidence.load().values() for b in builds}
+        if key in tested:
+            status = "tested"
+        else:
+            status = "not tested by NX MCP: see the support policy in README.md"
+        lines.append(f"NX build: {build} ({key or 'build key unknown'}, {status})")
+    except Exception as exc:
+        lines.append(f"NX build: unknown ({type(exc).__name__}: {exc})")
+    lines.append(f"Python: {sys.version.split()[0]}")
+    try:
+        interactive = importlib.import_module("nx_mcp.interactive")
+        missing = interactive.import_nxopen_namespaces()
+        total = len(interactive.NXOPEN_NAMESPACES)
+        if missing:
+            lines.append(
+                f"NXOpen namespaces: {total - len(missing)} of {total} imported; missing "
+                f"(tools that need them fail on this build): {'; '.join(missing)}"
+            )
+        else:
+            lines.append(f"NXOpen namespaces: all {total} imported")
+    except Exception as exc:
+        lines.append(f"NXOpen namespaces: not checked ({type(exc).__name__}: {exc})")
+    return lines
+
+
 def panel_windows():
     return [hwnd for hwnd, name in process_windows(visible=False) if name.startswith("NxMcpPanel")]
 
@@ -198,6 +290,9 @@ def start_host():
     state["generation"] += 1
     RESTART_FILE.unlink(missing_ok=True)
     try:
+        problem = python_problem()
+        if problem:
+            raise RuntimeError(problem)
         purge_nx_mcp()
         if str(SRC) not in sys.path:
             sys.path.insert(0, str(SRC))
@@ -295,6 +390,7 @@ def arm(loader):
         return
     state["armed"] = True
     state["loader"] = loader
+    state["marker"] = create_marker()  # Never closed: marks this NX process until it exits.
     proc = WNDPROC(window_proc)
     cls = WNDCLASS()
     cls.lpfnWndProc = proc
@@ -312,7 +408,7 @@ def arm(loader):
 def register():
     """Make this bootstrap sys.modules["nx_mcp_startup"], whatever name NX loaded it under.
 
-    A played start_2406.py runs in the same (main) interpreter and imports that
+    A played start.py runs in the same (main) interpreter and imports that
     name, so it finds the running bootstrap instead of starting a second bridge.
     The alias shares this module's functions and state."""
     if __name__ == MODULE_NAME or MODULE_NAME in sys.modules:
@@ -326,7 +422,8 @@ def startup(*_):
     """Entry point NX calls for applications in a startup folder."""
     try:
         register()
-        arm("startup app")
+        if not foreign_bootstrap():  # A copy in another interpreter already hosts.
+            arm("startup app")
     except BaseException:
         with contextlib.suppress(OSError):
             STATE_DIR.mkdir(parents=True, exist_ok=True)
@@ -350,18 +447,23 @@ def already_running(host):
 
 
 def play():
-    """Entry point of the played journal nx_app/journals/start_2406.py.
+    """Entry point of the played journal nx_app/journals/start.py.
 
     Starts the bridge host and panel now (NX's main window exists when a journal
     is played) and arms the timer that ticks it after the journal returns. When
     a host already runs in this NX, from the startup app or an earlier play, it
-    only reports that and shows the panel. A host stopped from its panel is
-    started again. Returns the line the journal prints; raises RuntimeError when
-    the host cannot start (traceback in <workspace>/.nx-mcp/resident-error.txt)."""
+    only reports that and shows the panel; so it does when a copy of this
+    bootstrap in another interpreter of this NX process armed itself. A host
+    stopped from its panel is started again. Returns the line the journal prints;
+    raises RuntimeError when NX's Python is too old or the host cannot start
+    (traceback in <workspace>/.nx-mcp/resident-error.txt)."""
+    problem = python_problem()
+    if problem:
+        raise RuntimeError(problem)
     host = running_host()
     if host is not None:
         return already_running(host)
-    if not state["armed"] and foreign_bootstrap_window():
+    if foreign_bootstrap():
         # A bootstrap this module cannot reach (another interpreter) owns the bridge.
         for hwnd in panel_windows():
             show_window(hwnd)

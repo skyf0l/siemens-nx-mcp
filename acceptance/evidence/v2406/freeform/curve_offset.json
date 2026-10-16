@@ -13,9 +13,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_offset_curve": "c32e0245afc432b4717616ed01662c9fc4c06d2c0e1e10cd70d126fb4bfd5aaa"
+    "nx_create_offset_curve": "b16cdbd71e99d9293091d8c0e0ad408760a55c18ce5dea4fdb4746b41102043e"
   },
-  "recorded": "2026-10-15T10:59:49Z",
+  "recorded": "2026-10-16T13:14:50Z",
   "passed": true,
   "checks": 35,
   "failed_checks": 0,

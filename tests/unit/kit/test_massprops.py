@@ -1,5 +1,5 @@
 """kit.massprops: mass combination, reference frames, poses, UF Weight assertions,
-component groups and the license check (no NX)."""
+component groups and their license refusal (no NX)."""
 
 from types import SimpleNamespace as NS
 
@@ -102,12 +102,22 @@ def test_assert_read_and_clear_weights():
     assert mp.asserted(_tx(), obj) is None  # no UF Weight: nothing asserted
 
 
-def test_license_check_refuses_before_any_change():
-    mp.require_license(_tx(present=True))
+def test_a_refused_assertion_names_the_license_and_is_never_asked_first():
+    class Refused(_Weight):
+        def AssertCompProps(self, tag, props):
+            error = Exception("License Error, its token feature does not exist.")
+            error.ErrorCode = 948801  # type: ignore[attr-defined]
+            raise error
+
+    tx = _tx(Refused(), present=False)
     with pytest.raises(NXError) as missing:
-        mp.require_license(_tx(present=False), what="Groups")
+        mp.assert_weight(tx, Object("ENGINE"), "occurrence", 350)
     assert missing.value.code == "NX_LICENSE_UNAVAILABLE"
-    mp.require_license(NS(session=NS()))  # no license manager: NX decides
+    assert missing.value.details["license"] == mp.ADV_ASSEMBLIES
+    assert missing.value.details["license_check"] == "missing"
+    weight = _Weight()
+    mp.assert_weight(_tx(weight, present=False), Object("PUMP"), "occurrence", 5)
+    assert weight.calls  # the license server's answer never stops NX's own check
 
 
 def test_groups_skip_system_groups_and_the_root():

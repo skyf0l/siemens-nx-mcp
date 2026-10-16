@@ -46,6 +46,7 @@ def test_body_callout_writes_the_measured_thickness_and_a_managed_record():
     ]
     assert b.AssociatedObjects.Nxobjects.Add.calls[0][0][0] == [body]
     record = json.loads(made[0].attributes[MANAGED])
+    assert made[0].attribute_updates == [("SetUserAttribute", MANAGED, "now")]  # NX 8+ call
     assert record["kind"] == "body" and record["body"] == f"handle-{body.Tag}"
     assert record["measured"] == {"thickness": 2.0}
     assert ok.data["measured"] == {"thickness": 2.0} and ok.data["automatic"] is True

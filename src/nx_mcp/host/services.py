@@ -380,24 +380,30 @@ class NXServices(Services):
 
     def owns(self, part) -> bool:
         """Created or opened by the agent this session, or granted by the engineer."""
-        return self._held(self.owned_parts, part) or self._held(self.granted_parts, part)
+        return self._held(self.owned_parts, part) or self.granted(part)
 
     def created(self, part) -> bool:
         """Created or opened by the agent (not only granted)."""
         return self._held(self.owned_parts, part)
 
     def granted(self, part) -> bool:
+        """Granted by the engineer on the panel; a grant of an earlier host generation of
+        this NX process counts (``core/busy.adopt``), also before the first call."""
+        busy.adopt(self)
         return self._held(self.granted_parts, part)
 
     def own(self, part) -> None:
         self.owned_parts[self.part_key(part)] = _path_key(part)
 
     def grant(self, part) -> None:
-        """The engineer allowed the agent to change ``part`` (NX MCP panel)."""
+        """The engineer allowed the agent to change ``part`` (NX MCP panel). The grant is
+        written to part-owners.json so a host reload in the same NX process keeps it."""
         self.granted_parts[self.part_key(part)] = _path_key(part)
+        busy.persist(self)
 
     def revoke(self, part) -> None:
         self.granted_parts.pop(self.part_key(part), None)
+        busy.persist(self)
 
     def loaded(self) -> dict:
         """``{part_key: file identity}`` of every loaded part (input of :meth:`track`)."""
@@ -456,6 +462,12 @@ class NXServices(Services):
         return self.session.SetUndoMark(
             visibility.Visible if visible else visibility.Invisible, name
         )
+
+    def self_test(self, tx) -> dict:
+        """NX's undo self-test on an untested build (``kit.selftest``, gate 3)."""
+        from nx_mcp.kit import selftest
+
+        return selftest.run(tx)
 
     def newest_mark(self):
         """NX's newest undo mark of any visibility (a development snippet that changed

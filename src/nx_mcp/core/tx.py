@@ -39,8 +39,9 @@ NOT_GRANTED_HINT = (
 
 
 def check_owned(services, part, *, field: str | None = None) -> None:
-    """Gate 6: refuse to change ``part`` unless the agent owns it (off in development)."""
-    if part is None or services.dev or services.owns(part):
+    """Gate 6: refuse to change ``part`` unless the agent owns it. Always on, in
+    development mode (``NX_MCP_DEV=1``) too: the engineer's parts stay protected."""
+    if part is None or services.owns(part):
         return
     path = services.part_path(part)
     name = str(getattr(part, "Name", "") or path)
@@ -219,7 +220,7 @@ class Services:
     def part_activity(self) -> dict:
         """The live part table (``core/busy.py``): ``{"parts": {part_key: {at, tool,
         operation_id, loaded_at, changed_at, saved_at}}, "owners": {part_key: {caller}},
-        "adopted": bool, "persisted": rows last written to part-owners.json}``."""
+        "adopted": bool, "persisted": {parts, granted} last written to part-owners.json}``."""
         return self.__dict__.setdefault("_part_activity", {})
 
     def after_commit(self, spec) -> None: ...

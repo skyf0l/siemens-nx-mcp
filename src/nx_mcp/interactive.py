@@ -950,7 +950,7 @@ class InteractiveHost:
                 self.last_error = "Panel grant: " + str(exc)
 
     def grant_state(self):
-        """The grant checkbox for the work part (production only), or None."""
+        """The grant checkbox for the work part (development mode too), or None."""
         if self.running_method:
             return getattr(self.panel, "_grant", None)  # Keep it steady during a step.
         from nx_mcp.host.dispatch import grant_state
@@ -1146,6 +1146,9 @@ class InteractiveHost:
 
             summary = with_part(self.current_part, self.current_summary or self.running_method)
             lines = [head + _clip(summary, LINE_WIDTH - len(head) - len(tail)) + tail]
+            untested = self.untested_line()
+            if untested:
+                lines = [_clip(untested, LINE_WIDTH), *lines]
             alert = self.dialog_alert()
             if alert:
                 lines = [_clip(alert, LINE_WIDTH), *lines]
@@ -1176,7 +1179,27 @@ class InteractiveHost:
             idle = "·  Ask me first — agent steps wait for your OK here"
         else:
             idle = "·  Auto — you work in NX, agent steps run between your commands"
-        return self._with_history([self._notice_line() or idle])
+        untested = self.untested_line()
+        lines = [_clip(untested, LINE_WIDTH)] if untested else []
+        return self._with_history([*lines, self._notice_line() or idle])
+
+    def untested_line(self) -> str | None:
+        """The panel's line on an NX build NX MCP has no acceptance evidence for, else
+        None: agent steps run unverified (or may only read: ``NX_MCP_UNTESTED=read_only``
+        or a failed undo self-test)."""
+        try:
+            from nx_mcp.core import evidence
+            from nx_mcp.domains.session.status import read_only_reason
+
+            build = getattr(getattr(self, "services", None), "build", None)
+            if build is None or evidence.known_build(evidence.build_key(build)):
+                return None  # no NX services yet, or a tested build
+            shown = evidence.build_label(build)
+            if read_only_reason():
+                return f"⚠  {shown} is not yet tested with NX MCP: the agent may only read"
+            return f"⚠  {shown} is not yet tested with NX MCP: agent steps run unverified"
+        except Exception:
+            return None
 
     def panel_state(self):
         """Body text, window title, the checked mode and the request card's buttons."""
@@ -1193,6 +1216,8 @@ class InteractiveHost:
             title = f"{product} — {label} · agent waiting for you"
         else:
             title = f"{product} — {label}"
+        if self.untested_line():
+            title += " · untested NX build"
         # Only Ask me first holds calls for an answer: Auto never shows a card.
         card = "ask" if self.waiting_count and not self.requested_mode else None
         return self.panel_text(), title, self.requested_mode or self.mode, card

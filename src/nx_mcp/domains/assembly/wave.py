@@ -409,8 +409,9 @@ def _configure_link(tx, b, kind, occurrences, associative, at_timestamp):
     nx = tx.nx
     features = nx.Features
     b.Type = getattr(features.WaveLinkBuilder.Types, LINK_TYPES[kind])
-    b.option("Associative", associative)
-    b.option("FixAtCurrentTimestamp", at_timestamp)
+    # Requested values: set, never skipped (a build without them fails loudly).
+    b.Associative = associative
+    b.FixAtCurrentTimestamp = at_timestamp
     if kind in ("body", "face"):
         e = b.ExtractFaceBuilder
         e.ParentPart = features.ExtractFaceBuilder.ParentPartType.OtherPart
@@ -424,8 +425,7 @@ def _configure_link(tx, b, kind, occurrences, associative, at_timestamp):
     elif kind == "curve":
         c = b.CompositeCurveBuilder
         c.Associative = associative
-        if hasattr(c, "FixAtCurrentTimestamp"):
-            c.FixAtCurrentTimestamp = at_timestamp
+        c.FixAtCurrentTimestamp = at_timestamp
         builders.curve_section(tx, occurrences, into=c.Section)
     elif kind == "datum":
         d = b.WaveDatumBuilder

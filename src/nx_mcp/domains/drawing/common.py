@@ -11,7 +11,7 @@ from typing import Annotated
 
 from nx_mcp.core.errors import fail
 from nx_mcp.core.types import REF_PATTERN, Doc, Range, RefKind, Text
-from nx_mcp.kit import builders, drawing, facts, geom, parts, select, sketch
+from nx_mcp.kit import builders, drawing, facts, geom, parts, records, select, sketch
 from nx_mcp.kit.args import choice as choice  # natural option spellings
 
 DETAIL = "NX_MCP_DETAIL_V1"  # managed detail-view boundary (parent handle, center, radius)
@@ -139,11 +139,9 @@ def update(tx):
 def attribute(tx, obj, name):
     """A string user attribute of ``obj`` or None."""
     try:
-        if obj.HasUserAttribute(name, tx.nx.NXObject.AttributeType.String, -1):
-            return str(obj.GetStringAttribute(name))
+        return records.get_text(tx, obj, name)
     except AttributeError:  # objects without attributes
         return None
-    return None
 
 
 def geometry(tx, ref, kinds, field):

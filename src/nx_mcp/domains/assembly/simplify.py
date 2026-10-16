@@ -166,13 +166,15 @@ def nx_create_simplified_assembly(
     with tx.checks():
         sources = _sources(tx, objects)
         dest = _destination(tx, destination_part)
-        licenses.require(tx, ("assemblies",), "Simplify Assembly needs an assemblies license")
     part = tx.part
     if dest is not part:
         tx.touch_part(dest)
     source_volume = measure.volume(tx, sources)
     before = {int(b.Tag) for b in dest.Bodies}
-    with builders.build(tx, part.AssemblyManager.CreateSimplifyBuilder) as b:
+    with (
+        licenses.attempt(tx, ("assemblies",)),
+        builders.build(tx, part.AssemblyManager.CreateSimplifyBuilder) as b,
+    ):
         with native(default="NX_BUILD_FAILED"):
             b.DestinationPart = dest
             b.ObjectsToSimplify.Add(sources)

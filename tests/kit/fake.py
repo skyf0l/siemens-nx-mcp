@@ -273,6 +273,7 @@ class FakeNX:
             Edge=NS(EdgeType=NS(Linear=1, Circular=2)),
             Expression=NS(UnitsOption=NS(Expression="expression")),
             Features=NS(Feature=NS(Null=None)),
+            Update=NS(Option=NS(Now="now", Later="later")),
         )
 
     def _uf(self):

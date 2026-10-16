@@ -281,9 +281,12 @@ def test_options_reach_the_builder_and_at_timestamp_needs_a_link(w):
     w.occurrence(body)
     ok = link(w, kind="body", sources=[body.ref], component=w.A.ref, at_timestamp=True)
     assert ok.ok and ok.data["at_timestamp"] is True
-    assert w.nx.last("WaveLinkBuilder").ExtractFaceBuilder.FixAtCurrentTimestamp is True
+    linked = w.nx.last("WaveLinkBuilder")
+    assert linked.ExtractFaceBuilder.FixAtCurrentTimestamp is True
+    assert (linked.Associative, linked.FixAtCurrentTimestamp) == (True, True)  # the link too
     dumb = link(w, kind="body", sources=[body.ref], component=w.A.ref, associative=False)
     assert dumb.ok and w.nx.last("WaveLinkBuilder").ExtractFaceBuilder.Associative is False
+    assert w.nx.last("WaveLinkBuilder").Associative is False
     bad = link(w, kind="body", sources=[body.ref], component=w.A.ref, associative=False,
                at_timestamp=True)  # fmt: skip
     assert bad.error["field"] == "/at_timestamp" and bad.mutation_outcome == "not_started"

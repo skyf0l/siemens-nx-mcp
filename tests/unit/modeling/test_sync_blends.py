@@ -117,7 +117,7 @@ def test_nx_refusing_the_pair_is_wrong_geometry():
     assert no.error["code"] == "NX_WRONG_GEOMETRY" and no.error["nx_code"] == 3190185, no
 
 
-def test_licences_are_asked_before_any_builder():
+def test_nx_refusing_the_synchronous_licence_is_reported_naming_it():
     nx, _a, concave, _convex, _asked = corner()
     asked = []
 
@@ -126,6 +126,14 @@ def test_licences_are_asked_before_any_builder():
         return name != "nx_synchronous"
 
     nx.session.LicenseManager = NS(CheckPresence=presence)
+    nx.refuse(
+        BUILDER,
+        948801,
+        "License Error, The check out of a feature failed because its token feature does not exist.",
+    )
     no = run(nx, "nx_edit_blend_order", face=nx.ref_of(concave, "face"))
-    assert no.error["code"] == "NX_LICENSE_UNAVAILABLE" and no.mutation_outcome == "not_started"
-    assert asked == ["nx_synchronous"] and not nx.builders
+    assert no.error["code"] == "NX_LICENSE_UNAVAILABLE" and no.mutation_outcome != "committed"
+    assert no.error["details"]["license"] == "nx_synchronous"
+    assert no.error["details"]["license_check"] == "missing"
+    assert asked == ["nx_synchronous"]  # asked only to explain NX's refusal
+    assert nx.live_builders == 0

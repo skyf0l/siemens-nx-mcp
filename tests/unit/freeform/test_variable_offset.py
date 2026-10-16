@@ -3,7 +3,7 @@
 import pytest
 
 from tests.kit import run
-from tests.unit.freeform.fakes import face, flat, freeform_nx, made, sheet
+from tests.unit.freeform.fakes import face, flat, freeform_nx, made, nx_refuses, sheet
 from tests.unit.modeling.fakes import new_body
 
 CORNERS = ([0, 0, 0], [0, 10, 0], [20, 10, 0], [20, 0, 0])  # NX's A..D on the plate
@@ -46,7 +46,7 @@ def test_variable_offset_at_the_face_corners():
     assert [getattr(b, "OffsetAt" + k).RightHandSide for k in "ABCD"] == [
         "1.0", "2.0", "3.0", "4.0"]  # fmt: skip
     assert b.DistanceTolerance == pytest.approx(0.001)
-    assert nx.license_queries == ["nx_freeform_1"]
+    assert nx.license_queries == []  # NX decides: never asked first
     points = ok.data["points"]
     assert [list(p["point"]) for p in points] == [list(c) for c in CORNERS]
     assert [p["distance"] for p in points] == [1, 2, 3, 4]
@@ -93,11 +93,13 @@ def test_variable_offset_rejections_before_nx(args, field):
     assert not nx.builders
 
 
-def test_variable_offset_without_license_refuses_before_the_builder():
+def test_variable_offset_without_license_reports_nx_refusal():
     nx, f = surf_nx()
-    nx.licenses["nx_freeform_1"] = False
+    nx_refuses(nx, "VariableOffsetBuilder", "nx_freeform_1")
     bad = run(nx, "nx_create_variable_offset", face=f.ref, distances=[1, 2, 3, 4])
-    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and not nx.builders
+    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and bad.error["nx_code"] == 948801
+    assert bad.error["details"]["license"] == "nx_freeform_1"
+    assert bad.error["details"]["license_check"] == "missing" and nx.live_builders == 0
 
 
 def test_variable_offset_of_a_solid_face_is_a_new_sheet():

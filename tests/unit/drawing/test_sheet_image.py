@@ -3,6 +3,7 @@
 import math
 import struct
 import zlib
+from types import SimpleNamespace as NS
 
 import pytest
 
@@ -151,6 +152,15 @@ def test_a_new_png_keeps_its_aspect_and_lands_with_its_anchor_on_position():
     assert d["image"]["kind"] == "annotation"
     assert len(nx.images) == 1 and all(b.destroyed for b in nx.images.builders)
     assert nx.images[0].file.endswith("logo.png")
+
+
+def test_a_sheet_image_never_asks_for_a_drafting_license():
+    nx = image_nx()
+    asked = []
+    nx.session.LicenseManager = NS(CheckPresence=lambda f: asked.append(f) or False)
+    write(nx, "logo.png", png_bytes(120, 60))
+    ok = run(nx, "nx_set_sheet_image", path="logo.png", position=[10, 10], width=40)
+    assert ok.ok and asked == [], ok  # its builder needs no license
 
 
 def test_height_only_center_anchor_and_rotation():

@@ -53,3 +53,8 @@ def test_evidence_files_hold_only_the_deterministic_proof(path):
     assert record["passed"] == (not path.name.endswith(".last-failure.json"))
     for step in record["steps"]:
         assert set(step) <= (STEP if step["passed"] else FAILED_STEP) and set(step) >= STEP
+        if not step["passed"]:
+            # Public terms only: no NX message, and never a licence refusal.
+            assert set(step.get("error") or {}) <= {"code", "category", "field", "member"}
+            assert all(runner.public_failure(f) == f for f in step.get("failures") or [])
+    assert runner.scrub_record(record) == record  # a licence refusal is never recorded

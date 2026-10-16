@@ -3,7 +3,7 @@
 NX 2406 lessons kept here (probed live on a 20 x 10 planar sheet face):
 
 - ``CreateVariableOffsetBuilder`` needs the basic freeform license (``nx_freeform_1``),
-  asked before the builder.
+  reported naming it when NX refuses.
 - ``Face`` is a ``SelectObject``; setting it puts ``PointA``..``PointD`` on the face's
   corners (NX's order: (0,0), (0,10), (20,10), (20,0) here) and every ``OffsetAt``
   expression to 25.4 mm, so all four are always set. Given points replace them and the
@@ -146,12 +146,13 @@ def nx_create_variable_offset(
             placed.append(on)
         if placed:
             _round(placed, normals)
-    licenses.require(tx, (LICENSE,), f"This NX seat has no {LICENSE} license for this command",
-                     strict=True)  # fmt: skip
     part = tx.part
     V = tx.nx.Features.VariableOffsetBuilder
     tol = units.part_tolerance(tx)
-    with builders.build(tx, part.Features.CreateVariableOffsetBuilder, None) as b:
+    with (
+        licenses.attempt(tx, (LICENSE,)),
+        builders.build(tx, part.Features.CreateVariableOffsetBuilder, None) as b,
+    ):
         b.Face.Value = target
         b.DistanceTolerance = tol
         b.Method = V.MethodOptions.Cubic if method == "cubic" else V.MethodOptions.Linear

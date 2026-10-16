@@ -411,10 +411,14 @@ class CatalogueProxy:
         self._build = build
         self._services: SidecarServices | None = None  # sidecar/local.py, made on first use
         # Session state of the connected NX, from nx_get_status: the license failures
-        # it remembers. ``_key`` is the bridge descriptor it was read for.
+        # and the tools found unsupported on its build that it remembers, and why it lets
+        # agents only read (an untested build). ``_key`` is the bridge descriptor it was
+        # read for.
         self._key: tuple | None = None
         self._read_at = 0.0
         self.licenses: list[dict] = []
+        self.versions: list[dict] = []
+        self.read_only_reason: str | None = None
         self._running: dict[str, int] = {}  # caller id -> its calls waiting for NX now
         self._overlap: dict[str, float] = {}  # caller id -> when two of its calls overlapped
 
@@ -435,6 +439,22 @@ class CatalogueProxy:
             return self._build() if callable(self._build) else self._build
         descriptor = self._descriptor()
         return evidence.build_key(descriptor.nx_version) if descriptor else None
+
+    def nx_build(self) -> str | None:
+        """NX's full build text from the bridge descriptor (``2406.9160``), else the key."""
+        descriptor = self._descriptor()
+        if descriptor is not None and descriptor.nx_version:
+            return str(descriptor.nx_version)
+        return self.listing()[0]
+
+    def build_tested(self) -> bool:
+        """Whether the listing build is tested (an assumed default build is)."""
+        build, assumed = self.listing()
+        return assumed or evidence.known_build(build)
+
+    def read_only(self) -> bool:
+        """Only read and view tools on this untested build (``evidence.restricted``)."""
+        return evidence.restricted(self.listing()[0], bool(self.read_only_reason))
 
     def listing(self) -> tuple[str | None, bool]:
         """``(build, assumed)`` that listings follow: the connected build, or the default
@@ -536,13 +556,13 @@ class CatalogueProxy:
         last read is older than STATUS_TTL, or when ``force``; never raises."""
         key = self.connected_key()
         if key is None:
-            self._key, self.licenses = None, []
+            self._key, self.licenses, self.versions, self.read_only_reason = None, [], [], None
             return
         fresh = time.monotonic() - self._read_at < STATUS_TTL
         if key == self._key and fresh and not force:
             return
-        if key != self._key:
-            self.licenses = []  # a new NX session remembers nothing yet
+        if key != self._key:  # a new NX session remembers nothing yet
+            self.licenses, self.versions, self.read_only_reason = [], [], None
         self._key, self._read_at = key, time.monotonic()
         if await asyncio.to_thread(self.held, STATUS_HELD_SECONDS):
             return  # NX accepts no connection now: keep what is known
@@ -550,11 +570,16 @@ class CatalogueProxy:
             answer = await asyncio.wait_for(
                 self.bridge.call("nx_get_status", {"include": ["bridge"]}), STATUS_TIMEOUT
             )
-            rows = ((answer or {}).get("data") or {}).get("bridge", {}).get("license_unavailable")
+            bridge = ((answer or {}).get("data") or {}).get("bridge") or {}
+            rows = bridge.get("license_unavailable")
         except Exception:
             return  # NX busy or down: keep what is known
         if isinstance(rows, list):
             self.licenses = [r for r in rows if isinstance(r, dict) and r.get("tool")]
+            failed = bridge.get("version_unsupported") or []
+            self.versions = [r for r in failed if isinstance(r, dict) and r.get("tool")]
+            reason = bridge.get("read_only")
+            self.read_only_reason = str(reason) if reason else None
 
     def explain_stall(self, error: NXError) -> NXError:
         """Say truthfully why NX did not answer: a modal NX dialog blocks it (seen from
@@ -679,7 +704,8 @@ class CatalogueProxy:
     def signature(self) -> tuple:
         """What listings depend on; a change sends tools/list_changed."""
         rows = frozenset((r.get("tool"), r.get("variant")) for r in self.licenses)
-        return (*self.listing(), self.dev(), rows)
+        failed = frozenset((r.get("tool"), r.get("variant")) for r in self.versions)
+        return (*self.listing(), self.dev(), rows, failed, self.read_only_reason)
 
     @staticmethod
     def dev() -> bool:
@@ -689,32 +715,51 @@ class CatalogueProxy:
         """The license failure NX remembers for this tool (``variant``: or that variant)."""
         return evidence.remembered(self.licenses, spec.name, variant)
 
+    def failed(self, spec, variant: str | None = None) -> dict | None:
+        """The tool (``variant``: or that variant) NX found unsupported on its build this
+        session (a missing NXOpen member); development mode ignores it."""
+        if self.dev():
+            return None
+        return evidence.remembered(self.versions, spec.name, variant)
+
     def variants(self, spec) -> tuple[str, ...]:
-        """The variant values listed for ``spec``: tested on the listing build and not
-        refused for a license; development mode lists every value."""
+        """The variant values listed for ``spec``: offered on the listing build (tested
+        there, or tested on another build: ``evidence.offered``), not refused for a license
+        nor found unsupported; development mode lists every value."""
         values = spec.variant_values()
         if not values:
             return values
         build, _ = self.listing()
-        usable = values if self.dev() else evidence.variants_for(spec, build)
+        usable = (
+            values if self.dev() else evidence.variants_for(spec, build, read_only=self.read_only())
+        )
         if not isinstance(spec.variants, str):
             return usable
-        return tuple(v for v in usable if not self.remembered(spec, v))
+        return tuple(v for v in usable if not self.remembered(spec, v) and not self.failed(spec, v))
 
     def unavailable(self, spec, variant: str | None = None) -> str | None:
         """Why ``spec`` (or its ``variant``) is not offered on this build, or None.
         Development mode offers untested tools and variants (marked tested: false)."""
-        entry = self.remembered(spec, variant if isinstance(spec.variants, str) else None)
+        own = variant if isinstance(spec.variants, str) else None
+        entry = self.remembered(spec, own)
         if entry is not None:
             return f"no NX license on this seat (remembered from {entry.get('since')})"
+        failed = self.failed(spec, own)
+        if failed is not None:
+            return f"failed on {evidence.build_label(failed.get('build') or self.nx_build())}"
         if self.dev():
             return None
         build, assumed = self.listing()
         where = f"NX build {build}" + (" (assumed: NX not connected)" if assumed else "")
-        if not evidence.visible(spec, build):
-            return f"not tested on {where}"
-        if variant is not None and variant not in evidence.variants_for(spec, build):
-            return f"variant {variant!r} is not tested on {where}"
+        read_only = self.read_only()
+        if not evidence.visible(spec, build, read_only=read_only):
+            if evidence.tested_on(spec) and read_only:
+                return f"read-only on {where} (not tested with NX MCP)"
+            return "not tested on any NX build"
+        if variant is not None and variant not in evidence.variants_for(
+            spec, build, read_only=read_only
+        ):
+            return f"variant {variant!r} is not tested on any NX build"
         if spec.variant_values() and not self.variants(spec):
             return f"no variant is available on {where}"
         return None
@@ -899,11 +944,14 @@ class CatalogueProxy:
         if problem is None and not self.dev():  # 3
             build = self.build()
             if build is not None:
-                problem = evidence.check(spec, build, args)
-        if problem is None:  # 3: the license NX remembers failing this session
+                problem = evidence.check(spec, build, args, read_only=self.read_only())
+        if problem is None:  # 3: what NX remembers failing this session
             entry = self.remembered(spec, spec.variant_of(args))
             if entry is not None:
                 problem = evidence.license_error(entry)
+            failed = self.failed(spec, spec.variant_of(args))
+            if entry is None and failed is not None:
+                problem = evidence.version_error(failed)
         if problem is not None:
             return result(failure(spec.name, problem, "not_started", operation_id=operation_id))
         if "detail" in spec.params:  # nx_get_result: the call's detail is its own argument

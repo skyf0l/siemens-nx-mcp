@@ -62,7 +62,6 @@ from nx_mcp.kit import analysis_objects, builders, geom, licenses, result, selec
 from nx_mcp.kit import units as kunits
 
 LICENSE = ("gateway",)
-NOTE = "NX surface analysis needs the gateway license"
 
 
 # ---------------------------------------------------------------------------
@@ -136,7 +135,7 @@ def _nx_verdict(tx, faces, angle) -> NxVerdict | None:
     collection = getattr(getattr(tx.part, "AnalysisManager", None), "AnalysisObjects", None)
     create = getattr(collection, "CreateSurfaceContinuityAnalysisBuilder", None)
     analysis = getattr(tx.nx, "GeometricAnalysis", None)
-    if create is None or analysis is None or licenses.served(tx, LICENSE) is False:
+    if create is None or analysis is None:
         return None
     if not analysis_objects.is_displayed(tx):  # see kit.analysis_objects
         return None
@@ -285,8 +284,8 @@ def _count(collection) -> int:
 
 def _reflection(tx, collection, faces, lines, line_type, orientation):
     ex = collection.AnalysisObjectsEx
-    create = (
-        getattr(ex, "CreateReflectionAnalysisBuilder1", None) or ex.CreateReflectionAnalysisBuilder
+    create = builders.first(
+        ex, "CreateReflectionAnalysisBuilder1", "CreateReflectionAnalysisBuilder"
     )
     kinds = tx.nx.GeometricAnalysis.ReflectionAnalysisBuilder1
     with builders.build(tx, create, None) as b:
@@ -490,7 +489,6 @@ def nx_create_surface_analysis(
             _obj, origin, normal = select.plane(tx, plane, "/plane")
         if display:
             analysis_objects.require_displayed(tx)
-            licenses.require(tx, LICENSE, NOTE)
             collection = _collection(tx)
     values: Values | None = None
     if type == "slope":
@@ -501,7 +499,7 @@ def nx_create_surface_analysis(
         assert values is not None  # slope or distance
         return {"type": type, "name": "", "faces": len(picked_faces), "curves": 0,
                 "analyses": 0, "values": values}  # fmt: skip
-    with native(default="NX_BUILD_FAILED"):
+    with licenses.attempt(tx, LICENSE), native(default="NX_BUILD_FAILED"):
         if type == "reflection":
             made = _reflection(tx, collection, picked_faces, lines, line_type, orientation)
         elif type == "curvature_comb":

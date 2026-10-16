@@ -18,12 +18,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_boolean": "07617dc145aeb0745d1b4a8a5bbb7b5ac29d3e23b5c403deedea22fe4e836abf",
+    "nx_create_boolean": "10244d24bc3488ef93395af20b57ca5509755bbef77f411146ee1baed2c55925",
     "nx_create_extrude": "6ad29dc3a7a7a8932c51ce4ceab9c97f9cf6053f4c8d3a4b9d914210479eb606",
     "nx_create_primitive": "c53fad0d2919bf8533f74ff686588b94f375028e258ac718b99204c45ff6a598",
     "nx_create_pattern": "ec8956d75cefec3d1033485b7d5c670aad68734c972b0026e8415643a27e39b1"
   },
-  "recorded": "2026-10-15T12:35:59Z",
+  "recorded": "2026-10-16T12:51:31Z",
   "passed": true,
   "checks": 17,
   "failed_checks": 0,

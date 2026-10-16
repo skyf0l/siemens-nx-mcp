@@ -84,5 +84,7 @@ jobs:
           cache: pip
       - name: Install package and dev dependencies
         run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
-      - name: Run mypy
+      - name: Run mypy (Python 3.10, the minimum)
         run: python -m mypy src/nx_mcp
+      - name: Run mypy (Python 3.12, newer NX releases)
+        run: python -m mypy --python-version 3.12 src/nx_mcp

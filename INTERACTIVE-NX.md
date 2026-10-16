@@ -15,14 +15,18 @@ and stopping take effect between steps. The panel window can be resized.
 
 ## Starting the add-on
 
-### NX 2406: play `start_2406.py` (default)
+### Play `start.py` (default, any NX release)
 
-Start NX, press **Alt+F8** (Play Journal) and run `nx_app/journals/start_2406.py`. The
+Start NX, press **Alt+F8** (Play Journal) and run `nx_app/journals/start.py`
+(`start_2406.py` and `start_2606.py` run the same file). It first prints the NX build
+and whether NX MCP was tested on it, NX's Python version (3.10 or newer is required; an
+older one is refused with that message) and the NXOpen namespaces it could not import
+(reported, not fatal: only the tools that need them fail). The
 host and panel start at once, the journal returns, and the bridge keeps running until
 NX exits or you press **Stop bridge**. It runs the startup application's own code
 (`play()` in `nx_app/startup/nx_mcp_startup.py`).
 
-Why this journal does not die or freeze: its first line is `# nx: threaded`. NX 2406
+Why this journal does not die or freeze: its first line is `# nx: threaded`. NX
 runs such a journal in its main Python interpreter, which stays loaded for the whole
 session, so the timer it arms keeps ticking after it returns (a journal without that
 line runs in a sub-interpreter that NX unloads on return, and its timer never fires).
@@ -32,11 +36,13 @@ a journal running to host the bridge: NX then freezes on exactly that work.
 
 If the bridge already runs in this NX (from the startup application or an earlier
 play), the journal only shows the panel with `NX MCP bridge is already running in
-this NX (started by the ...)`; it never starts a second bridge. After **Stop bridge**,
+this NX (started by the ...)`; it never starts a second bridge, also not when NX runs
+the journal in another Python interpreter (the bootstrap marks the NX process with a
+named kernel object that every interpreter sees). After **Stop bridge**,
 playing the journal starts the host again. If the host cannot start, the journal
 fails with the error (also in `<workspace>/.nx-mcp/resident-error.txt`).
 
-### NX 2406: start with NX automatically (optional)
+### Start with NX automatically (optional)
 
 The startup application `nx_app/startup/nx_mcp_startup.py` starts the same host each
 time NX starts. Its first line, `# nx: threaded`, keeps it loaded for the session;
@@ -52,12 +58,11 @@ between NX commands. Setup, once per machine:
 3. Start NX normally. The panel appears once NX's main window is up. Startup failures
    go to `<workspace>/.nx-mcp/resident-error.txt`.
 
-### NX 2606
+### Other NX releases
 
-Play `nx_app/journals/start_2606.py` once in graphical NX; the journal returns and NX
-keeps the timer host. `start_2406.py` should also host NX 2606, but that is not
-verified. Until NX 2606 has acceptance evidence, only the tools that read or change
-the view are offered there.
+`start.py` and the startup application are the same on every release; NX 2406 is the
+tested one. The support levels per release are in the README
+([Supported NX versions](README.md#supported-nx-versions)).
 
 Closing the panel stops the bridge and gives NX back, leaving NX and its parts open.
 
@@ -71,6 +76,13 @@ title always says the mode and what the agent is doing.
 |---|---|---|
 | **Auto** (default) | `NX MCP — Auto`; `NX MCP — Auto · agent step running` while a step runs; `NX MCP — Auto · agent waiting for you` while one waits for your command to end | You keep working in NX. Each step takes NX only while it runs (NX's main window is briefly disabled, nothing stays locked) and gives it straight back. No request card. |
 | **Ask me first** | `NX MCP — Ask me first`; `NX MCP — Agent is waiting` when a step waits for your answer | Every step waits for your answer on the panel. |
+
+On an NX release NX MCP is not tested on, the title ends with `· untested NX build` and
+the panel's top line reads `⚠  NX <build> is not yet tested with NX MCP: agent steps run
+unverified` (`... the agent may only read` with `NX_MCP_UNTESTED=read_only`, or when NX's
+undo check failed). Before the agent's first change on such a release, NX MCP checks once
+that undo works, in a scratch part it opens and closes again (your parts are not
+touched); `nx_get_status` shows the result.
 
 **Auto.** The idle line reads `·  Auto — you work in NX, agent steps run
 between your commands`. Read-only steps (listing, measuring) run at once, even
@@ -198,9 +210,10 @@ permission. Until you tick it, the agent's changes to it fail with
 and the agent is told to ask you in chat. Reading, measuring and view changes
 (camera, visibility, captures) are always allowed. The checkbox follows the work
 part; the agent's own parts never show it. Permissions last until NX closes or the
-bridge restarts. Saving the part under a new name (File > Save As) withdraws it. In
-the development loop (`NX_MCP_DEV=1`) there is no checkbox and changes are not
-restricted.
+bridge restarts. Saving the part under a new name (File > Save As) withdraws it. The
+development loop (`NX_MCP_DEV=1`) protects your parts the same way and shows the same
+checkbox; only development snippets (`nx_dev_python`, the acceptance runner's engineer
+steps) act outside it, as your own actions.
 
 Several agents can share one NX: an agent does not close or bring up a part another
 agent loaded (`NX_PART_BUSY`) unless it insists with `force`.

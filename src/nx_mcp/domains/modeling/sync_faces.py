@@ -73,14 +73,13 @@ def nx_create_face_copy(
         body = common.one_body(selected, "/faces")
         if not getattr(body, "IsSolidBody", True):
             fail("NX_WRONG_GEOMETRY", "Select faces of a solid body", field="/faces")
-        sync_relate.require_synchronous(tx, f"{mode.capitalize()} Face")
     low, high = measure.bounds(tx, selected)
     before = measure.volume(tx, body)
     known = common.body_tags(tx)
     factory = tx.part.Features.CreateCopyFaceBuilder
     if mode == "cut":
         factory = tx.part.Features.CreateCutFaceBuilder
-    with builders.build(tx, factory, None) as b:
+    with sync_relate.synchronous(tx), builders.build(tx, factory, None) as b:
         held = b.FaceToCopy if mode == "copy" else b.FaceToCut
         builders.fill(tx, held.FaceCollector, selected, "Face")
         sync_common.csys_motion(tx, b.Motion, translation, rotation)
@@ -153,7 +152,6 @@ def nx_create_face_paste(
                 fail("NX_WRONG_GEOMETRY", f"tools[{i}] is a solid body; tools must be sheets",
                      field=f"/tools/{i}", hint="nx_create_face_copy paste false makes the sheets; "
                      "to merge solids use nx_create_boolean")  # fmt: skip
-        sync_relate.require_synchronous(tx, "Paste Face")
     before = measure.mass(tx, [body])
     box = measure.bounds(tx, sheets)
     keep = before["centroid"]
@@ -162,7 +160,10 @@ def nx_create_face_paste(
         keep = None  # the centroid lies among the tools: no point to hold on to
     elif not _inside(tx, body, keep):
         keep = None
-    with builders.build(tx, tx.part.Features.CreatePasteFaceBuilder, None) as b:
+    with (
+        sync_relate.synchronous(tx),
+        builders.build(tx, tx.part.Features.CreatePasteFaceBuilder, None) as b,
+    ):
         b.TargetBody.Value = body
         b.ToolBody.Add(sheets)
         b.PasteOption = getattr(tx.nx.Features.PasteFaceBuilder.PasteOptionType,

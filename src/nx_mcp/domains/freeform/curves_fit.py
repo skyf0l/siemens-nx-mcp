@@ -378,7 +378,6 @@ def nx_create_fit_curve(
                 _check_spread(shape, [geom.xyz(p.Coordinates) for p in targets], field)
         else:
             _check_spread(shape, rows, field)
-    cc.licensed(tx)
     degree = DEFAULT_DEGREE if degree is None else int(degree)
     if shape == "spline" and segments is None and tolerance is None:
         tolerance = units.part_tolerance(tx, DEFAULT_TOLERANCE_MM)
@@ -388,7 +387,10 @@ def nx_create_fit_curve(
     else:
         with native(default="NX_ERROR"):
             coords = [geom.xyz(p.Coordinates) for p in targets]
-    with builders.build(tx, tx.part.Features.CreateFitCurveBuilder, None) as b:
+    with (
+        cc.licensed(tx),
+        builders.build(tx, tx.part.Features.CreateFitCurveBuilder, None) as b,
+    ):
         _configure(tx, b, shape, targets, degree, segments, tolerance, closed)
         feature = b.commit()
     fitted = _one(tx, feature)

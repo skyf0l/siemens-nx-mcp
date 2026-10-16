@@ -24,10 +24,9 @@ NX 2406 findings encoded here (probed live):
 from __future__ import annotations
 
 import contextlib
-import json
 
 from nx_mcp.core.errors import native
-from nx_mcp.kit import expr, parts
+from nx_mcp.kit import expr, parts, records
 
 FLEXIBLE, FLEXED = "FLEXIBLE_PART", "FLEXED_PART"
 RANGE_ATTRIBUTE = "NXMCP_DEFORM_RANGES"
@@ -43,11 +42,9 @@ def definition(part):
 def ranges(tx, feature) -> dict:
     """``{name: [min, max]}`` recorded by nx_create_deformable_definition ({} if none)."""
     try:
-        if feature.HasUserAttribute(RANGE_ATTRIBUTE, tx.nx.NXObject.AttributeType.String, -1):
-            return dict(json.loads(feature.GetStringAttribute(RANGE_ATTRIBUTE)))
+        return dict(records.get_json(tx, feature, RANGE_ATTRIBUTE, {}))
     except Exception:  # no attribute support or an unreadable record: no ranges
         return {}
-    return {}
 
 
 def _flexed(assembly) -> list:

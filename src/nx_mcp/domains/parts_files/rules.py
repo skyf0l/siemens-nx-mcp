@@ -591,8 +591,7 @@ def nx_set_kf_rule(
         text = _formula(formula, "/formula")
     part = tx.part
     kept: list[str] = []
-    with tx.checks():
-        licenses.require(tx, LICENSES, "Knowledge Fusion rules need a Knowledge Fusion license")
+    with licenses.attempt(tx, LICENSES), tx.checks():
         rm = manager(tx, part)
         existing = dynamic_rules(rm, ROOT, None)
         present = next((n for n in existing if n.casefold() == rule.casefold()), None)
@@ -609,7 +608,10 @@ def nx_set_kf_rule(
                         params.append((pname, ptext))
                         kept.append(pname)
     values_before = _expression_values(part)
-    with native(codes={BAD_ARGUMENT: "NX_INVALID_ARGUMENT"}, default="NX_ERROR"):
+    with (
+        licenses.attempt(tx, LICENSES),
+        native(codes={BAD_ARGUMENT: "NX_INVALID_ARGUMENT"}, default="NX_ERROR"),
+    ):
         try:
             if kind == "child":
                 values = [tx.nx.RuleManager.ParameterRule(n, v) for n, v in params]
@@ -730,8 +732,7 @@ def nx_delete_kf_rule(
     expressions are not deleted here: use nx_delete_objects."""
     rule = _rule_name(name, "/name")
     part = tx.part
-    with tx.checks():
-        licenses.require(tx, LICENSES, "Knowledge Fusion rules need a Knowledge Fusion license")
+    with licenses.attempt(tx, LICENSES), tx.checks():
         rm = manager(tx, part)
         existing = dynamic_rules(rm, ROOT, None)
         present = next((n for n in existing if n.casefold() == rule.casefold()), None)
@@ -744,7 +745,7 @@ def nx_delete_kf_rule(
             fail("NX_WRONG_KIND", f"{present} is an NX expression of the part, not a KF rule",
                  field="/name", hint="Delete expressions with nx_delete_objects")  # fmt: skip
     values_before = _expression_values(part)
-    with native(default="NX_ERROR"):
+    with licenses.attempt(tx, LICENSES), native(default="NX_ERROR"):
         if klass:
             rm.DeleteChildRule(present)
         else:
@@ -844,11 +845,10 @@ def nx_update_kf_rules(tx: Tx) -> UpdateData:
     no longer evaluate. Not needed after nx_set_expression or nx_set_kf_rule (NX updates KF
     values then); use it after reloading the part or changing KF classes."""
     part = tx.part
-    with tx.checks():
-        licenses.require(tx, LICENSES, "Knowledge Fusion rules need a Knowledge Fusion license")
+    with licenses.attempt(tx, LICENSES), tx.checks():
         rm = manager(tx, part)
         names = dynamic_rules(rm, ROOT, None)
-    with native(default="NX_ERROR"):
+    with licenses.attempt(tx, LICENSES), native(default="NX_ERROR"):
         rm.RegenerateAll()
     _kf_update(tx, rm)
     rows = [row(rm, ROOT, n) for n in names[:200]]

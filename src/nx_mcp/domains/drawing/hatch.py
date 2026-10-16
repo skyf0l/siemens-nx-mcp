@@ -63,6 +63,8 @@ Material = Literal[
 IDENTITY = {"origin": [0.0, 0.0, 0.0], "x_axis": [1.0, 0.0, 0.0], "y_axis": [0.0, 1.0, 0.0],
             "normal": [0.0, 0.0, 1.0]}  # fmt: skip
 DEFAULT_ANGLE = {"crosshatch": 45.0, "area_fill": 0.0}
+# CreateHatchBuilder takes either license feature (NX's NXOpen reference).
+LICENSES = ("drafting", "nx_2d_edit")
 PATTERN_COVER = 0.5  # a patterned fill's box spans at least half the region on each axis
 
 
@@ -221,10 +223,9 @@ def nx_create_hatch(
         fail("NX_INVALID_ARGUMENT", "spacing must be positive", field="/spacing")
     with tx.checks():
         curves, sheet, box = _boundary(tx, boundary)
-    licenses.require(tx, ("drafting",), "Hatching needs a drafting license")
     wanted = DEFAULT_ANGLE[type] if angle is None else float(angle)
     A, part = tx.nx.Annotations, tx.part
-    with drawing.on_sheet(tx, sheet, part) as sh:
+    with licenses.attempt(tx, LICENSES), drawing.on_sheet(tx, sheet, part) as sh:
         quiet_sheet_sketch(tx)
         start = ksketch.read(tx, IDENTITY, curves[0])["start"]
         section = builders.curve_section(tx, curves, start=[*start, 0.0])

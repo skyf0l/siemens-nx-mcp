@@ -16,9 +16,9 @@
   "sources": {
     "nx_list_view_edges": "887b533c8b08c831afad36038228c3cd365dc0cf21837578c9dc38e502ff2e76",
     "nx_create_drawing_dimension": "f5b66bd494d014ab7e6a39c1de97dbf827fcc71e676c549c2a3d83be8ad13836",
-    "nx_edit_drawing_view": "1b55bc54cabee50d33c05ab4f908dda0259c9ee2de1fd427ae054632a6f42e9e"
+    "nx_edit_drawing_view": "15aa050ef45c31a748ac282ac7a885a8791eb73eb8a63626749e5372a0f5bea2"
   },
-  "recorded": "2026-10-15T11:56:23Z",
+  "recorded": "2026-10-16T13:12:01Z",
   "passed": true,
   "checks": 56,
   "failed_checks": 0,

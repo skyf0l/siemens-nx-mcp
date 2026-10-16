@@ -209,9 +209,11 @@ def nx_create_law_curve(
             field=f"/{ramp or 'x'}",
             hint="Give one law different start and end values, or a formula of t",
         )
-    cc.licensed(tx)
     created: list[str] = []
-    with builders.build(tx, tx.part.Features.CreateLawCurveBuilder, None) as b:
+    with (
+        cc.licensed(tx),
+        builders.build(tx, tx.part.Features.CreateLawCurveBuilder, None) as b,
+    ):
         b.DistanceTolerance = units.part_tolerance(tx)
         for axis, law in laws.items():
             _set_law(tx, getattr(b, axis.upper() + "Law"), law, axis, created)
@@ -374,9 +376,11 @@ def nx_create_general_conic(
             pts = [args.vec3(p) for p in (start, end, anchor)]
             _distinct(pts, "/anchor")
             origin, normal = _conic_plane(pts, "/anchor")
-    cc.licensed(tx)
     G = tx.nx.Features.GeneralConicBuilder
-    with builders.build(tx, tx.part.Features.CreateGeneralConicBuilder, None) as b:
+    with (
+        cc.licensed(tx, "drafting"),
+        builders.build(tx, tx.part.Features.CreateGeneralConicBuilder, None) as b,
+    ):
         b.AssociativeToggle = True
         b.DrawingPlaneOption = G.DrawingPlaneOptions.General
         b.GeneralDrawingPlane = cc.plane_object(tx, origin, normal)

@@ -216,6 +216,21 @@ def test_crosshatch_fills_a_closed_loop_with_its_pattern_angle_and_spacing():
     assert nx.live_builders == 0
 
 
+def test_a_hatch_is_tried_without_drafting_and_nx_refusal_names_both_licenses():
+    nx = sheet_nx()
+    curves = _rect(nx)
+    nx.session.LicenseManager = NS(CheckPresence=lambda f: f == "nx_2d_edit")  # 2D Edit seat
+    ok = run(nx, "nx_create_hatch", boundary=curves)
+    assert ok.ok, ok  # CreateHatchBuilder takes drafting or nx_2d_edit: NX decides
+    nx.session.LicenseManager = NS(CheckPresence=lambda f: False)
+    nx.refuse("HatchBuilder", 948801, "License Error, its token feature does not exist.")
+    bad = run(nx, "nx_create_hatch", boundary=curves)
+    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and bad.mutation_outcome != "committed"
+    assert bad.error["details"]["license"] == "drafting"
+    assert bad.error["details"]["licenses"] == ["drafting", "nx_2d_edit"]
+    assert nx.live_builders == 0
+
+
 def test_hatches_are_listed_with_the_annotations():
     nx = sheet_nx()
     ok = run(nx, "nx_create_hatch", boundary=_rect(nx), pattern="steel")

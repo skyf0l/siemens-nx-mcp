@@ -62,7 +62,17 @@ from nx_mcp.domains.drawing.common import (
 )
 from nx_mcp.domains.drawing.view_kinds import EdgePoint
 from nx_mcp.domains.drawing.view_settings import HIDDEN_LINES_DOC
-from nx_mcp.kit import builders, drawing, geom, parts, readback, result, select, units
+from nx_mcp.kit import (
+    builders,
+    drawing,
+    geom,
+    parts,
+    readback,
+    records,
+    result,
+    select,
+    units,
+)
 
 ORIENTATIONS = {
     "top": "Top",
@@ -238,7 +248,7 @@ def warn_overlaps(tx, out):
 
 
 def _record_parent(tx, view, parent):
-    view.SetAttribute(VIEW_PARENT, tx.uf.Tag.AskHandleFromTag(parent.Tag))
+    records.set_text(tx, view, VIEW_PARENT, tx.uf.Tag.AskHandleFromTag(parent.Tag))
 
 
 def _configure(tx, b, sheet, scale):
@@ -861,7 +871,7 @@ def _create_detail(tx, parent_ref, center, radius, position, scale):
             "center": [float(v) for v in center],
             "radius": float(radius),
         }
-        view.SetAttribute(DETAIL, json.dumps(record))
+        records.set_json(tx, view, DETAIL, record)
         drawing.place(tx, view, position)
         _verify_scale(tx, view, scale)
         if not drawing.drawn_curves(view):

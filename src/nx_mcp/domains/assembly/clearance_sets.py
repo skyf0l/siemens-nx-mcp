@@ -144,7 +144,8 @@ def _find(tx, name, field="/name"):
 
 
 def _license(tx):
-    licenses.require(tx, ("assemblies",), "Clearance analysis needs an assemblies license")
+    """Clearance analysis work: NX's license refusal names ``assemblies``."""
+    return licenses.attempt(tx, ("assemblies",))
 
 
 def _builder_enum(tx):
@@ -348,7 +349,7 @@ def _results(
 
 def _run(tx, cs) -> None:
     before = _summary(tx, cs)
-    with native(default="NX_BUILD_FAILED"):
+    with _license(tx), native(default="NX_BUILD_FAILED"):
         cs.PerformAnalysis(tx.nx.Assemblies.ClearanceSet.ReanalyzeOutOfDateExcludedPairs
                            .CustomerDefault)  # fmt: skip
     after = _summary(tx, cs)
@@ -482,10 +483,12 @@ def nx_create_clearance_set(
                 fail("NX_INVALID_ARGUMENT", "An excluded pair names two bodies (or components)",
                      field=f"/exclude/{i}")  # fmt: skip
             pairs.append(pair)
-        _license(tx)
     enum = _builder_enum(tx)
     part = tx.part
-    with builders.build(tx, part.AssemblyManager.CreateClearanceAnalysisBuilder, None) as b:
+    with (
+        _license(tx),
+        builders.build(tx, part.AssemblyManager.CreateClearanceAnalysisBuilder, None) as b,
+    ):
         with native(default="NX_BUILD_FAILED"):
             b.ClearanceSetName = name.strip()
             b.ClearanceBetween = getattr(enum.ClearanceBetweenEntity, BETWEEN[between])
@@ -549,7 +552,6 @@ def nx_run_clearance_set(
     previous pairs gone now; summary.version counts runs."""
     with tx.checks():
         cs = _find(tx, name)
-        _license(tx)
     previous = _previous(tx, cs)
     _run(tx, cs)
     return _data(tx, cs, ran=True, overlap=overlap, previous=previous)
@@ -576,8 +578,8 @@ def nx_list_clearance_sets(tx: Tx) -> ClearanceSetList:
         tx.warn("NX_NOTE", f"{file_name(tx.part)} has no components yet, so no clearance sets; "
                 "add components with nx_create_component")  # fmt: skip
         return {"items": []}
-    _license(tx)
-    return {"items": [_set_row(tx, cs) for cs in _sets(tx)]}
+    with _license(tx):
+        return {"items": [_set_row(tx, cs) for cs in _sets(tx)]}
 
 
 @tool(
@@ -594,9 +596,8 @@ def nx_delete_clearance_set(tx: Tx, *, name: SetName) -> DeletedSet:
     """Delete a clearance set and its stored results from the work assembly."""
     with tx.checks():
         cs = _find(tx, name)
-        _license(tx)
     deleted = _name(cs)
-    with native(default="NX_BUILD_FAILED"):
+    with _license(tx), native(default="NX_BUILD_FAILED"):
         cs.Delete()
     remaining = [_name(s) for s in _sets(tx)]
     readback.expect(deleted.casefold() not in {n.casefold() for n in remaining}, "deleted",

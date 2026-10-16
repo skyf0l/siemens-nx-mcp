@@ -192,13 +192,17 @@ def nx_create_variational_sweep(
             fail("NX_WRONG_GEOMETRY", "The sketch is not on a path", field="/sketch",
                  hint="Create it with nx_create_sketch placement {path: [edge], help_point}, "
                  "or use nx_create_sweep_along_guide with a separate guide")  # fmt: skip
+    # Asked first (strict): a missing license can open NX's blocking dialog instead.
     licenses.require(tx, (LICENSE,), "Variational sweep needs the basic freeform license",
                      strict=True)  # fmt: skip
     targets = common.combine_targets(tx, combine)
     before = common.target_state(tx, targets)
     tags, known = common.body_tags(tx), kbodies.faulty(tx, targets)
     overlapping = kbodies.clashing(tx, targets)
-    with builders.build(tx, tx.part.Features.CreateVarsweepBuilder, None) as b:
+    with (
+        licenses.attempt(tx, (LICENSE,)),
+        builders.build(tx, tx.part.Features.CreateVarsweepBuilder, None) as b,
+    ):
         b.DistanceTolerance = units.part_tolerance(tx, TOLERANCE_MM)
         b.AngularTolerance = 0.5
         b.Section = builders.section(tx, sk)

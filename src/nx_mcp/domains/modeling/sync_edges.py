@@ -160,12 +160,11 @@ def nx_edit_edges(
                 if int(face.Tag) not in {int(f.Tag) for f in edge.GetFaces()}:
                     fail("NX_WRONG_GEOMETRY", "along must be a face of every edge",
                          field=f"/edges/{i}")  # fmt: skip
-        sync_relate.require_synchronous(tx, f"{action.capitalize()} Edge")
     before = measure.volume(tx, body)
     middles = _middles(tx, selected)
     scale = max([1.0, *(abs(c) for m, _ in middles.values() for c in m)])
     try:
-        with native({TOO_FAR: "NX_BUILD_FAILED"}):
+        with sync_relate.synchronous(tx), native({TOO_FAR: "NX_BUILD_FAILED"}):
             feature = _edit(tx, action, selected, a, normal, middles, scale)
             sync_common.consistent(tx, body)
             shifts = _shifts(tx, selected, middles)

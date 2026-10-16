@@ -6,6 +6,7 @@ import pytest
 
 from nx_mcp.core import evidence
 from tests.kit import run
+from tests.unit.freeform.fakes import nx_refuses
 from tests.unit.freeform.support import curves_nx, made, rectangle_x
 
 T = "SectionCurveBuilder"
@@ -110,9 +111,11 @@ def test_a_curve_off_its_plane_or_the_body_rolls_back():
 def test_license_and_native_refusals():
     nx = curves_nx()
     body = nx.block(100, 50, 20)
-    nx.licenses["solid_modeling"] = False
+    nx_refuses(nx, T, "solid_modeling")
     bad = run(nx, "nx_create_section_curves", objects=[body.ref], plane="yz")
-    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and not nx.builders
+    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and bad.error["nx_code"] == 948801
+    assert bad.error["details"]["license"] == "solid_modeling"
+    assert bad.error["details"]["license_check"] == "missing" and nx.live_builders == 0
     evidence.forget_licenses()  # a tested tool's refusal is remembered until NX restarts
     nx.licenses["solid_modeling"] = True
     nx.refuse(T, 670200, "No intersection")

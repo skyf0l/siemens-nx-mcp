@@ -16,6 +16,7 @@ from __future__ import annotations
 from types import SimpleNamespace as NS
 
 from tests.kit import fake_nx
+from tests.kit.attributes import UserAttributes
 from tests.kit.kernel import services
 from tests.kit.objects import Face, Feature, Object
 
@@ -276,7 +277,7 @@ def made(nx, kind, body=None, feature_type=None):
     return f
 
 
-class Annotation(Object):
+class Annotation(UserAttributes, Object):
     """A committed annotation with string user attributes and an origin."""
 
     def __init__(self, name="PMI", origin=(0.0, 0.0, 0.0)):
@@ -285,15 +286,6 @@ class Annotation(Object):
 
         self.AnnotationOrigin = point(*origin)
         self.attributes = {}
-
-    def HasUserAttribute(self, name, *_):
-        return name in self.attributes
-
-    def GetStringAttribute(self, name):
-        return self.attributes[name]
-
-    def SetAttribute(self, name, value):
-        self.attributes[name] = value
 
 
 __all__ = ["BENT", "FLAT", "Annotation", "Face", "sm_nx"]

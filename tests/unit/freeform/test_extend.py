@@ -5,7 +5,7 @@ import math
 import pytest
 
 from tests.kit import run
-from tests.unit.freeform.fakes import edge, face, flat, made, sheet
+from tests.unit.freeform.fakes import edge, face, flat, made, nx_refuses, sheet
 from tests.unit.freeform.fakes import freeform_nx as base_nx
 
 
@@ -53,7 +53,7 @@ def test_extend_by_distance_reports_the_area_change():
     assert b.BodyOutputOption is E.BodyOutput.ExtendOriginalSheet
     assert b.SurfaceShapeOption is E.SurfaceShape.NaturalCurvature
     assert b.DistanceTolerance == pytest.approx(0.001)
-    assert nx.license_queries == ["nx_freeform_1"]
+    assert nx.license_queries == []  # NX decides: never asked first
     data = ok.data
     assert data["area_before"] == pytest.approx(200) and data["area"] == pytest.approx(250)
     assert data["added_area"] == pytest.approx(50) and data["method"] == "distance"
@@ -188,12 +188,14 @@ def test_extension_rejections_before_nx(args, field):
     assert not nx.builders
 
 
-def test_extension_without_license_refuses_before_the_builder():
+def test_extension_without_license_reports_nx_refusal():
     nx = freeform_nx()
     _body, _f, e = plate(nx)
-    nx.licenses["nx_freeform_1"] = False
+    nx_refuses(nx, "ExtendSheetBuilder", "nx_freeform_1")
     bad = run(nx, "nx_create_sheet_extension", edges=[e.ref], distance=5)
-    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and not nx.builders
+    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and bad.error["nx_code"] == 948801
+    assert bad.error["details"]["license"] == "nx_freeform_1"
+    assert bad.error["details"]["license_check"] == "missing" and nx.live_builders == 0
 
 
 # ---------------------------------------------------------------------------
@@ -223,7 +225,7 @@ def test_law_extension_from_faces_checks_the_straight_base_area():
     assert b.Faces.ReplaceRules.calls[0][0][0] == [("FaceDumb", [f])]
     assert b.LengthLaw.LawType is law.Constant and b.LengthLaw.Value.RightHandSide == "5.0"
     assert b.AngleLaw.Value.RightHandSide == "90.0"
-    assert nx.license_queries == ["solid_modeling"]
+    assert nx.license_queries == []  # NX decides: never asked first
     assert ok.data["expected_area"] == pytest.approx(50) and ok.data["gap"] == pytest.approx(0)
     assert ok.data["base_length"] == pytest.approx(10)
 

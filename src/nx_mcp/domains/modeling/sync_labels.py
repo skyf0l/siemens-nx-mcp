@@ -129,17 +129,22 @@ def nx_create_face_label(
                 _adjacent(selected[0], sides)
             else:
                 sides = _construction(tx, selected[0])
-        sync_relate.require_synchronous(tx, "Label Chamfer" if kind == "chamfer" else "Group Face")
     before = measure.volume(tx, body)
     count = len(body.GetFaces())
     if kind == "chamfer":
-        with builders.build(tx, tx.part.Features.CreateLabelChamferBuilder, None) as b:
+        with (
+            sync_relate.synchronous(tx),
+            builders.build(tx, tx.part.Features.CreateLabelChamferBuilder, None) as b,
+        ):
             builders.fill(tx, b.ChamferFace, selected, "Face")
             builders.fill(tx, b.ConstructionFace1, [sides[0]], "Face")
             builders.fill(tx, b.ConstructionFace2, [sides[1]], "Face")
             feature = b.commit()
     else:
-        with builders.build(tx, tx.part.Features.CreateGroupFaceBuilder, None) as b:
+        with (
+            sync_relate.synchronous(tx),
+            builders.build(tx, tx.part.Features.CreateGroupFaceBuilder, None) as b,
+        ):
             builders.fill(tx, b.FaceToGroup.FaceCollector, selected, "Face")
             b.Rigid = rigid
             feature = b.commit()

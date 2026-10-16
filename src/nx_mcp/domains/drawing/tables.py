@@ -53,7 +53,7 @@ from nx_mcp.domains.drawing.common import (
     uf_types,
     update,
 )
-from nx_mcp.kit import args, builders, drawing, parts, readback, result, select
+from nx_mcp.kit import args, builders, drawing, parts, readback, records, result, select
 
 DEFAULT_ROW_HEIGHT_MM = 7.0
 BendColumn = Literal["id", "name", "angle", "direction", "radius"]
@@ -520,7 +520,7 @@ def _create_grid(tx, kind, sheet_ref, position, rows, widths, row_height):
             b.ColumnWidth = widths_part[0]
             b.Origin.Origin.SetValue(None, None, sh.point(position))
             section = b.commit()
-        section.SetAttribute(TABLE_KIND, kind)
+        records.set_text(tx, section, TABLE_KIND, kind)
         tag = tx.uf.Tabnot.AskTabularNoteOfSection(section.Tag)
         _fill(tx, tag, rows, widths_part, height_part, fixed=row_height is not None)
         section.AnnotationOrigin = sh.point(position)
@@ -532,8 +532,8 @@ def _create_grid(tx, kind, sheet_ref, position, rows, widths, row_height):
                 b.UpdateCells()
                 table = b.commit()
             table.AnnotationOrigin = sh.point(position)
-            table.SetAttribute(TABLE_KIND, kind)
-            table.SetAttribute(NATIVE_TABLE, tx.uf.Tag.AskHandleFromTag(tag))
+            records.set_text(tx, table, TABLE_KIND, kind)
+            records.set_text(tx, table, NATIVE_TABLE, tx.uf.Tag.AskHandleFromTag(tag))
             title_blocks.define_cells(tx, table)
         update(tx)
         _expect_rows(tx, table, rows)

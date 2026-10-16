@@ -2,6 +2,7 @@
   "nx_analyze_topology_study": {
     "v2406": {
       "checks": 39,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T11:09:10Z",
       "scenario": "acceptance/optimization/strength.json",
       "scenario_sha256": "237d52683803d10ea8e62fed21c9cc6cd01b65b3b887aec3d932cfc8606f1ba4",
@@ -12,6 +13,7 @@
   "nx_create_topology_condition": {
     "v2406": {
       "checks": 17,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T11:09:12Z",
       "scenario": "acceptance/optimization/timeline.json",
       "scenario_sha256": "bd616e75b436c304593a0f9438bf8fc6fce86a921236757c5adfbfc6b8d0697f",
@@ -32,6 +34,7 @@
   "nx_create_topology_environment": {
     "v2406": {
       "checks": 17,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T11:09:12Z",
       "scenario": "acceptance/optimization/timeline.json",
       "scenario_sha256": "bd616e75b436c304593a0f9438bf8fc6fce86a921236757c5adfbfc6b8d0697f",
@@ -46,6 +49,7 @@
   "nx_create_topology_study": {
     "v2406": {
       "checks": 71,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T14:09:05Z",
       "scenario": "acceptance/optimization/bracket.json",
       "scenario_sha256": "ef7af9a8b5fab5636373538b83daecf84226af4fa7d2d28d1636f2b292f6f1ae",
@@ -56,6 +60,7 @@
   "nx_get_topology_study": {
     "v2406": {
       "checks": 45,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T11:07:02Z",
       "scenario": "acceptance/optimization/environment.json",
       "scenario_sha256": "71b17ccc6ed6587d16a6bc8e7b22886b64e09df73e7481b9bb067fd5c9617264",
@@ -66,6 +71,7 @@
   "nx_run_topology_study": {
     "v2406": {
       "checks": 82,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T11:06:58Z",
       "scenario": "acceptance/optimization/contour.json",
       "scenario_sha256": "611be748e50688f8a92657a686fc05fae39c7ad0f91fe0b73fc320dac735cd13",
@@ -76,6 +82,7 @@
   "nx_set_topology_contour": {
     "v2406": {
       "checks": 82,
+      "nx_build": "2406.9160",
       "recorded": "2026-10-15T11:06:58Z",
       "scenario": "acceptance/optimization/contour.json",
       "scenario_sha256": "611be748e50688f8a92657a686fc05fae39c7ad0f91fe0b73fc320dac735cd13",

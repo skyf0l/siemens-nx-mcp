@@ -50,7 +50,7 @@ def rig(tmp_path, monkeypatch):
         Part(session, __import__("pathlib").Path(path)),
         NS(Dispose=Mock()),
     )
-    e = NXServices(session, nx, "v2606 fake seam", Workspace(tmp_path))
+    e = NXServices(session, nx, "2406.9160", Workspace(tmp_path))  # the tested reference build
 
     def run(method, params):
         return dispatch.execute(e, method, params)

@@ -145,3 +145,20 @@ def test_destroy_helper():
     assert nx.live_builders == 0
     with pytest.raises(NXException):
         builders.destroy(a)
+
+
+def test_first_takes_the_first_member_this_build_has():
+    first = builders.first
+    newer = type("AnalysisObjectsEx", (), {"__module__": "NXOpen.GeometricAnalysis"})
+    owner = newer()
+    owner.CreateOld = "old"
+    assert first(owner, "CreateNew", "CreateOld") == "old"
+    owner.CreateNew = "new"
+    assert first(owner, "CreateNew", "CreateOld") == "new"
+    with pytest.raises(NXError) as missing:
+        first(newer(), "CreateNew", "CreateOld")
+    error = missing.value
+    assert error.code == "NX_VERSION_UNSUPPORTED" and error.retry == "never"
+    member = "NXOpen.GeometricAnalysis.AnalysisObjectsEx.CreateNew|CreateOld"
+    assert error.details["member"] == member
+    assert "nothing changed" in error.message

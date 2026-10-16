@@ -15,6 +15,7 @@ a face whose edit NX rolls back gets a new reference.
 
 from __future__ import annotations
 
+import contextlib
 import math
 from typing import Annotated, Literal, TypedDict
 
@@ -608,7 +609,7 @@ def nx_create_transform(
             b.Associative = True
             # Fixed at its timestamp, the copy does not follow later edits of its source, so
             # a boolean of the two is no circular dependency (NX refuses it otherwise).
-            b.option("FixAtCurrentTimestamp", True)
+            b.FixAtCurrentTimestamp = True  # needed, never skipped
             b.HideOriginal = False
             b.InheritDisplayProperties = True
             rules = builders.collector(tx, targets, "Body").GetRules()
@@ -1068,13 +1069,15 @@ def nx_edit_faces(
             _resize_targets(tx, selected, diameter)
         if action == "delete_blend":
             _blend_faces(tx, selected)
-        if action not in ("offset", "resize"):  # their builders need Modeling only
-            sync_relate.require_synchronous(tx, f"nx_edit_faces {action}", by_argument=True)
     before = measure.volume(tx, body)
     count = len(body.GetFaces())
     frames = [readback.face_frame(tx, f) for f in selected] if action in SHAPE_CHECKED else []
+    # offset and resize builders need Modeling only; the others NX Synchronous (the license
+    # follows the action, the variant: the session remembers a refusal per action)
+    sync = action not in ("offset", "resize")
+    licensed = sync_relate.synchronous(tx) if sync else contextlib.nullcontext()
     try:
-        with builders.build(tx, getattr(tx.part.Features, FACTORIES[action]), None) as b:
+        with licensed, builders.build(tx, getattr(tx.part.Features, FACTORIES[action]), None) as b:
             _configure(tx, b, action, selected, a)
             feature = b.commit(validate=True)
     except NXError as error:

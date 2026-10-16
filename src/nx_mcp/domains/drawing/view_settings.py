@@ -138,14 +138,13 @@ def nx_set_view_settings(
     with tx.checks():
         found = [view_of(tx, v, f"/views/{i}") for i, v in enumerate(views)]
         targets = list({int(v.Tag): (v, sheet) for v, sheet in found}.values())
-        licenses.require(tx, ("drafting",), "View settings need a drafting license")
     chosen = {int(v.Tag) for v, _ in targets}
     sheets = list({int(s.Tag): s for _, s in targets}.values())
     others = [v for s in sheets for v in s.GetDraftingViews() if int(v.Tag) not in chosen]
     before = {int(v.Tag): read_settings(tx, v) for v in others}
     for view, sheet in targets:
         tx.checkpoint()
-        with drawing.on_sheet(tx, sheet):
+        with licenses.attempt(tx, ("drafting",)), drawing.on_sheet(tx, sheet):
             read_settings(tx, view, changes)
     update(tx)
     tx.part.DraftingViews.UpdateViews([v for v, _ in targets])

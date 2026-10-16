@@ -4,7 +4,7 @@ NX 2406 lessons kept here (probed live on a 20 x 10 planar sheet):
 
 - ``TrimFeatureCollection.CreateExtendSheetBuilder`` and ``CreateTrimAndExtendBuilder``
   need the basic freeform license (``nx_freeform_1``); ``CreateLawExtensionBuilder``
-  needs Modeling's (``solid_modeling``). Both are asked before any builder.
+  needs Modeling's (``solid_modeling``). NX's refusal is reported naming the one tried.
 - Extend Sheet fills its own ``TargetBoundaryEdges`` collector with sheet boundary
   edges. ``LimitMethod`` ``Offset`` uses the ``Offset`` expression (signed: 5 grows the
   sheet 20 -> 25 long, area 200 -> 250; -3 trims it back to 17, area 170);
@@ -44,7 +44,6 @@ from nx_mcp.kit import (
     expr,
     facts,
     geom,
-    licenses,
     measure,
     readback,
     select,
@@ -70,11 +69,6 @@ UNTIL_HINT = (
     "until faces and planes must lie across the sheet's extension beyond the edges (not "
     "parallel to the sheet, not behind the edges)"
 )
-
-
-def _license(tx, feature):
-    licenses.require(tx, (feature,), f"This NX seat has no {feature} license for this command",
-                     strict=feature == FREEFORM)  # fmt: skip
 
 
 def _new_bodies(part, before, feature):
@@ -243,7 +237,6 @@ def nx_create_sheet_extension(
                 fail("NX_INVALID_ARGUMENT", "to_edges must belong to another sheet",
                      field="/to_edges")  # fmt: skip
             owners = owners + others
-    _license(tx, FREEFORM)
     part = tx.part
     before = {int(b.Tag) for b in part.Bodies}
     area_before = _total_area(tx, owners)
@@ -252,7 +245,10 @@ def nx_create_sheet_extension(
     trims = part.Features.TrimFeatureCollection
     if method == "corner":
         T = tx.nx.Features.TrimAndExtendBuilder
-        with builders.build(tx, trims.CreateTrimAndExtendBuilder, None) as b:
+        with (
+            common.licensed(tx, FREEFORM),
+            builders.build(tx, trims.CreateTrimAndExtendBuilder, None) as b,
+        ):
             b.Operation = T.OperationType.MakeCorner
             builders.fill(tx, b.TargetSelection, targets, "Edge")
             builders.fill(tx, b.ToolSelection, tools, "Edge")
@@ -261,7 +257,10 @@ def nx_create_sheet_extension(
             b.SurfaceShapeOption = getattr(E.SurfaceShape, SHAPES[shape])
             feature = b.commit()
     else:
-        with builders.build(tx, trims.CreateExtendSheetBuilder, None) as b:
+        with (
+            common.licensed(tx, FREEFORM),
+            builders.build(tx, trims.CreateExtendSheetBuilder, None) as b,
+        ):
             builders.fill(tx, b.TargetBoundaryEdges, targets, "Edge")
             b.DistanceTolerance = tol
             b.SurfaceShapeOption = getattr(E.SurfaceShape, SHAPES[shape])
@@ -442,11 +441,13 @@ def nx_create_law_extension(
                 if not refs:
                     fail("NX_INVALID_ARGUMENT", "Curves have no faces: send faces or use "
                          "reference vector", field="/faces")  # fmt: skip
-    _license(tx, MODELING)
     part = tx.part
     L = tx.nx.Features.LawExtensionBuilder
     start = curve.ends(tx, objs[0])[0]
-    with builders.build(tx, part.Features.CreateLawExtensionBuilder, None) as b:
+    with (
+        common.licensed(tx, MODELING),
+        builders.build(tx, part.Features.CreateLawExtensionBuilder, None) as b,
+    ):
         builders.curve_section(tx, objs, start=start, into=b.BaseProfile)
         if reference == "faces":
             b.Type = L.Types.Faces

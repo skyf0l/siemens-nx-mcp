@@ -25,9 +25,8 @@ from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, FaceRef
 from nx_mcp.domains.modeling import common, sync_common, sync_relate
 from nx_mcp.kit import bodies as kbodies
-from nx_mcp.kit import builders, licenses, measure, readback, result, select
+from nx_mcp.kit import builders, measure, readback, result, select
 
-MODELING_LICENSES = ("solid_modeling", "cam_base", "insp_programming")
 NO_OVERFLOW = 3190182  # GetBlendface2Candidate: no blend of opposite convexity overflows it
 NOT_REORDERABLE = 3190185  # Commit: the two blends do not interact
 CODES = {NO_OVERFLOW: "NX_WRONG_GEOMETRY", NOT_REORDERABLE: "NX_WRONG_GEOMETRY"}
@@ -162,17 +161,16 @@ def nx_edit_blend_order(
         if partner and int(partner[0].Tag) == int(chosen[0].Tag):
             fail("NX_INVALID_ARGUMENT", "other must be a face of the other blend",
                  field="/other", hint=HINT)  # fmt: skip
-        sync_relate.require_synchronous(tx, "Reorder Blends")
-        licenses.require(tx, MODELING_LICENSES, "Reorder Blends needs a solid modeling license")
     before = measure.mass(tx, [body])
     faulty = kbodies.faulty(tx, [body])
     overlapping = kbodies.clashing(tx, [body])
-    if not partner:
-        lookup = tx.part.Features.CreateReorderBlendsBuilder
-        # A lookup on a builder that is never committed: nothing changed yet (not_started).
-        with builders.build(tx, lookup, None, codes=CODES) as b, tx.checks():
-            partner = [_partner(tx, b, chosen[0])]
-    feature, used = _reorder(tx, chosen[0], partner[0], given=other is not None)
+    with sync_relate.synchronous(tx):
+        if not partner:
+            lookup = tx.part.Features.CreateReorderBlendsBuilder
+            # A lookup on a builder that is never committed: nothing changed yet (not_started).
+            with builders.build(tx, lookup, None, codes=CODES) as b, tx.checks():
+                partner = [_partner(tx, b, chosen[0])]
+        feature, used = _reorder(tx, chosen[0], partner[0], given=other is not None)
     readback.expect(feature is not None, "feature", "NX built no Reorder Blends feature")
     sync_common.consistent(tx, body, "The reorder")
     common.sound(tx, [body], known=faulty)

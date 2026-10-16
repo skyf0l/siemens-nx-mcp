@@ -250,6 +250,19 @@ def freeform_nx(units="mm"):
     return nx
 
 
+# NX 2406's text for a license it cannot check out (948801): it names no feature.
+LICENSE_ERROR = (
+    "License Error, The check out of a feature failed because its token feature does not exist."
+)
+
+
+def nx_refuses(nx, kind, *features):
+    """The license server lists none of ``features`` and NX refuses ``kind`` (948801)."""
+    for name in features:
+        nx.licenses[name] = False
+    nx.refuse(kind, 948801, LICENSE_ERROR)
+
+
 def studio_spline(nx):
     f = feature(nx, "SPLINE")
     f.__class__ = type("StudioSpline", (StudioSpline, type(f)), {})

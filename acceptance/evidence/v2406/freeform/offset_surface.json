@@ -9,9 +9,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_offset_surface": "6fd58cfdb6a318c9e02eb3ad0d9e19dddc87601cc817f9eec95f6d3a739b9893"
+    "nx_create_offset_surface": "631c6ca56cee6371ac62c535884cc14f134ef0cb632f8e3aa6e6134203907e28"
   },
-  "recorded": "2026-10-15T11:00:24Z",
+  "recorded": "2026-10-16T13:15:19Z",
   "passed": true,
   "checks": 35,
   "failed_checks": 0,

@@ -4,6 +4,7 @@ import pytest
 
 from nx_mcp.core import evidence
 from tests.kit import run
+from tests.unit.freeform.fakes import nx_refuses
 from tests.unit.freeform.support import Output, curves_nx, made
 
 LAW = "LawCurveBuilder"
@@ -116,10 +117,13 @@ def test_five_point_conic_and_its_checks():
 
 def test_conic_license_refusal():
     nx = curves_nx()
-    nx.licenses["solid_modeling"] = False
+    nx_refuses(nx, CON, "solid_modeling", "drafting")
     bad = run(nx, "nx_create_general_conic", method="rho", start=[0, 0, 0], end=[100, 0, 0],
               anchor=[50, 20, 0], rho=0.3)  # fmt: skip
-    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and not nx.builders
+    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and bad.error["nx_code"] == 948801
+    assert bad.error["details"]["license"] == "solid_modeling"
+    assert bad.error["details"]["license_check"] == "missing" and nx.live_builders == 0
+    assert bad.error["details"]["licenses"] == ["solid_modeling", "drafting"]
     evidence.forget_licenses()
 
 

@@ -905,7 +905,8 @@ def test_grant_checkbox_shows_for_the_engineers_part_and_toggles(host, rig, monk
     assert not rig.e.owns(rig.part)
     monkeypatch.setenv("NX_MCP_DEV", "1")
     host.tick()
-    assert panel.user.ShowWindow.call_args.args == (9, 0)  # hidden in development
+    assert host.grant_state() == {"name": "test", "granted": False}  # gate 6 is on
+    assert panel.user.ShowWindow.call_args.args == (9, 5)  # shown in development too
 
 
 def test_light_catalogue_steps_do_not_warn_that_nx_may_pause(host):
@@ -964,3 +965,17 @@ def test_auto_waits_for_an_engineers_dialog_then_runs_and_reads_answer(host, rig
     host.tick()
     assert edit.complete.is_set() and edit.error is None
     rig.e.dev_tools["nx_test_edit"].assert_called_once()
+
+
+def test_an_untested_build_says_so_on_the_panel(host, monkeypatch):
+    from nx_mcp.core import evidence
+
+    monkeypatch.delenv("NX_MCP_UNTESTED", raising=False)
+    host.mode = "auto"
+    assert host.untested_line() is None  # the tested reference build
+    host.services.build = "2512.1000"
+    line = "NX 2512.1000 is not yet tested with NX MCP: agent steps run unverified"
+    assert line in host.untested_line() and line in host.panel_text().splitlines()[0]
+    assert host.panel_state()[1] == "NX MCP — Auto · untested NX build"
+    evidence.set_self_test({"state": "failed", "reason": "the undo failed"})
+    assert host.untested_line().endswith("the agent may only read")

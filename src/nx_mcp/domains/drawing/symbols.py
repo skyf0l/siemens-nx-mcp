@@ -300,8 +300,7 @@ def nx_create_sheet_symbol(
             picked.append(geometry(tx, ref, kinds, f"/objects/{i}"))
         spot = _spot(tx, symbol, shown, picked)
         path = _library_path(tx, name) if symbol == "custom" else None
-    licenses.require(tx, ("drafting",), "Drafting symbols need a drafting license")
-    with drawing.on_sheet(tx, target) as sh:
+    with licenses.attempt(tx, ("drafting",)), drawing.on_sheet(tx, target) as sh:
         if symbol in ("target_point", "intersection"):
             out = _on_geometry(tx, symbol, sh, shown, picked, spot, size)
         else:

@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from nx_mcp.core.errors import fail
 from nx_mcp.domains.drawing.common import CONSTRUCTION, CONSTRUCTION_LAYERS, attribute
-from nx_mcp.kit import parts, result
+from nx_mcp.kit import parts, records, result
 
 MAX_CONSTRUCTION = 20000
 CONSTRUCTION_TYPES = frozenset(
@@ -189,7 +189,9 @@ def _hide_layers(tx, view, kept, values):
         states = {int(s.Layer): s.State for s in layers_api.GetVisibilitiesInView(view)}
         layers = [n for n in layers if states.get(n) == L.State.Hidden]
         if layers:
-            view.SetAttribute(
+            records.set_text(
+                tx,
+                view,
                 CONSTRUCTION_LAYERS,
                 ",".join(str(n) for n in sorted(set(_layers(tx, view)) | set(layers))),
             )
@@ -203,7 +205,7 @@ def _show_layers(tx, view):
         tx.part.Layers.SetObjectsVisibilityOnLayer(
             view, [L.StateInfo(n, L.State.Visible) for n in layers], True
         )
-        view.SetAttribute(CONSTRUCTION_LAYERS, "")
+        records.set_text(tx, view, CONSTRUCTION_LAYERS, "")
 
 
 def set_construction(tx, view, visible, strict=False):
@@ -244,5 +246,5 @@ def set_construction(tx, view, visible, strict=False):
                     },
                 )
             state = "partial"
-    view.SetAttribute(CONSTRUCTION, state)
+    records.set_text(tx, view, CONSTRUCTION, state)
     return state

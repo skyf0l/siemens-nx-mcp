@@ -16,6 +16,7 @@ from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Length, Point3, Range, RefTo, Vec3
 from nx_mcp.domains.assembly import common, exploded
 from nx_mcp.kit import builders, geom, model, readback, result, select
+from nx_mcp.kit import records as krecords
 
 Percent = Annotated[float, Range(ge=0, le=100), Doc("0-100 % of the edge's arc length")]
 Direction = Annotated[
@@ -151,10 +152,10 @@ def nx_create_explosion_trace(
             [],
         )
         encoded = json.dumps(records)
-        line.SetAttribute(exploded.TRACE_ATTRIBUTE, encoded)
+        krecords.set_text(tx, line, exploded.TRACE_ATTRIBUTE, encoded)
         line.SetName(_name(part))
     readback.expect(
-        line.GetStringAttribute(exploded.TRACE_ATTRIBUTE) == encoded, "anchors",
+        krecords.get_text(tx, line, exploded.TRACE_ATTRIBUTE) == encoded, "anchors",
         "NX did not keep the trace anchors",
     )  # fmt: skip
     model.update(tx)
@@ -220,12 +221,12 @@ def nx_edit_explosion_trace(
                  field="/trace")  # fmt: skip
         common.explosion_context(tx)
         ex = line.AskExplosion()
-        records = exploded.records_of(line)
+        records = exploded.records_of(tx, line)
     for record, value in zip(records, (start_percent, end_percent), strict=True):
         if value is not None:
             record["percent"] = float(value)
     with native(default="NX_BUILD_FAILED"):
-        line.SetAttribute(exploded.TRACE_ATTRIBUTE, json.dumps(records))
+        krecords.set_json(tx, line, exploded.TRACE_ATTRIBUTE, records)
         if start_offset is not None:
             line.StartOffset = float(start_offset)
         if end_offset is not None:

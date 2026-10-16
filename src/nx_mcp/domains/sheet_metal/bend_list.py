@@ -12,7 +12,10 @@ NX 2406 findings encoded here:
 - A Flat Pattern's ``GetBendUpCenterLines``/``GetBendDownCenterLines`` name the formed
   body's bend face of each centre line: the inner face of an up bend, the opposite (outer)
   face of a down bend; that is the direction relative to the Flat Pattern's upward face.
-  Without a Flat Pattern the inner face's layer gives it (top layer: up).
+  Without a Flat Pattern the inner face's layer gives it (top layer: up). The centre lines
+  need ``nx_sheet_metal``; the Flat Pattern and Bend List builders take it or
+  ``nx_flexible_pcb``. A Flat Pattern found by default whose reads NX refuses for a license
+  falls back to the layers (no sequence) with a note; a named one reports the refusal.
 - ``BendListBuilder.PopulateBendListFromView`` (the Flat Pattern's modeling view) lists the
   bend sequence IDs and names sorted by ID, without the bend each belongs to; it is
   returned as ``sequence``. ``EditBendItem`` + commit renumbers them (not offered: no
@@ -35,14 +38,15 @@ from pathlib import Path
 from typing import Annotated, Any, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Offset, PageLimit, PathTo, RefTo
 from nx_mcp.domains.sheet_metal import common
 from nx_mcp.domains.sheet_metal.export import flat_pattern_feature
 from nx_mcp.kit import builders, files, geom, licenses, result, switching
 
-LICENSE = ("nx_sheet_metal",)
+CENTER_LINES_LICENSE = ("nx_sheet_metal",)  # FlatPattern.GetBend*CenterLines
+BEND_LIST_LICENSES = ("nx_sheet_metal", "nx_flexible_pcb")  # Flat Pattern / Bend List builders
 FlatPatternArg = Annotated[
     str, RefTo("feature", doc="Ref f:N: Flat Pattern; default: the body's first")
 ]
@@ -120,14 +124,11 @@ def _flat_pattern(tx, ref, body):
     """The Flat Pattern feature to use (``ref``, else the first one of ``body``) or None."""
     if ref is not None:
         feature = flat_pattern_feature(tx, ref)
-        licenses.require(tx, LICENSE, "Reading a Flat Pattern needs a sheet-metal license")
         formed = common.formed_body(feature)
         if formed is not None and not _same(formed, body):
             fail("NX_WRONG_OWNER", "This Flat Pattern belongs to another body",
                  field="/flat_pattern")  # fmt: skip
         return feature
-    if licenses.served(tx, LICENSE) is False:
-        return None
     for feature in tx.part.Features:
         if str(getattr(feature, "FeatureType", "")) == "FLAT_PATTERN" and _same(
             common.formed_body(feature), body
@@ -209,8 +210,14 @@ def deduction(angle: float, radius: float, k: float, thickness: float) -> float 
 
 def bend_list(tx, body_ref, flat_ref) -> tuple[Any, Any, list[BendItem], list[SequenceItem]]:
     body = _body(tx, body_ref)
-    feature = _flat_pattern(tx, flat_ref, body)
-    sides = _directions(tx, feature) if feature is not None else None
+    found = _licensed(tx, flat_ref, CENTER_LINES_LICENSE,
+                      "bend directions come from the face layers, no sequence",
+                      _found, flat_ref, body)  # fmt: skip
+    feature, sides = found or (None, None)  # None: NX refused the centre lines
+    sequence: list[SequenceItem] = []
+    if feature is not None:
+        sequence = _licensed(tx, flat_ref, BEND_LIST_LICENSES, "no bend sequence",
+                             _sequence, feature) or []  # fmt: skip
     t = common.thickness(tx, body)
     items: list[BendItem] = []
     for n, (face, data) in enumerate(common.bends(tx, body), 1):
@@ -230,8 +237,29 @@ def bend_list(tx, body_ref, flat_ref) -> tuple[Any, Any, list[BendItem], list[Se
                 "deduction": deduction(a, r, k, t),
             }
         )
-    sequence = _sequence(tx, feature) if feature is not None else []
     return body, feature, items, sequence
+
+
+def _found(tx, given, body):
+    """``(Flat Pattern, {face tag: up/down})``, or ``(None, None)`` without one. Finding
+    the body's Flat Pattern reads the centre lines too (``common.formed_body``)."""
+    feature = _flat_pattern(tx, given, body)
+    return feature, (_directions(tx, feature) if feature is not None else None)
+
+
+def _licensed(tx, given, features, instead, read, *args):
+    """``read(tx, *args)``; None when NX refuses it for a license while no Flat Pattern
+    was named (a note says so and what ``instead`` the result gives); a named Flat
+    Pattern reports the refusal."""
+    try:
+        with licenses.attempt(tx, features):
+            return read(tx, *args)
+    except NXError as error:
+        if given is not None or error.code != "NX_LICENSE_UNAVAILABLE":
+            raise
+        tx.warn("NX_NOTE", f"NX refused reading the Flat Pattern (license "
+                f"{error.details.get('license')}): {instead}")  # fmt: skip
+        return None
 
 
 @tool(

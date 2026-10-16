@@ -4,7 +4,7 @@ from types import SimpleNamespace as NS
 
 import pytest
 
-from tests.unit.freeform.fakes import curve, face, flat, freeform_nx, sheet
+from tests.unit.freeform.fakes import curve, face, flat, freeform_nx, nx_refuses, sheet
 from tests.unit.modeling.fakes import call, feature, new_body
 
 
@@ -44,7 +44,7 @@ def test_swept_volume_subtracts_from_the_targets():
     assert b.BooleanData.Type is G.Subtract
     assert b.BooleanData.SetTargetBodies.calls[0][0][0] == [block]
     assert b.DistanceTolerance == pytest.approx(0.01)
-    assert nx.license_queries == ["nx_freeform_1"]
+    assert nx.license_queries == []  # NX decides: never asked first
     data = ok.data
     assert data["volume_before"] == pytest.approx(8400) and data["volume"] == pytest.approx(
         7762.301
@@ -110,12 +110,14 @@ def test_swept_volume_rejections_before_nx(args, field):
     assert not nx.builders
 
 
-def test_swept_volume_without_license_refuses_before_the_builder():
+def test_swept_volume_without_license_reports_nx_refusal():
     nx, tool, block, path = scene()
-    nx.licenses["nx_freeform_1"] = False
+    nx_refuses(nx, "SweptVolumeBuilder", "nx_freeform_1")
     (t,), (target,) = refs(nx, tool), refs(nx, block)
     bad = call(nx, "nx_create_swept_volume", {"tool": t, "path": [path.ref], "targets": [target]})
-    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and not nx.builders
+    assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and bad.error["nx_code"] == 948801
+    assert bad.error["details"]["license"] == "nx_freeform_1"
+    assert bad.error["details"]["license_check"] == "missing" and nx.live_builders == 0
 
 
 @pytest.mark.parametrize("given", [0.001, "0.009 mm", "0.0001 in"])

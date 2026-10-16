@@ -2,8 +2,8 @@
 
 NX 2406 lessons kept here:
 
-- ``CreateOffsetSurfaceBuilder`` needs the basic freeform license (``nx_freeform_1``),
-  checked with ``LicenseManager.CheckPresence`` before the builder is created.
+- ``CreateOffsetSurfaceBuilder`` needs the basic freeform license (``nx_freeform_1``);
+  NX's refusal is reported naming it (``kit.licenses.attempt``).
 - ``Tolerance`` defaults to 0 and is always set (0.001 mm in part units by default).
 - Each face set (``Part.FaceSetOffsets.CreateEmptyFaceSet``) is a face collector and
   an ``Offset`` expression; ``FaceSets.Append`` adds it. The distance is signed: a
@@ -192,10 +192,12 @@ def nx_create_offset_surface(
             fail("NX_INVALID_ARGUMENT", "A face is listed twice", field="/sets")
         if not partial:
             _too_far(tx, resolved)
-    common.licensed(tx)
     part = tx.part
     before = {int(x.Tag) for x in part.Bodies}
-    with builders.build(tx, part.Features.CreateOffsetSurfaceBuilder, None) as b:
+    with (
+        common.licensed(tx),
+        builders.build(tx, part.Features.CreateOffsetSurfaceBuilder, None) as b,
+    ):
         b.Tolerance = tol
         b.OutputOption = tx.nx.Features.OffsetSurfaceBuilder.OutputOptionType.OneFeatureForAllFaces
         for found, value in resolved:

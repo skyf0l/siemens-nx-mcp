@@ -334,8 +334,9 @@ async def test_a_failing_expectation_fails_the_scenario(tmp_path, scenario_dir):
             session, scenario_dir, workspace=tmp_path, run_id="r2", build=("v2406", "")
         )
     assert not record["passed"] and record["failed_checks"] == 1
-    assert "close 30" in record["steps"][2]["failures"][0]
-    assert details["steps"][2]["failures"] == record["steps"][2]["failures"]
+    # Evidence keeps the check's path, operator and numbers; the local run log all of it.
+    assert record["steps"][2]["failures"] == ["data.origin.2: close failed (wanted 30, actual 25)"]
+    assert details["steps"][2]["failures"][0].startswith("data.origin.2: close 30 failed")
 
 
 async def test_parts_are_closed_when_a_setup_step_fails(tmp_path, scenario_dir):
@@ -402,8 +403,11 @@ async def test_failure_evidence_keeps_the_error_without_local_paths(tmp_path, sc
             session, scenario_dir, workspace=tmp_path, run_id="r7", build=("v2406", "")
         )
     step = record["steps"][1]
-    assert not step["passed"] and step["error"]["code"] and step["error"]["message"]
-    assert step["failures"][0].startswith(f"unexpected error {step['error']['code']}")
+    # The code, category and field only: NX's message can name a licence, a part or a path.
+    assert not step["passed"] and step["error"]["code"] and "message" not in step["error"]
+    assert set(step["error"]) <= {"code", "category", "field", "member"}
+    assert step["failures"][0] == f"unexpected error {step['error']['code']}"
+    assert details["steps"][1]["error"]["message"]  # the local run log keeps it
     assert details["steps"][1]["result_sha256"] and "seconds" not in step
     path, _ = runner.write_evidence(record, tmp_path / "evidence")
     assert path.name == "fake.last-failure.json"
