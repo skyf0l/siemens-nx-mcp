@@ -157,6 +157,19 @@ def test_swept_volume_refuses_a_path_not_level_with_the_tool_axis(start, end, le
     assert not nx.builders
 
 
+def test_swept_volume_path_check_skips_a_tool_nx_would_refuse():
+    # A block changed by a boolean has cylindrical faces but is no tool: NX's own refusal
+    # (not the path check) explains it.
+    nx, tool, block, _path = scene()
+    tool.GetFeatures = lambda: [NS(FeatureType="BLOCK"), NS(FeatureType="INTERSECT")]
+    path = curve(nx, [-10, 50, 20], [70, 50, 20])  # not level: refused for a real tool
+    (t,), (target,) = refs(nx, tool), refs(nx, block)
+    result = call(
+        nx, "nx_create_swept_volume", {"tool": t, "path": [path.ref], "targets": [target]}
+    )
+    assert result.error is None or result.error["field"] != "/path/0", result.error
+
+
 def test_swept_volume_path_beside_the_axis_but_level_is_accepted():
     nx, tool, block, _path = scene()
     path = curve(nx, [0, 150, 20], [50, 150, 20])  # 100 off sideways, level with the axis

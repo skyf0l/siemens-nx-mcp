@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import sys
 import threading
+import time
 from types import SimpleNamespace as NS
 from unittest.mock import Mock
 
@@ -43,6 +44,23 @@ def test_the_deadline_stops_a_python_loop_and_removes_its_trace():
     assert stopped.value.seconds == 5 and " in loop" in stopped.value.where
     assert "loop" in stopped.value.stack
     assert sys.gettrace() is before  # normal tools never run traced
+
+
+def test_the_backstop_stops_a_one_line_spin_and_leaves_nothing_pending():
+    # Python 3.10 sends the trace hook no events for this loop: the timer thread stops it.
+    started = time.monotonic()
+    with pytest.raises(watchdog.ProbeTimeout) as stopped, watchdog.deadline(0.2):
+        while True:
+            pass  # noqa: E701
+    assert time.monotonic() - started < 0.2 + watchdog.BACKSTOP_DELAY + 2
+    assert stopped.value.seconds == 0.2
+    time.sleep(watchdog.BACKSTOP_DELAY + 0.3)  # a late signal would land here
+
+
+def test_a_snippet_ending_in_time_is_never_hit_later():
+    with watchdog.deadline(0.05):
+        pass
+    time.sleep(watchdog.BACKSTOP_DELAY + 0.3)  # the timer was cancelled
 
 
 def test_an_except_exception_cannot_swallow_the_stop():

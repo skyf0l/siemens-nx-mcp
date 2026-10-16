@@ -325,10 +325,10 @@
   "nx_create_swept_volume": {
     "v2406": {
       "checks": 31,
-      "recorded": "2026-10-15T11:01:01Z",
+      "recorded": "2026-10-16T06:36:53Z",
       "scenario": "acceptance/freeform/swept_volume.json",
       "scenario_sha256": "806d11f4ccdfd2c9d43e8355cd8873dbb0b471ffefdfb49be06bbef6f9e34346",
-      "source_sha256": "926d817e512a433ef8d44493c13c8854a7e474a99ace542e238094d5282751e0",
+      "source_sha256": "0f1b712acd6c187fa440f94128a99186e4ca2203e89a7835a45f6dbf04d8f5d7",
       "variants": []
     }
   },

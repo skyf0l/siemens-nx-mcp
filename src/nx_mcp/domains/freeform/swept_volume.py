@@ -86,6 +86,23 @@ def _axis(tx, body):
     return None
 
 
+# Feature types NX accepts as a tool ("a revolved feature, cylindrical extrude, or a
+# cylinder feature"): only such a body has the axis _check_start measures from.
+TOOL_FEATURES = ("CYLINDER", "REVOLVED", "EXTRUDE")
+
+
+def _tool_like(body) -> bool:
+    """Whether every feature of ``body`` is a cylinder, revolve or extrude (True when NX
+    does not list them). A block or a body changed by a boolean is not, even with a
+    cylindrical face: NX refuses it as a tool, and that refusal says why."""
+    get = getattr(body, "GetFeatures", None)
+    try:
+        kinds = [str(getattr(f, "FeatureType", "")).upper() for f in get()] if get else []
+    except Exception:  # noqa: BLE001 - unknown: keep the path check
+        return True
+    return all(k.startswith(TOOL_FEATURES) for k in kinds)
+
+
 def _check_start(tx, body, curves) -> None:
     """Refuse a path that does not start level with the tool axis.
 
@@ -95,7 +112,7 @@ def _check_start(tx, body, curves) -> None:
     with the axis failed ('The Tool Body is invalid', 4120009). The path start must be
     level: the offset from the axis to the start, across the axis, is normal to the path.
     """
-    found = _axis(tx, body)
+    found = _axis(tx, body) if _tool_like(body) else None
     if found is None:
         return
     origin, axis = found
