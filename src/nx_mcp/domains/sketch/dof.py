@@ -129,8 +129,14 @@ class _Entry:
 class Model:
     """Parameters of the sketch curves and equations of the constraints on them."""
 
-    def __init__(self, tx, sk):
+    def __init__(self, tx, sk, partial=False):
         self.tx = tx
+        # partial: a curve or constraint not modelled is left out instead of failing; its
+        # curves (``unknown``) and the curves it joins (``links``) make their group uncertain
+        self.partial = partial
+        self.unknown: set[int] = set()
+        self.links: list[list[int]] = []
+        self.reasons: list[str] = []
         s = sk.sketch if isinstance(sk, ksketch.Editing) else sk
         self.frame = ksketch.frame(s)
         self.curves = ksketch.geometry(s)
@@ -140,7 +146,14 @@ class Model:
         self.angle: list[bool] = []  # angle parameters (scaled by the sketch size)
         extent = [1.0]
         for c in self.curves:
-            kind, values = self._read(c)
+            try:
+                kind, values = self._read(c)
+            except Unsupported as error:
+                if not partial:
+                    raise
+                self.unknown.add(int(c.Tag))
+                self.reasons.append(str(error))
+                continue
             self.entries[int(c.Tag)] = _Entry(kind, values, len(self.x0))
             self.x0 += values
             self.owner += [int(c.Tag)] * len(values)
@@ -148,9 +161,18 @@ class Model:
             extent += [abs(v) for i, v in enumerate(values) if not (kind == "arc" and i >= 3)]
         self.scale = max(extent)
         self.equations: list[tuple[object, list[int]]] = []  # (residual fn, curve tags)
+        own = {int(c.Tag) for c in self.curves}
         for con in ksketch.constraints(tx, s):
-            if driving(tx, con):
+            if not driving(tx, con):
+                continue
+            try:
                 self._add(con)
+            except (Unsupported, ZeroDivisionError, ValueError) as error:
+                if not partial:
+                    raise
+                uses = geometry(tx, con) or []
+                self.links.append([int(o.Tag) for o, _w in uses if int(o.Tag) in own])
+                self.reasons.append(str(error))
 
     # -- reading geometry ---------------------------------------------------------------
     def _local(self, p3):
@@ -567,8 +589,10 @@ def _jacobian(m, eqs, columns):
 
 
 def _clusters(m):
-    """Curves joined by constraints: ``[(curve tags, equations)]``."""
+    """Curves joined by constraints: ``[(curve tags, equations, uncertain)]``; uncertain:
+    the group holds a curve or constraint the model left out (``Model.partial``)."""
     parent = {t: t for t, e in m.entries.items() if e.offset is not None}
+    parent.update({t: t for t in m.unknown})
 
     def root(t):
         while parent[t] != t:
@@ -576,7 +600,7 @@ def _clusters(m):
             t = parent[t]
         return t
 
-    for _fn, tags in m.equations:
+    for tags in [t for _fn, t in m.equations] + m.links:
         for t in tags[1:]:
             parent[root(t)] = root(tags[0])
     groups: dict[int, tuple[list[int], list]] = {}
@@ -585,17 +609,28 @@ def _clusters(m):
     for eq in m.equations:
         if eq[1]:
             groups[root(eq[1][0])][1].append(eq)
-    return list(groups.values())
+    doubtful = {root(t) for t in m.unknown} | {root(tags[0]) for tags in m.links if tags}
+    return [(tags, eqs, key in doubtful) for key, (tags, eqs) in groups.items()]
 
 
-def analyse(tx, sk, why=None):
+def analyse(tx, sk, why=None, *, partial=False):
     """``{"dof": total, "curves": {tag: dof}}`` of the sketch, or None when a curve or
     constraint kind is not modelled (or a cluster is too large); ``why`` (a list) then
+    receives the reason.
+
+    ``partial``: a curve or constraint kind not modelled leaves only its group of joined
+    curves open: ``curves`` holds the exact DOF of the other groups, ``maybe`` the tags of
+    that group's curves that may still move (the DOF without the left-out equations is
+    an upper bound: a curve it holds at 0 is fixed), ``dof`` is None then and ``why``
     receives the reason."""
     try:
-        m = Model(tx, sk)
-        total, per_curve = 0, {}
-        for tags, eqs in _clusters(m):
+        m = Model(tx, sk, partial=partial)
+        total, per_curve, maybe = 0, {}, []
+        uncertain_any = False
+        for tags, eqs, uncertain in _clusters(m):
+            unknown = [t for t in tags if t in m.unknown]
+            tags = [t for t in tags if t not in m.unknown]
+            uncertain_any = uncertain_any or uncertain
             columns = [
                 i
                 for t in tags
@@ -619,8 +654,18 @@ def analyse(tx, sk, why=None):
             position = {c: k for k, c in enumerate(columns)}
             for t in tags:
                 own = [position[i] for i, o in enumerate(m.owner) if o == t]
-                per_curve[t] = _rank([[v[k] for k in own] for v in basis], len(own))
-        return {"dof": total, "curves": per_curve}
+                n = _rank([[v[k] for k in own] for v in basis], len(own))
+                if not uncertain:
+                    per_curve[t] = n
+                elif n > 0:
+                    maybe.append(t)
+            maybe += unknown
+        if uncertain_any and why is not None and m.reasons:
+            why.append(f"not modelled: {m.reasons[0]}")
+        out = {"dof": None if uncertain_any else total, "curves": per_curve}
+        if partial:
+            out["maybe"] = maybe
+        return out
     except (Unsupported, ZeroDivisionError, ValueError) as error:
         if why is not None:
             why.append(f"not modelled: {error}" if isinstance(error, Unsupported) else str(error))

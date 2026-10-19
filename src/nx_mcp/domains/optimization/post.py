@@ -10,7 +10,8 @@ NX 2406 (probed live, 100x20x10 mm steel cantilever, quality 9):
 - ``GetContourLimits(0)`` reads the plotted range with its unit: von Mises stress in
   ``StressNewtonPerSquareMilliMeter`` (max 41.420332 = the subcase result's 41420.332 kPa
   peak), displacement in the part's length unit (0.122067 mm = the peak), safety factor
-  unitless (min = yield / peak stress, max capped at 1e6 where nothing is stressed).
+  unitless (min = yield / peak stress, max capped at 1e6 where nothing is stressed:
+  reported as max null, unit ``ratio``, with a note).
 - ``HideContour`` returns but leaves the plot (``IsContourShown`` stays true, the legend
   stays); entering the Topology Optimization task clears it, so ``none`` enters the task
   and cancels it (the study and its results stay as they were).
@@ -68,6 +69,7 @@ PEAK_REL = 1e-3  # contour max vs the study's own peak (NX rounds the stress to 
 LENGTHS = {"MilliMeter": "mm", "Inch": "in"}
 MIN_SHARE = 0.002  # PNG share in contour colours: legend only 0.00026, a result >= 0.0079
 WINDOW = (1024, 768)  # asked of the viewport export, which takes the window's own size
+SAFETY_CAP = 1e6 * (1 - 1e-9)  # NX's safety factor where nothing is stressed (1e6)
 
 
 class Capture(TypedDict, total=False):
@@ -128,7 +130,13 @@ def _limits(tx, manager, what):
         low, high, unit = manager.GetContourLimits(0)
     name = str(getattr(unit, "Name", "") or "") if unit is not None else ""
     low, high = float(low), float(high)
-    if what == "safety_factor" or not name:
+    if what == "safety_factor":  # a ratio; NX caps it where nothing is stressed
+        if high >= SAFETY_CAP:
+            tx.warn("NX_NOTE", "The safety factor is unbounded where the part carries no "
+                    f"stress (NX caps it at {SAFETY_CAP:g}): max is null")  # fmt: skip
+            return low, None, "ratio"
+        return low, high, "ratio"
+    if not name:
         return low, high, None
     if what.endswith("stress"):
         factor = common.UNIT_FACTORS["pressure"].get(name)
@@ -179,7 +187,7 @@ def nx_set_topology_contour(
 ) -> ContourData:
     """Plot a solved topology study's result on its body in NX for the engineer to see.
     stress (von Mises) and principal_stress in MPa, displacement in part units, safety_factor
-    vs yield; returns the plotted min/max. 'none' hides the plot: do so when done. For an
+    vs yield (max null: unbounded); returns the plotted min/max. 'none' hides the plot: do so when done. For an
     image use capture, not nx_capture_view (NX draws only the legend outside the task):
     PNG with legend, then no plot shown. Needs a study solved by nx_run_topology_study."""
     with tx.checks():

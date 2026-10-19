@@ -565,10 +565,9 @@ DESCRIPTIONS = {
         "nx_get_tool_schemas and nx_invoke (nx_invoke_read for effect read); not MCP tools."
     ),
     "nx_get_tool_schemas": (
-        "Exact input schemas, examples, prerequisites and evidence for 1-10 tools; output "
-        "schemas on request. Several variants of one tool ('tool#a', 'tool#b') come as one "
-        "entry: input_schema holds what they share; variants.<v>.input_schema adds v's "
-        "properties and required."
+        "Exact input schemas, examples and prerequisites of 1-10 tools ('tool#v': only "
+        "variant v); output schemas on request. Variants of one tool come as one entry: "
+        "input_schema is what they share, variants.<v>.input_schema adds v's own."
     ),
     "nx_invoke": (
         "Call any NX tool with its exact arguments; the kernel checks and undoes failures."

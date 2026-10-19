@@ -50,6 +50,8 @@ ObjectKind = Literal[
     "modeling_view",
     "drawing_table",
     "sketch_constraint",
+    "analysis",
+    "facet_body",
 ]
 
 

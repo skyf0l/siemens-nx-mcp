@@ -34,8 +34,8 @@ def test_sew_sheets_with_scaled_default_tolerance():
     sb = nx.last("SewBuilder")
     assert sb.Tolerance == pytest.approx(0.001 / 25.4)
     assert sb.Type is nx.nx.Features.SewBuilder.Types.Sheet
-    assert sb.BodyPreference is nx.nx.Features.SewBuilder.BodyPreferenceTypes.Sheet
-    assert ok.data["solid"] is False and ok.data["volume"] is None
+    assert sb.BodyPreference is nx.nx.Features.SewBuilder.BodyPreferenceTypes.Solid
+    assert ok.data["solid"] is False and ok.data["volume"] is None  # open: NX keeps a sheet
     assert ok.data["bounds"]["max"] == [40, 10, 0] and nx.live_builders == 0
 
 
@@ -335,6 +335,36 @@ def test_sew_reports_free_edges_and_a_closed_sheet():
     a, b = two_sheets(nx)
     sew_commit(nx, a)
     a.edges = []  # every edge shared by two faces: a closed sheet
-    closed = run(nx, "nx_create_sew", target=a.ref, tools=[b.ref])
+    closed = run(nx, "nx_create_sew", target=a.ref, tools=[b.ref], solid=False)
     assert closed.data["free_edges"] == 0 and closed.data["closed"] is True
-    assert closed.data["solid"] is False and "solid true" in closed.warnings[0]["message"]
+    assert closed.data["solid"] is False and "nx_undo_operation" in closed.warnings[0]["message"]
+    assert nx.last("SewBuilder").BodyPreference is (
+        nx.nx.Features.SewBuilder.BodyPreferenceTypes.Sheet
+    )
+
+
+def test_sew_without_solid_makes_a_solid_when_the_sheets_close():
+    nx = freeform_nx()
+    a, b = two_sheets(nx)
+    sew_commit(nx, a, solid=True)
+    ok = run(nx, "nx_create_sew", target=a.ref, tools=[b.ref])
+    assert ok.ok and ok.data["solid"] is True and ok.data["volume"] == 4000.0, ok
+    assert nx.last("SewBuilder").BodyPreference is (
+        nx.nx.Features.SewBuilder.BodyPreferenceTypes.Solid
+    )
+    assert not ok.warnings
+
+
+def test_trim_boundary_beside_the_sheet_in_its_plane_gets_no_direction_advice():
+    nx, target, _cut = trim_nx((0, 0, 0, 10, 10, 0))
+    top = face(nx, flat(), normal=(0, 0, 1))
+    top.at = lambda x, y, *_z: [x, y, 0.0]  # the fake's face parameters are the point
+    top.box = [0, 0, 0, 20, 10, 0]
+    target.faces = [top]
+    target.GetFaces = lambda: [top]
+    beside = curve(nx, [30, -1, 0], [30, 11, 0])  # in the sheet's plane, 10 past its edge
+    nx.refuse("TrimsheetBuilder", 671232, "Invalid retained/discarded regions")
+    bad = run(nx, "nx_create_trim_sheet", body=target.ref, boundaries=[beside.ref],
+              region_point=[5, 5, 0])  # fmt: skip
+    assert "beside the sheet" in bad.error["hint"] and "pass direction" not in bad.error["hint"]
+    assert bad.error["field"] == "/boundaries/0" and bad.mutation_outcome == "rolled_back"

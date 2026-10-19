@@ -332,6 +332,104 @@ def inside(bounds, sheet):
     return bounds[0] >= 0 and bounds[1] >= 0 and bounds[2] <= length and bounds[3] <= height
 
 
+# ---- the sheet-bounds gate ---------------------------------------------------------------
+
+# Warning code of an object committed partly past its sheet's edge (its origin is on it).
+OFF_SHEET = "NX_OFF_SHEET"
+SHEET_TOL = 1e-6  # relative to the sheet size: a point on an edge is on the sheet
+
+
+def point_on_sheet(sheet, point) -> bool:
+    """True when sheet point ``[x, y]`` (sheet units) lies on ``sheet``, edges included."""
+    length, height = size(sheet)
+    tol = SHEET_TOL * max(length, height)
+    return -tol <= float(point[0]) <= length + tol and -tol <= float(point[1]) <= height + tol
+
+
+def check_on_sheet(sheet, point, field, what=None, hint=None):
+    """The sheet-bounds gate: refuse a sheet point off ``sheet`` before NX, with the sheet
+    size and the edge it passes. A view placed there fails in NX after the commit (NX
+    1405072 "The view is not located on the drawing"); annotations, dimensions, tables and
+    sheet curves would be committed out of sight. None passes."""
+    if point is None or point_on_sheet(sheet, point):
+        return
+    length, height = size(sheet)
+    x, y = float(point[0]), float(point[1])
+    past = [
+        f"{axis} = {value:g} is {'below 0' if value < 0 else f'past {limit:g}'}"
+        for axis, value, limit in (("x", x, length), ("y", y, height))
+        if not 0 <= value <= limit
+    ]
+    name = what or str(field).strip("/").replace("/", " ") or "point"
+    fail(
+        "NX_INVALID_ARGUMENT",
+        f"{name} [{x:g}, {y:g}] is off the {length:g} x {height:g} sheet ({'; '.join(past)})",
+        field=field,
+        hint=hint or "Give a sheet point from [0, 0] to the sheet size, in sheet units",
+        details={"sheet_size": [length, height], "requested": [x, y]},
+    )
+
+
+def warn_off_sheet(tx, what, bounds, sheet, hint="move it with nx_edit_annotation position"):
+    """Warn when an object committed with its origin on ``sheet`` runs past an edge
+    (``bounds`` ``[x0, y0, x1, y1]``); returns whether it does."""
+    if bounds is None or inside(bounds, sheet):
+        return False
+    length, height = size(sheet)
+    tx.warn(OFF_SHEET, f"The {what} runs past the edge of the {length:g} x {height:g} sheet "
+            f"(bounds {[round(v, 6) for v in bounds]}): {hint}")  # fmt: skip
+    return True
+
+
+# ---- views that lag the model ---------------------------------------------------------------
+
+
+def _pending(tx) -> bool:
+    """Whether the work part's drawing refresh waits: a call edited it while it was not
+    displayed and NX did not refresh its views (``core.switching.deferred``)."""
+    try:
+        from nx_mcp.core import switching
+
+        key = tx.services.part_key(tx.part)
+        return key in switching.deferred(tx.services)
+    except Exception:  # services without the deferred set (tests, batch host)
+        return False
+
+
+FRESH = "_drawing_fresh_views"  # Tx attribute: tags of the views this call updated
+
+
+def stale(tx, views):
+    """The views of ``views`` that may show an older model: flagged out of date by NX, or
+    all of them while the part's drawing refresh waits (edited while not displayed); the
+    views this call updated (:func:`freshen`) are current."""
+    fresh = getattr(tx, FRESH, set())
+    views = [v for v in views if int(v.Tag) not in fresh]
+    return views if views and _pending(tx) else out_of_date(views)
+
+
+def freshen(tx, views):
+    """Update ``views`` that lag the model before a model call reads their geometry (a
+    view of a part edited while it was not displayed still shows the old model); returns
+    the views updated. Read calls report :func:`stale` views instead (no update)."""
+    lagging = stale(tx, views)
+    if lagging:
+        tx.part.DraftingViews.UpdateViews(lagging)
+        setattr(tx, FRESH, getattr(tx, FRESH, set()) | {int(v.Tag) for v in lagging})
+    return lagging
+
+
+def stale_note(tx, views) -> list:
+    """For a read: warn about ``views`` that may show an older model (they are not
+    updated by a read); returns their names."""
+    names = [str(v.Name) for v in stale(tx, views)]
+    if names:
+        tx.warn("NX_NOTE", f"View {', '.join(names[:5])} may show an older model (the part "
+                "was edited while not displayed): nx_update_annotations updates it, then read "
+                "again")  # fmt: skip
+    return names
+
+
 def place(tx, view, point, axes=(0, 1)):
     """Move ``view``'s reference point to sheet ``point`` (sheet units) and verify it.
 

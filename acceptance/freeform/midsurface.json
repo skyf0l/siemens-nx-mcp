@@ -321,6 +321,226 @@
    }
   },
   {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "cube",
+   "args": {
+    "shape": "block",
+    "origin": [
+     200,
+     0,
+     0
+    ],
+    "length": 30,
+    "width": 30,
+    "height": 30
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "cbot",
+   "args": {
+    "owner": "$cube.data.bodies.0.id",
+    "kind": "face",
+    "normal": "-z"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "ctop",
+   "args": {
+    "owner": "$cube.data.bodies.0.id",
+    "kind": "face",
+    "normal": "+z"
+   }
+  },
+  {
+   "call": "nx_create_midsurface",
+   "intent": "The given pair is used, not NX's own pairing: the cube's z faces give the plane z 15",
+   "args": {
+    "method": "face_pairs",
+    "body": "$cube.data.bodies.0.id",
+    "side_one": [
+     "$cbot.data.items.0.id"
+    ],
+    "side_two": [
+     "$ctop.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.method": "face_pairs",
+    "data.area": {
+     "close": 900,
+     "tol": 0.001
+    },
+    "data.bounds.min": {
+     "close": [
+      200,
+      0,
+      15
+     ],
+     "tol": 0.001
+    },
+    "data.bounds.max": {
+     "close": [
+      230,
+      30,
+      15
+     ],
+     "tol": 0.001
+    },
+    "data.asymmetry": {
+     "close": 0,
+     "tol": 0.0001
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "s2",
+   "args": {
+    "placement": {
+     "principal": "xz",
+     "origin": [
+      100,
+      40,
+      0
+     ]
+    },
+    "finish": true,
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       -10,
+       10
+      ],
+      "corner2": [
+       10,
+       30
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_create_bounded_plane",
+   "setup": true,
+   "save": "p2",
+   "args": {
+    "boundary": [
+     "$s2.data.curves.0.id",
+     "$s2.data.curves.1.id",
+     "$s2.data.curves.2.id",
+     "$s2.data.curves.3.id"
+    ]
+   }
+  },
+  {
+   "call": "nx_create_midsurface",
+   "intent": "A flat sheet and an upright sheet beside it: NX builds their bisector (the plane y + z = 40), with warnings that it is not midway everywhere",
+   "args": {
+    "method": "two_sheets",
+    "sheets": [
+     "$p0.data.bodies.0.id",
+     "$p2.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.method": "two_sheets",
+    "data.area": {
+     "close": 282.842712475,
+     "tol": 0.001
+    },
+    "data.bounds.min": {
+     "close": [
+      90,
+      15,
+      15
+     ],
+     "tol": 0.001
+    },
+    "data.bounds.max": {
+     "close": [
+      110,
+      25,
+      25
+     ],
+     "tol": 0.001
+    },
+    "warnings": {
+     "contains": {
+      "code": "NX_APPROXIMATED"
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "s3",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      140,
+      0,
+      0
+     ]
+    },
+    "finish": true,
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       -10,
+       -10
+      ],
+      "corner2": [
+       10,
+       10
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_create_bounded_plane",
+   "setup": true,
+   "save": "p3",
+   "args": {
+    "boundary": [
+     "$s3.data.curves.0.id",
+     "$s3.data.curves.1.id",
+     "$s3.data.curves.2.id",
+     "$s3.data.curves.3.id"
+    ]
+   }
+  },
+  {
+   "call": "nx_create_midsurface",
+   "intent": "Two sheets side by side in one plane have no mid sheet between them: refused, rolled back",
+   "args": {
+    "method": "two_sheets",
+    "sheets": [
+     "$p0.data.bodies.0.id",
+     "$p3.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_WRONG_GEOMETRY",
+    "error.field": "/sheets",
+    "error.details.astray": 9,
+    "mutation_outcome": "rolled_back"
+   }
+  },
+  {
    "call": "nx_check_model",
    "args": {},
    "expect": {

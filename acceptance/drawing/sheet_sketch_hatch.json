@@ -7,7 +7,8 @@
    "circle",
    "rectangle"
   ],
-  "nx_create_hatch": []
+  "nx_create_hatch": [],
+  "nx_edit_annotation": []
  },
  "part": null,
  "fixture": "fixtures/drawing_block_mm.prt",
@@ -391,6 +392,75 @@
     "data.items.2.id": "$fill.data.annotation.id",
     "data.items.3.id": "$pfill.data.annotation.id"
    }
+  },
+  {
+   "call": "nx_edit_annotation",
+   "save": "hx",
+   "args": {
+    "annotation": "$x1.data.annotation.id",
+    "hatch": {
+     "spacing": 2,
+     "angle": 60
+    }
+   },
+   "expect": {
+    "data.hatch.type": "crosshatch",
+    "data.hatch.spacing": {
+     "close": 2,
+     "tol": 1e-06
+    },
+    "data.hatch.angle": {
+     "close": 60,
+     "tol": 1e-06
+    },
+    "changes.modified": {
+     "count": 1
+    }
+   },
+   "intent": "Acceptance: a crosshatch's spacing and angle are edited and read back"
+  },
+  {
+   "call": "nx_edit_annotation",
+   "args": {
+    "annotation": "$fill.data.annotation.id",
+    "hatch": {
+     "spacing": 2
+    }
+   },
+   "expect": {
+    "error.field": "/hatch/spacing",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_undo_operation",
+   "args": {
+    "operation": "$hx.operation_id",
+    "mode": "compensate"
+   },
+   "expect": {
+    "data.compensated": true
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "args": {
+    "kind": "annotation",
+    "type": "hatch"
+   },
+   "expect": {
+    "data.items": {
+     "contains": {
+      "id": "$x1.data.annotation.id",
+      "details": {
+       "hatch": {
+        "type": "crosshatch"
+       }
+      }
+     }
+    }
+   },
+   "intent": "Acceptance: the listing reads a hatch's pattern, angle and spacing back"
   },
   {
    "call": "nx_create_hatch",

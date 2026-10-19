@@ -1,0 +1,190 @@
+{
+ "covers": {
+  "nx_edit_annotation": [],
+  "nx_update_annotations": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "back",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     35,
+     50,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "front",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     40,
+     0,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "right",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     80,
+     20,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h1",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     25,
+     25,
+     20
+    ],
+    "limit": 1,
+    "radius": 8
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_create_note",
+   "setup": true,
+   "save": "lab",
+   "args": {
+    "text": [
+     "OLD"
+    ],
+    "origin": [
+     250,
+     260
+    ],
+    "view": "$top.data.view.id",
+    "leader_to": "$back.data.items.0.id"
+   }
+  },
+  {
+   "call": "nx_edit_annotation",
+   "save": "ed",
+   "args": {
+    "annotation": "$lab.data.annotation.id",
+    "text": [
+     "4X DIA 6 THRU",
+     "EQ SP"
+    ]
+   },
+   "expect": {
+    "data.text": [
+     "4X DIA 6 THRU",
+     "EQ SP"
+    ],
+    "mutation_outcome": "committed",
+    "changes.modified": {
+     "count": 1
+    }
+   },
+   "intent": "Acceptance: a leader note (Label) takes new text"
+  },
+  {
+   "call": "nx_undo_operation",
+   "args": {
+    "operation": "$ed.operation_id",
+    "mode": "compensate"
+   },
+   "expect": {
+    "data.compensated": true,
+    "data.restored": {
+     "count": 1
+    }
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "setup": true,
+   "save": "dim",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "horizontal",
+    "first": "$back.data.items.0.id"
+   }
+  },
+  {
+   "call": "nx_update_annotations",
+   "args": {
+    "objects": [
+     "$dim.data.dimension.id",
+     "$top.data.view.id",
+     "$sh.data.sheet.id"
+    ]
+   },
+   "expect": {
+    "data.skipped": {
+     "count": 3
+    },
+    "data.skipped.0.reason": {
+     "matches": "^dimension:"
+    },
+    "data.skipped.1.reason": {
+     "matches": "^view:"
+    },
+    "data.skipped.2.reason": {
+     "matches": "^sheet:"
+    },
+    "mutation_outcome": "not_applicable"
+   },
+   "intent": "Acceptance: skip reasons name each kind and nothing refreshed is not_applicable"
+  }
+ ]
+}

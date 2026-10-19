@@ -159,7 +159,12 @@ async def test_untested_tools_are_hidden_and_refused_unless_in_development(
     refused = body(
         await agent.call_tool("nx_invoke", {"tool": "nx_create_datum_plane", "arguments": OFFSET})
     )
-    assert refused["error"]["code"] == "NX_UNKNOWN_TOOL" and not bridge.call.called
+    # A catalogue tool hidden on this build says so, unlike a name no tool has.
+    assert refused["error"]["code"] == "NX_VERSION_UNSUPPORTED" and not bridge.call.called
+    assert "nx_create_datum_plane is not available on this NX build" in refused["error"]["message"]
+    assert refused["error"]["retry"] == "never"
+    nope = body(await agent.call_tool("nx_invoke", {"tool": "nx_nope_tool", "arguments": {}}))
+    assert nope["error"]["code"] == "NX_UNKNOWN_TOOL"
     monkeypatch.setenv("NX_MCP_DEV", "1")
     rows = body(await agent.call_tool("nx_find_tools", {"query": "datum plane"}))["data"]["tools"]
     assert rows[0]["name"] == "nx_create_datum_plane" and rows[0]["tested"] is False
@@ -837,9 +842,14 @@ def test_compact_changes_keep_the_main_object_and_count_the_rest():
     # The rows data names at its top level stay: changes alone tell what was made.
     assert compact["changes"]["created"] == [pattern]
     assert compact["changes"]["counts"] == {"created": {"expression": 8, "feature": 36}}
-    assert compact["omitted"]["/changes/created"] == {"total": 44, "returned": 1}
+    assert compact["omitted"]["/changes/created"] == {
+        "total": 44, "returned": 1, "order": "main_first"
+    }  # fmt: skip
     assert compact["data"]["volume"] == 1.0 and compact["result_id"]
-    assert store.saved == [full] and len(full["changes"]["created"]) == 44  # full kept
+    # Every row is kept, the ones compact shows first: nx_get_result pages in that order.
+    (saved,) = store.saved
+    assert saved["changes"]["created"] == [pattern, *(r for r in created if r is not pattern)]
+    assert full["changes"]["created"] == created  # the caller's envelope is untouched
 
 
 def test_compact_changes_keep_rows_data_shows_and_drop_nx_helpers():
@@ -929,7 +939,11 @@ def test_compact_pattern_shows_first_and_last_bodies():
     # Created keeps the main objects data names (pattern feature, new bodies): first, last.
     assert [r["id"] for r in compact["changes"]["created"]] == ["f:10", "b:116"]
     assert compact["changes"]["counts"] == {"created": {"body": 17, "expression": 9, "feature": 19}}
-    assert store.saved == [full] and len(full["data"]["bodies"]) == 18
+    (saved,) = store.saved
+    assert saved["data"] == full["data"] and len(full["data"]["bodies"]) == 18
+    stored = saved["changes"]["created"]  # the rows compact shows (data's objects) first
+    assert [r["id"] for r in stored[:18]] == ["f:10", *(f"b:{100 + k}" for k in range(17))]
+    assert sorted(r["id"] for r in stored) == sorted(r["id"] for r in full["changes"]["created"])
     assert _size(compact) < 1000 and _size(full) > 4000
 
 

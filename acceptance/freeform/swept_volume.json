@@ -258,7 +258,7 @@
   },
   {
    "call": "nx_create_swept_volume",
-   "intent": "A block is no cylindrical or revolved tool: NX refuses, with the hint",
+   "intent": "A block is no cylindrical or revolved tool: refused before NX",
    "args": {
     "tool": "$s3.data.bodies.0.id",
     "path": [
@@ -269,8 +269,9 @@
     ]
    },
    "expect": {
-    "error.code": "NX_BUILD_FAILED",
-    "mutation_outcome": "rolled_back"
+    "error.code": "NX_WRONG_GEOMETRY",
+    "error.field": "/tool",
+    "mutation_outcome": "not_started"
    }
   },
   {

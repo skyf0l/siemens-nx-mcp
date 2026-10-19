@@ -125,7 +125,7 @@ def test_a_five_point_conic_missing_a_point_is_an_input_error():
 # ---- isoparametric families and seam duplicates -----------------------------------------
 def test_iso_curves_report_their_family_and_the_seam_duplicate():
     nx = curves_nx()
-    f = face(nx, flat())
+    f = face(nx, flat(), kind="cylinder")
     f.box = [-20, -20, 0, 20, 20, 60]
     # uv: three lines along z (u family; the first and last on the same seam) and a line
     # across (v family: the fake's face parameters are x and y)

@@ -50,7 +50,6 @@ SKIPPED_REASON = (
     "so they cannot touch; {how}"
 )
 CHECK_ALL = "include_clear=true checks and lists every pair"
-REPORT_CHECK_ALL = "nx_check_interference with include_clear=true checks and lists every pair"
 Objects = Annotated[list[Annotated[str, RefTo("body", "feature", "component")]], Items(2, 500)]
 MaxPairs = Annotated[int, Range(ge=1, le=MAX_PAIRS), Doc("Native pair checks allowed")]
 Clearance = Annotated[Length, Doc("Minimum clearance, part units; 0 = interference only")]
@@ -279,7 +278,7 @@ def _groups(tx, objects):
     keywords=(
         "clash",
         "collision",
-        "clearance check",
+        "components collide",
         "interference",
         "overlap",
         "clearance between components",
@@ -324,13 +323,18 @@ def nx_check_interference(
 # Inspection report
 
 
-class ReportData(TypedDict):
+class _ReportRequired(TypedDict):
     path: str
     size: int
     sha256: str
     files: list[str]
     captures: int
     counts: dict[str, int]
+    pairs: list[Pair]  # the report's pair table (report.json interference.pairs)
+
+
+class ReportData(_ReportRequired, total=False):
+    skipped_reason: str
 
 
 WIDTH, HEIGHT = 1280, 800
@@ -529,10 +533,12 @@ def nx_export_inspection_report(
     max_pairs: MaxPairs = DEFAULT_PAIRS,
     section_planes: Annotated[list[PlaneByNormal], Items(1, 6)] | None = None,
     capture: bool = True,
+    include_clear: Annotated[bool, Doc("Check and list clear pairs too")] = False,
 ) -> ReportData:
     """Write a .zip of interference and clearance results (index.html, report.json, PNG
-    captures, SHA-256 manifest). No objects: every solid, sheets skipped. Section captures
-    look at the cut face; a plane beside the model is skipped with a note."""
+    captures, SHA-256 manifest). The result repeats its pair table. No objects: every solid,
+    sheets skipped. Section captures look at the cut face; a plane beside the model is
+    skipped with a note."""
     planes = list(section_planes or [])
     clearance = float(clearance)  # the kernel converted the quantity to part units
     # Argument rules, lookups, refusals and measurements: no file yet (not_started).
@@ -551,10 +557,9 @@ def nx_export_inspection_report(
             pairs,
             clearance=clearance,
             max_pairs=max_pairs,
-            include_clear=False,
+            include_clear=include_clear,
             include_contact=True,
             sheets=sheets,
-            check_all=REPORT_CHECK_ALL,
         )
     units = tx.units.get("length") or "mm"
     report: dict[str, Any] = {
@@ -581,9 +586,13 @@ def nx_export_inspection_report(
     names = _write_zip(tx, path, folder, report, images)
     published = tx.files.publish()[0]
     meta = files.metadata(published, tx.workspace.root)
-    return {
-        **meta,
+    out: ReportData = {
+        **meta,  # path, size, sha256
         "files": names,
         "captures": len(images),
         "counts": checks["counts"],
+        "pairs": checks["pairs"],
     }
+    if checks.get("skipped_reason"):
+        out["skipped_reason"] = checks["skipped_reason"]
+    return out

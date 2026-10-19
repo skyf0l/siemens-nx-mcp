@@ -79,7 +79,7 @@ def _sew_failure(error, gaps, tol):
     summary=lambda a, say: (
         f"Sew {len(a['tools']) + 1} sheets" + (" into a solid" if a.get("solid") else "")
     ),
-    keywords=("sew", "knit", "stitch sheets", "join surfaces", "close into solid"),
+    keywords=("sew", "knit", "stitch sheets", "join sheets", "close into solid"),
     requires=("work_part", "no_active_sketch"),
     cost="heavy",
     previewable=True,
@@ -91,11 +91,12 @@ def nx_create_sew(
     target: BodyRef,
     tools: Annotated[list[BodyRef], Items(1, 100)],
     tolerance: Annotated[Length, Doc("Largest gap to close")] | None = None,
-    solid: Annotated[bool, Doc("Require a closed solid result")] = False,
+    solid: Annotated[bool, Doc("true: require a solid; false: keep a sheet; omitted: either")]
+    | None = None,
 ) -> SewData:
-    """Sew edge-sharing sheet bodies into the target sheet (tools are consumed). solid=true
-    requires a closed solid. Returns free_edges and closed (a closed sheet: sew with solid
-    true for a solid). Failures report each tool's gap in details.gaps."""
+    """Sew edge-sharing sheet bodies into the target sheet (tools are consumed). Sheets that
+    enclose a volume become a solid unless solid is false; solid true requires one.
+    Returns free_edges and closed. Failures report each tool's gap in details.gaps."""
     if target in tools:
         fail("NX_INVALID_ARGUMENT", "target cannot also be a tool", field="/tools")
     with tx.checks():
@@ -109,8 +110,9 @@ def nx_create_sew(
     try:
         with builders.build(tx, part.Features.CreateSewBuilder, None) as b:
             b.Type = F.SewBuilder.Types.Sheet
+            # Solid preference: a solid when the sheets close, else NX keeps a sheet.
             b.BodyPreference = getattr(
-                F.SewBuilder.BodyPreferenceTypes, "Solid" if solid else "Sheet"
+                F.SewBuilder.BodyPreferenceTypes, "Sheet" if solid is False else "Solid"
             )
             b.Tolerance = tol
             builders.fill(tx, b.TargetBodiesCollector, [body], "Body")
@@ -142,8 +144,9 @@ def nx_create_sew(
         readback.expect(volume > 0, "volume", "The sewn solid has no volume", volume=volume)
     free = len(surface_loops.free_edges(bodies))
     if not closed and free == 0:
-        tx.warn("NX_NOTE", "The sewn sheet is closed (no free edge): sew again with solid "
-                "true for a solid body")  # fmt: skip
+        tx.warn("NX_NOTE", "The sewn sheet is closed (no free edge) and solid false kept it a "
+                "sheet: for a solid, undo this sew (nx_undo_operation) and sew without solid "
+                "false")  # fmt: skip
     return {**out, "solid": closed, "volume": volume, "free_edges": free, "closed": free == 0}
 
 
@@ -285,6 +288,20 @@ def nx_create_thicken(
 # Trim sheet
 
 
+def _beside(tx, obj, target) -> bool:
+    """Whether a boundary off the sheet lies beside it in its surface: the way from the
+    nearest sheet point to the boundary runs along the sheet, not along its normal."""
+    try:
+        _gap, on_curve, on_sheet = curve.min_distance(tx, obj, target)
+        face = min(target.GetFaces(), key=lambda f: curve.point_distance(tx, f, on_sheet)[0])
+        uv = tx.uf.Modeling.AskFaceParm(face.Tag, [float(v) for v in on_sheet])[0]
+        normal = geom.unit([float(v) for v in tx.uf.Modeling.AskFaceProps(face.Tag, uv)[5]])
+        away = geom.unit(geom.sub(on_curve, on_sheet))
+    except (NXError, ValueError, ZeroDivisionError):
+        return False
+    return abs(geom.dot(away, normal)) < 0.5
+
+
 def _trim_failure(tx, error, target, curves, refs, region_gap, vector):
     gaps = [
         {"boundary": refs[i], "gap": common.gap(tx, c, target)}
@@ -293,7 +310,14 @@ def _trim_failure(tx, error, target, curves, refs, region_gap, vector):
     tol = units.part_tolerance(tx)
     off = [g for g in gaps if g["gap"] is not None and g["gap"] > tol]
     how = "along direction" if vector is not None else "along the face normals"
-    if off and vector is None:
+    beside = bool(off) and _beside(tx, curves[refs.index(off[0]["boundary"])], target)
+    if beside:
+        hint = (
+            f"Boundary {off[0]['boundary']} lies {off[0]['gap']:.4g} beside the sheet, in its "
+            "surface (not above or below it), so no direction brings it onto the sheet: move "
+            "or extend it to cross the sheet"
+        )
+    elif off and vector is None:
         hint = (
             f"Boundary {off[0]['boundary']} lies {off[0]['gap']:.4g} off the sheet; projected "
             "along the face normals it must cross the sheet: move it, or pass direction "

@@ -35,6 +35,7 @@ REF_LESS = {
     "nx_capture_view",
     "nx_undo_operation",
 }
+WITH_REFS = {"nx_measure_distance"}  # core tools whose refs pick the part; part listed too
 
 
 @pytest.fixture
@@ -78,9 +79,10 @@ def test_the_ref_less_core_tools_are_the_seven_the_instructions_name():
     specs = catalogue.load()
     found = {n for n in surface.CORE_TOOLS if n in specs and ref_less(specs[n])}
     assert found == REF_LESS
-    assert found == {
+    # Every core tool acting on a loaded part lists part, refs or not (measure_distance).
+    assert {
         n for n in surface.CORE_TOOLS if n in specs and surface.takes_part_key(specs[n])
-    }
+    } == REF_LESS | WITH_REFS
     text = surface.AGENT_INSTRUCTIONS
     assert "core tools included" in text and '{"part": "housing", ...}' in text
     assert "leave part out" not in text
@@ -93,11 +95,11 @@ async def test_the_ref_less_core_tools_list_part_within_budget(tmp_path, every_t
     assert listing_size(tools) <= AGENT_LISTING
     for tool in tools:
         properties = tool.inputSchema.get("properties", {})
-        if tool.name in REF_LESS:
+        if tool.name in REF_LESS | WITH_REFS:
             assert tool.inputSchema["additionalProperties"] is False
             assert properties["part"] == {
                 "type": "string",
-                "description": "Target part's file name when 2+ are loaded",
+                "description": "Target part file when 2+ are loaded",
             }
         elif tool.name != "nx_open_part":
             assert "part" not in properties, tool.name

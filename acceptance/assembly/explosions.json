@@ -56,7 +56,7 @@
    "expect": {"page.total": 5, "page.returned": 2, "page.next_offset": 3}},
   {"call": "nx_edit_explosion", "args": {"explosion": "$ex.data.explosion.id", "placements": [
      {"component": "$B.data.component.id", "pose": {"translation": [60, 0, 20]}}]},
-   "expect": {"mutation_outcome": "committed", "data.moved_count": 0}},
+   "expect": {"mutation_outcome": "not_applicable", "data.moved_count": 0, "warnings.0.code": "NX_NO_EFFECT"}},
   {"call": "nx_edit_explosion", "args": {"explosion": "$ex.data.explosion.id"},
    "expect": {"error.category": "invalid_argument", "mutation_outcome": "not_started"}},
   {"call": "nx_edit_explosion", "args": {"explosion": "$ex.data.explosion.id", "reset_components": ["$A.data.component.id"], "placements": [
@@ -149,7 +149,7 @@
               "data.moved_count": 4}},
   {"call": "nx_edit_explosion", "args": {"explosion": "$ex.data.explosion.id", "placements": [
      {"component": "$A.data.component.id", "offset": [0, 0, 15]}]},
-   "expect": {"mutation_outcome": "committed", "data.moved_count": 0}},
+   "expect": {"mutation_outcome": "not_applicable", "data.moved_count": 0, "warnings.0.code": "NX_NO_EFFECT"}},
   {"call": "nx_edit_explosion", "args": {"explosion": "$ex.data.explosion.id", "placements": [
      {"component": "$A.data.component.id", "offset": [0, 0, 1], "pose": {"translation": [0, 0, 1]}}]},
    "expect": {"error.field": "/placements/0", "mutation_outcome": "not_started"}},
@@ -175,6 +175,17 @@
   {"call": "nx_get_explosion", "args": {"explosion": "$ex2.data.explosion.id"},
    "expect": {"data.views": {"count": 0}}},
   {"call": "nx_set_explosion_display", "args": {"part": "$part"},
-   "expect": {"mutation_outcome": "committed", "data.view_kind": "modeling_view"}}
+   "expect": {"mutation_outcome": "committed", "data.view_kind": "modeling_view"}},
+  {"call": "nx_edit_explosion", "save": "eb", "args": {"explosion": "$ex.data.explosion.id", "display": false, "placements": [{"component": "$B.data.component.id", "offset": [0, 0, 80]}]}, "expect": {"mutation_outcome": "committed", "data.components.0.translation": {"close": [60, 0, 80], "tol": 1e-06}}},
+  {"call": "nx_undo_operation", "args": {"part": "$part", "mode": "compensate"}, "intent": "Acceptance: put B back by compensation", "expect": {"ok": true, "data.compensated": true, "data.restored.0": {"matches": "back to their previous poses"}}},
+  {"call": "nx_edit_explosion", "intent": "B is back at 35: the same offset moves nothing", "args": {"explosion": "$ex.data.explosion.id", "display": false, "placements": [{"component": "$B.data.component.id", "offset": [0, 0, 35]}]}, "expect": {"mutation_outcome": "not_applicable", "data.moved_count": 0, "data.components.0.translation": {"close": [60, 0, 35], "tol": 1e-06}, "warnings.0.code": "NX_NO_EFFECT"}},
+  {"call": "nx_edit_explosion", "args": {"explosion": "$ex.data.explosion.id", "placements": [{"component": "$B.data.component.id", "offset": [0, 0, 1000000000000.0]}]}, "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/placements/0/offset", "mutation_outcome": "not_started"}},
+  {"call": "nx_get_explosion", "args": {"explosion": "$ex.data.explosion.id"}, "expect": {"data.shown": false}},
+  {"call": "nx_set_explosion_display", "setup": true, "args": {"explosion": "$ex.data.explosion.id"}},
+  {"call": "nx_get_explosion", "args": {"explosion": "$ex.data.explosion.id"}, "expect": {"data.shown": true}},
+  {"call": "nx_edit_explosion_trace", "save": "te", "args": {"trace": "$tr.data.trace.id", "start_percent": 25}, "expect": {"mutation_outcome": "committed", "data.start_percent": {"close": 25, "tol": 1e-09}, "changes.modified.0.id": "$tr.data.trace.id"}},
+  {"call": "nx_undo_operation", "args": {"part": "$part", "mode": "compensate"}, "intent": "Acceptance: set the trace anchor back by compensation", "expect": {"ok": true, "data.compensated": true}},
+  {"call": "nx_get_explosion", "args": {"explosion": "$ex.data.explosion.id", "limit": 50}, "expect": {"data.traces.0.start_percent": {"close": 50, "tol": 1e-09}, "data.traces.0.start_offset": {"close": 2, "tol": 1e-09}}},
+  {"call": "nx_set_explosion_display", "setup": true, "args": {"part": "$part"}}
  ]
 }

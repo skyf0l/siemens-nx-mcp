@@ -311,15 +311,43 @@ def _shift(tx, alignment, sections, shifts) -> None:
 
 
 def _guide(tx, ref, field):
+    """``(fill, curves)`` of one guide: a sketch, or a curve or edge."""
     try:
         obj = select.resolve(tx, ref, "sketch", field=field)
     except NXError as error:
         if error.code != "NX_WRONG_KIND":
             raise
         c = select.owned(tx, select.resolve(tx, ref, "curve", "edge", field=field), field, "curves")
-        return lambda: builders.curve_section(tx, [c])
+        return (lambda: builders.curve_section(tx, [c])), [c]
     sk = ksketch.resolve(tx, obj, field)
-    return lambda: builders.section(tx, sk)
+    return (lambda: builders.section(tx, sk)), common.sketch_curves(sk)
+
+
+GUIDE_HINT = (
+    "Draw each guide as one open chain from the first section to the last, touching every "
+    "section (e.g. a line through matching corners); 1-3 guides"
+)
+
+
+def _refuse_loose_guides(tx, guides, sections) -> None:
+    """Refuse, before NX, a guide that misses a section: NX's Swept needs every guide to
+    run through every section and refuses otherwise with only "Invalid body"."""
+    tol = max(10 * units.part_tolerance(tx), 1e-6)
+    for g, (_fill, curves) in enumerate(guides):
+        for i, section in enumerate(sections):
+            try:
+                gap = min(curve.min_distance(tx, a, b)[0] for a in curves for b in section.curves)
+            except Exception:  # noqa: BLE001 - no distance (a point): NX judges the guide
+                continue
+            if gap > tol:
+                fail(
+                    "NX_WRONG_GEOMETRY",
+                    f"guides[{g}] misses sections[{i}] by {gap:.6g}: a guide runs through "
+                    "every section, from the first to the last",
+                    field=f"/guides/{g}",
+                    hint=GUIDE_HINT,
+                    details={"section": i, "gap": gap},
+                )
 
 
 def _touches(tx, face, curves, tol) -> bool:
@@ -399,8 +427,14 @@ def nx_create_loft(
         Doc("Each a sketch, a curve or edge (e.g. a closed spline), or a list of curves/edges"),
     ],
     solid: bool = True,
-    start_points: Annotated[list[Point3], Items(2, 20)] | None = None,
-    guides: Annotated[list[GuideRef], Items(1, 3)] | None = None,
+    start_points: Annotated[
+        list[Point3], Items(2, 20), Doc("One corner per section, in order: the same corner of each")
+    ]
+    | None = None,
+    guides: Annotated[
+        list[GuideRef], Items(1, 3), Doc("Open chains running through every section, first to last")
+    ]
+    | None = None,
     tangent: Annotated[
         Literal["faces", "normal"],
         Doc("faces: G1 to a body at an end; normal: square"),
@@ -434,7 +468,9 @@ def nx_create_loft(
                          field=f"/start_points/{i}")  # fmt: skip
         if solid:
             _refuse_open(tx, made_sections, loops)
-        fills = [_guide(tx, g, f"/guides/{i}") for i, g in enumerate(guides or [])]
+        picked = [_guide(tx, g, f"/guides/{i}") for i, g in enumerate(guides or [])]
+        _refuse_loose_guides(tx, picked, made_sections)
+        fills = [fill for fill, _curves in picked]
         axis = _axis(tx, made_sections)
         ends = _tangent_ends(tx, made_sections, axis) if tangent == "faces" else {}
         starts = _snapped(tx, loops, axis, targets) if targets is not None else None
@@ -448,6 +484,7 @@ def nx_create_loft(
                          tangent)  # fmt: skip
     except NXError as error:
         _align_hint(error, start_points is not None)
+        _build_hint(error, made_sections, starts, guides is not None)
         raise
     bodies = common.feature_bodies(feature)
     readback.expect(bool(bodies), "bodies", "The loft built no body")
@@ -462,6 +499,7 @@ def nx_create_loft(
                                                  before))  # fmt: skip
     else:
         made = cast(LoftData, common.result_of(tx, feature))
+        common.warn_coincident(tx, bodies, "loft")
         if solid:
             common.changed(0.0, made["volume"], "positive")
             _warn_twist(tx, made_sections, made["volume"])
@@ -538,6 +576,52 @@ def _align_hint(error: NXError, given: bool) -> None:
             else ALIGN_HINT
         )
         error.field = error.field or "/start_points"
+
+
+# Successive start corners turning more than this about the loft axis twist it past what
+# NX can surface ("Cannot create B-surface by through curves").
+TWIST_DEGREES = 90.0
+
+
+def _build_hint(error: NXError, sections, starts, swept: bool) -> None:
+    """Give a bare loft build failure its likely cause: start corners that twist the loft
+    (over 90 degrees from one section to the next), or a guide NX cannot follow."""
+    if error.code != "NX_BUILD_FAILED" or error.hint:
+        return
+    turn = _start_turn(sections, starts) if starts is not None else None
+    if turn is not None and turn[1] > TWIST_DEGREES:
+        error.hint = (
+            f"start_points[{turn[0]}] turns {turn[1]:.0f} degrees from the previous section's "
+            "start about the loft axis, which twists the loft: give the same corner of each "
+            "profile (on matching sides)"
+        )
+        error.field = error.field or f"/start_points/{turn[0]}"
+        error.details = {**(error.details or {}), "twist_degrees": round(turn[1], 3)}
+    elif swept:
+        error.hint = GUIDE_HINT
+        error.field = error.field or "/guides"
+
+
+def _start_turn(sections, starts) -> tuple[int, float] | None:
+    """``(index, degrees)``: the largest turn of a start corner about the loft axis from the
+    previous section's, each seen from its section's centre; None when unknown."""
+    worst = None
+    for i in range(1, len(sections)):
+        a, b = sections[i - 1].frame, sections[i].frame
+        axis = a["normal"] if a["normal"] is not None else b["normal"]
+        if axis is None:
+            return None
+        axis = geom.unit(axis)
+        u, v = geom.sub(starts[i - 1], a["origin"]), geom.sub(starts[i], b["origin"])
+        u = geom.sub(u, geom.scale(axis, geom.dot(u, axis)))
+        v = geom.sub(v, geom.scale(axis, geom.dot(v, axis)))
+        if geom.norm(u) < 1e-9 or geom.norm(v) < 1e-9:
+            continue
+        cos = max(-1.0, min(1.0, geom.dot(geom.unit(u), geom.unit(v))))
+        degrees = math.degrees(math.acos(cos))
+        if worst is None or degrees > worst[1]:
+            worst = (i, degrees)
+    return worst
 
 
 def _build(tx, factory, swept, solid, made_sections, loops, axis, targets, fills, ends, tangent):

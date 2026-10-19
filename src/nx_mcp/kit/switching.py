@@ -45,6 +45,12 @@ APPLICATIONS = {"sheet_metal": kparts.SHEET_METAL_APP, "modeling": "UG_APP_MODEL
 MODELING_APP = "UG_APP_MODELING"
 
 
+def transient(error) -> bool:
+    """NX's "Encountered unexpected NULL pointer" while switching parts: it happens once
+    right after another call changed the session's parts, and the same switch then works."""
+    return error is not None and "null pointer" in str(error).casefold()
+
+
 def same(a, b) -> bool:
     """Same NX part (by tag)."""
     try:
@@ -106,9 +112,24 @@ class Switch:
         self.app: str | None = None
         self.entered = False  # NX state changed: restore must run
         self.restored = False
+        self.retried = False  # a transient failure was retried once (:meth:`enter`)
 
     # -- enter ---------------------------------------------------------------------------
     def enter(self) -> Switch:
+        """Make the part current; a transient NX failure (NX's "unexpected NULL pointer"
+        while another part was just closed or switched) is retried once after a clean
+        restore."""
+        try:
+            return self._enter()
+        except NXError as error:
+            if not (transient(error) or transient(error.__cause__)) or error.details.get("restore"):
+                raise
+        self.entered = self.restored = False
+        self.primitive = "noop"
+        self.retried = True
+        return self._enter()
+
+    def _enter(self) -> Switch:
         tx, part = self.tx, self.part
         parts = tx.session.Parts
         self.display, self.work = parts.Display, parts.Work
@@ -137,10 +158,13 @@ class Switch:
                 if failure:
                     error.details.setdefault("restore", failure)
                 raise
+            hint = "Close any open NX dialog, then repeat the call (nx_list_parts shows the parts)"
+            if transient(error):
+                hint = "NX refused the part switch for a moment; repeat the call (nothing ran)"
             raise NXError(
                 "NX_WRONG_PART_CONTEXT",
                 f"NX could not make {file_name(part)} current: {error}",
-                hint="Close any open NX dialog, then repeat the call (nx_list_parts shows the parts)",
+                hint=hint,
                 details={"restore": failure} if failure else {},
             ) from error
         finally:
@@ -170,7 +194,7 @@ class Switch:
         problems: list[str] = []
         try:
             try:
-                self._restore()
+                self._restore_retrying()
             except Exception as error:
                 problems.append(str(error) or type(error).__name__)
                 self._home(problems)
@@ -194,6 +218,15 @@ class Switch:
         if not self.clean:
             self._home([])
         return self.clean
+
+    def _restore_retrying(self) -> None:
+        """:meth:`_restore`, once more after a transient NX failure (a NULL pointer)."""
+        try:
+            self._restore()
+        except Exception as error:
+            if not transient(error):
+                raise
+            self._restore()
 
     def _restore(self) -> None:
         tx = self.tx
@@ -273,4 +306,4 @@ class Switch:
         return []
 
 
-__all__ = ["Switch", "quiet_work", "same", "set_work_component"]
+__all__ = ["Switch", "quiet_work", "same", "set_work_component", "transient"]

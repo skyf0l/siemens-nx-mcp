@@ -43,6 +43,10 @@
    "args": {"part": "$part", "objects": ["$A.data.component.id", "$B.data.component.id"], "unite": false, "destination_part": "sa_block2"},
    "expect": {"mutation_outcome": "committed", "data.bodies": {"count": 2},
               "data.volume": {"close": 2000000, "tol": 1e-2}}},
-  {"call": "nx_check_model", "args": {"part": "$part"}, "expect": {"ok": true}}
+  {"call": "nx_check_model", "args": {"part": "$part"}, "expect": {"ok": true}},
+  {"call": "nx_create_simplified_assembly", "intent": "min_body_size above every body", "args": {"part": "$part", "min_body_size": 1000}, "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/min_body_size", "error.details.largest_diagonal": {"close": 173.20508, "tol": 0.5}, "mutation_outcome": "not_started"}},
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$run/sa_block3.prt", "units": "mm"}},
+  {"call": "nx_activate_part", "setup": true, "args": {"part": "$part"}},
+  {"call": "nx_create_simplified_assembly", "args": {"part": "$part", "objects": ["$A.data.component.id", "$B.data.component.id"], "destination_part": "sa_block3"}, "expect": {"mutation_outcome": "committed", "data.body_count": 1, "data.volume": {"close": 1900000, "tol": 0.01}}}
  ]
 }

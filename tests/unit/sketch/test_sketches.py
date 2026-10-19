@@ -367,3 +367,23 @@ def test_one_call_sketch_suggests_the_closest_curve_type():
               curves=[{"type": "circel", "center": [0, 0], "radius": 2}])  # fmt: skip
     assert bad.error["field"] == "/curves/0/type" and "'circle'" in bad.error["message"], bad
     assert "rounded_rectangle" in bad.error["hint"]
+
+
+def test_an_empty_sketch_is_empty_not_fully_constrained():
+    nx = sketch_nx()
+    sk = nx.sketch()
+    out = run(nx, "nx_get_sketch", sketch=sk.ref, include=["status"])
+    assert out.ok and out.data["status"] == {
+        "state": "empty", "fully_constrained": False, "dof": 0, "free_curves": 0,
+    }, out  # fmt: skip
+
+
+def test_finishing_nothing_says_so_and_commits_nothing():
+    nx = sketch_nx()
+    out = run(nx, "nx_finish_sketch")
+    assert out.ok and out.data == {"was_active": False}, out
+    assert [w["code"] for w in out.warnings] == ["NX_NO_EFFECT"]
+    assert out.mutation_outcome == "not_applicable"
+    sk = nx.sketch(active=True)
+    done = run(nx, "nx_finish_sketch", sketch=sk.ref)
+    assert done.ok and any("no curves" in w["message"] for w in done.warnings), done

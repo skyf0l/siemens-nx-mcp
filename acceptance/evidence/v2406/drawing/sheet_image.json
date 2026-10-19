@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/sheet_image.json",
-  "scenario_sha256": "5f41d91333b12ed7c256b69869a0982e036ae7e495054050eca07f6312741745",
+  "scenario_sha256": "56001371d86ab2850de41df58fabc516a02dc42a81f652b4e425675e802b5b19",
   "domain": "drawing",
   "covers": {
     "nx_set_sheet_image": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_set_sheet_image": "8937580ddf99267d6bb19a7ae899d1e85fcdd662b6e015a849516f8fa2257e5e"
+    "nx_set_sheet_image": "d5db5681655857a88522aa5eac6aaa54798dffaa68f74d4a55b900e33cd6ffda"
   },
-  "recorded": "2026-10-16T13:11:38Z",
+  "recorded": "2026-10-19T11:02:19Z",
   "passed": true,
-  "checks": 52,
+  "checks": 54,
   "failed_checks": 0,
   "steps": [
     {
@@ -63,52 +63,59 @@
       "call": "nx_set_sheet_image",
       "setup": false,
       "passed": true,
-      "checks": 8
+      "checks": 9
     },
     {
       "index": 8,
-      "call": "nx_set_sheet_image",
+      "call": "nx_undo_operation",
       "setup": false,
       "passed": true,
-      "checks": 5
+      "checks": 1
     },
     {
       "index": 9,
       "call": "nx_set_sheet_image",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 5
     },
     {
       "index": 10,
+      "call": "nx_set_sheet_image",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 11,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 11,
+      "index": 12,
       "call": "engineer",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 12,
+      "index": 13,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 13,
+      "index": 14,
       "call": "nx_delete_objects",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 14,
+      "index": 15,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,

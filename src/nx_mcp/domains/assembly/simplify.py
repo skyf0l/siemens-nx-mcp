@@ -26,7 +26,7 @@ from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Length, RefTo, Text
 from nx_mcp.domains.assembly import common, structure
 from nx_mcp.kit import bodies as kbodies
-from nx_mcp.kit import builders, expr, licenses, measure, readback, result, select
+from nx_mcp.kit import builders, expr, geom, licenses, measure, readback, result, select
 from nx_mcp.kit import parts as kparts
 
 MAX_OBJECTS = 500
@@ -35,6 +35,7 @@ ObjectRef = Annotated[str, RefTo("component", "body", doc="Component 'o:N' or so
 
 class SimplifyData(TypedDict):
     destination: str  # file name of the part holding the result
+    body_count: int
     bodies: list[result.Row]
     volume: float  # of the result bodies
     source_volume: float  # sum of the source solids (overlaps counted twice)
@@ -108,6 +109,24 @@ def _destination(tx, text):
     return dest
 
 
+def _check_size(tx, sources, size) -> None:
+    """Refuse a min_body_size no source reaches: every body would be dropped. The size is
+    a box diagonal, as NX measures it."""
+    try:
+        diagonals = []
+        for body in sources:
+            low, high = measure.bounds(tx, body)
+            diagonals.append(geom.dist(low, high))
+    except Exception:  # NX gives no box: let NX judge
+        return
+    largest = max(diagonals, default=0.0)
+    if diagonals and float(size) >= largest:
+        fail("NX_INVALID_ARGUMENT", f"min_body_size {float(size):g} is at least the largest "
+             f"source body's box diagonal ({largest:.6g}): every body would be dropped",
+             field="/min_body_size", hint=f"Use a size below {largest:.6g}, or omit it",
+             details={"largest_diagonal": largest})  # fmt: skip
+
+
 def _limit(b, use, value, size) -> None:
     """Switch one size filter on with its limit, or off."""
     setattr(b, use, value is not None)
@@ -157,7 +176,8 @@ def nx_create_simplified_assembly(
 ) -> SimplifyData:
     """Create one simplified solid of the work assembly (Simplify Assembly), e.g. a block model.
     Unites the solids, fills holes and removes blends up to a size, drops internal bodies and
-    voids. The result is a dumb body in the assembly or destination_part; components stay."""
+    voids. The result is dumb bodies (solids that do not touch stay apart) in the work
+    assembly itself unless destination_part; components stay."""
     limits = {"fill_holes_up_to": fill_holes_up_to, "remove_blends_up_to": remove_blends_up_to,
               "min_body_size": min_body_size}  # fmt: skip
     for key, value in limits.items():
@@ -166,6 +186,8 @@ def nx_create_simplified_assembly(
     with tx.checks():
         sources = _sources(tx, objects)
         dest = _destination(tx, destination_part)
+        if min_body_size is not None:
+            _check_size(tx, sources, min_body_size)
     part = tx.part
     if dest is not part:
         tx.touch_part(dest)
@@ -186,11 +208,16 @@ def nx_create_simplified_assembly(
             b.UniteBodies = bool(unite)
         b.commit()
     made = [x for x in dest.Bodies if int(x.Tag) not in before]
+    if not made and min_body_size is not None:
+        fail("NX_INVALID_ARGUMENT", f"NX dropped every body below min_body_size "
+             f"{float(min_body_size):g}: nothing is left", field="/min_body_size",
+             hint="Use a smaller min_body_size, or omit it")  # fmt: skip
     readback.expect(bool(made), "bodies", "NX made no simplified body")
     volume = measure.volume(tx, [x for x in made if getattr(x, "IsSolidBody", False)])
     readback.expect(volume > 0, "volume", "The simplified bodies have no volume", volume=volume)
     return {
         "destination": kparts.file_of(dest).replace("\\", "/").rsplit("/", 1)[-1],
+        "body_count": len(made),
         "bodies": [tx.ref(x, kind="body") for x in made],
         "volume": volume,
         "source_volume": source_volume,

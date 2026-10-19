@@ -464,7 +464,9 @@ def test_a_self_overlapping_tube_is_rolled_back():
         # perpendicular: an XY plane (normal +z) on, above and below a 10 mm high body
         (((0, 0, 10), (0, 1, 0)), {}, "wrong_side", "Set flip true"),
         (((0, 0, 50), (0, 1, 0)), {"flip": True}, "plane_off_body", "lies 40"),
-        (((0, 0, -5), (0, 1, 0)), {"flip": True}, "wrong_side", "Omit flip"),
+        (((0, 0, -5), (0, 1, 0)), {"flip": True}, "plane_off_body", "lies 5"),
+        (((0, 0, -5), (0, 1, 0)), {}, "plane_off_body", "lies 5"),
+        (((0, 0, 0), (0, 1, 0)), {"flip": True}, "wrong_side", "Omit flip"),
     ],
 )  # fmt: skip
 def test_rib_refusal_names_the_cause_nx_does_not(placement, extra, cause, words):

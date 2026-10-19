@@ -15,13 +15,13 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_mirror_curve": "e282ed3d71edd3b70ad03c444486aed48be3d16028e534aa3e0b2fbb211880bc",
+    "nx_create_mirror_curve": "a6a050b27f31ed50cb5ca6753a4037acecd56f07662b3072ef7242ab4b77ea0f",
     "nx_create_general_conic": "cd431628bc778fb846084872c057faeb874523f6a5a77cb3f2654087a756082b",
     "nx_create_law_curve": "cd431628bc778fb846084872c057faeb874523f6a5a77cb3f2654087a756082b",
-    "nx_create_offset_curve": "b16cdbd71e99d9293091d8c0e0ad408760a55c18ce5dea4fdb4746b41102043e",
-    "nx_create_isoparametric_curves": "25266992e3067b9193d35248769c0450e61494c07ca5d8335ae14b56badee672"
+    "nx_create_offset_curve": "d8d2e6c62f6cb983d869ab857236f0acb3fe589f71027176e72689aba9f61734",
+    "nx_create_isoparametric_curves": "89958f0fdd4e4c008700c4c4505c02f4d9b8d0459272d6826a9e0d81a5ec3980"
   },
-  "recorded": "2026-10-16T13:14:34Z",
+  "recorded": "2026-10-19T10:46:29Z",
   "passed": true,
   "checks": 30,
   "failed_checks": 0,

@@ -512,6 +512,39 @@
       0
      ]
     },
+    "start": "abc",
+    "end": 90
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/start",
+    "mutation_outcome": "not_applicable",
+    "error.message": {
+     "matches": "'abc' is not an angle.*expression names are not taken"
+    }
+   }
+  },
+  {
+   "call": "nx_run_motion_sweep",
+   "args": {
+    "part": "$part",
+    "joint": "revolute",
+    "moving": [
+     "$L.data.component.id"
+    ],
+    "axis": {
+     "origin": [
+      0,
+      100,
+      15
+     ],
+     "direction": [
+      -1,
+      0,
+      0
+     ]
+    },
     "start": 0,
     "end": 90,
     "pairs": [

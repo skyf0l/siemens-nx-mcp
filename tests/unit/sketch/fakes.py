@@ -383,6 +383,9 @@ class Sketch(BaseSketch):
                 self.constraints[:] = [c for c in self.constraints if obj not in c.curves]
             elif obj in self.constraints:
                 self.constraints.remove(obj)
+                exp = getattr(obj, "AssociatedExpression", None)  # NX deletes its expression
+                if exp is not None and exp in self.fake.part.Expressions:
+                    self.fake.part.Expressions.remove(exp)
         return NS(Length=0, Dispose=lambda: None)
 
     def Fillet(self, a, b, ha, hb, radius, *_):

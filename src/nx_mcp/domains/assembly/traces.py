@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from typing import Annotated, TypedDict, cast
 
-from nx_mcp.core.catalogue import tool
+from nx_mcp.core.catalogue import restorer, tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Length, Point3, Range, RefTo, Vec3
@@ -109,7 +109,7 @@ def nx_create_explosion_trace(
 ) -> TraceData:
     """Draw a trace line between two edges of components in an explosion (two different
     edges). Each end sits at a percent of its edge's arc length and follows later explosion
-    edits."""
+    edits. Delete a trace with nx_delete_objects."""
     directions = [
         geom.unit(v if v is not None else [0.0, 0.0, 1.0], field)
         for v, field in ((start_direction, "/start_direction"), (end_direction, "/end_direction"))
@@ -222,9 +222,32 @@ def nx_edit_explosion_trace(
         common.explosion_context(tx)
         ex = line.AskExplosion()
         records = exploded.records_of(tx, line)
-    for record, value in zip(records, (start_percent, end_percent), strict=True):
+    previous = _legs(tx, line)
+    percents = (start_percent, end_percent)
+    offsets = (start_offset, end_offset)
+    _set_legs(tx, line, ex, records, percents, offsets, directions)
+    tx.note_restore({"trace": trace, "before": previous, "after": _legs(tx, line)})
+    tx.modified(tx.ref(line, "traceline"))
+    return _row(tx, line, ex)
+
+
+def _legs(tx, line) -> dict:
+    """What nx_edit_explosion_trace sets: anchor percents, leg offsets and directions."""
+    directions = exploded.leg_directions(line)
+    return {
+        "percents": [float(r["percent"]) for r in exploded.records_of(tx, line)],
+        "offsets": [float(line.StartOffset), float(line.EndOffset)],
+        "directions": [list(d) for d in directions] if directions is not None else None,
+    }
+
+
+def _set_legs(tx, line, ex, records, percents, offsets, directions) -> None:
+    """Set anchor percents, leg offsets and directions (None: kept), refresh the trace and
+    read it back."""
+    for record, value in zip(records, percents, strict=True):
         if value is not None:
             record["percent"] = float(value)
+    start_offset, end_offset = offsets
     with native(default="NX_BUILD_FAILED"):
         krecords.set_json(tx, line, exploded.TRACE_ATTRIBUTE, records)
         if start_offset is not None:
@@ -247,4 +270,33 @@ def nx_edit_explosion_trace(
         for i, name in enumerate(("start_direction", "end_direction")):
             if name in directions and got is not None:
                 readback.expect_close(got[i], directions[name], name, 1e-6)
-    return _row(tx, line, ex)
+
+
+def _same_legs(a, b) -> bool:
+    flat = [(x, y) for key in ("percents", "offsets") for x, y in zip(a[key], b[key], strict=True)]
+    if (a["directions"] is None) != (b["directions"] is None):
+        return False
+    for u, v in zip(a["directions"] or [], b["directions"] or [], strict=True):
+        flat.extend(zip(u, v, strict=True))
+    return all(abs(x - y) <= 1e-6 * max(1.0, abs(y)) for x, y in flat)
+
+
+@restorer("nx_edit_explosion_trace")
+def _restore_trace(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Give a trace nx_edit_explosion_trace changed its previous anchors and legs back (the
+    compensating undo): refused when it changed since."""
+    ref, before = data["trace"], data["before"]
+    line = select.resolve(tx, ref, "traceline", field="/trace")
+    if not _same_legs(_legs(tx, line), data["after"]):
+        fail("NX_DEPENDENCY_ORDER", f"{ref} changed since the operation", details={"trace": ref})
+    if apply:
+        ex = line.AskExplosion()
+        directions = {}
+        if before["directions"] is not None:
+            directions = dict(zip(("start_direction", "end_direction"), before["directions"],
+                                  strict=True))  # fmt: skip
+        _set_legs(tx, line, ex, exploded.records_of(tx, line), before["percents"],
+                  before["offsets"], directions)  # fmt: skip
+        readback.expect(_same_legs(_legs(tx, line), before), "previous_legs",
+                        "The trace did not take its previous anchors and legs")  # fmt: skip
+    return f"{ref} back to its previous anchors and legs"

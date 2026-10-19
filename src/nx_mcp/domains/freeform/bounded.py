@@ -29,7 +29,7 @@ FACE_PLANE = 22
 
 class BoundedPlaneData(common.SheetData):
     loops: int  # closed loops found (1 outer + holes)
-    normal: Vec3  # plane normal of the boundary (sign arbitrary)
+    normal: Vec3  # the sheet's face normal (its sense is NX's choice)
     gap: float  # largest sampled distance from the boundary to the sheet
 
 
@@ -103,7 +103,7 @@ def _one_outer(tx, objs, loops, refs, origin, normal) -> None:
     keywords=(
         "bounded plane",
         "planar sheet",
-        "fill planar loop",
+        "flat face from closed curves",
         "transom",
         "bulkhead",
         "flat cap",
@@ -122,8 +122,10 @@ def nx_create_bounded_plane(
     tolerance: Annotated[Length, Doc("Coplanarity and chaining tolerance")] | None = None,
 ) -> BoundedPlaneData:
     """Create a planar sheet bounded by closed coplanar loops of curves or edges (transom,
-    bulkhead, flat cap). A loop inside the outer loop becomes a hole. For a curved patch
-    use nx_create_n_sided_surface; to close a sheet's opening use nx_create_fill_hole."""
+    bulkhead, flat cap). A loop inside the outer loop becomes a hole. normal is the sheet's
+    face normal: NX picks its sense (curves and the same loop's edges can differ). For a
+    curved patch use nx_create_n_sided_surface; to close a sheet's opening
+    nx_create_fill_hole."""
     if len(set(boundary)) != len(boundary):
         fail("NX_INVALID_ARGUMENT", "A boundary curve is listed twice", field="/boundary")
     with tx.checks():
@@ -169,5 +171,5 @@ def nx_create_bounded_plane(
     gap = surface_loops.sampled_gap(tx, objs, bodies)
     limit = 2 * tol + 10 * units.part_tolerance(tx)
     readback.expect(gap <= limit, "boundary", "The sheet misses the boundary", gap=gap)
-    n = (normal[0], normal[1], normal[2])
+    _kind, _point, n = select.face_data(tx, faces[0])  # the face's own sense
     return {**out, "loops": len(loops), "normal": n, "gap": gap}

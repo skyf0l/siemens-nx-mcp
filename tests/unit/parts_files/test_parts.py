@@ -582,7 +582,10 @@ def test_activate_that_changes_nothing_says_so(nx):
     a, b = nx.new_part("a.prt"), nx.new_part("b.prt")
     ref = nx.ref_of(a, "part")
     first = call(nx, tools.nx_activate_part, part=ref)  # gives a its own tab behind b's
-    assert first.ok
+    assert first.ok and first.mutation_outcome == "committed" and not first.data["work"]
+    (note,) = [w for w in first.warnings if w["code"] == "NX_NOTE"]
+    assert "in its own NX tab behind it" in note["message"]
+    assert "The work part did not change: " in note["message"] and "display true" in note["message"]
     again = call(nx, tools.nx_activate_part, part=ref)  # its tab exists: nothing changes
     assert again.ok and again.mutation_outcome == "not_applicable", again
     (warning,) = [w for w in again.warnings if w["code"] == "NX_NO_EFFECT"]
@@ -602,8 +605,10 @@ def test_unknown_part_errors_list_the_callers_parts_first_with_the_count(nx, roo
     bad = call(nx, tools.nx_activate_part, part="nothing.prt")
     assert bad.error["code"] == "NX_NOT_FOUND", bad
     details = bad.error["details"]
-    assert details["loaded_count"] == len(nx.session.Parts) and len(details["loaded_parts"]) == 10
+    assert details["loaded_count"] == len(nx.session.Parts) and len(details["loaded_parts"]) == 5
     assert mine.data["part"]["id"] in [r["id"] for r in details["loaded_parts"][:2]]  # own first
+    near = call(nx, tools.nx_close_part, part="p07x").error["details"]["loaded_parts"]
+    assert [r["name"] for r in near if r["name"].startswith("p")][0] == "p07", near  # closest
 
 
 def test_create_part_reports_the_new_parts_units_when_not_shown(nx, root):
@@ -818,3 +823,25 @@ def test_close_assembly_with_unload_components_false_keeps_them(nx):
               unload_components=False)  # fmt: skip
     assert ok.ok and ok.data["closed_count"] == 1 and blk in nx.session.Parts
     assert "unloaded_components" not in ok.data and "kept_components" not in ok.data
+
+
+def test_create_part_refuses_a_name_windows_cannot_hold_and_leaves_no_folder(nx, root, monkeypatch):
+    bad = call(nx, tools.nx_create_part, path="np/sub/dir/c bad*name.prt")
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/path", bad
+    assert bad.mutation_outcome == "not_started" and "'*'" in bad.error["message"]
+    assert not (root / "np").exists()
+    from tests.kit.parts import FileNew
+
+    def refused(self):
+        raise NXException(640005, "Invalid file name")
+
+    monkeypatch.setattr(FileNew, "Commit", refused)
+    failed = call(nx, tools.nx_create_part, path="np/sub/dir/ok.prt")
+    assert failed.error["code"] == "NX_SAVE_FAILED", failed
+    assert not (root / "np").exists()  # the folders this call made are gone
+
+
+def test_create_part_says_the_file_is_not_written_yet(nx, root):
+    ok = call(nx, tools.nx_create_part, path="np/later.prt", display=False)
+    assert ok.ok and ok.data["saved"] is False and not (root / "np" / "later.prt").exists(), ok
+    assert "missing .prt is added" in tools.nx_create_part.spec.description

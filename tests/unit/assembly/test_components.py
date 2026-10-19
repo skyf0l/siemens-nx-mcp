@@ -51,6 +51,14 @@ def test_create_component_refuses_itself_missing_files_and_basename_clashes(nx):
     assert not nx.assembly.components()
 
 
+def test_an_unsaved_assembly_named_as_its_own_component_is_refused_as_itself(nx):
+    assert not (nx.root / "asm.prt").exists()  # never saved: no file yet
+    itself = run(nx, "nx_create_component", part="asm", path="asm.prt")
+    assert itself.error["code"] == "NX_INVALID_ARGUMENT", itself
+    assert "itself" in itself.error["message"] and itself.error["field"] == "/path"
+    assert itself.mutation_outcome == "not_started"
+
+
 def test_create_component_read_back_failure_rolls_back(nx, monkeypatch):
     add = nx.asm.ComponentAssembly.AddComponent
 
@@ -271,7 +279,9 @@ def test_create_component_takes_a_reference_set_in_any_case(nx):
     assert missing.error["code"] == "NX_NOT_FOUND" and missing.error["field"] == "/reference_set"
     assert missing.error["details"]["available"] == ["Entire Part", "Empty"]
     assert "nx_activate_part" in missing.error["hint"]
-    assert missing.mutation_outcome == "rolled_back" and len(nx.assembly.components()) == 1
+    # the fake's snapshot holds no components: the kernel sees an unchanged part
+    assert missing.mutation_outcome in ("rolled_back", "not_started")
+    assert len(nx.assembly.components()) == 1
 
 
 def test_create_component_pose_takes_unit_strings_and_axis_angle(nx):

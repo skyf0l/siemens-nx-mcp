@@ -113,18 +113,23 @@ def name_of(native_name) -> str:
 def nx_activate_application(
     tx: Tx, *, application: Literal["modeling", "sheet_metal"]
 ) -> ApplicationData:
-    """Switch NX to the Modeling or Sheet Metal application for the displayed part.
-    Sheet-metal tools called with part enter Sheet Metal for their call themselves: this
-    tool is needed only to leave NX in an application. A part with sheet-metal features
-    cannot go back to modeling. Drawings: nx_activate_drawing_sheet."""
+    """Switch NX to the Modeling or Sheet Metal application for the displayed part. Another
+    part is refused, unless NX already runs Modeling (changed false). Sheet-metal tools
+    called with part enter Sheet Metal for their call themselves: this tool is needed only
+    to leave NX in an application. A part with sheet-metal features cannot go back to
+    modeling. Drawings: nx_activate_drawing_sheet."""
     wanted = APPLICATIONS[application]
     with tx.checks():
         part = tx.part
         session = tx.session
         display = session.Parts.Display
-        if display is None or not parts.same_part(display, part):
-            _not_displayed(tx, part, display)
         previous = str(session.ApplicationName or "")
+        if display is None or not parts.same_part(display, part):
+            if application == "modeling" and previous == wanted:
+                # NX runs one application per session: already there, nothing to switch.
+                tx.outcome = "not_applicable"
+                return {"application": application, "previous": application, "changed": False}
+            _not_displayed(tx, part, display)
         if application == "modeling" and previous != wanted and parts.has_sheet_metal(part):
             fail("NX_UNSUPPORTED_OPTION",
                  "NX shows a blocking warning dialog when a part with sheet-metal features "

@@ -31,6 +31,7 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
+    Doc,
     FaceRef,
     Items,
     Length,
@@ -116,7 +117,11 @@ class _Frame(TypedDict):
 
 
 class FrameSpec(_Frame, total=False):
-    datums: Annotated[list[Annotated[str, RefTo("annotation")]], Items(1, 3)]
+    datums: Annotated[
+        list[Annotated[str, RefTo("annotation")]],
+        Items(1, 3),
+        Doc("Datum symbol refs from datum_feature or view_datum_feature, primary first"),
+    ]
     material: Modifier
     zone: Literal["diameter", "spherical_diameter", "square"]
     datum_material: Annotated[list[Literal["none", "mmc", "lmc", "rfs"]], Items(1, 3)]
@@ -342,8 +347,9 @@ def nx_create_gdt(
     target: TargetSpec | None = None,
 ) -> GdtData:
     """Create GD&T as PMI on faces, or as a drafting annotation with a leader to view geometry.
-    PMI kinds take faces and position (read back: NX may move it); view_* kinds take view, object
-    (edge or face) and origin (default: by the leader); letter labels a datum or target."""
+    PMI kinds take faces and position (NX moves it onto its annotation plane, which need not
+    hold the face: read back, warned); view_* kinds take view, object (edge or face) and origin (default: by
+    the leader); letter labels a datum or target; frame datums: datum symbol refs."""
     letter = letter.upper() if letter else letter
     _check_shape(kind, faces, position, view, object, origin, letter, frame, target)
     if kind not in PMI_KINDS:
@@ -563,6 +569,7 @@ def _same(actual, wanted):
 def _in_view(tx, kind, view_ref, obj_ref, origin, letter, frame, target):
     with tx.checks():
         view, sheet = drawing.view(tx, view_ref)
+        drawing.check_on_sheet(sheet, origin, "/origin")
         obj = geometry(tx, obj_ref, ("edge", "face"), "/object")
         letters = _drafting_letters(tx, frame.get("datums") or []) if frame else []
     annotations = tx.part.Annotations

@@ -38,8 +38,9 @@ from __future__ import annotations
 import re
 from typing import Annotated, TypedDict
 
-from nx_mcp.core.catalogue import tool
+from nx_mcp.core.catalogue import restorer, tool
 from nx_mcp.core.errors import NXError, fail, native
+from nx_mcp.core.target import file_name
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Name, Point3, Text, forbid_extra
 from nx_mcp.domains.assembly import common
@@ -76,7 +77,7 @@ ExpressionName = Annotated[str, Text(100, _EXPRESSION_NAME)]
 
 
 class _VaryingRequired(TypedDict):
-    expression: Annotated[ExpressionName, Doc("Work-part expression that varies, e.g. extension")]
+    expression: Annotated[ExpressionName, Doc("Work-part expression that varies")]
 
 
 class Varying(_VaryingRequired, total=False):
@@ -85,10 +86,10 @@ class Varying(_VaryingRequired, total=False):
 
 
 class DeformValue(TypedDict):
-    expression: Annotated[ExpressionName, Doc("Varying expression name in the deformable part")]
+    expression: Annotated[ExpressionName, Doc("Varying expression of the deformable part")]
     value: Annotated[
         float | Annotated[str, Text(4096)],
-        Doc("Number in the expression's units, or a formula of assembly expressions"),
+        Doc("Number in the expression's units, or a formula"),
     ]
 
 
@@ -153,6 +154,36 @@ def _instantiation(assembly, flexed):
 _bodies = deform.flexed_bodies
 
 
+def _driving(members) -> set[int] | None:
+    """Tags of the expressions the member features use; None when NX cannot list them."""
+    out: set[int] = set()
+    try:
+        for feature in members:
+            out.update(int(e.Tag) for e in feature.GetExpressions() or [])
+    except Exception:
+        return None
+    return out
+
+
+def _drives(exp, used) -> bool:
+    """Whether ``exp`` is used by a feature: itself, or an expression referencing it."""
+    seen: set[int] = set()
+    stack = [exp]
+    while stack:
+        node = stack.pop()
+        tag = int(node.Tag)
+        if tag in used:
+            return True
+        if tag in seen or len(seen) > 500:
+            continue
+        seen.add(tag)
+        try:
+            stack.extend(expr.dependents(node))
+        except Exception:
+            return True  # NX cannot tell: let NX judge
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Define a deformable part
 
@@ -177,12 +208,12 @@ def nx_create_deformable_definition(
     tx: Tx,
     *,
     expressions: Annotated[list[Varying], Items(1, MAX_VARYING)],
-    name: Annotated[Name, Doc("Definition feature name; default DEFORMABLE")] = "DEFORMABLE",
+    name: Annotated[Name, Doc("Definition feature name")] = "DEFORMABLE",
 ) -> DefinitionData:
-    """Make the work part deformable (spring, hose, strut): its listed expressions may vary
-    per component in assemblies. All its features are members; min and
-    max bound a value (the current value must lie within). One definition per part: save
-    the part, then deform components with nx_set_component_deformation."""
+    """Make the work part deformable: its listed expressions may vary per component in
+    assemblies. All its features are members; min and max bound a value (the current value
+    must lie within). One definition per part: save the part, then deform components with
+    nx_set_component_deformation."""
     names = [item["expression"] for item in expressions]
     for i, item in enumerate(expressions):
         if names.index(item["expression"]) != i:
@@ -195,24 +226,14 @@ def nx_create_deformable_definition(
             fail("NX_INVALID_ARGUMENT", "min must be below max", field=f"/expressions/{i}/min")
     with tx.checks():
         part = tx.part
-        existing = _definition(part)
-        if existing is not None:
-            fail("NX_ALREADY_EXISTS", "The work part is already deformable",
-                 details={"feature": tx.ref(existing, kind="feature"),
-                          "expressions": sorted(str(e.Name) for e in existing.GetExpressions()),
-                          "ranges": _ranges(tx, existing)},
-                 hint="Deform its components with nx_set_component_deformation "
-                 "(details.ranges: the recorded min/max); NX 2406 cannot edit a definition")  # fmt: skip
-        members = features.timeline(part)
-        if not members:
-            fail("NX_INVALID_ARGUMENT", "The work part has no features to deform")
+        where = file_name(part)
         available = {str(e.Name): e for e in part.Expressions}
         chosen = []
         for i, item in enumerate(expressions):
             exp = available.get(item["expression"])
             field = f"/expressions/{i}/expression"
             if exp is None:
-                fail("NX_NOT_FOUND", f"The work part has no expression {item['expression']!r}",
+                fail("NX_NOT_FOUND", f"{where} has no expression {item['expression']!r}",
                      field=field, details={"available": sorted(available)[:30]})  # fmt: skip
             assert exp is not None
             current = expr.value_or_none(tx, exp)
@@ -224,6 +245,25 @@ def nx_create_deformable_definition(
                      f"{exp.Name} = {current:g} lies outside [{item['min']:g}, {item['max']:g}]",
                      field=f"/expressions/{i}", hint="Widen the range or edit the value first")  # fmt: skip
             chosen.append(exp)
+        existing = _definition(part)
+        if existing is not None:
+            fail("NX_ALREADY_EXISTS", f"{where} is already deformable",
+                 details={"feature": tx.ref(existing, kind="feature"),
+                          "expressions": sorted(str(e.Name) for e in existing.GetExpressions()),
+                          "ranges": _ranges(tx, existing)},
+                 hint="Deform its components with nx_set_component_deformation "
+                 "(details.ranges: the recorded min/max); NX 2406 cannot edit a definition")  # fmt: skip
+        members = features.timeline(part)
+        if not members:
+            fail("NX_INVALID_ARGUMENT", f"{where} has no features to deform",
+                 hint="Build the geometry the expressions drive first")  # fmt: skip
+        used = _driving(members)
+        for i, exp in enumerate(chosen):
+            if used is not None and not _drives(exp, used):
+                fail("NX_INVALID_ARGUMENT", f"No feature of {where} uses {exp.Name}: varying "
+                     "it would deform nothing", field=f"/expressions/{i}/expression",
+                     hint="Build geometry driven by it first (e.g. an extrude whose distance "
+                     "is the expression), or pick an expression a feature uses")  # fmt: skip
     data_type = tx.nx.Features.DeformDefinitionBuilder.JaDeformDefinitionExpData
     with (
         licenses.attempt(tx, ("solid_modeling",)),
@@ -321,6 +361,27 @@ def _formula_value(tx, text, exp, field) -> float | None:
     return float(value) / scale
 
 
+def _checked_formula(tx, text, exp, field) -> float | None:
+    """:func:`_formula_value` with a hint about formulas (not about expression lists)
+    when NX refuses the formula's syntax."""
+    try:
+        return _formula_value(tx, text, exp, field)
+    except NXError as error:
+        if error.code != "NX_INVALID_FORMULA":
+            raise
+        fail("NX_INVALID_FORMULA", error.message, field=field, nx_code=error.nx_code,
+             hint="Send a number, '70 mm', or a formula of the assembly's expressions such as "
+             "'hatch_len - 40'; check the formula's syntax", details=error.details)  # fmt: skip
+
+
+def _formulas(flexed, definition) -> dict:
+    """``{definition expression name: formula}`` of a deformation's assembly expressions."""
+    order = [str(e.Name) for e in definition.GetExpressions()]
+    return {
+        name: str(e.RightHandSide) for name, e in zip(order, flexed.GetExpressions(), strict=False)
+    }
+
+
 def _text(value) -> str:
     return value.strip() if isinstance(value, str) else repr(float(value))
 
@@ -394,7 +455,7 @@ def nx_set_component_deformation(
     values: Annotated[list[DeformValue], Items(1, MAX_VARYING)],
 ) -> DeformData:
     """Deform a direct component of a deformable part: set its varying expressions for this
-    occurrence only. The part file keeps its values. Creates or edits the deformation. A value
+    occurrence only, not the part file. Creates or edits the deformation. A value
     is a number, '70 mm' or a formula of assembly expressions ('hatch_len - 40', followed on
     update). Values outside min/max are refused; nx_update_assembly warns when a formula
     drives one out later. The deformed shape is assembly bodies (bodies); the component then
@@ -440,7 +501,7 @@ def nx_set_component_deformation(
             if number is not None:
                 numbers[name] = float(number)
             else:  # a formula: NX checks and evaluates it now, before the deform builders
-                number = _formula_value(tx, wanted[name], own[name], f"/values/{i}/value")
+                number = _checked_formula(tx, wanted[name], own[name], f"/values/{i}/value")
             if low is not None and number is not None:
                 _check_range(name, float(number), low, high, f"/values/{i}/value")
         if not list(prototype.UserDefinedTemplates):
@@ -449,6 +510,7 @@ def nx_set_component_deformation(
                  hint="Ask the engineer to redefine the part as deformable in this NX")  # fmt: skip
         existing = _deformation(tx, assembly, c)
     part_values = {name: expr.value_or_none(tx, own[name]) for name in own}
+    previous = _formulas(existing, definition) if existing is not None else None
     try:
         with licenses.attempt(tx, ("assemblies",)), native(default="NX_BUILD_FAILED"):
             if existing is None:
@@ -499,6 +561,11 @@ def nx_set_component_deformation(
                 "part_value": kept,
             }
         )
+    if previous is not None:
+        now = _formulas(flexed, definition)
+        tx.note_restore({"component": component,
+                         "before": {name: previous[name] for name in wanted},
+                         "after": {name: now[name] for name in wanted}})  # fmt: skip
     bodies = _bodies(flexed)
     box: Bounds | None = None
     if bodies:
@@ -512,3 +579,35 @@ def nx_set_component_deformation(
         "bodies": [tx.ref(b, kind="body") for b in bodies],
         "bounds": box,
     }
+
+
+@restorer("nx_set_component_deformation")
+def _restore_deformation(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Give a deformation nx_set_component_deformation edited its previous values back (the
+    compensating undo): refused when they changed since."""
+    ref, before, after = data["component"], data["before"], data["after"]
+    assembly = tx.part
+    c = common.component(tx, ref, "/component")
+    prototype = getattr(c, "Prototype", None)
+    definition = _definition(prototype) if prototype is not None else None
+    flexed = _deformation(tx, assembly, c) if definition is not None else None
+    if definition is None or flexed is None:
+        fail("NX_DEPENDENCY_ORDER", f"{ref} is no longer deformed", details={"component": ref})
+    assert definition is not None and flexed is not None
+    now = _formulas(flexed, definition)
+    changed = [name for name, formula in after.items() if now.get(name) != formula]
+    if changed:
+        fail("NX_DEPENDENCY_ORDER", f"The deformation of {ref} changed since ({', '.join(changed)})",
+             details={"component": ref, "values": {n: now.get(n) for n in changed}})  # fmt: skip
+    if apply:
+        with licenses.attempt(tx, ("assemblies",)), native(default="NX_BUILD_FAILED"):
+            _edit(tx, assembly, c, prototype, flexed, definition, dict(before))
+            model.update(tx)
+        flexed = _deformation(tx, assembly, c)
+        readback.expect(flexed is not None, "deformation", "NX lost the deformation")
+        got = _formulas(flexed, definition)
+        wrong = [name for name, formula in before.items() if got.get(name) != formula]
+        readback.expect(not wrong, "previous_values", "The deformation did not take its "
+                        "previous values", actual={n: got.get(n) for n in wrong})  # fmt: skip
+    told = ", ".join(f"{name} = {formula}" for name, formula in sorted(before.items()))
+    return f"the deformation of {ref} back to {told}"

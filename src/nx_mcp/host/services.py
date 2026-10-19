@@ -25,6 +25,7 @@ from nx_mcp.core.errors import fail
 from nx_mcp.core.receipts import OperationStore
 from nx_mcp.core.references import PREFIX, Counter, References, Row
 from nx_mcp.core.tx import Services
+from nx_mcp.kit import bodies as kit_bodies
 from nx_mcp.kit import builders, display, drawing, expr, units
 from nx_mcp.kit import parts as kit_parts
 from nx_mcp.kit import sketch as kit_sketch
@@ -36,9 +37,13 @@ APPLICATIONS = {
 }
 _KIND_BY_CLASS = (
     ("Features.Feature", "feature"),
+    ("Facet.FacetedBody", "facet_body"),
     ("Body", "body"),
     ("Face", "face"),
     ("Edge", "edge"),
+    ("Traceline", "traceline"),  # before Curve, in case a build derives it from Curve
+    ("Curve", "curve"),  # lines, arcs, splines: sketch curves included
+    ("SketchConstraint", "sketch_constraint"),  # geometric constraints and dimensions
     ("Sketch", "sketch"),
     ("DatumPlane", "datum_plane"),
     ("DatumAxis", "datum_axis"),
@@ -65,6 +70,10 @@ _ANNOTATION_GROUPS = (
     "DraftingSurfaceFinishSymbol",
     "Welds",
     "Hatches",  # crosshatches and area fills
+    "IntersectionSymbols",
+    "CustomSymbols",
+    "EdgeConditionSymbol",
+    "TargetPoints",
 )
 # Rendering styles a restored camera puts back (display.STYLES names).
 _RESTORED_STYLES = ("shaded", "shaded_with_edges", "wireframe")
@@ -502,6 +511,8 @@ class NXServices(Services):
             ("sketch", part.Sketches),
             ("section", getattr(part, "DynamicSections", [])),
             ("component", components(part)),
+            ("analysis", self._analyses(part)),
+            ("facet_body", kit_bodies.facet_bodies(part)),
         ]
         uf = None
         with contextlib.suppress(Exception):
@@ -519,6 +530,16 @@ class NXServices(Services):
             if kind == "annotation" and tag in tables:
                 entry["kind"] = "drawing_table"
         return snap
+
+    def _analyses(self, part) -> list:
+        """The part's live display surface analyses (``kit.analysis_objects``), so a call
+        that makes or removes one lists it in ``changes``; [] when NX cannot say."""
+        from nx_mcp.kit import analysis_objects
+
+        try:
+            return analysis_objects.of_part(self, part)
+        except Exception:
+            return []
 
     def _snapshot_rows(self, part):
         """``row(obj, kind, tag)`` for :meth:`snapshot`: an object the registry already
@@ -709,6 +730,9 @@ class NXServices(Services):
         "expression": "Expressions",
         "datum": "Datums",
     }
+    # Where datum objects live: planes and axes in Datums, datum CSYS frames in
+    # CoordinateSystems, datum points in Points (an undo check must look in all three).
+    _DATUM_COLLECTIONS = ("Datums", "CoordinateSystems", "Points")
 
     def retire_undone(self, parts, revive: bool = True) -> set:
         """After an undo (or an engineer's edit): retire the handles of ``parts`` whose
@@ -834,6 +858,15 @@ class NXServices(Services):
                 return {int(x.Tag) for b in part.Bodies for x in getattr(b, method)()}
             if kind == "part":
                 return {int(p.Tag) for p in self.parts()}
+            if kind == "analysis":  # an undone analysis may keep its tag: NX says if alive
+                return {int(a.Tag) for a in self._analyses(part)}
+            if kind == "facet_body":
+                return {int(f.Tag) for f in kit_bodies.facet_bodies(part)}
+            if kind == "datum":  # a datum CSYS frame is in CoordinateSystems, not Datums
+                found = [getattr(part, name, None) for name in self._DATUM_COLLECTIONS]
+                if all(values is None for values in found):
+                    return None
+                return {int(v.Tag) for values in found if values is not None for v in values}
             name = self._UNDO_COLLECTIONS.get(kind)
             values = getattr(part, name, None) if name else None
             return None if values is None else {int(v.Tag) for v in values}
@@ -1047,9 +1080,13 @@ class NXServices(Services):
         return self.checkpoints
 
     def mark_exists(self, mark) -> bool:
+        """Whether NX still has undo mark ``mark``; unknown counts as present, except NX's
+        "NULL pointer" answer, which it gives for a mark an undo already removed."""
         try:
             return bool(self.session.DoesUndoMarkExist(mark, None))
-        except Exception:
+        except Exception as error:
+            if "null pointer" in str(error).casefold():
+                return False
             return mark is not None
 
     # -- the NX MCP panel (nx_get_status) --------------------------------------

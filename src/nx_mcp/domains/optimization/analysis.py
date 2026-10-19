@@ -10,7 +10,10 @@ as they were. Live check (100x20x10 mm steel cantilever, 100 N at the tip, quali
 0.088 mm tip deflection vs 0.097 mm from F L^3 / 3EI, 24.9 MPa vs 30 MPa from M c / I
 (NX averages nodal stress on its voxel mesh, so peaks read low at coarse quality).
 Stress is MPa, displacement and points part units; the safety factor is the design space
-material's yield strength over the peak stress.
+material's yield strength over the peak stress. ``displacement_at`` is the voxel node with the
+largest displacement: on a loaded cantilever tip every node moves about alike, so it may lie
+anywhere on the tip (live: [100, 2.2, 1.0] on a 100x20x20 tip loaded in -z). The solve
+blocks NX, and every other caller, for its whole run (45-76 s on small parts at quality 9).
 """
 
 from __future__ import annotations
@@ -26,6 +29,7 @@ from nx_mcp.domains.optimization import common
 from nx_mcp.kit import measure, readback, result
 
 KEEP = 0.999  # mass target share for an analysis solve: the optimizer keeps the design
+STEPS = 3  # progress: task entered, solving, results loaded
 
 
 class CaseRow(common.CasePeaks):
@@ -71,8 +75,9 @@ def _factor(strength, stress):
 def nx_analyze_topology_study(tx: Tx, *, study: FeatureRef) -> AnalysisData:
     """Check a topology study's design strength as is, without lightening (linear statics).
     Returns peak von Mises stress (MPa), displacement and safety factor vs yield per load
-    case. Needs supports and loads (nx_create_topology_condition); about a minute; the study
-    is left unchanged. Voxel mesh: finer quality, closer peaks."""
+    case. Needs supports and loads (nx_create_topology_condition); about a minute, NX and
+    every other caller wait meanwhile; the study is left unchanged. Voxel mesh: finer
+    quality, closer peaks."""
     with tx.checks():
         feature = common.feature_of(tx, study)
         common.require_license(tx)
@@ -95,6 +100,7 @@ def nx_analyze_topology_study(tx: Tx, *, study: FeatureRef) -> AnalysisData:
             fail("NX_NOT_FOUND", "The study has no mass target", field="/study",
                  hint="Make the study with nx_create_topology_study")  # fmt: skip
     started = time.monotonic()
+    tx.checkpoint(0, STEPS)
     with common.task(tx, feature, keep=False) as active:  # the solve is dropped afterwards
         current = common.active_study(active)
         design = common.all_of(current, "GetAllDesignSpaces")[0]
@@ -104,10 +110,13 @@ def nx_analyze_topology_study(tx: Tx, *, study: FeatureRef) -> AnalysisData:
             target = common.target_expression(active)
             if full and target is not None:
                 common.drive(tx, target, KEEP * full, "mass")
+        tx.checkpoint(1, STEPS)
+        with native():
             current.RunOptimization()
             current.RetrieveOptimizationResults()
             bodies = list(current.GetOptimizedBodies() or [])
         seconds = time.monotonic() - started
+        tx.checkpoint(2, STEPS)
         cases, top = common.peaks(tx, current)
         material = getattr(design, "Material", None)
         kept = measure.volume(tx, bodies) / measure.volume(tx, [design.Body]) if bodies else 0.0

@@ -37,7 +37,7 @@ import math
 import re
 from typing import Annotated, Literal, TypedDict
 
-from nx_mcp.core.catalogue import tool
+from nx_mcp.core.catalogue import restorer, tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import MM_PER_IN, QUANTITY_MAX, Aliases, Doc, Formula, RefTo, Text
@@ -354,21 +354,36 @@ def _limits(number, angle, field) -> None:
         fail("NX_INVALID_ARGUMENT", "An angle is 0 to 180 degrees", field=field)
 
 
+def _round(tx, geometry) -> bool:
+    """Whether ``geometry`` is a cylindrical, conical or spherical face."""
+    with contextlib.suppress(Exception):
+        if tx.kind_of(geometry) == "face":
+            kind = select.face_data(tx, geometry)[0]
+            return kind in (select.FACE_CYLINDER, select.FACE_CONE, select.FACE_SPHERE)
+    return False
+
+
 def _gap(tx, constraint, out) -> None:
-    """``measured``: the minimum distance between a distance constraint's two geometries,
-    with a note when it differs from the value (NX measures a cylindrical or spherical
-    face from its far side)."""
+    """``measured``, after the solve: the distance between a distance constraint's two
+    parallel planes, else the minimum distance between its geometries; a note when it
+    differs from the value (NX measures a round face from its far side)."""
     if constraint.ConstraintType != _cls(tx).Type.Distance or "value" not in out:
         return
     with contextlib.suppress(Exception):
         first, second = (ref.GetGeometry() for ref in constraint.GetReferences())
-        gap = curve.min_distance(tx, first, second)[0]
+        planes = face_offset(tx, constraint)
+        gap = abs(planes[0]) if planes is not None else curve.min_distance(tx, first, second)[0]
         out["measured"] = 0.0 if abs(gap) < 1e-9 else gap
-        value = abs(float(out["value"]))
-        if abs(gap - value) > 1e-6 * max(1.0, value):
+        value = float(out["value"])
+        if abs(gap - abs(value)) > 1e-6 * max(1.0, abs(value)):
+            why = (
+                "NX measures a cylindrical or spherical face from its far side; for a centre "
+                "distance constrain its axis or a datum"
+                if _round(tx, first) or _round(tx, second)
+                else "the faces do not overlap, so their closest points lie farther apart"
+            )
             tx.warn("NX_NOTE", f"The geometries are {gap:.6g} apart at the closest, value is "
-                    f"{value:g}: NX measures a cylindrical or spherical face from its far "
-                    "side; for a centre distance constrain its axis or a datum")  # fmt: skip
+                    f"{value:g}: {why}")  # fmt: skip
 
 
 def _geometry(tx, ref, owner, field, type):
@@ -651,18 +666,8 @@ def nx_edit_assembly_constraint(
             angle = obj.ConstraintType == cls.Type.Angle
             number = _value(tx, "angle" if angle else "distance", value)
     before = poses(tx.part)
-    with network(tx) as (_positioner, net):
-        with native(default="NX_BUILD_FAILED"):
-            if number is not None:
-                obj.SetExpression(expr.rhs(number))
-            if suppressed is not None:
-                obj.Suppressed = suppressed
-            if alignment is not None:
-                obj.ConstraintAlignment = getattr(cls.Alignment, ALIGNMENTS[alignment])
-            net.AddConstraint(obj)
-        solve(tx, net)
-        if not obj.Suppressed and not solved(tx, obj):
-            _unsatisfied(tx, obj, "The edited constraint does not solve")
+    previous = _settings(tx, obj)
+    _apply(tx, obj, number, alignment, suppressed)
     out = record(tx, obj)
     if suppressed is not None:
         readback.expect(out["suppressed"] == suppressed, "suppressed")
@@ -672,4 +677,78 @@ def nx_edit_assembly_constraint(
         _check_overlap(tx, obj)
         _gap(tx, obj, out)
     out["moved"] = moved(tx, before)
+    moves = [
+        {"component": tx.ref(c, "component")["id"], "before": list(was),
+         "after": list(structure.pose(c))}
+        for c, was in before.values()
+        if not kpose.close(structure.pose(c), was, 1e-9)
+    ]  # fmt: skip
+    tx.note_restore({"constraint": constraint, "before": previous, "after": _settings(tx, obj),
+                     "moves": moves})  # fmt: skip
     return out
+
+
+def _settings(tx, constraint) -> dict:
+    """What nx_edit_assembly_constraint sets: value (formula), alignment, suppression."""
+    out: dict = {"suppressed": bool(constraint.Suppressed)}
+    alignment = result.enum_name(constraint.ConstraintAlignment, _cls(tx).Alignment)
+    out["alignment"] = {v: k for k, v in ALIGNMENTS.items()}.get(alignment, alignment.lower())
+    with contextlib.suppress(Exception):
+        out["value"] = str(constraint.Expression.RightHandSide)
+    return out
+
+
+def _apply(tx, obj, number, alignment, suppressed) -> None:
+    """Set a constraint's value, alignment and suppression (None: kept) and solve; an
+    unsuppressed constraint must solve."""
+    cls = _cls(tx)
+    with network(tx) as (_positioner, net):
+        with native(default="NX_BUILD_FAILED"):
+            if number is not None:
+                obj.SetExpression(expr.rhs(number) if not isinstance(number, str) else number)
+            if suppressed is not None:
+                obj.Suppressed = suppressed
+            if alignment is not None:
+                obj.ConstraintAlignment = getattr(cls.Alignment, ALIGNMENTS[alignment])
+            net.AddConstraint(obj)
+        solve(tx, net)
+        if not obj.Suppressed and not solved(tx, obj):
+            _unsatisfied(tx, obj, "The edited constraint does not solve")
+
+
+@restorer("nx_edit_assembly_constraint")
+def _restore_constraint(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Give a constraint nx_edit_assembly_constraint changed its previous value, alignment
+    and suppression back, and the components the edit moved their previous poses: refused
+    when the constraint or one of them changed since."""
+    ref, before, after = data["constraint"], data["before"], data["after"]
+    obj = select.resolve(tx, ref, "assembly_constraint", field="/constraint")
+    if _settings(tx, obj) != after:
+        fail("NX_DEPENDENCY_ORDER", f"{ref} changed since the operation",
+             details={"constraint": ref, "now": _settings(tx, obj)})  # fmt: skip
+    moves = data.get("moves") or []
+    placed = []
+    for row in moves:
+        c = common.component(tx, row["component"], "/component")
+        wanted = (row["after"][0], row["after"][1])
+        if not kpose.close(structure.pose(c), wanted, 1e-6 * max(1.0, *map(abs, wanted[0]))):
+            fail("NX_DEPENDENCY_ORDER", f"{row['component']} moved since the operation",
+                 details={"component": row["component"]})  # fmt: skip
+        placed.append((c, (row["before"][0], row["before"][1])))
+    if apply:
+        value = before.get("value") if before.get("value") != after.get("value") else None
+        alignment = before["alignment"] if before["alignment"] != after["alignment"] else None
+        suppressed = before["suppressed"] if before["suppressed"] != after["suppressed"] else None
+        if before["suppressed"] or suppressed is None:
+            _apply(tx, obj, value, alignment, suppressed)
+        for c, pose in placed:  # a suppressed constraint leaves the components where they are
+            if not kpose.close(structure.pose(c), pose, 1e-9):
+                structure.move(tx, c, pose, check="previous_pose")
+        if not before["suppressed"] and suppressed is not None:
+            _apply(tx, obj, value, alignment, suppressed)
+        readback.expect(_settings(tx, obj) == before, "previous_settings",
+                        "The constraint did not take its previous settings",
+                        actual=_settings(tx, obj))  # fmt: skip
+    return f"{ref} back to its previous settings" + (
+        f" and {len(placed)} component(s) to their previous poses" if placed else ""
+    )

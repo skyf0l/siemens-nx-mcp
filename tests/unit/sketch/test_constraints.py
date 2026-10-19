@@ -219,7 +219,8 @@ def test_point_dimensions_measure_and_keep_without_a_value():
 @pytest.mark.parametrize(
     ("item", "field"),
     [
-        ({"kind": "angle", "first": "LINE", "second": "LINE", "value": 180}, "/dimensions/0/value"),
+        ({"kind": "angle", "first": "LINE", "second": "OTHER", "value": 180},
+         "/dimensions/0/value"),
         ({"kind": "length", "first": "LINE", "value": 0}, "/dimensions/0/value"),
         ({"kind": "radius", "first": "LINE", "value": 3}, "/dimensions/0/first"),
         ({"kind": "distance", "first": "LINE"}, "/dimensions/0/first"),
@@ -385,3 +386,34 @@ def test_distance_from_a_point_to_a_line_is_a_perpendicular_distance():
     two = _dimension(nx, sk, {"kind": "distance", "first": nx.cref(a), "second": nx.cref(b)})
     assert two.error["field"] == "/dimensions/0/first", two
     assert "{curve, point}" in two.error["message"] and "parallel_distance" in two.error["hint"]
+
+
+def test_point_constraints_echo_where_the_named_points_ended():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    line = nx.line(sk, (80, -40, 0), (80, -21, 0))
+    target = nx.line(sk, (60, -20, 0), (100, -20, 0))
+    ok = _constrain(nx, sk, {"type": "point_on_curve", "curves": [nx.cref(target)],
+                             "points": [{"curve": nx.cref(line), "point": "end"}]})  # fmt: skip
+    assert ok.ok, ok
+    assert ok.data["constraints"][0]["at"] == [pytest.approx([80, -20])]
+    assert sk.constraints[0].geometry[0] == (line, "EndVertex")
+
+
+def test_a_formula_may_name_a_dimension_made_earlier_in_the_call():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    a = nx.arc(sk, (0, 0, 0), 5, 0, 360)
+    b = nx.arc(sk, (40, 0, 0), 5, 0, 360)
+    ok = _dimension(nx, sk, {"kind": "diameter", "first": nx.cref(a), "value": 20, "name": "hole_d"},
+                    {"kind": "radius", "first": nx.cref(b), "value": "hole_d"})  # fmt: skip
+    assert ok.ok, ok
+    assert a.Radius == pytest.approx(10) and b.Radius == pytest.approx(20)
+
+
+def test_the_geometry_is_checked_before_the_value():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    line = nx.line(sk, (0, 0, 0), (10, 0, 0))
+    bad = _dimension(nx, sk, {"kind": "radius", "first": nx.cref(line), "value": -5})
+    assert bad.error["code"] == "NX_WRONG_GEOMETRY", bad

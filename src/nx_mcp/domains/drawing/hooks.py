@@ -14,7 +14,7 @@ import contextlib
 
 from nx_mcp.core.catalogue import deleter, lister, refresher, sheet_locator
 from nx_mcp.core.errors import fail
-from nx_mcp.domains.drawing import title_blocks, views
+from nx_mcp.domains.drawing import hatch, title_blocks, views
 from nx_mcp.domains.drawing.common import DETAIL, attribute, id_symbol_text, update
 from nx_mcp.domains.drawing.tables import all_tables, cells
 from nx_mcp.kit import builders, display, drawing
@@ -195,6 +195,10 @@ def list_dimensions(tx, owner, owner_kind):
     ]
 
 
+# Sheet symbols nx_create_sheet_symbol makes besides ID symbols (NX 2406 collections).
+SYMBOL_GROUPS = ("IntersectionSymbols", "CustomSymbols", "EdgeConditionSymbol", "TargetPoints")
+
+
 def _annotations(part):
     values = [*getattr(part, "Notes", []), *getattr(part, "Labels", [])]
     with contextlib.suppress(Exception):  # drafting frames and datum symbols (NX 2406)
@@ -210,6 +214,7 @@ def _annotations(part):
         "Welds",
         "DraftingImages",  # sheet images (nx_set_sheet_image)
         "Hatches",  # crosshatches and area fills (nx_create_hatch)
+        *SYMBOL_GROUPS,
     ):
         try:
             values.extend(getattr(collections, name, None) or [])
@@ -229,6 +234,9 @@ def list_annotations(tx, owner, owner_kind):
                 details["text"] = [str(t) for t in a.GetText()]
         elif type(a).__name__ == "IdSymbol" and (texts := id_symbol_text(tx, a)) is not None:
             details["text"] = texts  # a balloon's item number
+        if type(a).__name__ == "Hatch":
+            with contextlib.suppress(Exception):  # a hatch NX cannot reopen
+                details["hatch"] = hatch.describe(tx, a)
         if hasattr(a, "IsRetained"):
             details["retained"] = bool(a.IsRetained)
         out.append((a, "annotation", {"type": type(a).__name__, "details": details}))

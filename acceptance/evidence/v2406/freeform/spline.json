@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/freeform/spline.json",
-  "scenario_sha256": "11709fa2d045e18b04fd35dc31b6d7ba3448b345f5273f818362177ffcfa73b4",
+  "scenario_sha256": "c0adba3c06b582d19e55313d0ed17b57bd0edad9de68f4f7da43b6932350b9a8",
   "domain": "freeform",
   "covers": {
     "nx_create_spline": [
@@ -12,11 +12,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_spline": "4343ae25dfd325b2e95e5f89b5f6cfa692507c603cb5732b6a669e29532ffc67"
+    "nx_create_spline": "0cb4a0cec8fa8d562f8d2ca7451ca8ab26fe6ca538b4b39c4fc232de5bcb1534"
   },
-  "recorded": "2026-10-15T11:00:43Z",
+  "recorded": "2026-10-19T10:48:08Z",
   "passed": true,
-  "checks": 42,
+  "checks": 45,
   "failed_checks": 0,
   "steps": [
     {
@@ -112,6 +112,13 @@
     },
     {
       "index": 14,
+      "call": "nx_create_spline",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 15,
       "call": "nx_check_model",
       "setup": false,
       "passed": true,

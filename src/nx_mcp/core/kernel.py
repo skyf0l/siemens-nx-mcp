@@ -20,7 +20,11 @@ errors and warnings since the call began come back as warnings naming the featur
 reference invalidation, 13 annotation refresh, 14 result projection, 15 error mapping
 (an update failure names its failing features; a read-back mismatch that NX explained
 with feature alerts, or that left the measured value unchanged, is ``geometry_failed``).
-A committed call that changed nothing and said so (``NX_NO_EFFECT``) is ``not_applicable``.
+A committed call that changed nothing and said so (``NX_NO_EFFECT``) is ``not_applicable``;
+a model call its own check refused after reading NX (no NX code, the part as before
+after the rollback) is ``not_started``. A committed model call that reported no object
+lists the objects its references name as modified (:func:`_edited`); ``tx.created`` adds
+objects the snapshots cannot see.
 Nothing else applies gates. Around 8-15 a non-read call's loads become barriers in the
 undo history and dropped undo marks get their reason (``core/marks.py``); a committed
 changing call stamps the parts it worked in (``core/busy.py``). Gate 4's
@@ -44,7 +48,7 @@ from typing import Any, NoReturn, cast
 from nx_mcp.core import busy, evidence, parking, switching
 from nx_mcp.core import marks as undo_marks
 from nx_mcp.core import target as targets
-from nx_mcp.core.errors import CATEGORIES, NXError, classify, fail, missing_member
+from nx_mcp.core.errors import CATEGORIES, NXError, classify, fail, missing_member, pinpoint
 from nx_mcp.core.receipts import ANY_PART, Receipts, new_operation_id
 from nx_mcp.core.references import GENERIC_NAME as _GENERIC
 from nx_mcp.core.tx import Services, Tx, check_owned
@@ -219,6 +223,38 @@ def _free_name(resolved: Path) -> Path:
     return resolved
 
 
+def _unsaved_part(services: Services, field: str, resolved: Path, target) -> None:
+    """A read path with no file that a loaded part will be saved to (a new part never
+    saved): say so instead of "no such file"; the call's own part is refused as itself."""
+    found = None
+    with contextlib.suppress(Exception):
+        wanted = resolved.resolve()
+        for part in list(services.parts() or []):
+            full = str(getattr(part, "FullPath", "") or "")
+            if full and Path(full).resolve() == wanted:
+                found = part
+                break
+    if found is None:
+        return
+    name = targets.file_name(found)
+    own = target.part if target is not None else None  # a call that creates or opens: none
+    if own is not None and targets.same(services, own, found):
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"{field}: {name} is the part this call works in; a part cannot use itself",
+            field=field,
+            hint="Name another part's file",
+            details={"path": _relative(services, resolved)},
+        )
+    fail(
+        "NX_FILE_NOT_FOUND",
+        f"{field}: {name} is loaded but not saved yet, so it has no file",
+        field=field,
+        hint=f"Save it first: nx_save_part with part {name}",
+        details={"path": _relative(services, resolved)},
+    )
+
+
 def _gate_paths(spec, checked: Checked, services: Services, target=None) -> None:  # gate 2
     """Workspace checks of every path argument, by the sidecar's rules (both process
     boundaries refuse the same paths, every refusal fixable: ``retry: after_fix``): a
@@ -242,6 +278,7 @@ def _gate_paths(spec, checked: Checked, services: Services, target=None) -> None
             ) from None
         resolved = _suffixed(spec, checked.args, field, str(value), resolved, marker, services)
         if marker.mode == "read" and not resolved.is_file():
+            _unsaved_part(services, field, resolved, target)
             fail(
                 "NX_FILE_NOT_FOUND",
                 f"{field}: no such file",
@@ -782,6 +819,9 @@ def _changes(
     for row in tx.changed if tx is not None else ():
         if all(r.get("id") != row.get("id") for r in modified):
             modified.append(row)
+    for row in tx.made if tx is not None else ():  # objects the snapshots do not track
+        if all(r.get("id") != row.get("id") for r in created):
+            created.append(row)
     stale: list[str] = list(tx.stale_refs) if tx is not None else []
     stale_of = getattr(getattr(services, "references", None), "stale", None)
     if retired and stale_of is not None:
@@ -805,6 +845,49 @@ def _changes(
         changes["references"] = "listed"
         changes["stale_kinds"] = ["face", "edge"]
     return changes
+
+
+# Tools that report what they did themselves: no object of their arguments counts as
+# modified for them (see :func:`_edited`).
+_SELF_REPORTED = frozenset({"nx_run_batch", "nx_finish_preview", "nx_delete_objects"})
+
+
+def _edited(spec, checked: Checked, services: Services, tx: Tx, changes: dict) -> None:
+    """Gate 14: a committed model call that reported no object although it changed
+    something (no ``NX_NO_EFFECT``) lists the live objects its references name as
+    ``modified``: an edit of values the snapshots cannot see (a dimension's format, an
+    annotation's text, a material). Creating tools (``nx_create_*``), undo tools, tools
+    whose only change is session state and composite calls report for themselves."""
+    from nx_mcp.core.undoable import STATE_ONLY, UNDO_TOOLS
+
+    name = spec.name
+    if (
+        name.startswith("nx_create_")
+        or name in _SELF_REPORTED
+        or name in UNDO_TOOLS
+        or name in STATE_ONLY
+        or tx.children
+        or any(changes.get(k) for k in ("created", "modified", "deleted", "stale_refs"))
+        or any(w.get("code") == "NX_NO_EFFECT" for w in tx.warnings)
+    ):
+        return
+    references = getattr(services, "references", None)
+    if references is None:
+        return
+    rows: list = []
+    with contextlib.suppress(Exception):
+        for path, _kinds in checked.refs:
+            value = get_at(checked.args, path)
+            if not targets.is_ref(value):
+                continue
+            try:
+                row = tx.ref(references.resolve(value, ()))
+            except Exception:
+                continue
+            if row.get("id") and all(r.get("id") != row.get("id") for r in rows):
+                rows.append(row)
+    if rows:
+        changes["modified"] = rows[:50]
 
 
 def _number(row) -> int | None:
@@ -1280,6 +1363,8 @@ def run(spec, args, ctx: Context) -> dict:
         tx.target = target
         tx.bound = bound
         tx.caller = caller
+        if spec.effect == "model":
+            tx.snapshot_part = part  # the part ``before`` is of (``tx.touch_part``)
         for code, message in bound.notes:
             tx.warn(code, message)
         if record is not None and record.get("previous"):
@@ -1315,6 +1400,7 @@ def run(spec, args, ctx: Context) -> dict:
             changes = _changes(
                 services, seen, after, spec, refreshed, retired=retired, floor=floor, tx=tx
             )
+            _edited(spec, checked, services, tx, changes)
             phases.lap("changes")
             if tx.references == "part_invalidated":  # the handler invalidated the part
                 changes["references"] = tx.references
@@ -1325,7 +1411,7 @@ def run(spec, args, ctx: Context) -> dict:
                     services.delete_mark(mark)
             tx.changes = changes  # the undo-history entry's notes read it (core/marks.py)
             if tx.outcome != "not_applicable":  # a discarded preview: no mark to undo
-                _record(services, tx, mark, part, operation_id, spec.name)
+                _record(services, tx, mark, part, operation_id, spec.name, floor)
         elif tx.changed:  # a file or session tool reporting the objects it changed
             changes = {"created": [], "modified": list(tx.changed), "deleted": []}
             changes["references"] = "preserved"
@@ -1370,6 +1456,7 @@ def run(spec, args, ctx: Context) -> dict:
         error = classify(exc)
         error = _version_net(spec, raw_args, services, exc, error)
         _remember_license(spec, raw_args, services, error)
+        error = pinpoint(error, raw_args, target.file if target is not None else None)
         if spec.effect == "model" and handler_started and part is not None:
             # before the rollback
             error = explain_failure(services, part, alerts, error, unanswered)
@@ -1442,16 +1529,22 @@ def _report_part(envelope: dict, target, services, part_text) -> None:
             envelope["part"] = target.row(services)
 
 
-def _record(services, tx: Tx, mark, part, operation_id: str, tool: str) -> None:
+def _record(
+    services, tx: Tx, mark, part, operation_id: str, tool: str, floor: int | None = None
+) -> None:
     """Gate 14: the committed model call's undo-history entry (none when an undo or
-    restore went back past its mark), with the handler's ``tx.history_note``. New work
-    in a part ends that part's redo list; an undo by deletion (``compensation``) does not."""
+    restore went back past its mark), with the handler's ``tx.history_note`` and
+    ``ref_floor`` (refs numbered below it existed before the call: an undo by deletion
+    never deletes them). New work in a part ends that part's redo list; an undo by
+    deletion (``compensation``) does not."""
     history = services.undo_history()
     depth = len(history)
     services.record_history(mark, part, operation_id, tool)
     if len(history) <= depth:
         return
     entry = history[-1]
+    if floor is not None:
+        entry["ref_floor"] = floor
     if tx.history_note:
         entry.update(tx.history_note)
     if entry.get("compensation"):
@@ -1526,6 +1619,89 @@ def _mark_gone(services, mark) -> bool:
         return False
 
 
+# NX's answers to an undo to a mark that is gone: "Undo mark is missing", and "unexpected
+# NULL pointer" for a mark an undo inside the same call already removed (the latter only
+# counts when NX does not confirm the mark exists).
+MISSING_MARK = ("mark is missing", "invalid undo mark", "mark does not exist")
+
+
+def _missing_mark(services, mark, error) -> bool:
+    """Whether an undo to ``mark`` failed because the mark is gone."""
+    text = str(error).casefold()
+    if any(words in text for words in MISSING_MARK):
+        return True
+    try:
+        exists = services.mark_exists(mark)
+    except Exception:
+        exists = None
+    return exists is False or (exists is None and "null pointer" in text)
+
+
+def call_parts(services, tx: Tx | None, part=None) -> list:
+    """The loaded parts a call worked in: its work part (``part``), its target and the
+    parts it declared with ``tx.touch_part``. A rollback re-checks the refs of these parts
+    only; another agent's parts and refs are never touched."""
+    candidates = [part]
+    if tx is not None:
+        if tx.target is not None:
+            candidates.append(tx.target.part)
+        candidates.extend(extra for extra, _before in tx.extra_parts.values())
+    try:
+        loaded = {services.part_key(p) for p in services.parts() or []}
+    except Exception:
+        loaded = set()
+    found: list = []
+    keys: set = set()
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        with contextlib.suppress(Exception):
+            key = services.part_key(candidate)
+            if key in loaded and key not in keys:
+                keys.add(key)
+                found.append(candidate)
+    return found
+
+
+def _part_refs(services, parts) -> dict:
+    """``{p:N: file identity}`` of ``parts`` before a rollback (:func:`_remapped`)."""
+    out = {}
+    for part in parts:
+        with contextlib.suppress(Exception):
+            ref = targets.part_id(services, part)
+            if ref:
+                out[ref] = targets.file_key(services, part)
+    return out
+
+
+def _remapped(services, before: dict) -> dict:
+    """``{old p:N: new p:N}`` for a part whose ref no longer resolves after a rollback
+    while a part of the same file is loaded (NX reloaded it): the ref to use now."""
+    out: dict = {}
+    for ref, file in before.items():
+        try:
+            services.references.resolve(ref, ("part",))
+            continue
+        except Exception:
+            pass
+        with contextlib.suppress(Exception):
+            for part in services.parts() or []:
+                if targets.file_key(services, part) == file:
+                    new = targets.part_id(services, part)
+                    if new and new != ref:
+                        out[ref] = new
+                    break
+    return out
+
+
+def _note_remapped(services, error, part_refs: dict) -> None:
+    """``details.remapped`` ``{old ref: new ref}`` when a rollback changed part refs."""
+    with contextlib.suppress(Exception):
+        remapped = _remapped(services, part_refs)
+        if remapped:
+            error.details["remapped"] = remapped
+
+
 def _ref_floor(services) -> int | None:
     """The next short-ref number (refs below it existed before the call), or None."""
     try:
@@ -1534,14 +1710,16 @@ def _ref_floor(services) -> int | None:
         return None
 
 
-def rebind_after_undo(services, floor: int | None = None) -> dict:
+def rebind_after_undo(services, floor: int | None = None, parts=None) -> dict:
     """After an undo: keep the refs of every object NX restored (NX 2406 undo restores
     the same tags), re-bind anchored refs whose object came back under a new tag and
-    retire the rest. Never touches part refs of parts that are still open.
+    retire the rest. Never touches part refs of parts that are still open. ``parts``: the
+    parts to check (default every loaded part); a rolled-back call checks only its own
+    (:func:`call_parts`), so it never retires or reports another agent's refs.
 
     ``{"rebound": [refs], "stale": [refs] | None}`` (``None``: the services retired
     every handle of the parts and cannot say which)."""
-    retired = services.retire_undone(services.parts())
+    retired = services.retire_undone(services.parts() if parts is None else list(parts))
     rebind = getattr(getattr(services, "references", None), "rebind", None)
     if retired is None or rebind is None:
         return {"rebound": [], "stale": None}
@@ -1572,6 +1750,46 @@ def _report_stale(error, summary: dict) -> str:
     return "part_invalidated"
 
 
+def _went_back(services, tx: Tx, error, floor, parts, part_refs) -> tuple:
+    """A failed call whose handler had already undone past its own undo mark: what it
+    undid stays undone (no second undo), refs are re-checked in the call's parts only;
+    ``partial``."""
+    references = tx.references or "part_invalidated"
+    with contextlib.suppress(Exception):
+        checked = _report_stale(error, rebind_after_undo(services, floor, parts))
+        if checked != "preserved" or references == "part_invalidated":
+            references = checked
+    error.details.setdefault("undo_mark", "reverted_by_call")
+    if tx.stale_refs:  # what the handler's own undo made stale
+        error.details.setdefault("stale_refs", list(tx.stale_refs)[:20])
+    base = (error.hint or CATEGORIES[error.category][2]).rstrip(".")
+    error.hint = (
+        f"{base}. What the call undid before it failed stays undone: check the model "
+        "(nx_get_model_summary) before repeating"
+    )
+    _note_remapped(services, error, part_refs)
+    with contextlib.suppress(Exception):
+        services.clear_update_errors()
+    return "partial", references, error
+
+
+# Error categories of a handler's own argument checks (``fail``, no NX code).
+_REFUSALS = frozenset({"invalid_argument", "wrong_kind", "wrong_owner", "not_found"})
+
+
+def _refusal(error, tx) -> bool:
+    """Whether a failed model call was refused by the handler's own checks after it read
+    NX, without NX failing (no ``nx_code``), without committing a builder (``tx.built``)
+    and with the part's objects as before: after the rollback (which restores any value
+    it set) it is ``not_started``, as a refusal inside ``tx.checks()`` is. A call that
+    built something and then refused it (an empty detail view) is ``rolled_back``."""
+    return (
+        getattr(error, "nx_code", None) is None
+        and getattr(error, "category", None) in _REFUSALS
+        and not (tx is not None and (tx.children or tx.files.published or tx.built))
+    )
+
+
 def _settle(spec, services, tx, mark, part, before, error, touched, handler_started, floor=None):
     """``(mutation_outcome, references, error)`` after a failed call; rolls back."""
     if spec.effect == "read":
@@ -1585,6 +1803,8 @@ def _settle(spec, services, tx, mark, part, before, error, touched, handler_star
             tx.files.discard()
         return "not_started", "preserved", error
     if spec.effect == "model":
+        parts = call_parts(services, tx, part)  # only the call's parts are re-checked
+        part_refs = _part_refs(services, parts)
         try:
             # Compare before undoing: a failure that created or deleted nothing keeps
             # every reference (undo restores the same NX objects).
@@ -1596,33 +1816,47 @@ def _settle(spec, services, tx, mark, part, before, error, touched, handler_star
             except Exception:
                 unchanged = False
             gone = _mark_gone(services, mark)
-            if gone and not unchanged:
-                raise RuntimeError("NX removed the call's undo mark and the model has changed")
             if not gone:  # else NX undid the failed step itself (see _mark_gone)
-                services.undo_to(mark)
+                try:
+                    services.undo_to(mark)
+                except Exception as undo_error:
+                    if not _missing_mark(services, mark, undo_error):
+                        raise
+                    gone = True  # the mark went before (an undo inside the call)
+            if gone and not unchanged:
+                if tx is not None and tx.references is not None:
+                    # The handler went back past its own mark (an undo or a restore) and
+                    # failed after it: what it undid stays undone, nothing is undone twice.
+                    return _went_back(services, tx, error, floor, parts, part_refs)
+                raise RuntimeError("NX removed the call's undo mark and the model has changed")
             references = "preserved"
             if not unchanged:
                 # NX 2406 undo restores the same objects under the same tags: keep their
                 # refs, re-bind moved anchored ones, retire only what did not come back.
-                references = _report_stale(error, rebind_after_undo(services, floor))
+                references = _report_stale(error, rebind_after_undo(services, floor, parts))
             if not gone:
                 services.delete_mark(mark)
             services.clear_update_errors()
         except Exception as rollback_error:
-            with contextlib.suppress(Exception):
-                services.invalidate_parts(services.parts())
             failed = NXError(
                 "NX_ROLLBACK_FAILED",
                 f"The operation failed and rollback also failed: {rollback_error}",
                 details={"operation_error": error.error_dict()},
             )
-            return "partial", "part_invalidated", failed
+            references = "part_invalidated"
+            with contextlib.suppress(Exception):  # refs of objects NX still has stay valid
+                references = _report_stale(failed, rebind_after_undo(services, floor, parts))
+            _note_remapped(services, failed, part_refs)
+            return "partial", references, failed
+        _note_remapped(services, error, part_refs)
         if tx.display.kept:
             with contextlib.suppress(Exception):
                 tx.display.restore()  # NX undo does not restore the camera.
         if tx.non_undoable_reason:
             error.details.setdefault("non_undoable", tx.non_undoable_reason)
             return "partial", "part_invalidated", error
+        if unchanged and _refusal(error, tx):  # its own check refused: NX made nothing
+            return "not_started", references, error
         return "rolled_back", references, error
     if spec.effect == "file":
         clean = tx.files.discard()
@@ -1729,6 +1963,7 @@ def run_child(
         child.mark = parent.mark
         child.target = target
         child.bound = bound
+        child.snapshot_part = part
         call_args = _gate_units(spec, checked, services, child)  # 9
         observer = None
         started = True
@@ -1752,6 +1987,7 @@ def run_child(
             "frame": child.frame,
             "changes": _changes(services, before, after, spec, retired=retired, tx=child),
         }
+        _edited(spec, checked, services, child, result["changes"])
         if child.units.get("length"):
             result["units"] = {k: v for k, v in child.units.items() if v}
         if target is not None and (part_text is not None or not _same_target(parent, target)):

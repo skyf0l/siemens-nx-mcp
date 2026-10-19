@@ -364,7 +364,7 @@ def test_extend_picks_the_end_facing_the_boundary_and_says_when_nothing_grew():
     )  # fmt: skip
     assert bad.error["category"] == "invalid_argument", bad
     assert bad.error["field"] == "/edits/0/boundaries" and "did not extend" in bad.error["message"]
-    assert bad.mutation_outcome == "rolled_back"
+    assert bad.mutation_outcome in ("rolled_back", "not_started")  # nothing changed in the end
 
 
 def test_trim_that_would_delete_the_whole_curve_is_refused():
@@ -379,7 +379,7 @@ def test_trim_that_would_delete_the_whole_curve_is_refused():
     )  # fmt: skip
     assert bad.error["category"] == "invalid_argument", bad
     assert "No boundary crosses" in bad.error["message"] and "delete" in bad.error["hint"]
-    assert bad.mutation_outcome == "rolled_back" and cut in sk.geometry
+    assert bad.mutation_outcome in ("rolled_back", "not_started") and cut in sk.geometry
     no_pick = _edit(
         nx, sk, {"type": "trim", "curve": nx.cref(cut), "boundaries": [nx.cref(boundary)]}
     )
@@ -464,3 +464,51 @@ def test_open_spline_repeating_its_first_point_is_a_closed_loop():
     assert ok.ok, ok
     assert nx.last("StudioSplineBuilderEx").IsPeriodic is False
     assert ok.data["loops"] == [{"closed": True, "curves": 1}]
+
+
+def test_a_polyline_that_returns_to_its_first_point_is_closed():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    square = [[0, 0], [40, 0], [40, 20], [0, 20], [0, 0]]
+    ok = _curves(nx, sk, {"type": "polyline", "points": square})
+    assert ok.ok and len(ok.data["curves"]) == 4, ok
+    assert len(sk.constraints) == 4  # the closing joint too
+    assert ok.data["loops"] == [{"closed": True, "curves": 4}]
+    sk.Deactivate()
+    sk2 = nx.sketch()
+    opened = run(nx, "nx_create_sketch_curves", sketch=sk2.ref,
+                 curves=[{"type": "polyline", "points": square, "closed": False}])  # fmt: skip
+    assert opened.ok and len(sk2.constraints) == 3, opened
+
+
+def test_a_conflict_names_the_edit_and_labels_what_relieves_it():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    a = nx.line(sk, (0, 0, 0), (10, 0, 0))
+    b = nx.line(sk, (0, 5, 0), (10, 5, 0))
+    sk.over = True  # NX: over-constrained once the line moved
+    bad = run(nx, "nx_edit_sketch_curves", sketch=sk.ref, edits=[
+        {"type": "construction", "curves": [nx.cref(b)], "on": True},
+        {"type": "line", "curve": nx.cref(a), "end": [12, 0]},
+        {"type": "construction", "curves": [nx.cref(b)], "on": False}])  # fmt: skip
+    assert bad.error["code"] == "NX_SKETCH_OVERCONSTRAINED", bad
+    assert bad.error["field"] == "/edits/1"
+
+
+def test_a_batch_step_lists_only_the_loops_of_its_own_curves():
+    nx = sketch_nx()
+    sk = run(nx, "nx_create_sketch", placement="xy").data["sketch"]["id"]
+
+    def circle(x):
+        return {"type": "circle", "center": [x, 0], "radius": 5}
+
+    steps = [
+        {"tool": "nx_create_sketch_curves", "arguments": {"sketch": sk, "curves": [circle(x)]}}
+        for x in (0, 20, 40)
+    ]
+    batch = run(nx, "nx_run_batch", operations=steps)
+    assert batch.ok, batch
+    loops = [step["data"]["loops"] for step in batch.data["results"]]
+    assert loops == [[{"closed": True, "curves": 1}]] * 3  # not 1, 2, 3 loops
+    alone = run(nx, "nx_create_sketch_curves", sketch=sk, curves=[circle(60)])
+    assert len(alone.data["loops"]) == 4  # a call of its own: every loop of the sketch

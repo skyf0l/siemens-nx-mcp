@@ -42,6 +42,14 @@
               "error.details.cuts.0.id": "$cut.data.feature.id", "error.details.bodies.0.id": "$cut.data.bodies.0.id",
               "mutation_outcome": "not_started"}},
   {"call": "nx_check_model", "args": {"part": "$part"},
-   "expect": {"ok": true}}
+   "expect": {"ok": true}},
+  {"call": "nx_create_component", "setup": true, "save": "FAR", "args": {"part": "$part", "path": "$run/cut_deck.prt", "name": "FAR", "pose": {"translation": [2000, 0, 0]}}},
+  {"call": "nx_create_component", "setup": true, "save": "FAR2", "args": {"part": "$part", "path": "$run/cut_deck.prt", "name": "FAR2", "pose": {"translation": [3000, 0, 0]}}},
+  {"call": "nx_create_component", "setup": true, "save": "TFAR", "args": {"part": "$part", "path": "$run/cut_trunk.prt", "name": "T_FAR", "pose": {"translation": [5000, 0, -20]}}},
+  {"call": "nx_create_component", "setup": true, "save": "T3", "args": {"part": "$part", "path": "$run/cut_trunk.prt", "name": "T3", "pose": {"translation": [2150, 110, -20]}}},
+  {"call": "nx_create_component", "setup": true, "save": "T4", "args": {"part": "$part", "path": "$run/cut_trunk.prt", "name": "T4", "pose": {"translation": [3440, 270, -20], "rotation": {"axis": "z", "angle": 45}}}},
+  {"call": "nx_create_assembly_cut", "intent": "No tool reaches the target", "args": {"part": "$part", "targets": ["$FAR.data.component.id"], "tools": ["$TFAR.data.component.id"]}, "expect": {"error.code": "NX_WRONG_GEOMETRY", "error.field": "/tools", "error.details.targets": {"count": 1}, "mutation_outcome": "not_started"}},
+  {"call": "nx_create_assembly_cut", "intent": "One of two targets is not reached", "args": {"part": "$part", "targets": ["$FAR.data.component.id", "$FAR2.data.component.id"], "tools": ["$T3.data.component.id"]}, "expect": {"mutation_outcome": "committed", "data.targets": {"count": 2}, "data.targets.0.removed": {"close": 80000, "tol": 1e-06}, "data.targets.0.volume_after": {"close": 1120000, "tol": 1e-06}, "data.targets.1.removed": {"close": 0, "tol": 1e-09}, "data.targets.1.volume_after": {"close": 1200000, "tol": 1e-06}, "data.bodies": {"count": 1}, "warnings": {"contains": {"code": "NX_NO_EFFECT"}}}},
+  {"call": "nx_create_assembly_cut", "intent": "A turned tool whose box meets the target's but whose solid misses it", "args": {"part": "$part", "targets": ["$FAR2.data.component.id"], "tools": ["$T4.data.component.id"]}, "expect": {"error.code": "NX_WRONG_GEOMETRY", "error.field": "/tools", "error.nx_code": 3545001, "mutation_outcome": "rolled_back"}}
  ]
 }

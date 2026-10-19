@@ -781,8 +781,11 @@
    "expect": {
     "error.code": "NX_INVALID_ARGUMENT",
     "error.field": "/arrow_direction",
-    "error.message": {
-     "contains": "arrow_direction, position"
+    "error.hint": {
+     "contains": "Add arrow_direction, position"
+    },
+    "error.details.errors": {
+     "count": 2
     },
     "mutation_outcome": "not_started"
    },

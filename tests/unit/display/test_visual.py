@@ -21,7 +21,7 @@ def test_list_ranks_library_names_and_counts_part_materials():
     assert [i["name"] for i in out.data["items"]] == ["Teak", "Varnished Teak"]
     assert out.data["items"][0]["category"] == "Woods"
     assert out.data["in_part"] == [{"name": "Teak", "kind": "material", "objects": 1}]
-    assert out.data["categories"] == ["Glasses", "Paints", "Plastics", "Woods"]
+    assert out.data["categories"] == {"Glasses": 2, "Paints": 3, "Plastics": 1, "Woods": 2}
     by_category = run(nx, "nx_list_visual_materials", query="glasses")
     assert {i["name"] for i in by_category.data["items"]} == {"Clear Glass", "Smoked Glass"}
     paged = run(nx, "nx_list_visual_materials", offset=2, limit=2)
@@ -66,9 +66,21 @@ def test_set_refuses_unknown_names_and_bad_argument_mixes():
     assert unknown.error["code"] == "NX_NOT_FOUND" and unknown.mutation_outcome == "not_started"
     assert "Clear Glass" in unknown.error["details"]["close"]
     both = run(nx, "nx_set_visual_material", objects=[block.ref], material="Teak", remove=True)
-    assert both.error["field"] == "/material"
+    assert both.error["field"] == "/remove" and "exclude each other" in both.error["message"]
     neither = run(nx, "nx_set_visual_material", objects=[block.ref])
-    assert neither.error["code"] == "NX_INVALID_ARGUMENT"
+    assert neither.error["code"] == "NX_INVALID_ARGUMENT" and neither.error["field"] == "/material"
+    assert "remove=true to clear" in neither.error["message"]
+
+
+def test_a_misspelt_query_ranks_the_name_made_of_that_word_first(tmp_path):
+    metals = tmp_path / "nx" / "UGPHOTO" / "SVM" / "Materials" / "Metals"
+    metals.mkdir(parents=True)
+    for name in ("Stainless Steel Printed 1.75mm", "Steel"):
+        (metals / f"{name}.svm").write_text("svm", encoding="utf-8")
+    nx = visual_nx()
+    out = run(nx, "nx_list_visual_materials", query="stel")
+    assert [i["name"] for i in out.data["items"]] == ["Steel", "Stainless Steel Printed 1.75mm"]
+    assert out.warnings[0]["code"] == "NX_NOTE"
 
 
 def test_set_without_a_library_is_unavailable(monkeypatch, tmp_path):

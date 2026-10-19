@@ -1,4 +1,5 @@
-"""nx_get_feature lists every alias nx_edit_feature resolves, and none on locked values."""
+"""nx_get_feature lists every alias nx_edit_feature resolves; a locked value keeps its aliases
+and reads editable false."""
 
 from tests.kit import run
 from tests.unit.modeling.fakes import feature, modeling_nx
@@ -31,7 +32,7 @@ def test_block_parameters_list_the_words_edit_feature_takes():
     assert length.RightHandSide == "40.0"
 
 
-def test_locked_parameters_carry_no_alias():
+def test_locked_parameters_keep_their_aliases_and_read_not_editable():
     nx = modeling_nx()
     f = feature(nx, "SYMBOLIC_THREAD")
     pitch = nx.expression("p8", "1.25", 1.25)
@@ -39,5 +40,9 @@ def test_locked_parameters_carry_no_alias():
     span = nx.expression("p9", "15", 15.0)
     span.Description, span.Units = "Symbolic Thread(4) Length", MM
     f.expressions = [pitch, span]
-    data = run(nx, "nx_get_feature", feature=nx.ref_of(f, "feature")).data
-    assert [p["aliases"] for p in data["parameters"]] == [[], ["length"]]
+    ref = nx.ref_of(f, "feature")
+    data = run(nx, "nx_get_feature", feature=ref).data
+    assert [p["aliases"] for p in data["parameters"]] == [["spacing", "pitch"], ["length"]]
+    assert [p["editable"] for p in data["parameters"]] == [False, True]
+    bad = run(nx, "nx_edit_feature", feature=ref, parameters=[{"name": "pitch", "value": 1}])
+    assert bad.error["code"] == "NX_READ_ONLY" and bad.error["details"]["reason"] == "locked"

@@ -209,7 +209,8 @@
     },
     "data.restored": {
      "matches": "review[.]json$"
-    }
+    },
+    "data.section.kind": "section_view"
    }
   },
   {
@@ -277,6 +278,30 @@
      640,
      400
     ]
+   }
+  },
+  {
+   "call": "nx_delete_objects",
+   "setup": true,
+   "args": {
+    "objects": [
+     "$secs.data.items.0.id"
+    ]
+   }
+  },
+  {
+   "call": "nx_restore_display",
+   "args": {
+    "presentation": "$run/review.json"
+   },
+   "intent": "Acceptance: a section the presentation creates again is named in the result",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.section.kind": "section_view",
+    "data.sections": 1,
+    "warnings.0.message": {
+     "contains": "was created as"
+    }
    }
   },
   {

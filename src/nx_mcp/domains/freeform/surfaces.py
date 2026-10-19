@@ -191,8 +191,9 @@ def _miss(tx, error, networks, tol):
         return common.explain(error, "Each primary section must cross every cross section")
     hint = (
         f"primary {worst['primary']} and cross {worst['cross']} are {worst['gap']:.4g} apart "
-        f"(tolerance {tol:.4g}): make the curves meet, or send tolerance {worst['gap'] * 1.1:.3g}"
-        " (the sheet then misses them by up to that much)"
+        f"(tolerance {tol:.4g}): make every primary curve cross every cross curve (move, "
+        "extend or redraw them); a tolerance above the gap only gives a rough sheet that "
+        "misses the curves by up to that much"
     )
     error.field = f"/cross/{worst['cross']}"
     return common.explain(error, hint, pairs=[p for p in pairs if p["gap"] > tol][:5])
@@ -202,7 +203,13 @@ def _miss(tx, error, networks, tol):
     effect="model",
     label="Create mesh surface",
     summary=lambda a, say: f"Mesh surface {len(a['primary'])} x {len(a['cross'])} sections",
-    keywords=("through curve mesh", "mesh surface", "curve network", "surface from curves"),
+    keywords=(
+        "through curve mesh",
+        "mesh surface",
+        "curve network",
+        "surface from curves",
+        "fill gap between curves",
+    ),  # fmt: skip
     requires=("work_part", "no_active_sketch"),
     cost="heavy",
     previewable=True,
@@ -219,8 +226,9 @@ def nx_create_mesh_surface(
 ) -> MeshData:
     """Create a Through Curve Mesh sheet from intersecting primary and cross sections.
     Each section: a curve or edge ref or a list of chained refs. boundaries: G0/G1/G2 at the
-    outer sections (default the edges' faces). Returns each section's gap to the sheet and
-    each boundary's angle; curves that miss each other are reported per pair."""
+    outer sections (default the edges' faces). Returns each section's gap to the sheet,
+    each boundary's angle and exact bounds (some listings show NX's looser box); curves
+    that miss each other are reported per pair."""
     groups = [_groups(primary, "/primary"), _groups(cross, "/cross")]
     total = sum(len(refs) for network in groups for refs, _ in network)
     if total > MAX_CURVES:
@@ -432,7 +440,13 @@ def _verify(tx, continuity, kind):
     effect="model",
     label="Create bridge surface",
     summary="Bridge {first} and {second} ({continuity})",
-    keywords=("bridge surface", "blend surface", "connect sheets", "g1 g2 continuity", "fill gap"),
+    keywords=(
+        "bridge surface",
+        "blend two sheet edges",
+        "connect sheets",
+        "g1 g2 continuity",
+        "fill gap",
+    ),  # fmt: skip
     requires=("work_part", "no_active_sketch"),
     variants="continuity",
     cost="heavy",

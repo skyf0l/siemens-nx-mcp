@@ -735,3 +735,25 @@ def test_find_tools_ranks_the_pattern_tool_first_for_body_copies(query):
     ]  # fmt: skip
     hits, _ = gateways.ranked(entries, query, variants=lambda e: specs[e.name].variant_values())
     assert hits[0].entry.name == "nx_create_pattern", [h.entry.name for h in hits[:5]]
+
+
+def test_an_undo_by_deletion_of_a_mirror_shows_the_bodies_it_hid_again():
+    from nx_mcp.core import catalogue
+    from tests.kit.kernel import services
+
+    nx = modeling_nx()
+    block = nx.block(40, 20, 10)
+    hidden = nx.block(10, 10, 10)
+    hidden.IsBlanked = True  # hidden before the call: an undo leaves it hidden
+    nx.on_commit("MirrorBodyBuilder", lambda b: feature(nx, "MIRROR_BODY",
+                 [new_body(nx, [-40, 0, 0, 0, 20, 10]), new_body(nx, [-10, 0, 0, 0, 10, 10])]))  # fmt: skip
+    ok = run(nx, "nx_create_mirror", bodies=[block.ref, hidden.ref], plane="yz",
+             keep_original=False)  # fmt: skip
+    assert ok.ok and block.IsBlanked, ok
+    entry = services(nx).undo_history()[-1]
+    assert entry["restore"] == {"hidden": [block.ref]} and entry["restore_after_delete"]
+    restore = catalogue.hooks("restorer")["nx_create_mirror"]
+    assert restore(nx.tx, entry["restore"], apply=False) == ""  # checked before the deletion
+    assert "showed" in restore(nx.tx, entry["restore"], apply=True)
+    assert not block.IsBlanked and hidden.IsBlanked
+    assert "already" in restore(nx.tx, entry["restore"], apply=True)

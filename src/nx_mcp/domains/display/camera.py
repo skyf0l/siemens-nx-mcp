@@ -110,8 +110,9 @@ def _hidden(services, part, args) -> bool:
 def nx_get_camera(tx: Tx) -> CameraData:
     """Read a part's view: camera rotation, origin, scale and rendering style, or the shown
     drawing sheet. Without part, the displayed part's; part X shows X for the read, then
-    the display comes back. origin is what nx_set_camera takes back; view is a named view
-    or custom, view_angle the degrees off the nearest."""
+    the display comes back. origin (view coordinates) is what nx_set_camera takes back;
+    absolute_origin is the model point at the view centre. view is a named view or custom,
+    view_angle the degrees off the nearest."""
     return _camera(tx)
 
 

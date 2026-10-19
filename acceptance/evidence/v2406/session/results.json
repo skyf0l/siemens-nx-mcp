@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/session/results.json",
-  "scenario_sha256": "7bcbd2374a76779ded83e42517935cb1c273b128ee1e549834f5d99affeffecc",
+  "scenario_sha256": "518d39c06e788fd3a0961af270e7d12706cc519bdd3e7ba3cd337b7893d3c3ad",
   "domain": "session",
   "covers": {
     "nx_get_result": [],
@@ -10,12 +10,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_get_result": "02f779de430b591f6428f71b1c649d29c5737368c53b94c2f9d1777a2b394af2",
-    "nx_delete_results": "02f779de430b591f6428f71b1c649d29c5737368c53b94c2f9d1777a2b394af2"
+    "nx_get_result": "cad6ce6fd4883204cbbe4d680dca8a3336e5eed401d1b90d2e5f341079023297",
+    "nx_delete_results": "cad6ce6fd4883204cbbe4d680dca8a3336e5eed401d1b90d2e5f341079023297"
   },
-  "recorded": "2026-10-15T10:31:03Z",
+  "recorded": "2026-10-19T10:30:23Z",
   "passed": true,
-  "checks": 85,
+  "checks": 86,
   "failed_checks": 0,
   "steps": [
     {
@@ -135,7 +135,7 @@
       "call": "nx_delete_results",
       "setup": false,
       "passed": true,
-      "checks": 5
+      "checks": 6
     },
     {
       "index": 18,

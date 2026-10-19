@@ -16,11 +16,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_assembly_constraint": "f14bcdb3c20629d367673601cff404a372b566155da3f96a59f0c4e4dc9b9f7d",
-    "nx_create_explosion": "7799b99613f2461ef09c44ed2c84ab1d11aee980955db26d34bfa920c7cc20fe",
-    "nx_create_component_pattern": "0a2eaaa013f1d34eb86f4ff4e2aa386965cd421b8c94ecc3148d7bbed5074482"
+    "nx_create_assembly_constraint": "152dab266a68fbdae980e58360026dbcfe01826264e393c66dbbe1ef8ac99328",
+    "nx_create_explosion": "7b3ffe27d6ad4ed71923db3617d9818bd8dff45c654ba82de50d1f1d893d2f76",
+    "nx_create_component_pattern": "3d56259a904d9231da5883eb3c093d4a3984edec3e022e0410d464ca89e7d178"
   },
-  "recorded": "2026-10-15T10:57:08Z",
+  "recorded": "2026-10-19T10:49:11Z",
   "passed": true,
   "checks": 50,
   "failed_checks": 0,

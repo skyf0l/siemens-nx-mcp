@@ -12,9 +12,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_law_extension": "c8ca137ca5b13077767557cd97d3a6d4ad1b2078ced0da499b23c78c3be3ba75"
+    "nx_create_law_extension": "52e4a2e95b3c062296669b567f39f8fb2c8f8010cc9e1ef1353ffc7a810f406d"
   },
-  "recorded": "2026-10-16T13:14:58Z",
+  "recorded": "2026-10-19T10:47:05Z",
   "passed": true,
   "checks": 26,
   "failed_checks": 0,

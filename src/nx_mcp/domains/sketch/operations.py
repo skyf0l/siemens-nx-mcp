@@ -29,7 +29,7 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import CurveRef, Doc, Items, Length, RefTo, SketchRef
-from nx_mcp.domains.sketch import common
+from nx_mcp.domains.sketch import common, undo
 from nx_mcp.domains.sketch.common import CurveRow
 from nx_mcp.kit import args, builders, expr, geom, readback, result, select, units
 from nx_mcp.kit import curve as kcurve
@@ -96,7 +96,7 @@ def _require_corner(tx, sk, a, b, kind):
         all(ksketch.curve_kind(tx, c) == "line" for c in (a, b))
         and _line_corner(tx, sk, a, b) is None
     ):
-        fail("NX_WRONG_GEOMETRY", "The lines are parallel: they make no corner", field="/second")
+        _no_corner()
     gap, pa, pb = _nearest_ends(tx, a, b)
     if gap <= geom.tol(pa, pb) * 10:
         return
@@ -134,6 +134,41 @@ def _require_corner(tx, sk, a, b, kind):
             "second_end": ksketch.to_local(f, pb),
         },
     )
+
+
+def _no_corner():
+    fail(
+        "NX_WRONG_GEOMETRY",
+        "The lines are parallel: they make no corner",
+        field="/second",
+        hint="Pick two lines whose extensions intersect (a corner), e.g. adjacent sides",
+    )
+
+
+def _fits(tx, sk, a, b, kind, radius, d1, d2) -> None:
+    """Refuse a fillet radius or chamfer distance too large for a corner of two lines,
+    before NX is called (the same limits ``_fillet`` and ``_chamfer`` apply)."""
+    if not all(ksketch.curve_kind(tx, c) == "line" for c in (a, b)):
+        return
+    corner = _line_corner(tx, sk, a, b)
+    if corner is None:
+        _no_corner()
+    if kind == "fillet":
+        biggest = min(corner[1], corner[2]) * math.tan(corner[3] / 2)
+        if float(radius) > biggest * (1 + 1e-9):
+            _too_large(
+                f"radius {float(radius):g} is too large for this corner: at most {biggest:.6g}",
+                "/radius",
+                max_radius=biggest,
+            )
+        return
+    for d, room, field in ((d1, corner[1], "/distance"), (d2, corner[2], "/distance2")):
+        if float(d) > room * (1 + 1e-9):
+            _too_large(
+                f"{field[1:]} {float(d):g} is longer than the line from the corner ({room:.6g})",
+                field,
+                max_distance=room,
+            )
 
 
 def _line_corner(tx, sk, a, b):
@@ -174,7 +209,7 @@ def _fillet(tx, sk, a, b, radius):
     lines = all(ksketch.curve_kind(tx, c) == "line" for c in (a, b))
     corner = _line_corner(tx, sk, a, b) if lines else None
     if lines and corner is None:
-        fail("NX_WRONG_GEOMETRY", "The lines are parallel: they make no corner", field="/second")
+        _no_corner()
     if corner is not None:
         # The arc touches each line r / tan(angle / 2) from the corner.
         biggest = min(corner[1], corner[2]) * math.tan(corner[3] / 2)
@@ -227,7 +262,7 @@ def _chamfer(tx, sk, a, b, d1, d2):
     nx, part, session = tx.nx, tx.part, tx.session
     meet = _line_corner(tx, sk, a, b)
     if meet is None:
-        fail("NX_WRONG_GEOMETRY", "The lines are parallel: they make no corner", field="/second")
+        _no_corner()
     for d, room, field in ((d1, meet[1], "/distance"), (d2, meet[2], "/distance2")):
         if d > room * (1 + 1e-9):
             _too_large(
@@ -354,16 +389,15 @@ def nx_create_sketch_corner(
     tx.frame = "sketch_local"
     with tx.checks():  # the refs, and curves that do not meet (or meet at a rounded corner)
         pre = ksketch.Editing(tx, ksketch.resolve(tx, sketch), False)
-        _require_corner(
-            tx,
-            pre,
-            common.owned_curve(tx, pre, first, "/first"),
-            common.owned_curve(tx, pre, second, "/second"),
-            kind,
-        )
+        pa = common.owned_curve(tx, pre, first, "/first")
+        pb = common.owned_curve(tx, pre, second, "/second")
+        _require_corner(tx, pre, pa, pb, kind)
+        d2 = distance if distance2 is None else distance2
+        _fits(tx, pre, pa, pb, kind, radius, distance, d2)
     with ksketch.editing(tx, sketch) as sk:
         a = common.owned_curve(tx, sk, first, "/first")
         b = common.owned_curve(tx, sk, second, "/second")
+        kept = undo.capture(tx, sk)
         points = _points(tx)
         if kind == "fillet":
             data = _fillet(tx, sk, a, b, radius)
@@ -374,6 +408,7 @@ def nx_create_sketch_corner(
         alive = ksketch.tags(sk)
         data["trimmed"] = [common.curve_row(tx, sk.frame, c) for c in (a, b) if int(c.Tag) in alive]
         data["sketch"] = tx.ref(sk.sketch, "sketch")
+        undo.note(tx, sk, kept, transient=_new_points(tx, points))  # deleted below
     keep = {
         int(tx.resolve(r["curve"]["id"], "curve").Tag) for r in [data["corner"], *data["trimmed"]]
     }
@@ -407,6 +442,14 @@ def _points(tx) -> set | None:
         return {int(p.Tag) for p in tx.part.Points}
     except TypeError:  # no point collection to walk
         return None
+
+
+def _new_points(tx, before) -> set:
+    """Tags of the part's points made since ``before`` (:func:`_points`): a corner's help
+    points, which :func:`_delete_help_points` deletes."""
+    if before is None:
+        return set()
+    return {int(p.Tag) for p in tx.part.Points if int(p.Tag) not in before}
 
 
 def _delete_help_points(tx, before, sketch, keep) -> None:
@@ -747,8 +790,9 @@ def nx_create_sketch_copy(
     mirror_line: Annotated[str, RefTo("curve", "datum_axis", doc="Sketch line or datum axis")]
     | None = None,
 ) -> CopyData:
-    """Copy sketch curves as an associative offset or mirror. Offsets of ellipses and splines
-    are approximated to 0.001 mm."""
+    """Copy sketch curves as an associative offset or mirror. An offset's distance drives a new
+    expression (returned as expression); side auto keeps NX's side, returned as side. Offsets
+    of ellipses and splines are approximated to 0.001 mm."""
     args.distinct("/curves", curves, "curves")
     if mode == "offset":
         args.need(distance=distance)
@@ -774,6 +818,7 @@ def nx_create_sketch_copy(
                     raise _too_deep(distance, limit)
     with ksketch.editing(tx, sketch) as sk:
         inputs = [common.owned_curve(tx, sk, c, f"/curves/{i}") for i, c in enumerate(curves)]
+        kept = undo.capture(tx, sk)
         if mode == "offset":
             try:
                 created, extra = _offset(tx, sk, inputs, distance, side, polygon)
@@ -787,6 +832,7 @@ def nx_create_sketch_copy(
         else:
             created, extra = _mirror(tx, sk, inputs, mirror_line)
         rows = [common.curve_row(tx, sk.frame, c) for c in created]
+        undo.note(tx, sk, kept)
         return {"sketch": tx.ref(sk.sketch, "sketch"), "curves": rows, **extra}
 
 
@@ -1053,6 +1099,7 @@ def nx_create_sketch_projection(
             _already_projected(tx, pre, objs, tol)
     tx.frame = "sketch_local"
     with ksketch.editing(tx, sketch) as sk:
+        kept = undo.capture(tx, sk)
         before = ksketch.tags(sk)
         if mode == "project":
             feature, features = _project(tx, sk, objs), None
@@ -1081,4 +1128,5 @@ def nx_create_sketch_projection(
         data["curves"] = [common.curve_row(tx, f, c) for c in created]
         if mode == "project":
             data["sources"] = _sources(tx, sk, list(objects), objs, created, tol)
+        undo.note(tx, sk, kept, features=[feature] if features is None else features)
         return data

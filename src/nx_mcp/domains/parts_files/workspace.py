@@ -1,10 +1,11 @@
-"""Workspace files (tool-surface 3.2): list, create folders, upload, download.
+"""Workspace files (tool-surface 3.2): list, create folders, upload, download, delete.
 
 These tools run in the sidecar (``runs="sidecar"``): they never reach NX, so the
 engineer's control hold never delays them. Paths are checked by gate 2 in the
 proxy and again by the kernel (traversal, outside the workspace, ``.nx-mcp`` in
 any case, drive- or root-relative paths). Internal ``.nx-mcp`` state is never
-listed, read or written.
+listed, read or written. ``nx_delete_file`` deletes only files an NX MCP tool wrote
+(``kit.files.note_written``: uploads, exports, part files), never a loaded part's file.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ import hashlib
 import os
 import time
 from pathlib import Path
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Literal, NoReturn, TypedDict
 
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
@@ -35,6 +36,10 @@ UPLOAD_SUFFIXES = (".prt", ".step", ".stp", ".png", ".json", ".zip", ".txt", ".p
                    ".catproduct", ".exp", ".csv", ".dat", ".xyz", ".jpg", ".jpeg", ".bmp",
                    ".tif", ".tiff")  # fmt: skip
 RESERVED = ".nx-mcp"
+CHUNK_HINT = (
+    "Split the file into chunks of at most 256 KiB: data_base64 per chunk with its offset, "
+    "plus total_size and sha256 of the whole file"
+)
 # A staged upload nobody finished is removed by a later upload once it is this old.
 UPLOAD_KEEP_SECONDS = 24 * 3600
 # Windows refuses these in a file or folder name; a trailing dot or space is dropped.
@@ -121,6 +126,7 @@ def _upload_bytes(content: str | None, data_base64: str | None, offset: int) -> 
                 "NX_REQUEST_TOO_LARGE",
                 "content holds at most 256 KiB of UTF-8; send larger files as data_base64 chunks",
                 field="/content",
+                hint=CHUNK_HINT,
             )
         return data
     try:
@@ -128,7 +134,8 @@ def _upload_bytes(content: str | None, data_base64: str | None, offset: int) -> 
     except (binascii.Error, ValueError):
         fail("NX_INVALID_ARGUMENT", "data_base64 is not valid base64", field="/data_base64")
     if len(data) > CHUNK_BYTES:
-        fail("NX_REQUEST_TOO_LARGE", "A chunk holds at most 256 KiB", field="/data_base64")
+        fail("NX_REQUEST_TOO_LARGE", f"A chunk holds at most 256 KiB, this one {len(data)} bytes",
+             field="/data_base64", hint=CHUNK_HINT)  # fmt: skip
     return data
 
 
@@ -214,6 +221,17 @@ def nx_create_directory(tx: Tx, *, path: Annotated[str, PathTo("dir")]) -> Direc
     root = _root(tx)
     shown = files.relative(folder, root)
     _check_folder_names(folder, root, shown)
+    blocker = next((p for p in (folder, *folder.parents) if p.is_file()), None)
+    if blocker is not None:  # nothing is created: not_started
+        named = files.relative(blocker, root)
+        fail(
+            "NX_WRONG_KIND",
+            f"{named} is a file, so no folder can be made "
+            + ("there" if blocker == folder else "inside it"),
+            field="/path",
+            hint="Choose another folder path; nx_list_files shows what exists",
+            details={"path": shown, "file": named},
+        )
     existed = folder.is_dir()
     tx.touched = True
     try:
@@ -318,7 +336,9 @@ def nx_upload_file(
 ) -> UploadData:
     """Write a new workspace file: text as content, or bytes as base64 chunks in order. A file
     of several chunks needs total_size and sha256; offset 0 restarts it. It appears when
-    complete; never overwrites. The path needs its suffix (.txt, .csv, ...)."""
+    complete, never overwrites and makes missing folders. Suffixes: .txt .csv .json .dat .xyz
+    .exp .prt .step .stp .igs .iges .x_t .x_b .stl .dxf .dwg .catpart .catproduct .zip .pdf
+    .png .jpg .jpeg .bmp .tif .tiff."""
     target = Path(path)
     if content is not None and target.suffix.lower() == ".prt":
         fail(
@@ -335,9 +355,20 @@ def nx_upload_file(
             fail("NX_INVALID_ARGUMENT", "Chunked uploads need total_size", field="/total_size")
         total_size = len(data)
     if offset > total_size:
-        fail("NX_INVALID_ARGUMENT", "offset is beyond total_size", field="/offset")
+        fail("NX_INVALID_ARGUMENT", f"offset {offset} is beyond total_size {total_size}",
+             field="/offset", hint="total_size is the byte size of the whole file")  # fmt: skip
+    staging = _root(tx) / RESERVED / "uploads"
+    if offset and sha256 is not None:  # a gap is named before the chunk's end is checked
+        received = _staged_size(staging, target, sha256, total_size)
+        if offset > received:
+            _gap(received)
     if offset + len(data) > total_size:
-        fail("NX_INVALID_ARGUMENT", "The chunk ends beyond total_size", field="/data_base64")
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"The chunk ends at byte {offset + len(data)}, beyond total_size {total_size}",
+            field="/data_base64",
+            hint="total_size is the byte size of the whole file; check the chunk's offset",
+        )
     if sha256 is None:
         if offset or len(data) != total_size:
             fail(
@@ -346,9 +377,7 @@ def nx_upload_file(
                 field="/sha256",
             )
         sha256 = hashlib.sha256(data).hexdigest()
-    staging = _root(tx) / RESERVED / "uploads"
-    key = hashlib.sha256(f"{target}|{sha256}|{total_size}".encode()).hexdigest()
-    temp = staging / key
+    temp = staging / _staged_key(target, sha256, total_size)
     tx.touched = True
     staging.mkdir(parents=True, exist_ok=True)
     _expire(staging, keep=temp)
@@ -376,13 +405,7 @@ def nx_upload_file(
             os.fsync(stream.fileno())
         size += len(data)
     else:
-        fail(
-            "NX_TRANSFER_FAILED",
-            f"Chunks must be contiguous: the next chunk starts at offset {size}",
-            field="/offset",
-            hint=f"Send the chunk at offset {size}, or restart from offset 0",
-            details={"received": size, "next_offset": size},
-        )
+        _gap(size)
     committed = size == total_size
     if committed:
         if files.sha256(temp) != sha256:
@@ -395,6 +418,7 @@ def nx_upload_file(
                 "a file of several chunks also needs total_size",
             )
         files.publish_new(temp, target)
+        files.note_written(tx, target)
     else:  # staged only: no workspace file yet
         tx.outcome = "not_applicable"
         tx.warn(
@@ -410,6 +434,29 @@ def nx_upload_file(
         "sha256": sha256,
         "next_offset": None if committed else size,
     }
+
+
+def _staged_key(target: Path, sha256: str, total_size: int) -> str:
+    return hashlib.sha256(f"{target}|{sha256}|{total_size}".encode()).hexdigest()
+
+
+def _staged_size(staging: Path, target: Path, sha256: str, total_size: int) -> int:
+    """Bytes already received for this upload (0: none staged)."""
+    try:
+        return (staging / _staged_key(target, sha256, total_size)).stat().st_size
+    except OSError:
+        return 0
+
+
+def _gap(received: int) -> NoReturn:
+    fail(
+        "NX_TRANSFER_FAILED",
+        f"Chunks must be contiguous: {received} bytes were received, so the next chunk "
+        f"starts at offset {received}",
+        field="/offset",
+        hint=f"Send the chunk at offset {received}, or restart from offset 0",
+        details={"received": received, "next_offset": received},
+    )
 
 
 def _expire(staging: Path, keep: Path) -> None:
@@ -432,7 +479,14 @@ def _expire(staging: Path, keep: Path) -> None:
         )
         + f" {say('path')}"
     ),
-    keywords=("download", "read file", "file checksum", "show png", "get file"),
+    keywords=(
+        "download",
+        "fetch exported file",
+        "retrieve file",
+        "read file",
+        "show png",
+        "file checksum",
+    ),  # fmt: skip
     variants="delivery",
     cost="light",
     runs="sidecar",
@@ -502,6 +556,90 @@ def nx_download_file(
             }
         )
     return out
+
+
+class DeleteFileData(TypedDict):
+    path: str
+    size: int
+    created_by: Annotated[str | None, Doc("The tool whose call created the file")]
+
+
+def _loaded_part_file(root: Path, file: Path) -> bool:
+    """Whether NX has ``file`` loaded as an agent part (the host's owners file,
+    ``core/busy.py``: rewritten whenever the agent's parts change)."""
+    import json
+
+    from nx_mcp.core import busy
+
+    try:
+        saved = json.loads((root / RESERVED / busy.OWNERS_FILE).read_text(encoding="utf-8"))
+        loaded = {str(r.get("file") or "") for r in (saved.get("parts") or {}).values()}
+    except (OSError, ValueError, AttributeError):
+        return False
+    return str(file.resolve()).replace("\\", "/").casefold() in loaded
+
+
+@tool(
+    effect="file",
+    label="Delete workspace file",
+    summary="Delete {path}",
+    keywords=("delete file", "remove file", "clean up files", "rm", "erase upload"),
+    cost="light",
+    runs="sidecar",
+    example={"path": "inbox/notes.txt"},
+)
+def nx_delete_file(tx: Tx, *, path: PathIn) -> DeleteFileData:
+    """Delete a workspace file an NX MCP tool created (upload, export, part file of a
+    closed part). Files the engineer or another program made, another agent's files,
+    folders and loaded parts are refused. Cannot be undone."""
+    root = _root(tx)
+    file = Path(path)
+    shown = files.relative(file, root)
+    if file.is_dir():
+        fail("NX_WRONG_KIND", f"{shown} is a folder; only files are deleted", field="/path",
+             hint="Delete the files in it one by one (nx_list_files lists them)")  # fmt: skip
+    row = files.created_row(root, file)
+    if row is None:
+        fail(
+            "NX_READ_ONLY",
+            f"{shown} was not created by an NX MCP tool: only such files are deleted",
+            field="/path",
+            hint="Leave it, or ask the engineer to remove it",
+            details={"path": shown},
+        )
+    mine = tx.caller.get("id") if isinstance(tx.caller, dict) else None
+    theirs = row.get("caller")
+    if mine and theirs and mine != theirs:
+        fail(
+            "NX_PART_BUSY",
+            f"{shown} was created by another agent (MCP connection {theirs})",
+            field="/path",
+            hint="Leave it to that agent",
+            details={"path": shown, "owner": theirs, "reason": "other_agent"},
+        )
+    if _loaded_part_file(root, file):
+        fail(
+            "NX_PART_IN_USE",
+            f"{shown} is loaded in NX",
+            field="/path",
+            hint="Close it with nx_close_part first, then delete the file",
+            details={"path": shown},
+        )
+    size = file.stat().st_size
+    tx.touched = True
+    try:
+        file.unlink()
+    except OSError as error:
+        reason = getattr(error, "strerror", None) or type(error).__name__
+        fail(
+            "NX_IN_USE",
+            f"{shown} could not be deleted: {reason}",
+            field="/path",
+            hint="A program (NX, a viewer) may hold it open; close it there and retry",
+            details={"path": shown},
+        )
+    files.forget_created(root, file)
+    return {"path": shown, "size": size, "created_by": row.get("tool")}
 
 
 def _text(file: Path, size: int) -> str:

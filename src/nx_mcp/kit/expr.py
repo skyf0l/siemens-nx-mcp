@@ -17,7 +17,7 @@ from __future__ import annotations
 import contextlib
 import re
 
-from nx_mcp.core.errors import NXError, fail, native
+from nx_mcp.core.errors import NXError, fail, native, nearest
 from nx_mcp.core.types import MM_PER_IN
 
 UNIT_NAMES = {"mm": "MilliMeter", "in": "Inch", "deg": "Degrees", "rad": "Radian", "unitless": None}
@@ -155,6 +155,35 @@ def units(exp):
     return "deg" if abbreviation == "°" else abbreviation
 
 
+def stale(tx, exp) -> float | None:
+    """NX's value of ``exp``'s own formula evaluated afresh (a temporary expression in its
+    units, deleted at once) when it differs from the value ``exp`` holds, else None.
+
+    NX 2406 accepts a formula whose number overflows a double (``1e400``,
+    ``1e300*1e300``) and keeps the expression's old value without an update error (a
+    fresh evaluation gives 0): a value read back after an edit says nothing then. None
+    also when NX cannot evaluate the formula apart (the edit itself stands)."""
+    if getattr(exp, "Type", "Number") != "Number":
+        return None
+    option = tx.nx.Expression.UnitsOption.Expression
+    formula = str(exp.RightHandSide).split("//", 1)[0].strip()
+    try:
+        held = float(exp.GetValueUsingUnits(option))
+        temporary = tx.part.Expressions.CreateSystemExpressionWithUnits(
+            formula, getattr(exp, "Units", None) or None
+        )
+    except Exception:
+        return None
+    try:
+        fresh = float(temporary.GetValueUsingUnits(option))
+    except Exception:
+        return None
+    finally:
+        with contextlib.suppress(Exception):
+            tx.part.Expressions.Delete(temporary)
+    return fresh if abs(fresh - held) > 1e-9 * max(1.0, abs(held)) else None
+
+
 def dependents(exp):
     """Expressions that reference ``exp`` ([] where NX lacks the query)."""
     query = getattr(exp, "GetReferencingExpressions", None)
@@ -190,6 +219,49 @@ def alias(feature, name):
         f"The feature has no {name!r} parameter",
         details={"expressions": [{"name": e.Name, "description": t} for e, t in listed]},
     )
+
+
+# ---- helper expressions named after what they drive ---------------------------------
+# NX names the expressions a feature or a measurement makes p0, p1...: a part with a few
+# features holds dozens nobody can tell apart. A tool that creates helper expressions
+# (an offset's distance, a law's parameter, a measurement) names them with :func:`label`
+# after the feature and the parameter (``offset_surface3_distance``).
+ANONYMOUS = re.compile(r"^p\d+(?:_[A-Za-z0-9]+)?$")
+
+
+def helper_name(owner, parameter: str) -> str:
+    """An expression name for ``parameter`` of ``owner`` (a feature, or any text):
+    ``OFFSET_SURFACE(3)`` + ``distance`` -> ``offset_surface3_distance``."""
+    text = (
+        owner
+        if isinstance(owner, str)
+        else str(getattr(owner, "JournalIdentifier", "") or getattr(owner, "Name", "") or "feature")
+    )
+    words = [w for w in re.split(r"[^A-Za-z0-9]+", f"{text} {parameter}".lower()) if w]
+    # "surface 3" -> "surface3": a feature's number stays with its kind
+    name = "_".join(words)
+    name = re.sub(r"_(\d+)(?=_|$)", r"\1", name) or "value"
+    if not name[0].isalpha():
+        name = "x" + name
+    return name[:90]
+
+
+def label(tx, exp, base: str) -> str:
+    """Rename the anonymous helper expression ``exp`` (``p12``, ``p12_x``) to ``base``,
+    or ``base_2``, ``base_3``... when the name is taken; an expression already named by
+    someone is kept. Returns the name it carries. Never fails the call: NX refusing the
+    name leaves NX's own."""
+    current = str(getattr(exp, "Name", "") or "")
+    if not ANONYMOUS.match(current) or not NAME.fullmatch(base):
+        return current
+    taken = {str(e.Name) for e in tx.part.Expressions}
+    name, n = base, 1
+    while name in taken:
+        n += 1
+        name = f"{base}_{n}"
+    with contextlib.suppress(Exception):
+        exp.SetName(name)
+    return str(getattr(exp, "Name", "") or current)
 
 
 def alias_names() -> tuple[str, ...]:
@@ -270,11 +342,13 @@ def evaluate(services, formula, dim, unit, *, field=None, scratch=False) -> floa
     if NAME.fullmatch(formula):
         exp = next((e for e in part.Expressions if e.Name == formula), None)
         if exp is None:
+            close = nearest(formula, [str(e.Name) for e in part.Expressions])
             fail(
                 "NX_INVALID_ARGUMENT",
                 f"{field or 'value'}: {where} has no expression {formula!r}",
                 field=field,
-                hint=listing,
+                hint=(f"Did you mean {', '.join(close)}? " if close else "") + listing,
+                details={"closest": close} if close else None,
             )
         if getattr(exp, "Type", "Number") not in ("Number", "Integer"):
             fail(

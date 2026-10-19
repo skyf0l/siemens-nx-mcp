@@ -126,6 +126,56 @@ def result_of(tx, feature, bodies=None) -> FeatureData:
     }
 
 
+# Bodies of the part compared with a new body for a coincident duplicate (the rest of a
+# larger part is not read: the check stays cheap).
+COINCIDENT_BODIES = 200
+
+
+def warn_coincident(tx, made, what: str) -> list:
+    """An ``NX_NOTE`` per body of ``made`` that lies exactly where another body of the part
+    already lies (same box and volume, ``kit.readback.coincident``): a repeated feature
+    stacked a duplicate. NX accepts it; a warning, not an error. Returns the pairs."""
+    tags = {int(b.Tag) for b in made}
+    try:
+        others = [b for b in tx.part.Bodies if int(b.Tag) not in tags][:COINCIDENT_BODIES]
+        boxes = [(b, measure.bounds(tx, [b])) for b in others]
+    except Exception:  # noqa: BLE001 - bodies without a box: no duplicate check
+        return []
+    pairs = []
+    for body in made:
+        try:
+            box = measure.bounds(tx, [body])
+            near = [(b, other) for b, other in boxes if readback.same_box(box, other)]
+            if not near:
+                continue
+            size = size_of(tx, body)
+            rows = [(b, other, size_of(tx, b)) for b, other in near]
+        except Exception:  # noqa: BLE001 - a body NX cannot measure: no duplicate check
+            continue
+        for twin in readback.coincident(box, size, rows):
+            pairs.append((body, twin))
+            new, old = tx.ref(body, kind="body")["id"], tx.ref(twin, kind="body")["id"]
+            tx.warn(
+                "NX_NOTE",
+                f"{new} coincides with {old} (same box and volume): the {what} duplicated an "
+                "existing body; undo it if that was not meant, or combine them",
+            )
+    return pairs
+
+
+def sheetlike(body) -> bool:
+    """Whether a body is a sheet (``IsSheetBody``, else not ``IsSolidBody``)."""
+    flag = getattr(body, "IsSheetBody", None)
+    return bool(flag) if flag is not None else not getattr(body, "IsSolidBody", True)
+
+
+def size_of(tx, body) -> float:
+    """A solid's volume, or a sheet's area."""
+    if sheetlike(body):
+        return measure.area(tx, list(body.GetFaces()))
+    return measure.volume(tx, body)
+
+
 def sound(tx, made, known=()) -> None:
     """After a build: an invalid (self-intersecting) body fails and rolls back; bodies
     spanning over 10 m get a warning (``kit.bodies``)."""

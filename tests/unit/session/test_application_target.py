@@ -94,3 +94,19 @@ def test_without_part_the_engineers_displayed_part_is_never_taken():
     bad = run(nx, "nx_activate_application", application="sheet_metal")
     assert not bad.ok and app.calls == [], bad
     assert bad.error["code"] in ("NX_WRONG_PART_CONTEXT", "NX_AMBIGUOUS_PART")
+
+
+def test_modeling_for_a_background_part_is_a_no_op_when_nx_already_runs_it():
+    """NX runs one application per session: asking for Modeling while NX runs it needs no
+    display, so a part that is not displayed gets changed false instead of a refusal."""
+    nx, a, _b = two()
+    app = App(nx)
+    asked = licensed(nx)
+    ok = run(nx, "nx_activate_application", application="modeling", part="b")
+    assert ok.ok, ok
+    assert ok.data == {"application": "modeling", "previous": "modeling", "changed": False}
+    assert ok.mutation_outcome == "not_applicable"
+    assert app.calls == [] and asked == [] and nx.session.Parts.Display is a
+    app.switch("UG_APP_SBSM")
+    bad = run(nx, "nx_activate_application", application="modeling", part="b")
+    assert bad.error["code"] == "NX_WRONG_PART_CONTEXT", bad

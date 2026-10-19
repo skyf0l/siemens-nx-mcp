@@ -95,6 +95,7 @@ class AppearanceInfo(TypedDict, total=False):
 class HighlightData(TypedDict):
     highlighted: list[Row]
     count: int
+    visible: bool
 
 
 def _visibility_summary(a, say):
@@ -119,7 +120,7 @@ def _visibility_summary(a, say):
         "isolate",
         "blank",
         "hide sketches",
-        "hide by type",
+        "show hidden body",
     ),
     requires=("work_part",),
     cost="light",
@@ -361,13 +362,19 @@ def nx_get_appearance(
 ) -> AppearanceInfo:
     """Read blank state, colour and transparency of objects, one row per object. A body
     row gives faces_differ (faces coloured unlike the body) and the first few; pass faces
-    to read each. count_only: just the number of objects and their faces."""
+    to read each. highlighted: set by nx_set_highlight. count_only: just the number of
+    objects and their faces."""
     values = targets(tx, objects, expand=True)
     if count_only:
         faces = len({int(f.Tag) for v in values for f in faces_of(v)})
         return {"count": len(values), "faces": faces}
     pairs = tx.services.display_records(values, True)
-    return {"objects": display_rows(tx, pairs), "count": len(pairs)}
+    rows = display_rows(tx, pairs)
+    lit = {int(o.Tag) for o in tx.services.highlights()}
+    for (obj, _record), row in zip(pairs, rows, strict=True):
+        if int(obj.Tag) in lit:
+            row["highlighted"] = True
+    return {"objects": rows, "count": len(pairs)}
 
 
 HEX = re.compile(r"#?([0-9a-fA-F]{6})")
@@ -451,8 +458,8 @@ def nx_set_highlight(
 ) -> HighlightData:
     """Replace the agent's highlights with these objects (NX selection highlight, no colour
     change); an empty list clears them. Seen live in the NX window on the displayed part
-    only, never in nx_capture_view images: colour objects for a capture
-    (nx_set_appearance)."""
+    only (visible), never in nx_capture_view images: colour objects for a capture
+    (nx_set_appearance). Read back: nx_get_appearance (highlighted)."""
     with tx.checks():
         part = display.shown_part(tx, work=True)
         values = targets(tx, objects) if objects else []
@@ -460,8 +467,9 @@ def nx_set_highlight(
     tx.services.restore_display(None, [], values)  # makes the agent's highlights exactly these
     now = {int(o.Tag) for o in tx.services.highlights()}
     readback.expect(now == {int(v.Tag) for v in values}, "highlighted", count=len(now))
-    _highlight_notes(tx, part, values)
-    return {"highlighted": [tx.ref(v, kind_of(tx, v)) for v in values], "count": len(values)}
+    switched = _highlight_notes(tx, part, values)
+    return {"highlighted": [tx.ref(v, kind_of(tx, v)) for v in values], "count": len(values),
+            "visible": bool(values) and not switched}  # fmt: skip
 
 
 def _hidden_owner(obj) -> bool:
@@ -480,11 +488,11 @@ def _hidden_owner(obj) -> bool:
     return bool(getattr(body, "IsBlanked", False)) if body is not None else False
 
 
-def _highlight_notes(tx, part, values) -> None:
+def _highlight_notes(tx, part, values) -> bool:
     """Say when highlights cannot be seen: hidden objects, or a part not displayed (the
-    call showed it and the engineer's display came back)."""
+    call showed it and the engineer's display came back, returns True)."""
     if not values:
-        return
+        return False
     hidden = [tx.ref(v, kind_of(tx, v))["id"] for v in values if _hidden_owner(v)]
     if hidden:
         tx.warn("NX_NOTE", f"{', '.join(hidden[:10])} are hidden (or lie on a hidden body): "
@@ -493,3 +501,5 @@ def _highlight_notes(tx, part, values) -> None:
     if getattr(bound, "mode", None) == "display" and getattr(bound, "switched", False):
         tx.warn("NX_NOTE", "The part was shown for this call only: its highlights show when "
                 "it is displayed again (nx_activate_part)")  # fmt: skip
+        return True
+    return False

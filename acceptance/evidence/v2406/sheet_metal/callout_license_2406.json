@@ -1,15 +1,15 @@
 {
   "format": 2,
   "scenario": "acceptance/sheet_metal/callout_license_2406.json",
-  "scenario_sha256": "36f28ef7fdb357a214c5effd0a8c920eaa6490c34509607af6398ab5afa53b68",
+  "scenario_sha256": "4cdb191975858febc2ac85d8aff491db20c2c19a7677743656991215bf2685e4",
   "domain": "sheet_metal",
   "covers": {},
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {},
-  "recorded": "2026-10-10T11:54:18Z",
+  "recorded": "2026-10-19T11:04:39Z",
   "passed": true,
-  "checks": 8,
+  "checks": 10,
   "failed_checks": 0,
   "steps": [
     {
@@ -87,14 +87,14 @@
       "call": "nx_create_sheet_metal_callout",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 5
     },
     {
       "index": 12,
       "call": "nx_create_sheet_metal_callout",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 13,

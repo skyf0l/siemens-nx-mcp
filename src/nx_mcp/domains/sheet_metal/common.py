@@ -139,7 +139,8 @@ def solid_owner(tx, obj, field):
 
 
 def thickness(tx, body) -> float:
-    return result.measured(manager(tx).GetBodyThickness(body), "thickness")
+    """The actual sheet thickness, without float noise (``result.denoise``)."""
+    return result.denoise(result.measured(manager(tx).GetBodyThickness(body), "thickness"))
 
 
 class BendData(TypedDict):
@@ -161,12 +162,13 @@ class BendRow(TypedDict):
 
 
 def bend_data(tx, face) -> BendData:
-    """``{radius, angle, neutral_factor}`` of one inner bend face."""
+    """``{radius, angle, neutral_factor}`` of one inner bend face, without float noise
+    (NX 2406 reads 2.9999999999999996 for R3, 89.99999999999997 for 90 degrees)."""
     params = manager(tx).GetBendParameters(face)
     return {
-        "radius": result.measured(params.InnerRadius, "bend radius"),
-        "angle": result.measured(params.BendAngle, "bend angle"),
-        "neutral_factor": result.measured(params.NeutralFactor, "neutral factor"),
+        "radius": result.denoise(result.measured(params.InnerRadius, "bend radius")),
+        "angle": result.denoise(result.measured(params.BendAngle, "bend angle")),
+        "neutral_factor": result.denoise(result.measured(params.NeutralFactor, "neutral factor")),
     }
 
 

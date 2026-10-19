@@ -27,7 +27,7 @@ import json
 import math
 from typing import Annotated, Literal, TypedDict
 
-from nx_mcp.core.catalogue import tool
+from nx_mcp.core.catalogue import restorer, tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
@@ -364,21 +364,22 @@ def _summary(a, say):
     summary=_summary,
     keywords=(
         "base view",
+        "front view",
         "projected view",
         "section view",
         "detail view",
         "auxiliary view",
         "broken view",
-        "break-out section",
         "isometric view",
     ),
     requires=("work_part", "no_active_sketch"),
     variants="type",
-    # The field that sets each derived view apart (a short list: nx_get_tool_schemas shows
-    # it); the tool refuses a call missing any other field it needs, naming them all.
+    # The fields that set each derived view apart (a short list: nx_get_tool_schemas shows
+    # it); the tool refuses a call missing any other field it needs, naming them all. A
+    # section lists its arrow and position too, so one refusal names all three.
     required_by={
-        "section": ("cut",),
-        "half_section": ("cut",),
+        "section": ("cut", "arrow_direction", "position"),
+        "half_section": ("cut", "arrow_direction", "position"),
         "stepped_section": ("cuts",),
         "revolved_section": ("cuts",),
         "detail": ("center",),
@@ -452,6 +453,10 @@ def nx_create_drawing_view(
     parent: spacing (border gap, default 20 mm) or a position past the parent on that side.
     Derived views keep the parent scale (detail: 2); broken and break_out cut the parent."""
     a = {**locals(), "scale": scale_value(scale)}
+    if parent is not None:  # a derived view of a parent that lags the model: update it first
+        with tx.checks():
+            shown, _sheet = drawing.view(tx, parent, "/parent")
+        drawing.freshen(tx, [shown])
     out = _create(tx, type, a)
     if type not in ("broken", "break_out"):  # those cut the parent view in place
         warn_overlaps(tx, out)
@@ -919,7 +924,9 @@ class ViewStyle(TypedDict, total=False):
     hidden_lines: Annotated[bool, Doc(HIDDEN_LINES_DOC)]
     self_hidden: bool
     hidden_font: Annotated[Font, Doc("invisible: hidden edges not drawn")]
-    visible_font: Font
+    visible_font: Annotated[
+        Font | Literal["original"], Doc("original: each edge in its own font (solid)")
+    ]
     smooth_edges: bool
     rendering: Literal["fully_shaded", "partially_shaded", "wireframe"]
     construction_geometry: bool
@@ -930,11 +937,13 @@ forbid_extra(ViewStyle)
 
 class _EditExtras(TypedDict, total=False):
     rescaled: Annotated[list[result.Row], Doc("Projected views that followed the scale")]
+    moved: Annotated[list[result.Row], Doc("Projected views that followed the move")]
 
 
 class ViewInfo(ViewData, _EditExtras):
     style: dict
     construction_geometry: bool | None
+    stale: Annotated[bool, Doc("It may show an older model: nx_update_annotations")]
 
 
 def view_info(tx, view, sheet):
@@ -947,6 +956,8 @@ def view_info(tx, view, sheet):
         )
     if attribute(tx, view, CONSTRUCTION) == "partial":
         tx.warn("NX_UPDATE_WARNING", view_style.CONSTRUCTION_WARNING)
+    if drawing.stale_note(tx, [view]):
+        out["stale"] = True
     return out
 
 
@@ -954,7 +965,7 @@ def view_info(tx, view, sheet):
     effect="model",
     label="Edit drawing view",
     summary="Edit view {view}",
-    keywords=("move view", "view scale", "hidden lines", "view style", "drafting view settings"),
+    keywords=("drawing view", "move view", "view scale", "hidden lines", "view style"),
     requires=("work_part", "no_active_sketch"),
     cost="heavy",
     invalidates="deleted",
@@ -969,24 +980,31 @@ def nx_edit_drawing_view(
     style: ViewStyle | None = None,  # noqa: A002 - surface name
 ) -> ViewInfo:
     """Move a drawing view, change its scale or its display style (line fonts by name).
-    Projected views made from it follow a scale change, keeping their gap (rescaled); a
-    projected view itself keeps its parent's scale (rescale the parent). A projected view
-    moves only along the axis that keeps it aligned with its parent (a view below keeps
-    its x); a parent moved along that axis drags it when NX allows, else fails and stays.
-    Every change is read back."""
+    Projected views made from it follow a move or scale change, keeping their gap (moved,
+    rescaled); one that would leave the sheet is refused. A projected view keeps its
+    parent's scale and moves only along the axis that keeps it aligned (a view below keeps
+    its x). Every change is read back; an undo sets the old values back."""
+    return edit_view(tx, view, position, scale, style)
+
+
+def edit_view(tx, view, position, scale, style, *, record=True):
+    """The edit of ``nx_edit_drawing_view``; ``record``: keep the before-values for an undo
+    (the undo itself runs it without)."""
     changes = {
-        k: view_style.font_name(v) if k.endswith("font") else v
+        k: view_style.font_name(v, k) if k.endswith("font") else v
         for k, v in (style or {}).items()
         if v is not None
     }
     if changes.get("visible_font") == "invisible":
-        fail("NX_INVALID_ARGUMENT", "visible_font cannot be invisible", field="/style/visible_font")
+        fail("NX_INVALID_ARGUMENT", "visible_font cannot be invisible", field="/style/visible_font",
+             hint="original draws each edge in its own font (solid model edges)")  # fmt: skip
     ratio = scale_value(scale)
     if position is None and ratio is None and not changes:
         fail("NX_INVALID_ARGUMENT", "Give position, scale or style")
     with tx.checks():
         obj, sheet = drawing.view(tx, view)
         before = drawing.position(obj)
+        old = _view_values(tx, obj, position, ratio, changes)
         if ratio is not None and view_type(obj) == "projected":
             parent = parent_of(tx, obj, sheet)
             fail(
@@ -1003,34 +1021,41 @@ def nx_edit_drawing_view(
             _check_alignment(tx, obj, sheet, before, position)
     construction = changes.pop("construction_geometry", None)
     with drawing.on_sheet(tx, sheet):
+        drawing.freshen(tx, sheet.GetDraftingViews())
         others = [v for v in sheet.GetDraftingViews() if int(v.Tag) != int(obj.Tag)]
         at = {int(v.Tag): drawing.position(v) for v in others}
         styles = {int(v.Tag): view_style.read_style(tx, v) for v in others} if changes else {}
-        followers = _followers(tx, obj, sheet) if ratio is not None else []
+        moving = ratio is not None or position is not None
+        followers = _followers(tx, obj, sheet) if moving else []
+        _followers_stay_on(tx, obj, sheet, followers, ratio, position)
         # A free view keeps its border centre on a rescale (NX may keep the reference point
         # instead): a scale round trip puts it back where it was.
         recentre = ratio is not None and position is None and not followers
         recentre = recentre and view_type(obj) in ("base", "detail")
         centre = _centre(tx, obj) if recentre else None
-        if ratio is not None:
-            tx.uf.Draw.SetViewScale(obj.Tag, ratio)
-            for child, *_ in followers:
-                tx.uf.Draw.SetViewScale(child.Tag, ratio)
-        if position is not None:
-            tx.uf.Draw.MoveView(obj.Tag, [float(position[0]), float(position[1])])
-        if changes:
-            _apply_style(tx, obj, changes)
-        if construction is not None:
-            view_style.set_construction(tx, obj, construction, strict=True)
-        tx.part.DraftingViews.UpdateViews([obj] + [f[0] for f in followers])
-        if centre is not None:
-            _keep_centre(tx, obj, centre, sheet)
-        rescaled = _keep_gaps(tx, followers, ratio)
+        try:
+            if ratio is not None:
+                tx.uf.Draw.SetViewScale(obj.Tag, ratio)
+                for child, *_ in followers:
+                    tx.uf.Draw.SetViewScale(child.Tag, ratio)
+            if position is not None:
+                tx.uf.Draw.MoveView(obj.Tag, [float(position[0]), float(position[1])])
+            if changes:
+                _apply_style(tx, obj, changes)
+            if construction is not None:
+                view_style.set_construction(tx, obj, construction, strict=True)
+            tx.part.DraftingViews.UpdateViews([obj] + [f[0] for f in followers])
+            if centre is not None:
+                _keep_centre(tx, obj, centre, sheet)
+            followed = _keep_gaps(tx, followers, ratio)
+        except Exception as error:
+            _off_sheet_refusal(tx, error, sheet, followers, "/scale" if ratio else "/position")
+            raise
         refresh_details(tx)
         out = view_info(tx, obj, sheet)
         _side_effects(tx, others, styles)
-        if rescaled:
-            out["rescaled"] = rescaled
+        if followed:
+            out["rescaled" if ratio is not None else "moved"] = followed
     if ratio is not None:
         readback.expect_close(out["scale"], ratio, "scale", 1e-8)
     if position is not None:
@@ -1061,7 +1086,61 @@ def nx_edit_drawing_view(
     tx.modified(obj, "drawing_view")
     if position is not None or ratio is not None:
         warn_overlaps(tx, out)
+    if record and old is not None:
+        new = _view_values(tx, obj, position, ratio, changes)
+        tx.note_restore({"view": view if drawing.is_ref(view) else out["view"]["id"],
+                         "before": old, "after": new})  # fmt: skip
     return out
+
+
+def _view_values(tx, view, position, ratio, changes):
+    """What an edit of ``view`` sets, as it reads now (an undo's before-values): position,
+    scale and the given style keys. None when the edit also changes construction geometry
+    (an undo cannot set its per-view erasures back)."""
+    if "construction_geometry" in changes:
+        return None
+    values: dict = {}
+    if position is not None or ratio is not None:
+        values["position"] = drawing.position(view)
+    if ratio is not None:
+        values["scale"] = drawing.scale(tx, view)
+    if changes:
+        style = view_style.read_style(tx, view)
+        values["style"] = {k: style[k] for k in changes}
+    return values
+
+
+def _same_view_values(now, want, tol):
+    for key, value in want.items():
+        got = now.get(key)
+        if key == "style":
+            if any(got.get(k) != v for k, v in value.items()):
+                return False
+        elif key == "scale":
+            if abs(float(got) - float(value)) > 1e-8 * max(1.0, abs(float(value))):
+                return False
+        elif any(abs(float(a) - float(b)) > tol for a, b in zip(got, value, strict=True)):
+            return False
+    return True
+
+
+@restorer("nx_edit_drawing_view")
+def _restore_view(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Set back the position, scale and style an ``nx_edit_drawing_view`` changed (its
+    projected views follow again, as in the edit): refused when the view changed since."""
+    ref, before, after = data["view"], data["before"], data["after"]
+    obj, sheet = drawing.view(tx, ref)
+    tol = units.tolerance(units.sheet_units(tx, sheet), 1e-4)
+    keys = {"position": after.get("position"), "scale": after.get("scale"),
+            "style": after.get("style") or {}}  # fmt: skip
+    now = _view_values(tx, obj, keys["position"], keys["scale"], keys["style"]) or {}
+    if not _same_view_values(now, after, tol):
+        fail("NX_DEPENDENCY_ORDER", f"View {obj.Name} was changed since: it reads {now}, the "
+             f"operation left {after}", details={"view": ref, "now": now})  # fmt: skip
+    if apply:
+        edit_view(tx, obj, before.get("position"), before.get("scale"), before.get("style"),
+                  record=False)  # fmt: skip
+    return f"the {', '.join(sorted(before))} of view {obj.Name} set back"
 
 
 def aligned_axes(tx, view, sheet, children=True):
@@ -1153,9 +1232,10 @@ def _followers(tx, view, sheet):
 
 
 def _keep_gaps(tx, followers, ratio):
-    """After a parent's scale change: each follower at the parent's scale, its gap to its
-    parent kept along the free axis (NX keeps the alignment; a move across it would drag
-    the parent) and its alignment checked; reported as modified."""
+    """After a parent's move or scale change (``ratio`` None: a move): each follower at the
+    parent's scale, its gap to its parent kept along the free axis (NX keeps the alignment
+    and drags it along the other axis; a move across it would drag the parent) and its
+    alignment checked; reported as modified."""
     rows = []
     for child, parent, k, sign, gap, offset in followers:
         a, b = drawing.borders(tx, parent), drawing.borders(tx, child)
@@ -1164,15 +1244,91 @@ def _keep_gaps(tx, followers, ratio):
         point[k] += facing + sign * gap - (b[k] if sign > 0 else b[k + 2])
         drawing.place(tx, child, point, axes=(k,))
         tol = units.tolerance(units.sheet_units(tx, drawing.view_sheet(tx, child)), 1e-4)
-        _verify_scale(tx, child, ratio)
+        if ratio is not None:
+            _verify_scale(tx, child, ratio)
         aligned = drawing.position(child)[1 - k] - drawing.position(parent)[1 - k]
-        readback.expect_close(aligned, offset * ratio, "alignment", 10 * tol)
+        readback.expect_close(aligned, offset * drawing.scale(tx, parent), "alignment", 10 * tol)
         row = tx.modified(child, "drawing_view")
         rows.append(row)
         if not drawing.inside(drawing.borders(tx, child), drawing.view_sheet(tx, child)):
             tx.warn("NX_VIEW_OVERLAP", f"Projected view {row.get('id')} now runs off the "
                     "sheet: move it with nx_edit_drawing_view position")  # fmt: skip
     return rows
+
+
+def _scaled(box, about, factor):
+    """Rectangle ``box`` scaled by ``factor`` about sheet point ``about``."""
+    return [about[i % 2] + factor * (box[i] - about[i % 2]) for i in range(4)]
+
+
+def predicted(tx, view, followers, ratio, position):
+    """``[(child, reference point, border)]``: where each follower of ``view`` lands after
+    the edit (a move or a rescale to ``ratio``), predicted from the geometry NX keeps: a
+    rescaled view's border scales about its reference point, a follower keeps its gap
+    along its free axis and its alignment (the reference offset scales with the views)."""
+    here = drawing.position(view)
+    delta = [float(position[i]) - here[i] for i in (0, 1)] if position is not None else [0, 0]
+    factor = ratio / drawing.scale(tx, view) if ratio is not None else 1.0
+    box = _scaled(drawing.borders(tx, view), here, factor)
+    boxes = {int(view.Tag): [box[i] + delta[i % 2] for i in range(4)]}
+    points = {int(view.Tag): [here[i] + delta[i] for i in (0, 1)]}
+    out = []
+    for child, parent, k, sign, gap, offset in followers:
+        a = boxes[int(parent.Tag)]
+        own = drawing.position(child)
+        scale = ratio if ratio is not None else drawing.scale(tx, child)
+        b = _scaled(drawing.borders(tx, child), own, scale / drawing.scale(tx, child))
+        point = list(own)
+        point[k] += (a[k + 2] if sign > 0 else a[k]) + sign * gap - (b[k] if sign > 0 else b[k + 2])
+        point[1 - k] = points[int(parent.Tag)][1 - k] + offset * scale
+        shift = [point[i] - own[i] for i in (0, 1)]
+        boxes[int(child.Tag)] = [b[i] + shift[i % 2] for i in range(4)]
+        points[int(child.Tag)] = point
+        out.append((child, point, boxes[int(child.Tag)]))
+    return out
+
+
+def _followers_stay_on(tx, view, sheet, followers, ratio, position):
+    """The sheet-bounds gate for the projected views that follow a move or rescale: one
+    whose reference point would leave the sheet is refused before NX (NX fails after the
+    change with 1405072 "The view is not located on the drawing")."""
+    if not followers:
+        return
+    field = "/scale" if ratio is not None else "/position"
+    length, height = drawing.size(sheet)
+    for child, point, box in predicted(tx, view, followers, ratio, position):
+        if not drawing.point_on_sheet(sheet, point):
+            what = f"at scale {ratio:g}" if ratio is not None else f"moved to {list(position)}"
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"With {view.Name} {what}, its projected view {child.Name} (which keeps its gap "
+                f"and alignment) would move to [{point[0]:.6g}, {point[1]:.6g}], off the "
+                f"{length:g} x {height:g} sheet",
+                field=field,
+                hint="Move the views apart first (nx_edit_drawing_view position), use a smaller "
+                "scale or a larger sheet",
+                details={"view": tx.ref(child, "drawing_view"), "predicted_position": point,
+                         "predicted_bounds": box, "sheet_size": [length, height]},
+            )  # fmt: skip
+
+
+def _off_sheet_refusal(tx, error, sheet, followers, field):
+    """NX's 1405072 ("The view is not located on the drawing") during an edit, raised as a
+    refusal that names the views, their borders and the sheet size."""
+    if getattr(error, "ErrorCode", None) != 1405072:
+        return
+    views = [tx.ref(f[0], "drawing_view") for f in followers]
+    length, height = drawing.size(sheet)
+    fail(
+        "NX_INVALID_ARGUMENT",
+        f"NX refused the edit: a view would leave the {length:g} x {height:g} sheet"
+        + (f" (its projected views {', '.join(str(v['name']) for v in views)} follow it)"
+           if views else ""),
+        field=field,
+        hint="Move the views apart first, use a smaller scale or a larger sheet",
+        nx_code=1405072,
+        details={"views": views, "sheet_size": [length, height]},
+    )  # fmt: skip
 
 
 def _side_effects(tx, others, styles):
@@ -1202,7 +1358,7 @@ def _apply_style(tx, view, changes):
     effect="read",
     label="Get drawing view",
     summary="View {view}",
-    keywords=("view info", "view scale", "view border", "view position", "view style"),
+    keywords=("drawing view", "view info", "view border", "view position", "view style"),
     requires=("work_part",),
     cost="light",
     example={"view": "v:7"},
@@ -1214,6 +1370,7 @@ def nx_get_drawing_view(
 ) -> ViewInfo:
     """Read a drawing view: type, orientation, parent, position, scale and border. Also the
     views it overlaps, whether it lies on the sheet, its style (line fonts by name;
-    hidden_font invisible: hidden edges are not drawn) and construction state."""
+    hidden_font invisible: hidden edges not drawn; visible_font original: each edge in its
+    own font) and construction state; stale: it may show an older model."""
     obj, sheet = drawing.view(tx, view)
     return view_info(tx, obj, sheet)

@@ -318,3 +318,53 @@ def test_compensation_sets_component_group_changes_back(nx):
                mode="compensate")  # fmt: skip
     assert gone.ok, gone
     assert [g.Name for g in nx.asm.ComponentGroups] == ["AllComponents"]
+
+
+def test_compensation_sets_an_asserted_mass_back(nx):
+    first = run(nx, "nx_set_component_mass", part="asm", component=nx.engine.ref, mass=350,
+                center=[110, 5, 20])  # fmt: skip
+    second = run(nx, "nx_set_component_mass", part="asm", component=nx.engine.ref, mass=400)
+    assert first.ok and second.ok, second
+    undo = run(nx, "nx_undo_operation", part="asm", mode="compensate")
+    assert undo.ok and undo.data["compensated"], undo
+    assert "back to 350 kg" in undo.data["restored"][0]
+    mass, center = nx.weight.data[int(nx.engine.Tag)]
+    assert mass == 350 and center == pytest.approx([5, -10, 20])
+    gone = run(nx, "nx_undo_operation", part="asm", mode="compensate")
+    assert gone.ok and int(nx.engine.Tag) not in nx.weight.data, gone
+    part = run(nx, "nx_set_component_mass", part="asm", component=nx.tank.ref, mass=5,
+               level="part")  # fmt: skip
+    cleared = run(nx, "nx_set_component_mass", part="asm", component=nx.tank.ref, clear=True,
+                  level="part")  # fmt: skip
+    assert part.ok and cleared.ok
+    back = run(nx, "nx_undo_operation", part="asm", mode="compensate")
+    assert back.ok and nx.weight.data[int(nx.pin.Tag)] == (5, None), back
+
+
+def test_compensation_refuses_a_mass_asserted_again_since(nx):
+    first = run(nx, "nx_set_component_mass", part="asm", component=nx.tank.ref, mass=40)
+    nx.weight.data[int(nx.tank.Tag)] = (41, None)  # changed outside the operation
+    undo = run(nx, "nx_undo_operation", part="asm", operation=first.operation_id,
+               mode="compensate")  # fmt: skip
+    assert undo.error["code"] == "NX_DEPENDENCY_ORDER", undo
+    assert nx.weight.data[int(nx.tank.Tag)] == (41, None)
+
+
+def test_compensation_recreates_a_deleted_component_group(nx):
+    delete = nx.session.UpdateManager.AddToDeleteList
+
+    def delete_groups(objects):
+        for obj in objects:
+            if obj in nx.asm.ComponentGroups:
+                nx.asm.ComponentGroups.remove(obj)
+        delete([o for o in objects if not isinstance(o, Group)])
+
+    nx.session.UpdateManager.AddToDeleteList = delete_groups
+    run(nx, "nx_create_component_group", part="asm", name="Fuel",
+        components=[nx.tank.ref, nx.engine.ref])  # fmt: skip
+    gone = run(nx, "nx_edit_component_group", part="asm", name="fuel", delete=True)
+    assert gone.ok, gone
+    undo = run(nx, "nx_undo_operation", part="asm", mode="compensate")
+    assert undo.ok and "recreated with its 2 members" in undo.data["restored"][0], undo
+    fuel = nx.asm.ComponentGroups[-1]
+    assert fuel.Name == "Fuel" and fuel.members == [nx.tank, nx.engine]

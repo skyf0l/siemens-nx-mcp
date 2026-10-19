@@ -123,6 +123,38 @@ def component(tx, ref, field, *, direct=True, unsuppressed=False):
     return c
 
 
+def sibling_names(part, skip=()) -> dict:
+    """``{casefolded name: component}`` of the work part's direct components, without
+    those in ``skip``."""
+    left = {int(c.Tag) for c in skip}
+    return {
+        str(c.Name).casefold(): c for c in structure.direct_children(part) if int(c.Tag) not in left
+    }
+
+
+def free_name(base, taken) -> str:
+    """``base`` (upper case), numbered ``_2``, ``_3``... while ``taken`` (casefolded names)
+    holds it."""
+    base = str(base).upper()
+    name, n = base, 1
+    while name.casefold() in taken:
+        n += 1
+        name = f"{base}_{n}"
+    return name
+
+
+def unique_name(tx, name, field, skip=()) -> None:
+    """Refuse a component name a sibling already has (two components would share one
+    path), suggesting a free one."""
+    taken = sibling_names(tx.part, skip)
+    other = taken.get(str(name).casefold())
+    if other is not None:
+        free = free_name(name, taken)
+        fail("NX_ALREADY_EXISTS", f"Another component is named {other.Name}", field=field,
+             hint=f"Pick a free name, e.g. {free}",
+             details={"existing": tx.ref(other, "component"), "suggested": free})  # fmt: skip
+
+
 def in_assembly(tx, ref, field):
     """An unsuppressed component (any level) of the displayed assembly, its part loaded."""
     c = select.resolve(tx, ref, "component", field=field)

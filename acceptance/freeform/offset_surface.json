@@ -274,6 +274,32 @@
    }
   },
   {
+   "call": "nx_create_offset_surface",
+   "intent": "The top cap and the side share an edge at different distances: refused before NX",
+   "args": {
+    "sets": [
+     {
+      "faces": [
+       "$caps.data.items.0.id"
+      ],
+      "distance": -3
+     },
+     {
+      "faces": [
+       "$side.data.items.0.id"
+      ],
+      "distance": 2
+     }
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/sets/1/faces/0",
+    "error.details.other_set": 0,
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
    "call": "nx_check_model",
    "args": {},
    "expect": {

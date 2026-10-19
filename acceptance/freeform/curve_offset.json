@@ -433,6 +433,62 @@
    }
   },
   {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "hx",
+   "args": {
+    "points": [
+     [
+      10,
+      300,
+      0
+     ],
+     [
+      0,
+      310,
+      5
+     ],
+     [
+      -10,
+      300,
+      10
+     ],
+     [
+      0,
+      290,
+      15
+     ],
+     [
+      10,
+      300,
+      20
+     ]
+    ]
+   }
+  },
+  {
+   "call": "nx_create_offset_curve",
+   "intent": "A helix-like 3D spline is not planar: refused before NX, pointing at axial_3d",
+   "args": {
+    "curves": [
+     "$hx.data.curve.id"
+    ],
+    "distance": 2
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/curves",
+    "error.hint": {
+     "contains": "axial_3d"
+    },
+    "error.details.off_plane": {
+     "close": 10,
+     "tol": 10
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
    "call": "nx_check_model",
    "args": {},
    "expect": {

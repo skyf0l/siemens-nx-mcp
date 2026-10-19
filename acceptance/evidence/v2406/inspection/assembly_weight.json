@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/assembly_weight.json",
-  "scenario_sha256": "20a02d0e72c276e0dab0ac386a686b9c67434c4f4cac9a73d515ceb38faf238d",
+  "scenario_sha256": "01913ef0ce8e4a2854b24b0aac1dc30f790b4a083de6b4f63b27cc4f78ee5d20",
   "domain": "inspection",
   "covers": {
     "nx_measure_assembly_mass": [],
@@ -10,12 +10,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_measure_assembly_mass": "6c81baf840cbc9f36fe014909c39d1154e7eed1949aa0e76748459e9c2547e0a",
-    "nx_export_mass_report": "6c81baf840cbc9f36fe014909c39d1154e7eed1949aa0e76748459e9c2547e0a"
+    "nx_measure_assembly_mass": "f8a5b8bf2e47bc158680bfdf01a5efb8cba33449de37d259fc282c19fd8126d4",
+    "nx_export_mass_report": "f8a5b8bf2e47bc158680bfdf01a5efb8cba33449de37d259fc282c19fd8126d4"
   },
-  "recorded": "2026-10-15T10:45:36Z",
+  "recorded": "2026-10-19T10:53:45Z",
   "passed": true,
-  "checks": 69,
+  "checks": 70,
   "failed_checks": 0,
   "steps": [
     {
@@ -184,7 +184,7 @@
       "call": "nx_measure_assembly_mass",
       "setup": false,
       "passed": true,
-      "checks": 16
+      "checks": 17
     },
     {
       "index": 25,

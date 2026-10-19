@@ -47,7 +47,7 @@ import math
 import re
 from typing import Annotated, Literal, TypedDict
 
-from nx_mcp.core.catalogue import tool
+from nx_mcp.core.catalogue import restorer, tool
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Offset, PageLimit, Text
@@ -78,9 +78,12 @@ RULE_TYPES = {
     "list": "List", "point": "Point", "vector": "Vector", "frame": "Frame", "any": "Any",
 }  # fmt: skip
 FORMULA_HINT = (
-    "KF syntax: rules end with ':' (length: * 2), strings in double quotes, true/false; "
-    "list the rules with nx_get_kf_rules"
+    "KF syntax: rule references end with ':' (length: * 2; a child's parameter: "
+    "size:Value: * 2), strings in double quotes, true/false; list the rules with "
+    "nx_get_kf_rules"
 )
+# A child's parameter referenced without its closing ':' ("size:Value * 2").
+OPEN_REFERENCE = re.compile(r"\b[A-Za-z_]\w*:[A-Za-z_]\w*\??(?![\w:?])")
 
 Formula = Annotated[str, Text(FORMULA_MAX), Doc("KF formula, e.g. 'length: * 2', '\"text\"'")]
 
@@ -120,6 +123,7 @@ class RulesData(TypedDict, total=False):
         list[ClassParameter], Doc("class_name given: the class's parameters and defaults")
     ]
     page: Annotated[dict, Doc("offset, limit, returned, total, next_offset")]
+    not_found: Annotated[list[str], Doc("Rule names given that the instance does not have")]
 
 
 class ClassParameter(TypedDict):
@@ -205,7 +209,9 @@ def _last_error(rm) -> str:
 def _message(rm, error: Exception) -> str:
     detail = _last_error(rm)
     text = str(error).strip()
-    return f"{text}: {detail}" if detail and detail not in text else text
+    if not detail or detail in text:
+        return text
+    return detail if text in detail else f"{text}: {detail}"
 
 
 def _plain(value):
@@ -268,6 +274,7 @@ def row(rm, instance: str, name: str, *, expressions=None, formula: str | None =
     if out["type"] == "instance":
         out["child"] = _child_class(rm, chain)
         out["expression"] = False
+        out["formula"] = None  # its parameters' formulas: read it as instance (its chain)
     if isinstance(out["value"], str) and len(out["value"]) > 500:
         out["value"] = out["value"][:500]
     return out
@@ -458,7 +465,10 @@ def nx_get_kf_rules(
             wanted = {n.casefold() for n in class_parameters(rm, klass)}
             first = [n for n in names if n.casefold() in {f.casefold() for f in formulas}]
             names = first + [n for n in names if n.casefold() in wanted and n not in first]
+    missing: list[str] = []
     if names_given:
+        known = {n.casefold() for n in names}
+        missing = [n for n in names_given if n.casefold() not in known]
         names = names_given
     shown, page = result.page(names, offset, limit)
     expressions = _expression_rules(rm, part, shown) if chain == ROOT else set()
@@ -473,13 +483,18 @@ def nx_get_kf_rules(
             formula = next((f for n, f in formulas.items() if n.casefold() == name.casefold()),
                            None)  # fmt: skip
         out_rows.append(row(rm, chain, name, expressions=expressions, formula=formula))
-    return {
+    out: RulesData = {
         "part": tx.ref(part, "part"),
         "instance": chain,
         "class_name": klass,
         "rules": out_rows,
         "page": page,
     }
+    if missing:
+        out["not_found"] = missing
+        tx.warn("NX_NOTE", f"{chain} has no rule {', '.join(missing)} (see not_found); "
+                "nx_get_kf_rules without rules lists them")  # fmt: skip
+    return out
 
 
 def _expression_formula(part, name: str) -> str | None:
@@ -556,7 +571,9 @@ def nx_set_kf_rule(
     replace: Annotated[
         bool, Doc("child: reset the parameters not given to the class defaults")
     ] = False,
-    formula: Annotated[Formula, Doc("dynamic: KF formula, e.g. 'p0: * 2', '\"text\"'")]
+    formula: Annotated[
+        Formula, Doc("dynamic: KF formula, e.g. 'p0: * 2', 'size:Value: * 2', '\"text\"'")
+    ]
     | None = None,
     rule_type: Annotated[
         Literal[
@@ -568,7 +585,8 @@ def nx_set_kf_rule(
     """Add or change a Knowledge Fusion rule in the root instance of the work part. The KF
     update that follows builds what a child's class makes (ug_expression: a unitless
     expression). child: a class instance with parameter values in KF syntax; changing a
-    child keeps the parameters not given. dynamic: a typed formula rule. A class's
+    child keeps the parameters not given (names match in any case). dynamic: a typed
+    formula rule, no NX object (data.rule shows it; changes stay empty). A class's
     parameters: nx_get_kf_rules class_name; expressions: nx_set_expression."""
     rule = _rule_name(name, "/name")
     klass, text = "", ""
@@ -598,9 +616,11 @@ def nx_set_kf_rule(
         if present is not None:
             rule = present
             _check_existing(rm, part, rule, kind, klass if kind == "child" else None)
+        previous = _state(rm, rule, kind) if present is not None else None
         if kind == "child":
             _require_class(rm, klass)
             _check_parameters(rm, klass, params)
+            params = _canonical(rm, klass, params)
             if present is not None and not replace:
                 given = {n.casefold() for n, _ in params}
                 for pname, ptext in specified(rm, f"{ROOT}{rule}:").items():
@@ -620,13 +640,13 @@ def nx_set_kf_rule(
                 kinds = tx.nx.RuleManager.RuleType
                 rm.CreateDynamicRule(ROOT, rule, getattr(kinds, RULE_TYPES[rule_type]), text)
         except NXError as error:
-            raise _refused(rm, error, kind, params) from None
+            raise _refused(rm, error, kind, params, text) from None
         except Exception as error:
-            raise _refused(rm, error, kind, params) from None
+            raise _refused(rm, error, kind, params, text) from None
     try:
         _kf_update(tx, rm)
     except NXError as error:
-        raise _refused(rm, error, kind, params) from None
+        raise _refused(rm, error, kind, params, text) from None
     readback.expect(
         any(n.casefold() == rule.casefold() for n in dynamic_rules(rm, ROOT, None)),
         "rule", f"{rule} is not a rule of root: after the update",
@@ -638,7 +658,8 @@ def nx_set_kf_rule(
     if out["error"]:
         fail("NX_INVALID_FORMULA" if kind == "dynamic" else "NX_INVALID_ARGUMENT",
              f"{rule} does not evaluate: {out['error']}",
-             field="/formula" if kind == "dynamic" else "/parameters", hint=FORMULA_HINT)  # fmt: skip
+             field="/formula" if kind == "dynamic" else "/parameters",
+             hint=_formula_hint(text))  # fmt: skip
     children: list[RuleRow] = []
     if kind == "child":
         chain = f"{ROOT}{rule}:"
@@ -662,7 +683,61 @@ def nx_set_kf_rule(
     }
     if kept:
         data["kept_parameters"] = kept
+    tx.note_restore(
+        {"rule": rule, "kind": kind, "before": previous, "after": _state(rm, rule, kind)}
+    )
     return data
+
+
+def _state(rm, rule: str, kind: str) -> dict:
+    """What an undo sets back: a child's class and parameter formulas, or a dynamic rule's
+    type ("Number", from its text) and formula."""
+    if kind == "child":
+        return {"class": _child_class(rm, f"{ROOT}{rule}:"),
+                "parameters": specified(rm, f"{ROOT}{rule}:")}  # fmt: skip
+    text = ""
+    with contextlib.suppress(Exception):
+        text = str(rm.GetDynamicRuleText(f"{ROOT}{rule}:"))
+    typed = re.match(r"^\s*\(([A-Za-z]+)\)", text)
+    return {"type": typed.group(1) if typed else "Any", "formula": dynamic_formula(rm, rule)}
+
+
+@restorer("nx_set_kf_rule")
+def _restore_rule(tx, data: dict, *, apply: bool) -> str:
+    """Set back the rule an ``nx_set_kf_rule`` changed, or delete the one it created (the
+    compensating undo); refused when the rule changed since."""
+    rule, kind, before = str(data["rule"]), str(data["kind"]), data.get("before")
+    part = tx.part
+    with licenses.attempt(tx, LICENSES):
+        rm = manager(tx, part)
+        if all(n.casefold() != rule.casefold() for n in dynamic_rules(rm, ROOT, None)):
+            fail("NX_NOT_FOUND", f"root: has no rule {rule} any more", details={"rule": rule})
+        if _state(rm, rule, kind) != data["after"]:
+            fail("NX_DEPENDENCY_ORDER", f"KF rule {rule} changed since", details={"rule": rule})
+        if apply:
+            with native(default="NX_ERROR"):
+                if before is None and kind == "child":
+                    rm.DeleteChildRule(rule)
+                elif before is None:
+                    rm.DeleteDynamicRule(ROOT, rule)
+                elif kind == "child":
+                    values = [tx.nx.RuleManager.ParameterRule(n, v)
+                              for n, v in before["parameters"].items() if v is not None]  # fmt: skip
+                    rm.CreateChildRule(rule, before["class"], values)
+                else:
+                    kinds = tx.nx.RuleManager.RuleType
+                    member = getattr(kinds, str(before["type"]), None) or kinds.Any
+                    rm.CreateDynamicRule(ROOT, rule, member, str(before["formula"]))
+            _kf_update(tx, rm)
+            left = [n.casefold() for n in dynamic_rules(rm, ROOT, None)]
+            if before is None:
+                readback.expect(rule.casefold() not in left, "deleted", f"{rule} is still a rule")
+            else:
+                readback.expect(_state(rm, rule, kind) == before, "rule",
+                                f"{rule} does not read as before the operation")  # fmt: skip
+    if before is None:
+        return f"KF rule {rule} deleted (the operation created it)"
+    return f"KF rule {rule} set back"
 
 
 def _check_parameters(rm, klass: str, params: list[tuple[str, str]]) -> None:
@@ -744,6 +819,8 @@ def nx_delete_kf_rule(
         if klass is None and present in _expression_rules(rm, part, [present]):
             fail("NX_WRONG_KIND", f"{present} is an NX expression of the part, not a KF rule",
                  field="/name", hint="Delete expressions with nx_delete_objects")  # fmt: skip
+        kind = "child" if klass else "dynamic"
+        previous = _state(rm, present, kind)
     values_before = _expression_values(part)
     with licenses.attempt(tx, LICENSES), native(default="NX_ERROR"):
         if klass:
@@ -754,12 +831,43 @@ def nx_delete_kf_rule(
     left = [n.casefold() for n in dynamic_rules(rm, ROOT, None)]
     readback.expect(present.casefold() not in left, "deleted", f"{present} is still a rule")
     _report_expressions(tx, part, values_before)
+    tx.note_restore({"rule": present, "kind": kind, "before": previous, "after": None})
     return {
         "part": tx.ref(part, "part"),
         "name": present,
-        "kind": "child" if klass else "dynamic",
+        "kind": kind,
         "class_name": klass,
     }
+
+
+@restorer("nx_delete_kf_rule")
+def _restore_deleted_rule(tx, data: dict, *, apply: bool) -> str:
+    """Create again the rule an ``nx_delete_kf_rule`` deleted, from the class and parameter
+    formulas (child) or the type and formula (dynamic) it kept; the KF update rebuilds
+    what a child makes. Refused when a rule of that name exists again."""
+    rule, kind, before = str(data["rule"]), str(data["kind"]), data["before"]
+    with licenses.attempt(tx, LICENSES):
+        rm = manager(tx, tx.part)
+        if any(n.casefold() == rule.casefold() for n in dynamic_rules(rm, ROOT, None)):
+            fail("NX_DEPENDENCY_ORDER", f"root: has a rule {rule} again since",
+                 details={"rule": rule})  # fmt: skip
+        if kind == "dynamic" and before.get("formula") is None:
+            fail("NX_UNSUPPORTED_OPTION", f"KF rule {rule} had no formula NX could give back",
+                 details={"rule": rule})  # fmt: skip
+        if apply:
+            with native(default="NX_ERROR"):
+                if kind == "child":
+                    values = [tx.nx.RuleManager.ParameterRule(n, v)
+                              for n, v in before["parameters"].items() if v is not None]  # fmt: skip
+                    rm.CreateChildRule(rule, before["class"], values)
+                else:
+                    kinds = tx.nx.RuleManager.RuleType
+                    member = getattr(kinds, str(before["type"]), None) or kinds.Any
+                    rm.CreateDynamicRule(ROOT, rule, member, str(before["formula"]))
+            _kf_update(tx, rm)
+            readback.expect(_state(rm, rule, kind) == before, "rule",
+                            f"{rule} does not read as before its deletion")  # fmt: skip
+    return f"KF rule {rule} created again"
 
 
 def _check_existing(rm, part, rule: str, kind: str, klass: str | None) -> None:
@@ -778,7 +886,22 @@ def _check_existing(rm, part, rule: str, kind: str, klass: str | None) -> None:
              field="/class_name", hint="Choose another name for the new child rule")  # fmt: skip
 
 
-def _refused(rm, error: Exception, kind: str, params=()) -> NXError:
+def _canonical(rm, klass: str, params: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """``params`` with each name spelt as the class lists it (NX matches parameter names in
+    any case; rows and lists then show one spelling)."""
+    names = {n.casefold(): n for n in class_parameters(rm, klass)}
+    return [(names.get(n.casefold(), n), v) for n, v in params]
+
+
+def _formula_hint(text: str) -> str:
+    """The formula hint, naming a reference written without its closing ':'."""
+    found = OPEN_REFERENCE.search(text or "")
+    if found is None:
+        return FORMULA_HINT
+    return f"Close the reference with ':' ({found.group(0)}:). " + FORMULA_HINT
+
+
+def _refused(rm, error: Exception, kind: str, params=(), text: str = "") -> NXError:
     message = _message(rm, error)
     code = getattr(error, "nx_code", None) or getattr(error, "ErrorCode", None)
     if code == SYNTAX_ERROR and kind == "child":
@@ -806,8 +929,8 @@ def _refused(rm, error: Exception, kind: str, params=()) -> NXError:
                 hint="Use a class from NX's KF class directories, e.g. ug_expression or ug_block",
                 nx_code=BAD_ARGUMENT,
             )
-        return NXError("NX_INVALID_FORMULA", message, field="/formula", hint=FORMULA_HINT,
-                       nx_code=BAD_ARGUMENT)  # fmt: skip
+        return NXError("NX_INVALID_FORMULA", message, field="/formula",
+                       hint=_formula_hint(text), nx_code=BAD_ARGUMENT)  # fmt: skip
     if isinstance(error, NXError):
         return error
     code = getattr(error, "ErrorCode", None)
@@ -815,7 +938,7 @@ def _refused(rm, error: Exception, kind: str, params=()) -> NXError:
         "NX_INVALID_FORMULA" if kind == "dynamic" else "NX_ERROR",
         message,
         field="/formula" if kind == "dynamic" else None,
-        hint=FORMULA_HINT if kind == "dynamic" else None,
+        hint=_formula_hint(text) if kind == "dynamic" else None,
         nx_code=int(code) if isinstance(code, int) else None,
     )
 

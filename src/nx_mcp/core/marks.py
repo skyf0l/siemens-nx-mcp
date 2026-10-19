@@ -17,9 +17,11 @@ NX keeps one undo list for the whole session. Measured on NX 2406:
 call, committed or not. ``settle`` records the barrier of the parts a file or session
 call loaded, and when the call dropped every mark the agent tracks it gives the
 dropped history entries and checkpoints their reason: ``saved_or_closed`` (a part
-closed, or none loaded), ``part_loaded`` (a part loaded) or ``display_reset`` (the
-display part changed). Marks NX evicted are ``mark_evicted``, with a note in the
-result. Both never raise.
+closed, or the call saved one: a part's modified flag cleared, or a save tool),
+``part_loaded`` (a part loaded), ``display_reset`` (the display part changed) or
+``marks_dropped`` (none of these: NX dropped them during another call, such as a
+knowledge-fusion update or an export; ``expired_tool`` names it). Marks NX evicted are
+``mark_evicted``, with a note in the result. Both never raise.
 
 History entries are ``{mark, part_id, operation_id, method}``; an entry or checkpoint
 whose mark is gone gets ``expired`` (the reason) and ``expired_by`` (the part key of the
@@ -60,6 +62,7 @@ MARK_CAP_TEXT = "NX keeps about 180 undo marks for the whole session and drops t
 class Watch:
     parts: dict  # tag -> loaded part before the call
     display: int  # display part tag (0: none, or unknown)
+    modified: dict = field(default_factory=dict)  # tag -> IsModified before the call
     newest: list = field(default_factory=list)  # newest tracked entries with a live mark
     oldest: list = field(default_factory=list)  # oldest tracked entries with a live mark
 
@@ -179,9 +182,28 @@ def watch(services) -> Watch | None:
                     break
                 entry["expired"] = "mark_evicted"
         parts = {_tag(p): p for p in services.parts() or []}
-        return Watch(parts, _display(services), newest, oldest)
+        return Watch(parts, _display(services), _modified(parts), newest, oldest)
     except Exception:
         return None
+
+
+def _modified(parts: dict) -> dict:
+    """``{tag: IsModified}`` of the loaded parts (unknown flags left out)."""
+    out = {}
+    for tag, part in parts.items():
+        with contextlib.suppress(Exception):
+            out[tag] = bool(part.IsModified)
+    return out
+
+
+def _saved(seen: Watch, now: dict, spec, tx) -> bool:
+    """Whether the call saved a part: a part that was modified no longer is, the call
+    declared a native save (``tx.non_undoable``) or its tool saves."""
+    after = _modified(now)
+    if any(was and after.get(tag) is False for tag, was in seen.modified.items()):
+        return True
+    reason = str(getattr(tx, "non_undoable_reason", None) or "") if tx is not None else ""
+    return "save" in reason.lower() or "save" in str(getattr(spec, "name", ""))
 
 
 def _present(services, entry) -> bool:
@@ -193,15 +215,17 @@ def _present(services, entry) -> bool:
     )
 
 
-def expire_dropped(services, reason: str, by=None) -> int:
+def expire_dropped(services, reason: str, by=None, tool: str | None = None) -> int:
     """Give every tracked entry whose mark NX dropped ``reason`` (and ``expired_by``: the
-    part key of the call that dropped it); how many."""
+    part key of the call that dropped it; ``expired_tool``: its tool); how many."""
     count = 0
     for group in _tracked(services):
         for entry in group:
             if not _alive(services, entry):
                 entry["expired"] = reason
                 entry["expired_by"] = by
+                if tool:
+                    entry["expired_tool"] = tool
                 count += 1
     return count
 
@@ -213,7 +237,9 @@ def own_cut(entry: dict, key) -> bool:
     mark another part's save, close or load dropped, or one NX evicted, is a
     :func:`foreign_cut`: the part's undo reaches over it by deletion."""
     reason = entry.get("expired")
-    if not reason or reason in ("mark_evicted", "undone_past", "engineer_change", "part_closed"):
+    if not reason or reason in (
+        "mark_evicted", "undone_past", "engineer_change", "part_closed", "marks_dropped"
+    ):  # fmt: skip
         return False
     by = entry.get("expired_by")
     return by == key or (by is None and reason == "saved_or_closed")
@@ -235,7 +261,7 @@ def foreign_cut(entry: dict, key) -> bool:
     :func:`own_cut`)."""
     reason = entry.get("expired")
     return bool(reason) and reason in (
-        "mark_evicted", "saved_or_closed", "part_loaded", "display_reset"
+        "mark_evicted", "saved_or_closed", "part_loaded", "display_reset", "marks_dropped"
     ) and not own_cut(entry, key)  # fmt: skip
 
 
@@ -290,19 +316,20 @@ def _settle(services, seen: Watch, spec, operation_id: str, tx) -> None:
             reason = "part_loaded"
         elif _display(services) != seen.display:
             reason = "display_reset"
-        else:
+        elif _saved(seen, now, spec, tx):
             reason = "saved_or_closed"  # a save (or a part loaded and closed again)
-        expire_dropped(services, reason, _call_part(services, seen, tx, loaded, closed))
+        else:
+            reason = "marks_dropped"  # neither a save nor a close: NX's own doing
+        expire_dropped(services, reason, _call_part(services, seen, tx, loaded, closed), spec.name)
         if tx is not None and reason != "saved_or_closed":  # saves and closes say so
+            why = {
+                "part_loaded": "a part load that displayed it",
+                "display_reset": "a display switch",
+            }.get(reason, f"{spec.name}, which saved and closed nothing")
             tx.warn(
                 "NX_NOTE",
-                "NX dropped every undo mark during this call ("
-                + (
-                    "a part load that displayed it"
-                    if reason == "part_loaded"
-                    else "a display switch"
-                )
-                + "): earlier operations can no longer be undone",
+                f"NX dropped every undo mark during this call ({why}): NX's undo no longer "
+                "reaches earlier operations",
             )
     else:
         evicted = [e for e in seen.oldest if _present(services, e) and not _alive(services, e)]

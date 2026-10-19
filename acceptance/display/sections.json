@@ -14,7 +14,17 @@
     "path": "$fixture"
    }
   },
-  {"call": "engineer", "args": {"code": "from nx_mcp.kit import parts as kp\nservices.host._remember_model()  # the development tool's own undo mark is no engineer edit\np = [x for x in session.Parts if str(x.Leaf).lower().startswith('display_sections') and str(x.FullPath).lower().startswith(r'$run'.lower())][0]\nkp.show(NXOpen, session.Parts, p)\nresult = p.Leaf"}, "intent": "Acceptance: the engineer looks at the scenario's part (a tab click, no edit): it is the displayed part whatever NX showed before (engineer tab guard)", "expect": {"ok": true, "data.noticed": false}},
+  {
+   "call": "engineer",
+   "args": {
+    "code": "from nx_mcp.kit import parts as kp\nservices.host._remember_model()  # the development tool's own undo mark is no engineer edit\np = [x for x in session.Parts if str(x.Leaf).lower().startswith('display_sections') and str(x.FullPath).lower().startswith(r'$run'.lower())][0]\nkp.show(NXOpen, session.Parts, p)\nresult = p.Leaf"
+   },
+   "intent": "Acceptance: the engineer looks at the scenario's part (a tab click, no edit): it is the displayed part whatever NX showed before (engineer tab guard)",
+   "expect": {
+    "ok": true,
+    "data.noticed": false
+   }
+  },
   {
    "call": "nx_list_objects",
    "setup": true,
@@ -269,6 +279,51 @@
    "expect": {
     "data.sectioning": true,
     "data.active": true
+   }
+  },
+  {
+   "call": "nx_edit_section_view",
+   "args": {
+    "section": "$sec.data.section.id",
+    "offset": 100000
+   },
+   "intent": "Acceptance: a plane beyond the bodies is moved and said to cut nothing",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.origin": {
+     "close": [
+      0,
+      0,
+      100003
+     ],
+     "tol": 1e-06
+    },
+    "warnings.0.message": {
+     "contains": "cuts no body"
+    }
+   }
+  },
+  {
+   "call": "nx_edit_section_view",
+   "args": {
+    "section": "$sec.data.section.id",
+    "plane": {
+     "origin": [
+      0,
+      0,
+      3
+     ]
+    }
+   },
+   "expect": {
+    "data.origin": {
+     "close": [
+      0,
+      0,
+      3
+     ],
+     "tol": 1e-09
+    }
    }
   },
   {

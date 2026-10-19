@@ -13,7 +13,7 @@
    "args": {"owner": "$a.data.bodies.0.id", "geometry_type": "plane", "normal": [0, 0, -1], "limit": 1}},
   {"call": "nx_create_draft",
    "args": {"faces": ["$aside.data.items.0.id"], "stationary_face": "$abot.data.items.0.id", "direction": [1, 0, 0], "angle": 3},
-   "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/direction", "mutation_outcome": "not_started"}},
+   "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/faces/0", "mutation_outcome": "not_started"}},
   {"call": "nx_create_draft",
    "args": {"faces": ["$aside.data.items.0.id"], "stationary_face": "$abot.data.items.0.id", "direction": "z", "angle": 5},
    "expect": {"data.volume": {"close": 7912.511336474076, "tol": 0.0001}, "warnings": {"count": 0}}},

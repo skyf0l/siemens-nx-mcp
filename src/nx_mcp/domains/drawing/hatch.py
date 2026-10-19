@@ -23,7 +23,7 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Angle, Doc, Items, Range, RefTo, SheetLength
+from nx_mcp.core.types import Angle, Doc, Items, Range, RefTo, SheetLength, forbid_extra
 from nx_mcp.domains.drawing.common import commit, quiet_sheet_sketch, update
 from nx_mcp.kit import args, builders, drawing, licenses, readback, result, select
 from nx_mcp.kit import sketch as ksketch
@@ -66,6 +66,20 @@ DEFAULT_ANGLE = {"crosshatch": 45.0, "area_fill": 0.0}
 # CreateHatchBuilder takes either license feature (NX's NXOpen reference).
 LICENSES = ("drafting", "nx_2d_edit")
 PATTERN_COVER = 0.5  # a patterned fill's box spans at least half the region on each axis
+
+
+class HatchEdit(TypedDict, total=False):
+    """New settings of an existing hatch (``nx_edit_annotation`` hatch)."""
+
+    pattern: Pattern
+    angle: Angle
+    spacing: SheetLength
+    material: Material
+    scale: Annotated[float, Range(gt=0, le=100)]
+
+
+forbid_extra(HatchEdit)
+TAKES = {"crosshatch": {"pattern", "angle", "spacing"}, "area_fill": {"material", "angle", "scale"}}
 
 
 class HatchData(TypedDict, total=False):
@@ -150,6 +164,75 @@ def _read(tx, hatch):
         }
 
 
+def _per_sheet_unit(tx, hatch):
+    """Part units per sheet unit on the hatch's sheet (1 off a sheet)."""
+    sheet = drawing.sheet_of_annotation(tx, hatch)
+    return drawing.Sheet(tx, sheet).scale if sheet is not None else 1.0
+
+
+def describe(tx, hatch):
+    """A hatch's settings as ``nx_create_hatch`` takes them, read back from a reopened
+    builder: type and angle; crosshatch pattern and spacing (sheet units); area fill
+    material and scale."""
+    got = _read(tx, hatch)
+    if got["type"] == "crosshatch":
+        pattern = next((k for k, v in PATTERNS.items() if v == got["pattern"]), got["pattern"])
+        return {"type": "crosshatch", "pattern": pattern, "angle": got["angle"],
+                "spacing": got["distance"] / _per_sheet_unit(tx, hatch)}  # fmt: skip
+    material = next((k for k, v in MATERIALS.items() if v == got["material"]), got["material"])
+    return {"type": "area_fill", "material": material, "angle": got["fill_angle"],
+            "scale": got["scale"]}  # fmt: skip
+
+
+def check_edit(tx, hatch, changes):
+    """Refuse, before NX, a hatch edit of something that is not a hatch or a field its type
+    does not take."""
+    if type(hatch).__name__ != "Hatch":
+        fail("NX_WRONG_KIND", "hatch edits a hatch made by nx_create_hatch", field="/hatch",
+             details={"type": type(hatch).__name__})  # fmt: skip
+    kind = describe(tx, hatch)["type"]
+    for key in changes:
+        if key not in TAKES[kind]:
+            fail("NX_INVALID_ARGUMENT", f"{key} does not apply to a {kind.replace('_', ' ')}",
+                 field=f"/hatch/{key}",
+                 hint=f"A {kind.replace('_', ' ')} takes {', '.join(sorted(TAKES[kind]))}")  # fmt: skip
+    if "spacing" in changes and not float(changes["spacing"]) > 0:
+        fail("NX_INVALID_ARGUMENT", "spacing must be positive", field="/hatch/spacing")
+
+
+def edit(tx, hatch, changes):
+    """Set a hatch's pattern, angle, spacing, material or scale (checked by
+    :func:`check_edit`); returns :func:`describe` after the change, verified."""
+    A, part = tx.nx.Annotations, tx.part
+    kind = describe(tx, hatch)["type"]
+    per = _per_sheet_unit(tx, hatch)
+    with licenses.attempt(tx, LICENSES):
+        with builders.build(tx, part.Annotations.Hatches.CreateHatchBuilder, hatch) as b:
+            if "pattern" in changes:
+                b.Pattern = PATTERNS[changes["pattern"]]
+            if "angle" in changes:
+                if kind == "crosshatch":
+                    b.Angle = float(changes["angle"])
+                else:
+                    b.AreafillAngle = float(changes["angle"])
+            if "spacing" in changes:
+                b.Distance = float(changes["spacing"]) * per
+            if "material" in changes:
+                b.Material = getattr(A.AreaFillMaterial, MATERIALS[changes["material"]])
+            if "scale" in changes:
+                b.Scale = float(changes["scale"])
+            commit(b, "hatch")
+        update(tx)
+    after = describe(tx, hatch)
+    for key, value in changes.items():
+        got = after.get(key)
+        ok = (_close_angle(got, value) if key == "angle" else
+              abs(float(got) - float(value)) <= 1e-6 * max(1.0, abs(float(value)))
+              if key in ("spacing", "scale") else got == value)  # fmt: skip
+        readback.expect(ok, f"hatch/{key}", f"NX keeps the hatch {key} at {got}", **after)
+    return after
+
+
 def fills(bounds, region, tol, patterned=False):
     """True when a hatch's box fills the boundary's region: the same box for a crosshatch
     or a solid fill; a patterned area fill (concrete, sand, ...) draws whole pattern
@@ -202,7 +285,9 @@ def nx_create_hatch(
     pattern: Annotated[Pattern, Doc("crosshatch: NX pattern")] = "iron",
     angle: Annotated[Angle, Doc("Line or fill angle from sheet +x; default 45 (fill 0)")]
     | None = None,
-    spacing: Annotated[SheetLength, Doc("crosshatch: line distance; default NX's (5 mm)")]
+    spacing: Annotated[
+        SheetLength, Doc("crosshatch: pattern distance (steel: between line pairs); default 5 mm")
+    ]
     | None = None,
     material: Annotated[Material, Doc("area_fill: NX fill pattern")] = "solid",
     scale: Annotated[float, Range(gt=0, le=100), Doc("area_fill: pattern scale")] = 1.0,
@@ -211,7 +296,7 @@ def nx_create_hatch(
     the curves of one closed loop drawn on the sheet (nx_create_sheet_sketch: a rectangle,
     closed polyline or circle); several hatches with other angles or spacings tell
     laminate layers apart. pattern, spacing apply to crosshatch; material, scale to
-    area_fill. Section views hatch their cut faces on their own."""
+    area_fill. Change it with nx_edit_annotation hatch. Section views hatch their cut faces."""
     args.distinct("/boundary", boundary, "boundary")
     if type == "crosshatch" and (material != "solid" or scale != 1.0):
         fail("NX_INVALID_ARGUMENT", "material and scale apply to area_fill",

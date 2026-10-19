@@ -27,7 +27,7 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import CurveRef, Doc, Items, Point2, Range, RefTo, SketchRef, forbid_extra
-from nx_mcp.domains.sketch import common
+from nx_mcp.domains.sketch import common, undo
 from nx_mcp.domains.sketch.common import XY, CurveRow, Degrees, Size
 from nx_mcp.kit import builders, geom, measure, readback, result, units
 from nx_mcp.kit import curve as kcurve
@@ -112,7 +112,7 @@ class _Polyline(TypedDict):
 
 
 class PolylineCurve(_Polyline, total=False):
-    closed: Annotated[bool, Doc("Also join the last point back to the first")]
+    closed: Annotated[bool, Doc("Join the last point to the first (default: when it repeats it)")]
 
 
 class _Spline(TypedDict):
@@ -215,9 +215,12 @@ def _loop(points):
 
 
 def _polyline(item, field):
-    """Lines through ``points`` (and back to the first when ``closed``)."""
+    """Lines through ``points`` (and back to the first when ``closed``). A polyline whose last
+    point repeats the first is closed (unless ``closed`` is false): its closing joint gets its
+    coincident constraint like every other joint."""
     points = [list(p) for p in item["points"]]
-    closed = bool(item.get("closed", False))
+    repeats = len(points) > 3 and geom.dist(points[0], points[-1]) <= geom.tol(*points)
+    closed = bool(item["closed"]) if item.get("closed") is not None else repeats
     if closed and len(points) > 2 and geom.dist(points[0], points[-1]) <= geom.tol(*points):
         points.pop()  # the first point repeated at the end: the closing segment is implied
     if closed and len(points) < 3:
@@ -531,7 +534,10 @@ class Loop(TypedDict, total=False):
 class _CurvesData(TypedDict):
     sketch: result.Row
     curves: list[CurveRow]
-    loops: Annotated[list[Loop], Doc("Connected curve chains of the sketch (construction out)")]
+    loops: Annotated[
+        list[Loop],
+        Doc("Connected curve chains of the sketch, construction out (a batch step: its own)"),
+    ]
 
 
 class CurvesData(_CurvesData, total=False):
@@ -613,12 +619,14 @@ def _connect(tx, sk, plans, made) -> int:
     return count
 
 
-def add_curves(tx, sketch, plans, construction=False, connect=False) -> CurvesData:
+def add_curves(tx, sketch, plans, construction=False, connect=False, keep=False) -> CurvesData:
     """Create planned curves in ``sketch`` (a ref or live sketch, activated for the call
     unless already active), join and read them back; ``loops`` covers the whole sketch.
-    ``connect`` also joins coinciding ends of separate items."""
+    ``connect`` also joins coinciding ends of separate items; ``keep`` keeps what the
+    call added for the compensating undo (``undo.note``)."""
     with ksketch.editing(tx, sketch) as sk:
         ksketch.require_room(tx, sk, plan_size(plans))
+        kept = undo.capture(tx, sk) if keep else None
         made = []
         for i, (prims, join) in enumerate(plans):
             tx.checkpoint(done=i, total=len(plans))
@@ -646,10 +654,14 @@ def add_curves(tx, sketch, plans, construction=False, connect=False) -> CurvesDa
         out: CurvesData = {
             "sketch": tx.ref(sk.sketch, "sketch"),
             "curves": rows,
-            "loops": sketch_loops(tx, sk.frame, sk),
+            # a batch step lists only its own curves' loops: each step repeating every
+            # loop of the sketch made the batch result grow with the square of its steps
+            "loops": sketch_loops(tx, sk.frame, sk, flat if tx.parent is not None else None),
         }
         if connected is not None:
             out["connected"] = connected
+        if kept is not None:
+            undo.note(tx, sk, kept)
         return out
 
 
@@ -703,18 +715,22 @@ def nx_create_sketch_curves(
     with tx.checks():  # a sketch NX would answer with its blocking large-sketch dialog
         ksketch.require_room(tx, ksketch.resolve(tx, sketch), plan_size(plans))
     tx.frame = "sketch_local"
-    return add_curves(tx, sketch, plans, construction, connect=connect)
+    return add_curves(tx, sketch, plans, construction, connect=connect, keep=True)
 
 
-def sketch_loops(tx, f, sk):
-    """Closure of every connected chain of the sketch's non-construction curves."""
-    rows = []
+def sketch_loops(tx, f, sk, made=None):
+    """Closure of every connected chain of the sketch's non-construction curves; with
+    ``made`` (curves) only the chains holding one of them."""
+    rows, keep = [], None if made is None else set()
+    tags = {int(c.Tag) for c in made or ()}
     for c in ksketch.geometry(sk):
         if ksketch.curve_kind(tx, c) != "other":
             row = ksketch.read(tx, f, c)
             if not row.get("construction"):
+                if keep is not None and int(c.Tag) in tags:
+                    keep.add(len(rows))
                 rows.append(row)
-    return ksketch.loops(rows)
+    return ksketch.loops(rows, keep)
 
 
 # ---------------------------------------------------------------------------
@@ -1054,6 +1070,20 @@ def _delete(tx, sk, item, field):
     return {"type": "delete", "curves": [], "deleted": [item["object"]]}
 
 
+# Edits that move curves: one may leave the sketch in conflict.
+SHAPE_EDITS = ("line", "arc", "trim", "extend")
+
+
+def _solved(tx, sk, field):
+    """``common.require_solved`` with a conflict pinned on the edit ``field``."""
+    try:
+        return common.require_solved(tx, sk)
+    except NXError as error:
+        if error.code == "NX_SKETCH_OVERCONSTRAINED" and error.field is None:
+            error.field = field
+        raise
+
+
 EDITORS = {
     "line": _edit_shape,
     "arc": _edit_shape,
@@ -1096,16 +1126,20 @@ def nx_edit_sketch_curves(
     items = common.check_items(named, EDIT_TYPES, "type", "/edits", "nx_edit_sketch_curves")
     tx.frame = "sketch_local"
     with ksketch.editing(tx, sketch) as sk:
+        kept = undo.capture(tx, sk)
         shapes = ksketch.shapes(tx, sk)
         rows = []
         for i, item in enumerate(items):
             tx.checkpoint(done=i, total=len(items))
             rows.append(EDITORS[item["type"]](tx, sk, item, f"/edits/{i}"))
+            if len(items) > 1 and item["type"] in SHAPE_EDITS:  # name the edit that conflicts
+                _solved(tx, sk, f"/edits/{i}")
         # Trims and deletes legitimately remove constraints: only the state is checked.
-        status = common.require_solved(tx, sk)
+        status = _solved(tx, sk, f"/edits/{len(items) - 1}")
         data: EditData = {"sketch": tx.ref(sk.sketch, "sketch"), "edits": rows, "status": status}
         named_refs = {r["curve"]["id"] for row in rows for r in row.get("curves", [])}
         moved = common.report_moved(tx, sk, shapes, named_refs)
         if moved:
             data["moved"] = moved
+        undo.note(tx, sk, kept)
         return data

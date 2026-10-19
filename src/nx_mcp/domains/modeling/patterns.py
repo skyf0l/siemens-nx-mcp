@@ -46,7 +46,7 @@ from nx_mcp.core.types import (
     RefTo,
     forbid_extra,
 )
-from nx_mcp.domains.modeling import common
+from nx_mcp.domains.modeling import common, hooks
 from nx_mcp.kit import args, builders, expr, geom, measure, readback, result, select
 
 BodyList = Annotated[list[BodyRef], Items(1, 50)]
@@ -292,13 +292,16 @@ def _mirror_bodies(tx, refs, plane, keep_original):
             and (wanted is None or geom.dist(g["centroid"], wanted) <= near)
         ]
         readback.expect(bool(match), f"mirror[{i}]", "A mirrored body is not the reflection")
+    common.warn_coincident(tx, made, "mirror")
     hidden = {}
     if not keep_original:
         # NX 2406's Mirror Body has no delete-source option, and the mirror feature
         # references its sources: they are blanked (still in the model), and reported.
+        shown = [b for b in sources if not bool(getattr(b, "IsBlanked", False))]
         with native():
             tx.session.DisplayManager.BlankObjects(sources)
         hidden = {"hidden": [tx.ref(b, kind="body") for b in sources]}
+        hooks.note_hidden(tx, [tx.ref(b, kind="body") for b in shown])  # an undo shows them
     out = common.result_of(tx, feature)
     return {**out, "target": "bodies", "count": len(made), "new_bodies": len(made), **hidden}
 

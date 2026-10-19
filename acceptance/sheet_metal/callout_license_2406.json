@@ -125,7 +125,10 @@
     "error.code": "NX_LICENSE_UNAVAILABLE",
     "error.category": "unavailable",
     "error.nx_code": 948801,
-    "mutation_outcome": "rolled_back"
+    "mutation_outcome": "rolled_back",
+    "error.hint": {
+     "matches": "nx_create_note"
+    }
    }
   },
   {
@@ -144,7 +147,10 @@
    },
    "expect": {
     "error.code": "NX_LICENSE_UNAVAILABLE",
-    "mutation_outcome": "rolled_back"
+    "mutation_outcome": "rolled_back",
+    "error.hint": {
+     "matches": "nx_create_note"
+    }
    }
   },
   {

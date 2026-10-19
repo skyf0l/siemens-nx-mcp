@@ -99,8 +99,12 @@ def test_the_parked_sketch_still_blocks_its_own_parts_model_tools_and_other_sket
     finish_other = run(nx, "nx_finish_sketch", sketch=other.ref)
     assert finish_other.error["code"] == "NX_SKETCH_ACTIVE"
     assert finish_other.error["field"] == "/sketch"
+    # reads activate the finished sketch beside the parked one, which stays open
     status = run(nx, "nx_get_sketch", sketch=other.ref, include=["status"])
-    assert status.error["code"] == "NX_SKETCH_ACTIVE", status
+    assert status.ok and status.data["status"]["state"] == "empty", status
+    check = run(nx, "nx_check_sketch", sketch=other.ref)
+    assert check.ok and check.data["state"] == "empty", check
+    assert parking.parked(services(nx), nx.part).ref == sk
     assert run(nx, "nx_finish_sketch").data["was_active"] is True  # the part's open sketch
     assert run(nx, "nx_set_test_model").ok
     assert sk

@@ -85,6 +85,8 @@ PREFIX = {
     "sketch_constraint": "sc",
     "section_view": "sv",
     "modeling_view": "mv",
+    "analysis": "an",
+    "facet_body": "fb",
 }
 ANCHORED = frozenset({"feature", "body", "sketch"})
 # Kinds an anchor given as a ref may name: the automatic ones and components.

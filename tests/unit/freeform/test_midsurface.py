@@ -69,6 +69,10 @@ def test_midsurface_face_pairs_is_equidistant():
     b = nx.last("MidSurfaceByFacePairsBuilder")
     assert b.BodySelection.Add.calls[0][0] == (plate,)
     assert b.SideOneSelection.ReplaceRules.calls[0][0][0] == [("FaceDumb", [top])]
+    # Every other face is ignored, or NX may pair faces of its own choice.
+    ignored = b.IgnoreFaceSelection.ReplaceRules.calls[0][0][0]
+    rest = [f for f in plate.faces if f is not top and f is not bottom]
+    assert ignored == [("FaceDumb", rest)] and len(rest) == 4
     assert b.CreateFacePair.calls
     assert ok.data["asymmetry"] == pytest.approx(0)
 
@@ -143,4 +147,60 @@ def test_midsurface_that_builds_nothing_is_wrong_geometry():
     bad = run(nx, "nx_create_midsurface", method="face_pairs", body=nx.ref_of(plate, "body"),
               side_one=[nx.ref_of(top, "face")], side_two=[nx.ref_of(bottom, "face")])  # fmt: skip
     assert bad.error["code"] == "NX_WRONG_GEOMETRY" and bad.error["retry"] == "after_fix"
+    assert bad.mutation_outcome == "rolled_back"
+
+
+def test_midsurface_face_pairs_fills_the_sides_before_the_body():
+    nx, plate = mid_nx()
+    seen = []
+    make = nx.builder
+
+    def builder(kind, *args):
+        b = make(kind, *args)
+        if kind == KINDS["face_pairs"]:
+            add = b.BodySelection.Add
+            b.BodySelection.Add = lambda obj: (
+                seen.append(len(b.SideTwoSelection.ReplaceRules.calls)),
+                add(obj),
+            )
+        return b
+
+    nx.builder = builder
+    top, bottom = plate.face((0, 0, 1)), plate.face((0, 0, -1))
+    ok = run(nx, "nx_create_midsurface", method="face_pairs", body=nx.ref_of(plate, "body"),
+             side_one=[nx.ref_of(top, "face")], side_two=[nx.ref_of(bottom, "face")])  # fmt: skip
+    assert ok.ok, ok
+    assert seen == [1]  # side two was filled when the body was added
+
+
+def _across(nx, x=20.0):
+    """A commit that builds a sheet across the plate (the plane x = ``x``)."""
+
+    def commit(_b):
+        f = face(nx, flat(), area=80.0, normal=(1, 0, 0))
+        f.at = lambda u, v: [x, 50.0 + 20.0 * u, 4.0 * v]
+        return made(nx, "MIDSURFACE", [sheet(nx, (x, 50, 0, x, 70, 4), [f])])
+
+    return commit
+
+
+def test_midsurface_sheet_not_between_the_pair_rolls_back():
+    nx, plate = mid_nx()
+    nx.on_commit(KINDS["face_pairs"], _across(nx))
+    top, bottom = plate.face((0, 0, 1)), plate.face((0, 0, -1))
+    bad = run(nx, "nx_create_midsurface", method="face_pairs", body=nx.ref_of(plate, "body"),
+              side_one=[nx.ref_of(top, "face")], side_two=[nx.ref_of(bottom, "face")])  # fmt: skip
+    assert bad.error["code"] == "NX_WRONG_GEOMETRY" and bad.error["field"] == "/side_two", bad
+    assert bad.error["details"]["angle"] == pytest.approx(90)
+    assert bad.error["details"]["astray"] == bad.error["details"]["samples"] == 9
+    assert bad.mutation_outcome == "rolled_back"
+
+
+def test_midsurface_two_unrelated_sheets_roll_back():
+    nx, _plate = mid_nx(z=-500.0)
+    low = sheet(nx, (0, 50, 0, 40, 70, 0), [face(nx, flat())])
+    high = sheet(nx, (0, 50, 30, 40, 70, 30), [face(nx, flat())])
+    bad = run(nx, "nx_create_midsurface", method="two_sheets", sheets=[low.ref, high.ref])
+    assert bad.error["code"] == "NX_WRONG_GEOMETRY" and bad.error["field"] == "/sheets", bad
+    assert bad.error["details"]["off_middle"] == pytest.approx(515)
     assert bad.mutation_outcome == "rolled_back"

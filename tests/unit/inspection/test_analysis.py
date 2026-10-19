@@ -205,6 +205,34 @@ def test_pull_direction_rejects_unknown_names():
     assert "+z" in bad.error["message"]
 
 
+def _s_bend(t):
+    """x = 10t, y = 10(t - 0.3)^3: one inflection at t = 0.3."""
+    return [10 * t, 10 * (t - 0.3) ** 3, 0, 10, 30 * (t - 0.3) ** 2, 0, 0, 60 * (t - 0.3), 0]
+
+
+def _helix(t):
+    a = 2 * math.pi * t
+    return [math.cos(a), math.sin(a), 5 * t, -2 * math.pi * math.sin(a),
+            2 * math.pi * math.cos(a), 5, -4 * math.pi**2 * math.cos(a),
+            -4 * math.pi**2 * math.sin(a), 0]  # fmt: skip
+
+
+def test_inflections_come_from_signed_curvature_not_the_sample_count():
+    nx = inspection_nx()
+    circle = curve(nx, radius=10)
+    for samples in (2, 3, 4, 7):  # normals 120 degrees apart are no flip
+        ok = run(nx, "nx_analyze_curve", curve=circle.ref, samples=samples)
+        assert ok.ok and ok.data["inflections"] == [], (samples, ok)
+    bend = curve(nx, shape=_s_bend)
+    for samples in (2, 3, 5, 11):
+        ok = run(nx, "nx_analyze_curve", curve=bend.ref, samples=samples)
+        assert ok.data["inflections"] == [pytest.approx(0.3, abs=1e-5)], (samples, ok.data)
+    line = run(nx, "nx_analyze_curve", curve=curve(nx).ref, samples=5)
+    assert line.data["inflections"] == []
+    helix = run(nx, "nx_analyze_curve", curve=curve(nx, shape=_helix).ref, samples=9)
+    assert helix.ok and helix.data["inflections"] is None
+
+
 def test_edge_curvature_from_tangent_differences():
     from tests.unit.inspection.fakes import arc_spec
 
@@ -224,6 +252,7 @@ def test_edge_curvature_from_tangent_differences():
     assert rows[1]["tangent"] == pytest.approx([-1, 0, 0], abs=1e-12)
     default = run(nx, "nx_analyze_curve", curve=arc.ref)
     assert len(default.data["samples"]) == 11
+    assert ok.data["inflections"] == [] and default.data["inflections"] == []
     straight = run(nx, "nx_analyze_curve", curve=line.ref, samples=2)
     assert straight.ok, straight
     assert straight.data["samples"][0]["curvature"] == 0
@@ -271,6 +300,8 @@ def test_curve_continuity_at_the_nearest_ends():
     apart = run(nx, "nx_check_continuity", first=line.ref, second=far.ref)
     assert apart.data["g0"] is False and apart.data["gap"] == pytest.approx(math.sqrt(1616))
     assert apart.data["junction"]["first_end"] == "start"
+    assert apart.data["angle"] is None and apart.data["curvature"] is None
+    assert apart.data["g1"] is None and apart.data["g2"] is None
 
 
 def test_curve_continuity_of_curves_and_mode_rules(monkeypatch):

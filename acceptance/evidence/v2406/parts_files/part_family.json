@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/part_family.json",
-  "scenario_sha256": "9376554fc42596fd71cd97adce391eddbb6e50280f67397f139b0cea3678e724",
+  "scenario_sha256": "e5f3bd5da310ddcf1abd321a77624ab0d5c491db792eb7d586f3fd92b28a4b34",
   "domain": "parts_files",
   "covers": {
     "nx_create_part_family": [],
@@ -10,12 +10,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_part_family": "85a1350dab01e894b549c11542eb776c3aa8f473a3720d24ee788ed829a20fa9",
-    "nx_get_part_family": "85a1350dab01e894b549c11542eb776c3aa8f473a3720d24ee788ed829a20fa9"
+    "nx_create_part_family": "11dd4496548265ebc26b16fdced61210c66fb4fc358bf6b81f93f98c7353b9f5",
+    "nx_get_part_family": "11dd4496548265ebc26b16fdced61210c66fb4fc358bf6b81f93f98c7353b9f5"
   },
-  "recorded": "2026-10-15T10:44:54Z",
+  "recorded": "2026-10-19T10:37:00Z",
   "passed": true,
-  "checks": 29,
+  "checks": 40,
   "failed_checks": 0,
   "steps": [
     {
@@ -37,49 +37,70 @@
       "call": "nx_create_part_family",
       "setup": false,
       "passed": true,
-      "checks": 10
+      "checks": 3
     },
     {
       "index": 4,
-      "call": "nx_get_part_family",
-      "setup": false,
-      "passed": true,
-      "checks": 9
-    },
-    {
-      "index": 5,
       "call": "nx_list_parts",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
+      "index": 5,
+      "call": "nx_get_part_family",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
       "index": 6,
+      "call": "nx_create_part_family",
+      "setup": false,
+      "passed": true,
+      "checks": 10
+    },
+    {
+      "index": 7,
+      "call": "nx_get_part_family",
+      "setup": false,
+      "passed": true,
+      "checks": 11
+    },
+    {
+      "index": 8,
+      "call": "nx_list_parts",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 9,
       "call": "nx_list_files",
       "setup": false,
       "passed": true,
       "checks": 1
     },
     {
-      "index": 7,
+      "index": 10,
       "call": "nx_create_part_family",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 8,
+      "index": 11,
       "call": "nx_open_part",
       "setup": true,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 9,
+      "index": 12,
       "call": "nx_get_part_family",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 6
     }
   ]
 }

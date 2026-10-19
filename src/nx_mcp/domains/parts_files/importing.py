@@ -3,10 +3,12 @@
 Every format reads a staged copy (``imports/<operation_id>/input<suffix>``, where the
 translator also writes its log and, for STEP, the prototypes of an unflattened
 assembly) into the work part; ``new_part`` first creates and activates an agent-owned
-part. A repeat of the operation (``nx_redo_operation``, or the call run again after an
-undo) reuses its finished staging folder, else takes ``imports/<operation_id>-<n>``;
-each import removes finished staging folders (``_finished``: only the staged copy and
-translator logs, nothing loaded, older than ``STAGING_KEEP_SECONDS``). The source file
+part. A finished import removes its staging folder unless an unflattened STEP's
+component parts live in it (``staging`` names the folder kept, else null). A repeat of the
+operation (``nx_redo_operation``, or the call run again after an undo) reuses its finished
+staging folder, else takes ``imports/<operation_id>-<n>``; each import also removes
+finished staging folders left behind (``_finished``: only the staged copy and translator
+logs, nothing loaded, older than ``STAGING_KEEP_SECONDS``). The source file
 is checked in Python before NX sees it (a bad DXF otherwise opens a modal NX dialog), and
 the result is read back against the file's own facts.
 
@@ -45,14 +47,15 @@ import time
 from pathlib import Path
 from typing import Annotated, Literal, NoReturn, TypedDict
 
-from nx_mcp.core.catalogue import tool
+from nx_mcp.core.catalogue import deleter, tool
 from nx_mcp.core.errors import classify, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, PathTo, SketchRef
 from nx_mcp.domains.parts_files import _saving, neutral
 from nx_mcp.domains.parts_files.exchange import Bounds, _settings, _tail
 from nx_mcp.domains.parts_files.parts import new_part
-from nx_mcp.kit import files, measure, parts, readback, result
+from nx_mcp.kit import bodies as bodies_kit
+from nx_mcp.kit import files, measure, model, parts, readback, result
 from nx_mcp.kit import sketch as ksketch
 from nx_mcp.kit import units as kit_units
 
@@ -114,6 +117,7 @@ class ImportData(TypedDict):
     solids: int
     sheets: int
     facet_bodies: int
+    facets: Annotated[list[result.Row], Doc("STL: the facet bodies made (not in bodies)")]
     curves: list[result.Row]
     curve_count: int
     sketch: result.Row | None
@@ -122,7 +126,9 @@ class ImportData(TypedDict):
     file_units: str | None
     components_created: int
     flatten: bool
-    staging: str
+    staging: Annotated[
+        str | None, Doc("Folder kept for an unflattened STEP's component parts; null: removed")
+    ]
 
 
 # --- source checks (before NX sees the file) ------------------------------------------
@@ -562,6 +568,7 @@ def nx_import_model(
         if new_part_path is not None:
             new_units = "in" if suffix == ".dxf" and options.get("units") == "in" else "mm"
             made_part = new_part(tx, Path(new_part_path), new_units, display=engineer is None)
+            tx.touch_part(made_part)  # still empty: changes lists what the import makes in it
             if engineer is not None:
                 parts.activate(tx, made_part)
         part = tx.part
@@ -600,6 +607,9 @@ def nx_import_model(
                 kept = parts.Presented(False, False, previous[1])
                 tx.warn("NX_NOTE", parts.shown_note(tx, part, kept))
     _sweep(tx, root / "imports", folder)
+    kept_folder = _drop_finished(tx, folder)
+    if new_part_path is not None:
+        files.note_written(tx, new_part_path)
     bodies, curves = made["bodies"], made["curves"]
     return {
         "part": tx.ref(part, "part"),
@@ -610,6 +620,7 @@ def nx_import_model(
         "solids": sum(1 for b in bodies if b.IsSolidBody),
         "sheets": sum(1 for b in bodies if not b.IsSolidBody),
         "facet_bodies": len(made["facets"]),
+        "facets": [_facet_row(tx, f) for f in made["facets"][:MAX_ROWS]],
         "curves": [tx.ref(c, "curve") for c in curves[:MAX_ROWS]],
         "curve_count": len(curves),
         "sketch": sketch_row,
@@ -618,27 +629,47 @@ def nx_import_model(
         "file_units": file_units,
         "components_created": len(made["components"]),
         "flatten": flatten,
-        "staging": files.relative(folder, root),
+        "staging": files.relative(folder, root) if kept_folder else None,
     }
 
 
-def _facet_bodies(part) -> list:
-    """Standalone facet bodies (STL); a solid's display facets have an AssociatedBody."""
-    found = []
-    for f in getattr(part, "FacetedBodies", ()):
-        try:
-            owner = f.AssociatedBody
-        except Exception:
-            owner = None
-        if owner is None or not int(getattr(owner, "Tag", 0) or 0):
-            found.append(f)
-    return found
+def _facet_row(tx, facet) -> result.Row:
+    """A facet body's row: its ref where the references know the kind, else its name."""
+    try:
+        return tx.ref(facet, "facet_body")
+    except Exception:
+        name = str(getattr(facet, "JournalIdentifier", "") or getattr(facet, "Name", ""))
+        return {"id": None, "kind": "facet_body", "name": name or "FACETED BODY"}  # type: ignore[typeddict-item]
+
+
+@deleter("facet_body")
+def delete_facet_bodies(tx, objects):
+    """Facet bodies (an imported STL) through NX's Delete (``nx_delete_objects`` and the
+    compensating undo of an import into a loaded part)."""
+    with native(default="NX_BUILD_FAILED"):
+        tx.session.UpdateManager.AddToDeleteList(list(objects))
+    model.update(tx)
+
+
+def _drop_finished(tx, folder: Path) -> bool:
+    """Remove this import's staging folder when nothing needs it (:func:`_finished`: only
+    the staged copy and translator logs); NX may still hold a log for a moment, and a
+    later import sweeps a folder left that way. True: the folder stays (an unflattened
+    STEP's component parts live in it)."""
+    if not _finished(tx, folder):
+        return folder.exists()
+    for _ in range(5):
+        shutil.rmtree(folder, ignore_errors=True)
+        if not folder.exists():
+            return False
+        time.sleep(0.2)
+    return True
 
 
 def _inventory(part) -> dict:
     return {
         "bodies": {int(b.Tag) for b in part.Bodies},
-        "facets": {int(f.Tag) for f in _facet_bodies(part)},
+        "facets": {int(f.Tag) for f in bodies_kit.facet_bodies(part)},
         "curves": {int(c.Tag) for c in part.Curves},
         "components": {int(c.Tag) for c, _ in parts.components(part)},
     }
@@ -648,7 +679,7 @@ def _new_objects(part, before) -> dict:
     return {
         "bodies": [b for b in part.Bodies if int(b.Tag) not in before["bodies"]],
         "facets": [
-            f for f in _facet_bodies(part) if int(f.Tag) not in before["facets"]
+            f for f in bodies_kit.facet_bodies(part) if int(f.Tag) not in before["facets"]
         ],  # fmt: skip
         "curves": [c for c in part.Curves if int(c.Tag) not in before["curves"]],
         "components": [

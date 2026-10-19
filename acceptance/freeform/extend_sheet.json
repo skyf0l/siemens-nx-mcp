@@ -318,7 +318,7 @@
      "tol": 0.001
     },
     "data.faces": 1,
-    "data.edges": 4,
+    "data.result_edges": 4,
     "data.bounds.min": {
      "close": [
       0,

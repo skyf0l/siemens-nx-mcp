@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Annotated, Literal
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Direction, Doc, FaceRef, Items, Length
 from nx_mcp.domains.modeling import common, sync_common, sync_relate
@@ -60,18 +60,32 @@ def nx_edit_face_region(
         selected = select.faces(tx, faces, "/faces")
         body = common.one_body(selected, "/faces")
         vector = select.direction(tx, direction, "/direction") if direction is not None else None
+        sync_common.plausible(tx, distance, body)
+        planes = sync_common.planes(tx, selected)
+        if vector is not None and len(planes) == len(selected):
+            u = geom.unit(vector)
+            if all(abs(geom.dot(u, n)) < 1e-6 for _p, n in planes.values()):
+                fail(
+                    "NX_INVALID_ARGUMENT",
+                    "direction lies in the plane of every face: a pull along it moves nothing",
+                    field="/direction",
+                    hint="Pull along a direction that leaves the faces, e.g. their normal",
+                )
     before = measure.volume(tx, body)
-    planes = sync_common.planes(tx, selected)
     d = float(distance)
     if action == "offset":
-        with (
-            sync_relate.synchronous(tx),
-            builders.build(tx, tx.part.Features.CreateAdmOffsetRegionBuilder, None) as b,
-        ):
-            builders.fill(tx, b.FaceToOffset.FaceCollector, selected, "Face")
-            expr.drive(b.Distance, -d if d < 0 else distance)
-            b.ReverseDirection = d < 0
-            feature = b.commit()
+        try:
+            with (
+                sync_relate.synchronous(tx),
+                builders.build(tx, tx.part.Features.CreateAdmOffsetRegionBuilder, None) as b,
+            ):
+                builders.fill(tx, b.FaceToOffset.FaceCollector, selected, "Face")
+                expr.drive(b.Distance, -d if d < 0 else distance)
+                b.ReverseDirection = d < 0
+                feature = b.commit()
+        except NXError as error:
+            _collapse_hint(tx, error, body, d)
+            raise
         offsets = sync_common.moved_planes(tx, selected, planes, lambda n: d)
     else:
         with (
@@ -87,3 +101,21 @@ def nx_edit_face_region(
     out = common.result_of(tx, feature, [body])
     common.changed(before, out["volume"], "differs")
     return {**out, "volume_change": out["volume"] - before, "offsets": offsets}
+
+
+def _collapse_hint(tx, error, body, d) -> None:
+    """An inward offset as deep as the body's thinnest extent collapses it: say so."""
+    if error.code != "NX_BUILD_FAILED" or d >= 0 or error.hint:
+        return
+    try:
+        low, high = measure.bounds(tx, [body])
+    except Exception:  # noqa: BLE001 - no box: keep NX's message
+        return
+    thin = min(b - a for a, b in zip(low, high, strict=True))
+    if -d >= thin:
+        error.hint = (
+            f"The inward offset {-d:.6g} reaches through the body, {thin:.6g} at its "
+            "thinnest: use a smaller distance"
+        )
+        error.field = error.field or "/distance"
+        error.details = {**(error.details or {}), "thinnest": thin}

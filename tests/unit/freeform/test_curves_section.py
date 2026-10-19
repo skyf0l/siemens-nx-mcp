@@ -169,3 +169,39 @@ def test_inch_part_lengths_are_in_inches():
              "normal": [1, 0, 0]})  # fmt: skip
     assert ok.ok and ok.data["length"] == pytest.approx(6), ok
     assert nx.last(T).Tolerance == pytest.approx(0.001 / 25.4)
+
+
+def test_planes_that_miss_the_objects_are_refused_before_nx():
+    nx = curves_nx()
+    body = nx.block(100, 50, 20)
+    above = run(nx, "nx_create_section_curves", objects=[body.ref], method="parallel",
+                plane={"origin": [0, 0, 30], "normal": [0, 0, 1]}, count=2, spacing=5)  # fmt: skip
+    assert above.error["code"] == "NX_INVALID_ARGUMENT" and above.error["field"] == "/spacing"
+    assert above.error["details"]["objects"] == pytest.approx([-30, -10])
+    assert above.mutation_outcome == "not_started" and not nx.builders
+    _section(nx, [50])
+    some = run(nx, "nx_create_section_curves", objects=[body.ref], method="parallel",
+               plane={"origin": [50, 0, 0], "normal": [1, 0, 0]}, count=2, spacing=100)  # fmt: skip
+    assert some.ok and any("1 of 2 planes" in w["message"] for w in some.warnings), some
+
+
+def test_intersection_misses_are_named_before_nx():
+    nx = curves_nx()
+    body = nx.block(100, 50, 20)
+    far = nx.block(10, 10, 10, origin=(300, 0, 0))
+    high = run(nx, "nx_create_intersection_curve", first=[body.ref],
+               plane={"origin": [0, 0, 500], "normal": [0, 0, 1]})  # fmt: skip
+    assert high.error["field"] == "/plane" and high.mutation_outcome == "not_started"
+    apart = run(nx, "nx_create_intersection_curve", first=[body.ref], second=[far.ref])
+    assert apart.error["field"] == "/second" and apart.error["details"]["gap"] == 200
+    assert not nx.builders
+
+
+def test_intersection_refused_by_nx_names_the_nearest_distance():
+    nx = curves_nx()
+    body = nx.block(100, 50, 20)
+    top, side = body.face((0, 0, 1)), body.face((1, 0, 0))
+    nx.refuse(INT, 1395078, "No intersection found.")
+    bad = run(nx, "nx_create_intersection_curve", first=[top.ref], second=[side.ref])
+    assert bad.error["code"] == "NX_BUILD_FAILED" and bad.mutation_outcome == "rolled_back"
+    assert "nearest" in bad.error["details"]

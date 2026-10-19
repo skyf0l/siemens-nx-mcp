@@ -526,6 +526,7 @@ def nx_create_datum_point(
     numbers in part units: '10 mm' strings and expression names are not taken here. Later
     calls select the returned point."""
     p = list(position)
+    geom.check_in_box(p, units.part_tolerance(tx, geom.SIZE_BOX_MM), "/position", "position")
     with builders.build(tx, tx.part.BaseFeatures.CreatePointFeatureBuilder, None) as b:
         b.Point = builders.point(tx, p)
         feature = b.commit()

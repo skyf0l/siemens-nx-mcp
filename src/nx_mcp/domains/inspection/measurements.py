@@ -26,7 +26,7 @@ import math
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail, native
+from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import BodyRef, Doc, FaceRef, Items, Range, RefTo
 from nx_mcp.domains.inspection import common
@@ -47,6 +47,10 @@ DISTANCE_KINDS = (
 )
 DISTANCE_DOC = "Ref 'fc:12'/'b:3': body/face/edge/curve/point/datum/feature/component"
 ANGLE_KINDS = ("curve", "edge", "face", "datum_plane", "datum_axis")
+ANGLE_HINT = (
+    "Pass a line, straight edge, planar face or datum; a body's faces: nx_find_geometry "
+    "kind face with the body as owner"
+)
 TOUCHING = 1e-9  # part units: NX reports 0 for touching or overlapping objects
 NOISE = 1e-12  # inertia terms below this fraction of the largest are rounding noise
 Scope = Annotated[Literal["auto", "part", "assembly"], Doc("Without bodies: part or assembly")]
@@ -130,6 +134,9 @@ def nx_measure_distance(
     common.note_exploded(tx)
     a = _measurables(tx, first, "/first")
     b = _measurables(tx, second, "/second")
+    if {int(x.Tag) for x, _k in a} == {int(y.Tag) for y, _k in b}:
+        fail("NX_INVALID_ARGUMENT", "first and second are the same object (distance 0)",
+             field="/second", hint="Pass two different objects")  # fmt: skip
     tx.scale_budget(len(a) + len(b))
     best = None  # (distance, i, j, p1, p2): the first pair in a-then-b order wins a tie
     for lower, i, j in _pairs(tx, a, b):
@@ -213,6 +220,7 @@ def nx_measure_angle(
     first: Annotated[str, RefTo(*ANGLE_KINDS)],
     second: Annotated[str, RefTo(*ANGLE_KINDS)],
     units: Literal["deg", "rad"] = "deg",
+    undirected: Annotated[bool, Doc("Fold to 0-90: directions ignored")] = False,
 ) -> AngleData:
     """Measure the angle (0-180) between lines, straight edges, planar faces or datums. Lines and
     edges run start to end; faces use outward normals: perpendicular 90, opposite parallel 180,
@@ -221,10 +229,15 @@ def nx_measure_angle(
     common.note_exploded(tx)
     directions = []
     for ref, field in ((first, "/first"), (second, "/second")):
-        obj = tx.resolve(ref, *ANGLE_KINDS)
+        try:
+            obj = select.resolve(tx, ref, *ANGLE_KINDS, field=field)
+        except NXError as error:
+            if error.code == "NX_WRONG_KIND":
+                error.hint = ANGLE_HINT
+            raise
         directions.append(_direction(tx, obj, common.kind_of(tx, obj), field))
     cosine = max(-1.0, min(1.0, geom.dot(*directions)))
-    angle = math.acos(cosine)
+    angle = math.acos(abs(cosine) if undirected else cosine)
     if units == "rad":
         tx.units["angle"] = "rad"
     else:
@@ -388,7 +401,8 @@ def nx_measure_bounds(
     ] = "conservative",
 ) -> BoundsData:
     """Measure the absolute axis-aligned bounding box of bodies, the part or the assembly.
-    Features and components count their whole bodies; conservative may exceed curves."""
+    Features and components count their whole bodies. conservative: NX's quick box, may be
+    larger than the true box on curved or rotated bodies; exact: the tight box."""
     common.note_exploded(tx)
     found = common.target_bodies(tx, bodies, scope)
     exact = precision == "exact"
@@ -445,9 +459,11 @@ class ThicknessData(TypedDict):
     unresolved: int
     skipped_outside_trim: int
     by_face: list[FaceThickness]
-    samples: list[ThicknessSample]
+    samples: list[ThicknessSample]  # thinnest first: the THINNEST, every one, or none
 
 
+THINNEST = 5  # sample rows kept by samples="thinnest"
+SAMPLES_DOC = f"Sample rows kept, thinnest first: thinnest {THINNEST}, all or none"
 IDENTITY_4X4 = [1.0 if i % 5 == 0 else 0.0 for i in range(16)]
 
 
@@ -478,10 +494,12 @@ def nx_measure_wall_thickness(
     tolerance: Annotated[
         float, Range(gt=0, le=1), Doc("Inward ray start offset, part units")
     ] = 0.001,
+    samples: Annotated[Literal["thinnest", "all", "none"], Doc(SAMPLES_DOC)] = "thinnest",
 ) -> ThicknessData:
     """Measure sampled wall thickness of a solid (default: the body of faces, or the part's only
-    one). Rays run along inward normals from its faces; not a guaranteed minimum. Samples
-    come thinnest first; a plate's side faces give its width: see by_face."""
+    one). Rays run along inward normals from its faces; not a guaranteed minimum. maximum is
+    the longest ray through material: a tube's end faces give its length, a plate's sides its
+    width (see by_face; pass the wall faces in faces)."""
     common.note_exploded(tx)
     chosen = select.faces(tx, faces) if faces is not None else None
     target = _thickness_body(tx, body, chosen)
@@ -493,15 +511,15 @@ def nx_measure_wall_thickness(
         for i, face in enumerate(selected):
             if int(face.Tag) not in own:
                 fail("NX_WRONG_OWNER", "The face is not on this body", field=f"/faces/{i}")
-    samples, skipped = common.face_samples(tx, selected, samples_per_axis)
-    common.note_unsampled(tx, selected, samples)
+    found, skipped = common.face_samples(tx, selected, samples_per_axis)
+    common.note_unsampled(tx, selected, found)
     modeling = tx.uf.Modeling
     rows: list[ThicknessSample] = []
     values: list[float] = []
     unresolved = 0
-    for index, (face, _uv, props) in enumerate(samples):
+    for index, (face, _uv, props) in enumerate(found):
         if index % 50 == 0:
-            tx.checkpoint(index, len(samples))
+            tx.checkpoint(index, len(found))
         point, normal = common.xyz3(props[0]), common.xyz3(props[5])
         inward = geom.scale(geom.unit(normal), -1.0)
         origin = geom.add(point, geom.scale(inward, tolerance))
@@ -525,16 +543,18 @@ def nx_measure_wall_thickness(
         rows.append(row)
     by_face = _by_face(rows)
     rows.sort(key=lambda r: (r.get("thickness") is None, r.get("thickness") or 0.0))
+    thinnest = rows[0] if values else None
+    kept = {"all": len(rows), "thinnest": THINNEST, "none": 0}[samples]
     return {
         "body": tx.ref(target, kind="body"),
         "minimum": min(values) if values else None,
         "maximum": max(values) if values else None,
-        "thinnest": rows[0] if values else None,
+        "thinnest": thinnest,
         "measured": len(values),
         "unresolved": unresolved,
         "skipped_outside_trim": skipped,
         "by_face": by_face,
-        "samples": rows,
+        "samples": rows[:kept],
     }
 
 

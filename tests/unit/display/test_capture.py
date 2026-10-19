@@ -62,14 +62,20 @@ def test_a_size_equal_to_the_default_still_counts_as_given():
     assert ok.ok and ok.data["resolution"] == [1024, 768] and ok.data["quality"] == "studio"
 
 
-def test_a_wireframe_view_or_a_sheet_keeps_the_window_size_with_a_warning():
+def test_a_wireframe_view_or_a_sheet_is_scaled_down_into_the_size():
+    """NX exports the window at its own size; a wireframe view or a sheet (no Studio
+    render) is scaled into the requested size, aspect kept, padded with the background."""
     nx = display_nx()
-    wire = run(nx, "nx_capture_view", width=800, height=500, style="wireframe")
-    assert wire.data["resolution"] == list(WINDOW) and wire.data["quality"] == "viewport"
-    assert "a wireframe view is captured at the window size" in wire.warnings[0]["message"]
+    wire = run(nx, "nx_capture_view", width=800, height=500, style="wireframe", path="w.png")
+    assert wire.data["resolution"] == [800, 500] and wire.data["quality"] == "viewport"
+    assert wire.data["style"] == "wireframe" and wire.data["image"]["width"] == 800
+    assert files.png_size(root(nx) / "w.png") == (800, 500)
+    assert [w["code"] for w in wire.warnings] == ["NX_NOTE"]
+    assert "the wireframe view was scaled down to fit 800x500" in wire.warnings[0]["message"]
     show_sheet(nx)
     sheet = run(nx, "nx_capture_view", width=800, height=500)
-    assert "a drawing sheet is captured" in sheet.warnings[0]["message"]
+    assert "the drawing sheet was scaled down" in sheet.warnings[0]["message"]
+    assert sheet.data["resolution"] == [800, 500]
     assert [c.kind for c in nx.captures] == ["viewport", "viewport"]
     studio = run(nx, "nx_capture_view", quality="studio")
     assert studio.error["field"] == "/quality" and studio.mutation_outcome == "not_started"
@@ -298,14 +304,19 @@ def test_sketches_and_datums_are_hidden_for_the_capture_and_come_back():
     nx = display_nx()
     sketch, datum, hidden = _clutter(nx)
     ok = run(nx, "nx_capture_view")
-    assert ok.ok and ok.data["hidden_sketches"] == 2 and ok.mutation_outcome == "not_applicable"
+    assert ok.ok and ok.mutation_outcome == "not_applicable"
+    assert ok.data["hidden_sketches"] == 1 and ok.data["hidden_datums"] == 1
     assert nx.captures[0].blanked == [True, True, True]  # hidden while NX exported
     assert [sketch.IsBlanked, datum.IsBlanked, hidden.IsBlanked] == [False, False, True]
     assert ok.data["marks_part_modified"] is False and not [
         w for w in ok.warnings if w["code"] == "NX_UPDATE_WARNING"
     ]
     shown = run(nx, "nx_capture_view", hide_sketches=False)
-    assert shown.data["hidden_sketches"] == 0 and nx.captures[1].blanked == [False, False, True]
+    assert (
+        shown.data["hidden_sketches"] == 0
+        and shown.data["hidden_datums"] == 0
+        and nx.captures[1].blanked == [False, False, True]
+    )
 
 
 def test_nothing_is_hidden_while_a_sketch_is_active():
@@ -432,3 +443,67 @@ def test_a_fitted_capture_frames_the_bodies_centred():
     assert ok.ok, ok.error
     assert display.centre_offset(ok.data["camera"], [2595, 0, 0]) == pytest.approx(0, abs=1e-5)
     assert nx.camera["scale"] == 1.0  # the engineer's camera came back
+
+
+def test_an_unreadable_window_export_keeps_its_size_with_a_warning():
+    nx = display_nx()
+    nx.part.Views.CreateImageExportBuilder = lambda: _HeaderOnly(nx)
+    wire = run(nx, "nx_capture_view", width=800, height=500, style="wireframe")
+    assert wire.ok and wire.data["resolution"] == list(WINDOW)
+    assert wire.warnings[0]["code"] == "NX_APPROXIMATED"
+    assert "the wireframe view is captured at the window size" in wire.warnings[0]["message"]
+
+
+class _HeaderOnly:
+    """An export builder writing a PNG whose header only is readable (an interlaced or
+    16-bit PNG the scaler does not read)."""
+
+    def __init__(self, nx):
+        from tests.unit.display.fakes import Capture
+
+        self.inner = Capture(nx, "viewport")
+
+    def __getattr__(self, name):
+        return getattr(self.inner, name)
+
+    def __setattr__(self, name, value):
+        if name == "inner":
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self.inner, name, value)
+
+    def Commit(self):
+        import struct
+
+        header = b"\x89PNG\r\n\x1a\n" + b"\0\0\0\rIHDR" + struct.pack(">II", *WINDOW)
+        Path(self.inner.FileName).write_bytes(header + bytes([16, 2, 0, 0, 0, 0, 0, 0, 0]))
+
+
+def test_the_style_reported_is_the_one_rendered():
+    nx = display_nx()
+    ok = run(nx, "nx_capture_view")
+    assert ok.data["style"] == ok.data["camera"]["style"] and ok.data["style"] != "current"
+    sized = run(nx, "nx_capture_view", width=800, height=500)
+    assert sized.data["quality"] == "studio" and sized.data["style"] == ok.data["style"]
+
+
+def test_a_part_shown_only_for_the_capture_is_fitted():
+    """A part that is not displayed keeps its own stored camera, which may frame nothing
+    of it: the capture fits unless fit=false."""
+    from types import SimpleNamespace as NS
+
+    from tests.kit.objects import Part
+
+    nx = display_nx()
+    nx.nx.DisplayPartOption = NS(AllowAdditional=1, ReplaceExisting=0)
+    nx.nx.PartDisplayPartWorkPartOption = NS(SameAsDisplay=0, UseLast=1)
+    parts = nx.session.Parts
+    shown = parts.Display
+    plate = Part(nx.session, root(nx) / "plate.prt")
+    plate.ModelingViews, plate.Views = shown.ModelingViews, shown.Views
+    parts.Display, parts.Work = shown, plate
+    ok = run(nx, "nx_capture_view", part="plate")
+    assert ok.ok, ok
+    assert nx.work_view.fits == 1 and ok.data["camera"]["scale"] == 2.5
+    kept = run(nx, "nx_capture_view", part="plate", fit=False)
+    assert kept.ok and nx.work_view.fits == 1

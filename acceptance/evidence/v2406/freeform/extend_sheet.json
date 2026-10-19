@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/freeform/extend_sheet.json",
-  "scenario_sha256": "f162a50b3fd124668e756e7241fab05b7bd761347e4463422b72b870d8c4bfd7",
+  "scenario_sha256": "b3e6d563af65e9bcbf0fa083693d4d3dd15157f689f9d775acea70f13642c58f",
   "domain": "freeform",
   "covers": {
     "nx_create_sheet_extension": [
@@ -13,9 +13,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_sheet_extension": "c8ca137ca5b13077767557cd97d3a6d4ad1b2078ced0da499b23c78c3be3ba75"
+    "nx_create_sheet_extension": "52e4a2e95b3c062296669b567f39f8fb2c8f8010cc9e1ef1353ffc7a810f406d"
   },
-  "recorded": "2026-10-16T13:15:02Z",
+  "recorded": "2026-10-19T10:47:10Z",
   "passed": true,
   "checks": 46,
   "failed_checks": 0,

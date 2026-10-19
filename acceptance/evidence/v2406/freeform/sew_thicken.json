@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/freeform/sew_thicken.json",
-  "scenario_sha256": "67c77dfe43ecff63c087ba25d8a487be2a69c468ed9f9169ce1309af2f93b08c",
+  "scenario_sha256": "21d3202cae833aa8bdc8b1f5c28645f3b71f489e7e29548363300964e5a1e1b4",
   "domain": "freeform",
   "covers": {
     "nx_create_sew": [],
@@ -10,12 +10,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_sew": "9d68e13e03859a7db0c0f8ed95f6088a8eff23bc45f04f25a68655c682894192",
-    "nx_create_thicken": "9d68e13e03859a7db0c0f8ed95f6088a8eff23bc45f04f25a68655c682894192"
+    "nx_create_sew": "c7692da57554e865cace593159881cd6042fbfb4b2281cadcad957198b8d8d44",
+    "nx_create_thicken": "c7692da57554e865cace593159881cd6042fbfb4b2281cadcad957198b8d8d44"
   },
-  "recorded": "2026-10-15T12:43:46Z",
+  "recorded": "2026-10-19T10:48:05Z",
   "passed": true,
-  "checks": 47,
+  "checks": 48,
   "failed_checks": 0,
   "steps": [
     {
@@ -611,7 +611,7 @@
       "call": "nx_create_sew",
       "setup": false,
       "passed": true,
-      "checks": 5
+      "checks": 6
     },
     {
       "index": 86,

@@ -567,3 +567,72 @@ def test_get_explosion_defaults_to_the_shown_or_only_explosion(nx):
     assert several.mutation_outcome == "not_applicable"
     listed = [r["id"] for r in several.error["details"]["explosions"]]
     assert listed == [first, second] and "2 explosions" in several.error["message"]
+
+
+def test_compensation_sets_an_explosion_edit_back(nx):
+    ex = explosion(nx)
+    run(nx, "nx_edit_explosion", explosion=ex, placements=[
+        {"component": nx.b.ref, "offset": [0, 0, 10]}])  # fmt: skip
+    moved = run(nx, "nx_edit_explosion", explosion=ex, placements=[
+        {"component": nx.b.ref, "offset": [0, 0, 40]}], reset_components=[nx.a.ref])  # fmt: skip
+    assert moved.ok, moved
+    undo = run(nx, "nx_undo_operation", part="asm", mode="compensate")
+    assert undo.ok and undo.data["compensated"], undo
+    assert nx.assembly.explosions[0].pose(nx.b)[0] == pytest.approx([30, 0, 10])
+    assert nx.assembly.explosions[0].pose(nx.a)[0] == pytest.approx([0, 0, 0])
+    first = run(nx, "nx_edit_explosion", explosion=ex, placements=[
+        {"component": nx.a.ref, "offset": [5, 0, 0]}])  # fmt: skip
+    run(nx, "nx_edit_explosion", explosion=ex, placements=[
+        {"component": nx.a.ref, "offset": [9, 0, 0]}])  # fmt: skip
+    late = run(nx, "nx_undo_operation", part="asm", operation=first.operation_id,
+               mode="compensate")  # fmt: skip
+    assert late.error["code"] == "NX_DEPENDENCY_ORDER", late
+
+
+def test_a_repeated_offset_says_nothing_moved_and_a_huge_one_is_refused(nx):
+    ex = explosion(nx)
+    place_b = [{"component": nx.b.ref, "offset": [0, 0, 10]}]
+    assert run(nx, "nx_edit_explosion", explosion=ex, placements=place_b).ok
+    again = run(nx, "nx_edit_explosion", explosion=ex, placements=place_b)
+    assert again.ok and again.warnings[0]["code"] == "NX_NO_EFFECT", again
+    huge = run(nx, "nx_edit_explosion", explosion=ex, placements=[
+        {"component": nx.b.ref, "offset": [0, 0, 1e12]}])  # fmt: skip
+    assert huge.error["field"] == "/placements/0/offset" and huge.mutation_outcome == "not_started"
+
+
+def test_get_explosion_says_whether_the_work_view_shows_it(nx):
+    shown = explosion(nx, "E1")
+    hidden = explosion(nx, "E2", display=False)
+    assert run(nx, "nx_get_explosion", part="asm", explosion=shown).data["shown"] is True
+    assert run(nx, "nx_get_explosion", part="asm", explosion=hidden).data["shown"] is False
+
+
+def test_compensation_sets_a_trace_edit_back(nx):
+    ex = explosion(nx)
+    made = trace(nx, ex, 25, 100)
+    ref = made.data["trace"]["id"]
+    edited = run(nx, "nx_edit_explosion_trace", trace=ref, start_percent=50, end_offset=3,
+                 start_direction=[1, 0, 0])  # fmt: skip
+    assert edited.ok and edited.changes["modified"][0]["id"] == ref, edited
+    undo = run(nx, "nx_undo_operation", part="asm", mode="compensate")
+    assert undo.ok and undo.data["compensated"], undo
+    got = run(nx, "nx_get_explosion", explosion=ex).data["traces"][0]
+    assert (got["start_percent"], got["end_offset"]) == (25, 0)
+    assert got["start_direction"] == [0, 0, 1] and got["start"] == pytest.approx([10, 0, 10])
+
+
+def test_pattern_constraint_and_reference_set_deleters(nx):
+    made = run(nx, "nx_create_component_pattern", component=nx.a.ref,
+               layout={"linear": {"direction": [1, 0, 0], "count": 2, "spacing": 5}})  # fmt: skip
+    fix = run(nx, "nx_create_assembly_constraint", type="fix", component=nx.a.ref)
+    assert made.ok and fix.ok
+    pattern = nx.assembly.patterns[0]
+    constraint = nx.assembly.positioner.Constraints[0]
+    hooks("deleter")["component_pattern"](nx.tx, [pattern])
+    hooks("deleter")["assembly_constraint"](nx.tx, [constraint])
+    assert pattern in nx.assembly.deleted and constraint in nx.assembly.deleted
+    removed = []
+    nx.asm.DeleteReferenceSet = removed.append
+    rs = type("RS", (), {"OwningPart": nx.asm, "Tag": 4242})()
+    hooks("deleter")["reference_set"](nx.tx, [rs])
+    assert removed == [rs]

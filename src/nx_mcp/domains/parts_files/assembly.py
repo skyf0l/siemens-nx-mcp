@@ -202,6 +202,7 @@ def _package(tx, part, sources, occurrences, target) -> AssemblyExportData:
             names = set(archive.namelist())
             readback.expect(names == {e["path"] for e in manifest} | {MANIFEST}, "zip_members")
         files.publish_new(temp, target)
+        files.note_written(tx, target)
     finally:
         with contextlib.suppress(OSError):
             shutil.rmtree(temp.parent)
@@ -301,6 +302,8 @@ def _clone(tx, part, sources, destination: Path, prefix: str, activate: bool) ->
             ).encode(),
             root=root,
         )
+        for written in [*mapping.values(), destination / CLONE_MANIFEST]:
+            files.note_written(tx, written)
         out: AssemblyExportData = {
             "path": files.relative(destination, root),
             "format": "clone",

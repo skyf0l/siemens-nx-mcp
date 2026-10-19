@@ -670,10 +670,11 @@ def nx_get_operation(
     example={"operation": "op_0123456789abcdef"},
 )
 def nx_cancel_operation(tx: Tx, *, operation: CancelRef) -> CancelData:
-    """Ask a running changing call (nx_run_batch or another multi-step tool) to stop at its
-    next step; it then rolls back. Only changing calls have receipts: reads (checks,
-    measurements) cannot be cancelled. One native NX call is never interrupted; check the
-    outcome with nx_get_operation."""
+    """Ask a running changing call to stop at its next step; it then rolls back. Steps:
+    nx_run_batch and nx_preview_changes stop between calls, tools over many objects (patterns,
+    exports, per-body checks) between objects. One native NX call is never interrupted.
+    Reads have no receipt and cannot be cancelled. nx_get_operation shows the outcome; a call
+    that finished first gives NX_NOT_RUNNING."""
     store = tx.services.store
     operation = operation.strip()
     with tx.checks():

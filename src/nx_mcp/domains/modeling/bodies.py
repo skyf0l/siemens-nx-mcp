@@ -42,7 +42,7 @@ from nx_mcp.core.types import (
     convert_quantity,
     forbid_extra,
 )
-from nx_mcp.domains.modeling import common, sync_relate
+from nx_mcp.domains.modeling import common, sync_common, sync_relate
 from nx_mcp.kit import args, builders, expr, geom, measure, readback, result, select
 from nx_mcp.kit import pose as kpose
 
@@ -379,7 +379,16 @@ def _scaled(p, o, axes, f):
     effect="model",
     label="Scale bodies",
     summary=_scale_summary,
-    keywords=("scale", "resize", "uniform scale", "non-uniform scale", "stretch", "shrink"),
+    keywords=(
+        "scale",
+        "resize",
+        "enlarge",
+        "enlarge part",
+        "uniform scale",
+        "non-uniform scale",
+        "stretch",
+        "shrink",
+    ),
     requires=("work_part", "no_active_sketch"),
     cost="heavy",
     previewable=True,
@@ -593,7 +602,8 @@ def nx_create_transform(
     copy: Annotated[bool, Doc("Move a copy (combinable with its source)")] = False,
 ) -> common.FeatureData:
     """Move or copy solid bodies: rotate (matrix about [0, 0, 0] or angle about an axis),
-    then translate. bodies lists the moved bodies or copies in input order."""
+    then translate. bodies lists the moved bodies or copies in input order; a copy is an
+    EXTRACT_BODY body (its extract feature is in changes.created), feature is the move."""
     translation, rotation = _pose(tx, transform)
     if not copy and not _moves(translation, rotation):
         fail("NX_INVALID_ARGUMENT", "This transform would not move the bodies",
@@ -1058,6 +1068,8 @@ def nx_edit_faces(
     with tx.checks():  # lookups and refusals: nothing changed yet (not_started)
         selected = select.faces(tx, faces, "/faces")
         body = common.one_body(selected, "/faces")
+        if distance is not None:
+            sync_common.plausible(tx, distance, body)
         a = dict(given)
         a["vector"] = select.direction(tx, vector, "/direction") if vector is not None else None
         a["other"] = (

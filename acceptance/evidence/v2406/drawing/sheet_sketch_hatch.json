@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/sheet_sketch_hatch.json",
-  "scenario_sha256": "0c33ab6f3560a1f469e12aa959dc8891b03ce921cd7b6dcde7aee2b0ec0e8969",
+  "scenario_sha256": "cbe571271bd125857b0c342099dfbd952e515429329d937c0ece3832ee0488eb",
   "domain": "drawing",
   "covers": {
     "nx_create_sheet_sketch": [
@@ -11,17 +11,19 @@
       "circle",
       "rectangle"
     ],
-    "nx_create_hatch": []
+    "nx_create_hatch": [],
+    "nx_edit_annotation": []
   },
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_sheet_sketch": "49ce2c732567a6504409cc4af02ae2a62eebd54ac03a850725df748d74a1ac1e",
-    "nx_create_hatch": "1c57a1827b1cbec6d64d4657feab2778256ce62f961c5500f175755f3e434828"
+    "nx_create_sheet_sketch": "71732029d60463e97bc30ad4e9c6e49a7e5bac64dec315294d7903f5100d34ab",
+    "nx_create_hatch": "d68e953809ad8452c760b47bb0d93fbc9660575a02f9fc7493ea75c9f0280498",
+    "nx_edit_annotation": "b8ff43f5189bf801d079e32c70f7cf77837c03819b487e413cbc4fb659a59d2b"
   },
-  "recorded": "2026-10-16T13:11:42Z",
+  "recorded": "2026-10-19T11:02:28Z",
   "passed": true,
-  "checks": 53,
+  "checks": 61,
   "failed_checks": 0,
   "steps": [
     {
@@ -96,41 +98,69 @@
     },
     {
       "index": 11,
-      "call": "nx_create_hatch",
+      "call": "nx_edit_annotation",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 12,
+      "call": "nx_edit_annotation",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 13,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 14,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 15,
       "call": "nx_create_hatch",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 13,
+      "index": 16,
+      "call": "nx_create_hatch",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 17,
       "call": "nx_create_sheet_sketch",
       "setup": false,
       "passed": true,
       "checks": 3
     },
     {
-      "index": 14,
+      "index": 18,
       "call": "nx_create_note",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 15,
+      "index": 19,
       "call": "nx_capture_view",
       "setup": false,
       "passed": true,
       "checks": 0
     },
     {
-      "index": 16,
+      "index": 20,
       "call": "nx_close_part",
       "setup": true,
       "passed": true,

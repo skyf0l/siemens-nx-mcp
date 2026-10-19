@@ -126,3 +126,48 @@ def test_load_cases_take_over_the_default_case_then_share_supports():
     assert ok.data["max_stress"] == pytest.approx(125.0) and ok.data["max_displacement"] == 0.2
     bad = add(nx, study, "keep_in", faces=[end.ref], load_case="tip")
     assert bad.error["field"] == "/load_case"
+
+
+def test_compensation_sets_the_acceleration_back():
+    nx = topo_nx()
+    study, *_ = ready(nx)
+    assert env(nx, study, "acceleration", magnitude=2, direction="-z").ok
+    five = env(nx, study, "acceleration", magnitude=5, direction=[1, 0, 0])
+    assert five.ok
+    undo = run(nx, "nx_undo_operation", mode="compensate")
+    assert undo.ok and undo.data["compensated"], undo
+    assert undo.data["restored"][0].endswith("back to 2 g")
+    info = run(nx, "nx_get_topology_study", study=study).data["items"][0]
+    assert info["acceleration"]["g"] == pytest.approx(2.0)
+    assert info["acceleration"]["direction"] == [0, 0, -1]
+    undo = run(nx, "nx_undo_operation", mode="compensate")  # the first one: none before
+    assert undo.ok and "removed" in undo.data["restored"][0], undo
+    assert run(nx, "nx_get_topology_study", study=study).data["items"][0]["acceleration"] is None
+
+
+def test_compensation_refuses_an_acceleration_changed_since():
+    nx = topo_nx()
+    study, *_ = ready(nx)
+    first = env(nx, study, "acceleration", magnitude=2)
+    assert first.ok and env(nx, study, "acceleration", magnitude=3).ok
+    later = run(nx, "nx_undo_operation", operation=first.operation_id, mode="compensate")
+    assert later.error["code"] == "NX_DEPENDENCY_ORDER", later
+    info = run(nx, "nx_get_topology_study", study=study).data["items"][0]
+    assert info["acceleration"]["g"] == pytest.approx(3.0)
+
+
+def test_compensation_removes_scenery_and_a_connection():
+    nx = topo_nx()
+    plate, holes, end = bracket(nx)
+    base = nx.block(10, 60, 30, origin=(-10, 0, -10))
+    study = create(nx, plate).data["study"]["id"]
+    assert env(nx, study, "scenery", bodies=[base.ref]).ok
+    assert env(nx, study, "connection", bodies=[plate.ref, base.ref]).ok
+    undo = run(nx, "nx_undo_operation", mode="compensate")
+    assert undo.ok and undo.data["restored"][0].startswith("a connection removed"), undo
+    info = run(nx, "nx_get_topology_study", study=study).data["items"][0]
+    assert info["connections"] == 0 and len(info["scenery"]) == 1
+    undo = run(nx, "nx_undo_operation", mode="compensate")
+    assert undo.ok and "scenery" in undo.data["restored"][0], undo
+    assert run(nx, "nx_get_topology_study", study=study).data["items"][0]["scenery"] == []
+    assert base in nx.part.Bodies  # the body itself stays

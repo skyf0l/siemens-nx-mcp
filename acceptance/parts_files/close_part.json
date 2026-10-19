@@ -68,6 +68,14 @@
     {"call": "nx_close_part", "args": {"part": "$run/cl/pf_close_none.prt", "save": false},
      "expect": {"error.code": "NX_NOT_FOUND", "error.field": "/part", "mutation_outcome": "not_started"}},
     {"call": "nx_close_part", "args": {"part": "../outside.prt", "save": false},
-     "expect": {"error.code": "NX_PATH_OUTSIDE_WORKSPACE", "mutation_outcome": "not_started"}}
+     "expect": {"error.code": "NX_PATH_OUTSIDE_WORKSPACE", "mutation_outcome": "not_started"}},
+    {"call": "nx_create_part", "setup": true, "save": "front", "args": {"path": "$run/cl/pf_close_front.prt", "display": true}},
+    {"call": "nx_create_part", "setup": true, "save": "back", "args": {"path": "$run/cl/pf_close_back.prt", "display": false}},
+    {"call": "nx_close_part", "args": {"part": "$back.data.part.id", "save": false},
+     "intent": "Acceptance: closing a part that is not displayed leaves the displayed part's tab in front",
+     "expect": {"mutation_outcome": "committed", "data.closed_count": 1}},
+    {"call": "nx_list_parts", "args": {"path_prefix": "$run/cl", "active_only": true},
+     "expect": {"page.total": 1, "data.items.0.path": {"matches": "pf_close_front[.]prt$"},
+                "data.items.0.display": true}}
   ]
 }

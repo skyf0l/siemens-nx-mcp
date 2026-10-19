@@ -31,7 +31,7 @@ import types
 from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.kit import facts, geom, units
 
-_OWN = ("native", "committed", "_codes")
+_OWN = ("native", "committed", "_codes", "_tx")
 
 
 class Builder:
@@ -39,10 +39,11 @@ class Builder:
 
     __slots__ = _OWN
 
-    def __init__(self, native_builder, codes=None):
+    def __init__(self, native_builder, codes=None, tx=None):
         object.__setattr__(self, "native", native_builder)
         object.__setattr__(self, "committed", None)
         object.__setattr__(self, "_codes", codes)
+        object.__setattr__(self, "_tx", tx)
 
     def __getattr__(self, name):
         return getattr(self.native, name)
@@ -80,6 +81,11 @@ class Builder:
             if validate and hasattr(b, "Validate") and not b.Validate():
                 fail("NX_BUILD_FAILED", "NX rejected the feature inputs")
             commit = getattr(b, "CommitFeature", None) or b.Commit
+            if self._tx is not None:
+                # NX changed the model: a later refusal of the call is rolled back, never
+                # "not started" (core/kernel._refusal)
+                with contextlib.suppress(Exception):
+                    self._tx.built = True
             result = commit()
         object.__setattr__(self, "committed", result)
         return result
@@ -95,7 +101,7 @@ def build(tx, factory, *args, codes=None):
     """
     with native(codes, "NX_BUILD_FAILED"):
         native_builder = factory(*args)
-    handle = Builder(native_builder, codes)
+    handle = Builder(native_builder, codes, tx)
     try:
         with native(codes, "NX_BUILD_FAILED"):
             yield handle

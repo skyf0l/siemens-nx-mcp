@@ -21,10 +21,11 @@ NX 2406 lessons kept here:
 
 from __future__ import annotations
 
+import math
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
     Angle,
@@ -40,9 +41,10 @@ from nx_mcp.core.types import (
     axis_rotation,
 )
 from nx_mcp.domains.freeform import curves_common as cc
-from nx_mcp.kit import args, builders, geom, measure, readback, select, units
+from nx_mcp.kit import args, builders, curve, geom, measure, readback, select, units
 
 MAX_PLANES = 100
+MAX_DIAGNOSED = 20  # faces per side measured for a refused intersection
 SolidRef = Annotated[str, RefTo("body", "face", doc="Body or face 'b:3'/'fc:7'")]
 Solids = Annotated[list[SolidRef], Items(1, 200)]
 
@@ -157,6 +159,29 @@ def _read_back(tx, curves, stations, faces):
     return rows, max(worst, on_faces)
 
 
+def _crossing(tx, objs, stations, method) -> None:
+    """``NX_INVALID_ARGUMENT`` when no plane crosses the objects' box (NX: "No section
+    curves or points created."); a note when some planes miss it."""
+    corners = cc.box_corners(tx, objs)
+    limit = cc.gap_tolerance(tx)
+    missed = [i for i, (o, n) in enumerate(stations) if cc.misses(corners, o, n, limit)]
+    if len(missed) == len(stations):
+        origin, normal = stations[0]
+        low, high = cc.box_span(corners, origin, normal)
+        levels = [geom.dot(geom.sub(o, origin), normal) for o, _n in stations]
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"No plane crosses the objects: along the first plane's normal the planes lie at "
+            f"{min(levels):.4g}..{max(levels):.4g} and the objects span {low:.4g}..{high:.4g}",
+            field="/spacing" if method == "parallel" and len(stations) > 1 else "/plane",
+            hint="Move the first plane into the objects or change spacing (radial: the axis)",
+            details={"planes": [min(levels), max(levels)], "objects": [low, high]},
+        )
+    if missed:
+        tx.warn("NX_NOTE", f"{len(missed)} of {len(stations)} planes miss the objects (planes "
+                f"{missed[:10]}): they make no curves")  # fmt: skip
+
+
 @tool(
     effect="model",
     label="Create section curves",
@@ -203,6 +228,7 @@ def nx_create_section_curves(
     with tx.checks():
         objs, faces = cc.solids(tx, objects, "/objects")
         stations, how = _stations(tx, method, plane, count, spacing, axis, angle)
+        _crossing(tx, objs, stations, method)
     with (
         cc.licensed(tx),
         builders.build(tx, tx.part.Features.CreateSectionCurveBuilder, None) as b,
@@ -220,6 +246,47 @@ def nx_create_section_curves(
 
 class IntersectionData(cc.CurvesData):
     gap: float  # largest sampled distance of a curve from either side
+
+
+def _explain_miss(tx, error, faces1, faces2):
+    """A refused intersection with the nearest distance between the two sides."""
+    nearest = None
+    for a in faces1[:MAX_DIAGNOSED]:
+        for b in faces2[:MAX_DIAGNOSED]:
+            tx.checkpoint()
+            try:
+                gap = curve.min_distance(tx, a, b)[0]
+            except NXError:
+                continue
+            nearest = gap if nearest is None else min(nearest, gap)
+    if nearest is not None and nearest > cc.gap_tolerance(tx):
+        error.message = f"{error.message} The faces come no closer than {nearest:.4g}."
+        error.hint = "The first and second faces do not meet: pass faces that cross each other"
+        error.field = "/second"
+    error.details = {**(error.details or {}), "nearest": nearest}
+    return error
+
+
+def _meeting(tx, faces1, faces2, cut) -> None:
+    """``NX_INVALID_ARGUMENT`` naming the miss when the plane passes clear of the first
+    faces' box, or the two sides' boxes lie apart (NX: "No intersection found.")."""
+    corners = cc.box_corners(tx, faces1)
+    limit = cc.gap_tolerance(tx)
+    if cut is not None:
+        if cc.misses(corners, cut[0], cut[1], limit):
+            low, high = cc.box_span(corners, cut[0], cut[1])
+            fail("NX_INVALID_ARGUMENT", f"The plane misses the first faces: they lie "
+                 f"{low:.4g}..{high:.4g} from it along its normal", field="/plane",
+                 details={"span": [low, high]})  # fmt: skip
+        return
+    a = [min(c[i] for c in corners) for i in range(3)] + [
+        max(c[i] for c in corners) for i in range(3)
+    ]
+    low, high = measure.bounds(tx, list(faces2))
+    apart = math.sqrt(sum(max(0.0, a[i] - high[i], low[i] - a[i + 3]) ** 2 for i in range(3)))
+    if apart > limit:
+        fail("NX_INVALID_ARGUMENT", f"The first and second faces do not meet: their boxes are "
+             f"{apart:.4g} apart", field="/second", details={"gap": apart})  # fmt: skip
 
 
 @tool(
@@ -258,20 +325,26 @@ def nx_create_intersection_curve(
             faces2 = []
             _o, origin, normal = select.plane(tx, plane, "/plane")
             cut = (origin, normal)
+        _meeting(tx, faces1, faces2, cut)
     tol = units.part_tolerance(tx)
-    with (
-        cc.licensed(tx),
-        builders.build(tx, tx.part.Features.CreateIntersectionCurveBuilder, None) as b,
-    ):
-        b.Associative = True
-        b.Tolerance = tol
-        b.CurveFitData.Tolerance = tol
-        builders.fill(tx, b.FirstFace, faces1, "Face")
-        if cut is None:
-            builders.fill(tx, b.SecondFace, faces2, "Face")
-        else:
-            b.SecondPlane = cc.plane_object(tx, *cut)
-        feature = b.commit()
+    try:
+        with (
+            cc.licensed(tx),
+            builders.build(tx, tx.part.Features.CreateIntersectionCurveBuilder, None) as b,
+        ):
+            b.Associative = True
+            b.Tolerance = tol
+            b.CurveFitData.Tolerance = tol
+            builders.fill(tx, b.FirstFace, faces1, "Face")
+            if cut is None:
+                builders.fill(tx, b.SecondFace, faces2, "Face")
+            else:
+                b.SecondPlane = cc.plane_object(tx, *cut)
+            feature = b.commit()
+    except NXError as error:
+        if error.code != "NX_BUILD_FAILED" or cut is not None:
+            raise
+        raise _explain_miss(tx, error, faces1, faces2) from None
     curves = cc.output_curves(tx, feature)
     gap = cc.worst_gap(tx, curves, faces1)
     other = cc.worst_gap(tx, curves, faces2) if cut is None else cc.plane_gap(tx, curves, *cut)

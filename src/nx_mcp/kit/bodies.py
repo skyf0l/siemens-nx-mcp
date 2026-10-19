@@ -39,6 +39,20 @@ def is_body(obj) -> bool:
     return hasattr(obj, "IsSolidBody") and hasattr(obj, "GetFaces")
 
 
+def facet_bodies(part) -> list:
+    """``part``'s standalone facet bodies (``NXOpen.Facet.FacetedBody``, e.g. an imported
+    STL); a solid's display facets have an ``AssociatedBody`` and are left out."""
+    found = []
+    for f in getattr(part, "FacetedBodies", ()) or ():
+        try:
+            owner = f.AssociatedBody
+        except Exception:
+            owner = None
+        if owner is None or not int(getattr(owner, "Tag", 0) or 0):
+            found.append(f)
+    return found
+
+
 suppressed = parts.suppressed  # the component or one of its parents is suppressed
 
 

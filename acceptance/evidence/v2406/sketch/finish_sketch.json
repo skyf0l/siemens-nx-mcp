@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/sketch/finish_sketch.json",
-  "scenario_sha256": "70b4b772b75f27b790a71d211e4e9a3230157c4ed5bf46c330ff53d1688b320a",
+  "scenario_sha256": "63d0032a418a4602a4d146e4f46d5103161044ece35e2308c61651503cbfd8a8",
   "domain": "sketch",
   "covers": {
     "nx_finish_sketch": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_finish_sketch": "b182b21ce3ecbdbfcbe9662055bfeb8f3b70370864c71e878abfb76f79a30023"
+    "nx_finish_sketch": "a80a4318a9dca7e3071c5e9084a93f69931cbc0f806adbc732204c4fb96a2efe"
   },
-  "recorded": "2026-10-15T12:22:51Z",
+  "recorded": "2026-10-19T10:37:45Z",
   "passed": true,
-  "checks": 20,
+  "checks": 28,
   "failed_checks": 0,
   "steps": [
     {
@@ -56,7 +56,7 @@
       "call": "nx_finish_sketch",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 5
     },
     {
       "index": 7,
@@ -95,10 +95,24 @@
     },
     {
       "index": 12,
+      "call": "nx_get_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 13,
       "call": "nx_finish_sketch",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
+    },
+    {
+      "index": 14,
+      "call": "nx_finish_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 3
     }
   ]
 }

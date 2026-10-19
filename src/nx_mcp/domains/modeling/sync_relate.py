@@ -32,7 +32,7 @@ from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, FaceRef, Items, Length, Plane, Point3
 from nx_mcp.domains.modeling import common
 from nx_mcp.kit import args as kargs
-from nx_mcp.kit import builders, expr, geom, licenses, measure, readback, select
+from nx_mcp.kit import builders, expr, geom, licenses, measure, readback, result, select
 
 SYNC_LICENSE = "nx_synchronous"
 
@@ -77,6 +77,7 @@ class _RelateData(common.FeatureData):
 
 class RelateData(_RelateData, total=False):
     distance: Annotated[float, Doc("offset: the distance reached between the two faces")]
+    face: Annotated[result.Row, Doc("The moved face, when NX rebuilt it under a new ref")]
 
 
 def _shape(tx, face):
@@ -183,6 +184,36 @@ def _wanted_angle(relation, m, s) -> float | None:
 
 def _read_back(relation, m, s, mirror, through, distance=0.0):
     """``(angle, gap)`` after the edit; a relation NX did not meet fails the call."""
+    angle, gap, off, tol = _measure(relation, m, s, mirror, through, distance)
+    if off is not None:
+        readback.expect_close(off, 0.0, "through", tol=tol)
+    wanted = _wanted_angle(relation, m, s)
+    if angle is not None and wanted is not None:
+        readback.expect_close(angle, wanted, "angle", tol=1e-3)
+    if gap is not None:
+        readback.expect_close(gap, 0.0, "gap", tol=tol)
+    return angle, gap
+
+
+def _met(relation, m, s, mirror, through, distance=0.0) -> bool:
+    """Whether the faces already satisfy the relation (nothing would move): every measure
+    the relation fixes reads met, and it fixes at least one."""
+    angle, gap, off, tol = _measure(relation, m, s, mirror, through, distance)
+    wanted = _wanted_angle(relation, m, s)
+    checks = []
+    if angle is not None and wanted is not None:
+        checks.append(abs(angle - wanted) <= 1e-3)
+    if gap is not None:
+        checks.append(gap <= tol)
+    elif relation not in ("parallel", "perpendicular"):
+        return False  # the relation fixes a position this read cannot check
+    if off is not None:
+        checks.append(abs(off) <= tol)
+    return bool(checks) and all(checks)
+
+
+def _measure(relation, m, s, mirror, through, distance=0.0):
+    """``(angle, gap, through offset, tolerance)`` of two face frames for ``relation``."""
     scale = max(1.0, *map(abs, m["point"]), *map(abs, s["point"]))
     tol = TOL * scale
     angle = _angle(m["dir"], s["dir"]) if {m["type"], s["type"]} <= set(LINEAR) else None
@@ -207,20 +238,15 @@ def _read_back(relation, m, s, mirror, through, distance=0.0):
                 gap = _line_gap(m["point"], point, image)
         else:
             gap = geom.dist(m["point"], point)
+    off = None
     if through is not None and m["type"] == select.FACE_PLANE:
-        readback.expect_close(geom.dot(geom.sub(through, m["point"]), m["dir"]), 0.0,
-                              "through", tol=tol)  # fmt: skip
-    wanted = _wanted_angle(relation, m, s)
-    if angle is not None and wanted is not None:
-        readback.expect_close(angle, wanted, "angle", tol=1e-3)
-    if gap is not None:
-        readback.expect_close(gap, 0.0, "gap", tol=tol)
-    return angle, gap
+        off = geom.dot(geom.sub(through, m["point"]), m["dir"])
+    return angle, gap, off, tol
 
 
 @tool(
     effect="model",
-    label="Relate faces",
+    label="Relate faces (coplanar, tangent, offset...)",
     summary="Make {face} {relation} to {to}",
     keywords=(
         "make coplanar",
@@ -229,8 +255,8 @@ def _read_back(relation, m, s, mirror, through, distance=0.0):
         "make perpendicular",
         "make tangent",
         "make symmetric",
-        "make offset",
-        "make holes concentric",
+        "face offset from face",
+        "flush faces",
     ),
     requires=("work_part", "no_active_sketch"),
     variants="relation",
@@ -301,7 +327,18 @@ def nx_edit_face_relation(
             point = (
                 kargs.vec3(through, "/through") if through is not None else _through(tx, moving, m)
             )
+        checkable = through is None or m["type"] == select.FACE_PLANE
+        if checkable and _met(relation, m, s, mirror, point, float(distance or 0.0)):
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"face is already {relation} to to: the edit would move nothing (NX would "
+                "still add an empty feature)",
+                field="/face",
+                hint="Skip this edit; nx_measure_distance or nx_measure_angle confirm the faces",
+                retry="never",
+            )
     before = measure.volume(tx, body)
+    centre = _centre(tx, moving, m)
     part = tx.part
     rule = part.ScRuleFactory.CreateRuleFaceDumb([moving, *group])
     with (
@@ -336,19 +373,61 @@ def nx_edit_face_relation(
     # body keeps the moved face and deletes the other), so a dead one reads as before.
     still = _alive_shape(tx, fixed, s)
     moved = _alive_shape(tx, moving, None)
-    if moved is None:  # merged into the stationary face: only coplanar does that
-        readback.expect(relation == "coplanar", "face", "NX deleted the moved face")
+    replaced = None
+    if moved is None and relation == "coplanar":  # merged into the stationary face
         moved = still
+    elif moved is None:  # NX rebuilt the face (a plane made tangent to a boss of its body)
+        replaced = _replacement(tx, body, fixed, m, centre, (relation, still, mirror, point,
+                                float(distance or 0.0)))  # fmt: skip
+        readback.expect(replaced is not None, "face", "NX deleted the moved face and no face "
+                        f"of the body is {relation} to to")  # fmt: skip
+        moving, moved = replaced
     after = moved, still
     angle, gap = _read_back(relation, *after, mirror, point, float(distance or 0.0))
     out = common.result_of(tx, feature, [body])
-    return {
+    data: RelateData = {
         **out,
         "volume_change": out["volume"] - before,
         "angle": angle,
         "gap": gap,
         **_reached(tx, relation, moving, s),
     }
+    if replaced is not None:
+        data["face"] = tx.ref(moving, kind="face")
+    return data
+
+
+def _centre(tx, face, shape):
+    """The centre of a face's box, else its frame point."""
+    try:
+        low, high = measure.bounds(tx, face)
+    except Exception:  # noqa: BLE001 - no box: the frame point stands in
+        return shape["point"]
+    return geom.scale(geom.add(low, high), 0.5)
+
+
+def _replacement(tx, body, fixed, m, centre, wanted):
+    """``(face, frame)``: the face NX made in place of the moved one, a face of the body of
+    its type that meets the relation (``wanted``: relation, stationary frame, mirror,
+    through, distance), facing the same way and nearest the old face's centre; or None."""
+    relation, still, mirror, point, distance = wanted
+    found = []
+    for face in body.GetFaces():
+        if int(face.Tag) == int(fixed.Tag):
+            continue
+        try:
+            shape = _shape(tx, face)
+        except Exception:  # noqa: BLE001 - a face UF cannot describe: not the moved one
+            continue
+        if shape["type"] != m["type"] or not _met(relation, shape, still, mirror, point, distance):
+            continue
+        if shape["type"] == select.FACE_PLANE and geom.dot(shape["dir"], m["dir"]) <= 0:
+            continue
+        found.append((geom.dist(_centre(tx, face, shape), centre), face, shape))
+    if not found:
+        return None
+    _gap, face, shape = min(found, key=lambda row: row[0])
+    return face, shape
 
 
 def _reached(tx, relation, moving, s) -> dict:

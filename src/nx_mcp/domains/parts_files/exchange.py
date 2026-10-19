@@ -130,7 +130,13 @@ class ExportData(TypedDict):
     shapes: int | None
     triangles: int | None
     bounds: Annotated[
-        Bounds | None, Doc("The file's extent; STEP, Parasolid, DWG: the exported bodies' box")
+        Bounds | None,
+        Doc(
+            "File extent (IGES control points, facets: approximate); STEP, Parasolid, DWG: bodies' box"
+        ),
+    ]
+    model_bounds: Annotated[
+        Bounds | None, Doc("IGES, STL, JT, DXF: the exported bodies' exact box")
     ]
     tolerances: dict | None
     part: result.Row
@@ -403,6 +409,7 @@ def nx_export_model(
         if written != temp:
             written.replace(temp)  # e.g. an ASCII STL written as <name>.stl.txt
         tx.files.publish()
+        files.note_written(tx, target)
     finally:
         with contextlib.suppress(OSError):
             shutil.rmtree(temp.parent)
@@ -572,7 +579,7 @@ def _verify(tx, format, facts, exported, selected, target, opts, log) -> dict:
     report = {
         "schema": None, "encoding": "text", "units": units, "file_units": file_units,
         "solids": None, "surfaces": None, "shapes": None, "triangles": None,
-        "bounds": None, "tolerances": None,
+        "bounds": None, "model_bounds": None, "tolerances": None,
     }  # fmt: skip
     if format in ("step", "step_ap242"):
         schema = "AP242" if format == "step_ap242" else "AP214"
@@ -635,7 +642,7 @@ def _verify(tx, format, facts, exported, selected, target, opts, log) -> dict:
     if format != "parasolid" and file_units is not None:
         readback.expect(file_units == units, "file_units", file_units=file_units, part=units)
     if facts.get("min") is not None:
-        report["bounds"] = _check_extent(tx, format, facts, exported, opts)
+        report["bounds"], report["model_bounds"] = _check_extent(tx, format, facts, exported, opts)
     elif exported:  # STEP, Parasolid, DWG: the file states no extent; the bodies' box
         with contextlib.suppress(Exception):
             low, high = measure.bounds(tx, exported, exact=measure.wcs_is_absolute(tx))
@@ -643,8 +650,9 @@ def _verify(tx, format, facts, exported, selected, target, opts, log) -> dict:
     return report
 
 
-def _check_extent(tx, format, facts, exported, opts) -> dict:
-    """The file's extent (STL in part units) against the bodies' box. Tessellations
+def _check_extent(tx, format, facts, exported, opts) -> tuple[dict, dict]:
+    """The file's extent (STL in part units) and the bodies' box, checked against each
+    other. Tessellations
     (STL, JT) lie within the chordal tolerance of the exact box; IGES control points
     enclose it. With a rotated WCS only the conservative box is known: it encloses the
     tessellation."""
@@ -682,4 +690,4 @@ def _check_extent(tx, format, facts, exported, opts) -> dict:
         model_max=high,
         tolerance=tol,
     )
-    return {"min": file_low, "max": file_high}
+    return {"min": file_low, "max": file_high}, {"min": list(low), "max": list(high)}

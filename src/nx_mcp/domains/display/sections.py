@@ -29,7 +29,7 @@ from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import REF_PATTERN, Doc, Length, Name, Point3, RefTo, Text, Vec3
 from nx_mcp.domains.display.common import choice
-from nx_mcp.kit import display, geom, readback, select
+from nx_mcp.kit import display, geom, measure, readback, select
 from nx_mcp.kit.result import Row
 
 # Principal planes and the normal each one's section gets (its positive side is hidden).
@@ -244,6 +244,23 @@ def _data(tx, part, view, section) -> SectionData:
     }
 
 
+def _misses_note(tx, origin, normal) -> None:
+    """An ``NX_NOTE`` when the plane misses the shown bodies' box: it then hides all of
+    them or none (a plausible offset is relative to the model)."""
+    with contextlib.suppress(Exception):  # a note only: never fails the call
+        shown = display.shown_bodies(tx)
+        if not shown:
+            return
+        low, high = measure.bounds(tx, shown)
+        corners = [[(low, high)[(i >> k) & 1][k] for k in range(3)] for i in range(8)]
+        sides = [geom.dot(geom.sub(c, origin), normal) for c in corners]
+        tol = geom.tol(low, high)
+        if min(sides) > tol or max(sides) < -tol:
+            what = "hides every body" if min(sides) > tol else "cuts no body"
+            tx.warn("NX_NOTE", f"The section plane misses the bodies' box {_rounded(low)} to "
+                    f"{_rounded(high)}: it {what}")  # fmt: skip
+
+
 def _expect_plane(state, origin, normal):
     readback.expect_close(state["origin"], origin, "origin")
     readback.expect_same_direction(geom.unit(state["normal"]), normal, "normal")
@@ -286,9 +303,9 @@ def nx_create_section_view(
     name: Name | None = None,
     cap: bool = True,
 ) -> SectionData:
-    """Cut the model view with a section plane, {origin, normal} or 'xz' + offset; the model
-    is unchanged. The normal's side is hidden (hidden_side). Saved with the part until
-    nx_delete_objects (remove_with). One cuts at a time: a new one needs the cutting one
+    """Cut the model view with a section plane, {origin, normal} or 'xz'; offset moves it
+    along the normal. The model is unchanged. The normal's side is hidden (hidden_side).
+    Saved with the part until nx_delete_objects (remove_with). One cuts at a time: a new one needs the cutting one
     switched off (nx_edit_section_view enabled=false), which enabled=true turns back on."""
     origin, normal = _plane(plane, offset)
     with tx.checks():
@@ -313,6 +330,7 @@ def nx_create_section_view(
         _expect_plane(out, origin, normal)
         readback.expect(out["cap"] == cap, "cap", cap=out["cap"])
         readback.expect(out["active"] and out["sectioning"], "active", active=out["active"])
+    _misses_note(tx, out["origin"], geom.unit(out["normal"]))
     _remember(tx, part, section, out)
     tx.frame = "display_part_absolute"
     return out
@@ -373,6 +391,8 @@ def nx_edit_section_view(
             on = out["active"] and out["sectioning"]
             readback.expect(on == enabled, "enabled", active=out["active"],
                             sectioning=out["sectioning"])  # fmt: skip
+    if moved:
+        _misses_note(tx, out["origin"], geom.unit(out["normal"]))
     _remember(tx, part, target, out)
     tx.frame = "display_part_absolute"
     return out
@@ -420,6 +440,7 @@ def list_sections(tx, owner, owner_kind):
         details["sectioning"] = (
             bool(view.DisplaySectioningToggle) and state["active"] if displayed else None
         )
+        details["enabled"] = details["sectioning"]  # as create and edit report it
         out.append((section, "section_view", {"type": "one_plane", "details": details}))
     return out
 

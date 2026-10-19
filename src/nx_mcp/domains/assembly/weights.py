@@ -89,7 +89,8 @@ def nx_set_component_mass(
     clear: bool = False,
 ) -> ComponentMassData:
     """Assert a component's mass and CoG (NX weight management), e.g. a bought-in engine;
-    level part: all its uses; center omitted keeps an asserted CoG; clear deletes it."""
+    level part writes the component's part (all its uses; an occurrence assertion wins);
+    center omitted keeps an asserted CoG; clear deletes it."""
     if clear and (mass is not None or center is not None):
         fail("NX_INVALID_ARGUMENT", "clear takes no mass or center", field="/clear")
     if not clear and mass is None:
@@ -137,6 +138,8 @@ def nx_set_component_mass(
             readback.expect(mp.asserted(tx, target) is None, "assertion",
                             "NX kept the asserted mass")  # fmt: skip
             tx.modified(row)
+            tx.note_restore({"component": component, "level": level,
+                             "before": _assertion(tx, before, previous, level), "after": None})  # fmt: skip
         return {"component": row, "level": level, "part": part_name, "mass": None,
                 "center_of_gravity": None, "cleared": before is not None,
                 "previous": previous}  # fmt: skip
@@ -167,6 +170,9 @@ def nx_set_component_mass(
         readback.expect(center_back is not None, "center", "NX did not assert the centre")
         readback.expect_close(center_back, wanted, "center")
     tx.modified(row)
+    tx.note_restore({"component": component, "level": level,
+                     "before": _assertion(tx, before, previous, level),
+                     "after": {"mass": float(got["mass"]), "center": given}})  # fmt: skip
     return {
         "component": row,
         "level": level,
@@ -176,6 +182,57 @@ def nx_set_component_mass(
         "cleared": False,
         "previous": previous,
     }
+
+
+def _assertion(tx, found, previous, level) -> dict | None:
+    """An assertion as ``mp.assert_weight`` takes it: mass, and the centre in mm in the
+    frame of ``level`` (occurrence: the assembly's; part: the part's)."""
+    if found is None:
+        return None
+    center = None
+    if level == "part" and found.get("center") is not None:
+        center = [float(v) for v in found["center"]]
+    elif level == "occurrence" and previous and previous.get("center_of_gravity") is not None:
+        mm = kunits.MM_PER[kunits.part_units(tx)]
+        center = geom.scale(previous["center_of_gravity"], mm)
+    return {"mass": found.get("mass"), "center": center}
+
+
+def _same_mass(found, wanted) -> bool:
+    if found is None or wanted is None:
+        return found is None and wanted is None
+    if found.get("mass") is None or wanted.get("mass") is None:
+        return found.get("mass") is None and wanted.get("mass") is None
+    return abs(float(found["mass"]) - float(wanted["mass"])) <= 1e-9 * max(
+        1.0, abs(float(wanted["mass"]))
+    )
+
+
+@restorer("nx_set_component_mass")
+def _restore_mass(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Give a component (or its part, level part) the assertion it had before
+    nx_set_component_mass, or none: refused when the assertion changed since."""
+    ref, level, before, after = data["component"], data["level"], data["before"], data["after"]
+    c = select.resolve(tx, ref, "component", field="/component")
+    target = c if level == "occurrence" else getattr(c, "Prototype", None)
+    if target is None:
+        fail("NX_NOT_LOADED", f"The part of {ref} is not loaded", details={"component": ref})
+    now = mp.asserted(tx, target)
+    if not _same_mass(now, after):
+        fail("NX_DEPENDENCY_ORDER", f"The asserted mass of {ref} changed since the operation",
+             details={"component": ref, "mass": None if now is None else now.get("mass")})  # fmt: skip
+    if apply:
+        if before is None or before.get("mass") is None:
+            mp.clear_weight(tx, target, level)
+            readback.expect(mp.asserted(tx, target) is None, "assertion",
+                            "NX kept the asserted mass")  # fmt: skip
+        else:
+            mp.assert_weight(tx, target, level, float(before["mass"]), before.get("center"))
+            got = mp.asserted(tx, target)
+            readback.expect(_same_mass(got, before), "mass", "NX did not assert the mass back")
+    if before is None or before.get("mass") is None:
+        return f"the asserted mass of {ref} cleared"
+    return f"the asserted mass of {ref} back to {before['mass']:g} kg"
 
 
 # ---------------------------------------------------------------------------
@@ -372,7 +429,8 @@ def nx_edit_component_group(
     delete: Annotated[bool, Doc("Delete the group (its components stay)")] = False,
 ) -> GroupEditData:
     """Rename or delete a user component group of the work part's assembly; the components
-    stay. Redefine members with nx_create_component_group(replace=true)."""
+    stay. Redefine members with nx_create_component_group(replace=true), which also
+    recreates a deleted group."""
     if (new_name is not None) == delete:
         fail("NX_INVALID_ARGUMENT", "Give new_name or delete=true (one of them)",
              field="/new_name" if delete else "/delete")  # fmt: skip
@@ -395,11 +453,13 @@ def nx_edit_component_group(
                      field="/new_name", details={"existing": str(clash.Name)})  # fmt: skip
     old = str(group.Name)
     if delete:
+        kept = [tx.ref(c, "component")["id"] for c in mp.group_members(group)]
         with mp.licensed(tx), native(default="NX_BUILD_FAILED"):
             tx.session.UpdateManager.AddToDeleteList([group])
         model.update(tx)
         readback.expect(mp.find_group(part, old) is None, "deleted",
                         "NX kept the component group")  # fmt: skip
+        tx.note_restore({"deleted": old, "members": kept})
         return {"deleted": old, "remaining": [str(g.Name) for g, _m in mp.groups(part)]}
     assert new_name is not None
     with mp.licensed(tx), native(default="NX_BUILD_FAILED"):
@@ -420,6 +480,22 @@ def _group_now(tx, name):
 
 def _member_tags(group) -> set[int]:
     return {int(c.Tag) for c in mp.group_members(group)}
+
+
+def _recreate_group(tx, name, refs, *, apply: bool) -> str:
+    clash = mp.find_group(tx.part, name)
+    if clash is not None:
+        fail("NX_DEPENDENCY_ORDER", f"A component group {clash.Name} exists again since the "
+             "operation; undo the later operations first")  # fmt: skip
+    wanted = [select.resolve(tx, r, "component", field="/components") for r in refs]
+    if apply:
+        with mp.licensed(tx), native(default="NX_BUILD_FAILED"):
+            group = tx.part.ComponentGroups.CreateComponentGroup(name)
+            for c in wanted:
+                group.AddComponent(c, False)
+        readback.expect(_member_tags(group) == {int(c.Tag) for c in wanted}, "members",
+                        "Component group members differ")  # fmt: skip
+    return f"component group {name} recreated with its {len(refs)} members"
 
 
 @restorer("nx_create_component_group")
@@ -456,7 +532,10 @@ def _restore_group(tx: Tx, data: dict, *, apply: bool) -> str:
 
 @restorer("nx_edit_component_group")
 def _restore_group_name(tx: Tx, data: dict, *, apply: bool) -> str:
-    """Rename a group nx_edit_component_group renamed back (a delete is not restorable)."""
+    """Rename a group nx_edit_component_group renamed back, or recreate a group it deleted
+    with its members: refused when a group of that name exists again."""
+    if "deleted" in data:
+        return _recreate_group(tx, data["deleted"], data["members"], apply=apply)
     group = _group_now(tx, data["after"])
     if apply:
         clash = mp.find_group(tx.part, data["before"])

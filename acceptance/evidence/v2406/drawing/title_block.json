@@ -16,12 +16,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_edit_drawing_table": "ed691319b41fbb120152e1ea513c496bdc10a41105a2959216fc9286d1781768",
-    "nx_get_drawing_table": "ed691319b41fbb120152e1ea513c496bdc10a41105a2959216fc9286d1781768",
-    "nx_create_drawing_table": "ed691319b41fbb120152e1ea513c496bdc10a41105a2959216fc9286d1781768",
-    "nx_update_annotations": "b0ad94cd46a47e0ed470885bdd5860f9b0779d0b8a8a4cf38ee7bed7c185bc62"
+    "nx_edit_drawing_table": "d5c8d5e3e9e9aedb6de350fc11c4cbb5982ab57a7a891222afd97a01191ced22",
+    "nx_get_drawing_table": "d5c8d5e3e9e9aedb6de350fc11c4cbb5982ab57a7a891222afd97a01191ced22",
+    "nx_create_drawing_table": "d5c8d5e3e9e9aedb6de350fc11c4cbb5982ab57a7a891222afd97a01191ced22",
+    "nx_update_annotations": "b8ff43f5189bf801d079e32c70f7cf77837c03819b487e413cbc4fb659a59d2b"
   },
-  "recorded": "2026-10-16T13:11:55Z",
+  "recorded": "2026-10-19T11:02:53Z",
   "passed": true,
   "checks": 57,
   "failed_checks": 0,

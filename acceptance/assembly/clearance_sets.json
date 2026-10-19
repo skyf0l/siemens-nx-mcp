@@ -72,6 +72,19 @@
    "expect": {"error.code": "NX_NOT_FOUND", "mutation_outcome": "not_started"}},
   {"call": "nx_create_part", "setup": true, "args": {"path": "$run/cs_empty.prt", "units": "mm"}},
   {"call": "nx_list_clearance_sets", "args": {"part": "cs_empty"},
-   "expect": {"ok": true, "data.items": {"count": 0}, "warnings.0.code": "NX_NOTE"}}
+   "expect": {"ok": true, "data.items": {"count": 0}, "warnings.0.code": "NX_NOTE"}},
+  {"call": "nx_set_component_pose", "setup": true, "args": {"part": "$part", "component": "$C.data.component.id", "mode": "absolute", "translation": [-100, 0, 0]}},
+  {"call": "nx_run_clearance_set", "setup": true, "args": {"part": "$part", "name": "ER", "overlap": false}},
+  {"call": "nx_edit_component", "setup": true, "args": {"part": "$part", "components": ["$C.data.component.id"], "suppressed": true}},
+  {"call": "nx_run_clearance_set", "intent": "C is suppressed: its pair is skipped", "args": {"part": "$part", "name": "ER", "overlap": false}, "expect": {"mutation_outcome": "committed", "data.summary.touching": 0, "data.summary.hard": 1, "data.cleared": {"count": 0}, "data.skipped_suppressed": {"count": 1}, "data.skipped_suppressed.0.previous_type": "touching", "data.skipped_suppressed.0.objects": {"contains": {"name": "C"}}}},
+  {"call": "nx_create_clearance_set", "save": "aft", "args": {"part": "$part", "name": "AFT", "objects": ["$A.data.component.id", "$B.data.component.id"], "run": false}, "expect": {"mutation_outcome": "committed", "data.clearance_set.objects": 2}},
+  {"call": "nx_undo_operation", "args": {"part": "$part", "mode": "compensate"}, "intent": "Acceptance: delete the created set by compensation", "expect": {"ok": true, "data.compensated": true, "data.restored.0": {"matches": "AFT deleted"}}},
+  {"call": "nx_list_clearance_sets", "args": {"part": "$part"}, "expect": {"data.items": {"count": 1}, "data.items.0.name": "ER"}},
+  {"call": "nx_edit_component", "setup": true, "args": {"part": "$part", "components": ["$C.data.component.id"], "suppressed": false}},
+  {"call": "nx_create_clearance_set", "setup": true, "args": {"part": "$part", "name": "FWD", "objects": ["$A.data.component.id"], "against": ["$B.data.component.id", "$C.data.component.id"], "exclude": [["$A.data.component.id", "$B.data.component.id"]], "clearance": 4, "run": false}},
+  {"call": "nx_delete_clearance_set", "save": "dfwd", "args": {"part": "$part", "name": "FWD"}, "expect": {"mutation_outcome": "committed", "data.deleted": "FWD"}},
+  {"call": "nx_undo_operation", "args": {"part": "$part", "mode": "compensate"}, "intent": "Acceptance: create the deleted set again by compensation", "expect": {"ok": true, "data.compensated": true, "data.restored.0": {"matches": "FWD created again"}}},
+  {"call": "nx_list_clearance_sets", "args": {"part": "$part"}, "expect": {"data.items": {"count": 2}, "data.items.1.name": "FWD", "data.items.1.objects": 1, "data.items.1.against": 2, "data.items.1.clearance": {"close": 4, "tol": 1e-09}}},
+  {"call": "nx_run_clearance_set", "args": {"part": "$part", "name": "FWD", "overlap": false}, "expect": {"mutation_outcome": "committed", "data.summary.excluded_pairs": 1, "data.summary.hard": 0}}
  ]
 }

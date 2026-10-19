@@ -2,6 +2,7 @@
 
 import pytest
 
+from nx_mcp.core import catalogue
 from tests.kit import run
 from tests.unit.freeform.fakes import curve, edge, face, flat, freeform_nx, made, sheet
 
@@ -61,9 +62,9 @@ def test_n_sided_g1_uses_the_boundary_edges_faces():
     nx = freeform_nx()
     edges, faces = frame_edges(nx)
     patch_commit(nx)
-    ok = run(nx, "nx_create_n_sided_surface", boundary=[e.ref for e in edges], continuity="g1",
-             type="triangular")  # fmt: skip
-    assert ok.ok, ok
+    example = dict(catalogue.get("nx_create_n_sided_surface").example)  # the schema example
+    ok = run(nx, "nx_create_n_sided_surface", **{**example, "boundary": [e.ref for e in edges]})
+    assert ok.ok and ok.data["type"] == "triangular" and ok.data["continuity"] == "g1", ok
     b = nx.last("NSidedSurfaceBuilder")
     g1 = nx.nx.GeometricUtilities.Continuity.ContinuityTypes.G1
     assert b.Continuity.ContinuityType is g1
@@ -264,3 +265,19 @@ def test_ruled_crossing_refusal_points_at_reverse_second(code):
     bad = run(nx, "nx_create_ruled", first=a.ref, second=b.ref, reverse_second=True)
     assert bad.error["code"] == "NX_BUILD_FAILED" and "reverse_second" in bad.error["hint"]
     assert bad.mutation_outcome == "rolled_back"
+
+
+def test_ruled_bowtie_between_two_lines_warns():
+    nx = freeform_nx()
+    a = curve(nx, [0, 0, 0], [10, 0, 0])
+    b = curve(nx, [0, 0, 10], [10, 0, 10])
+
+    def bowtie(_b):  # NX: two triangles meeting where the rulings cross
+        faces = [face(nx, flat(), area=25.0), face(nx, flat(), area=25.0)]
+        return made(nx, "RULED", [sheet(nx, (0, 0, 0, 10, 0, 10), faces)])
+
+    nx.on_commit("RuledBuilder", bowtie)
+    ok = run(nx, "nx_create_ruled", first=a.ref, second=b.ref, reverse_second=True)
+    assert ok.ok and ok.data["faces"] == 2, ok
+    assert [w["code"] for w in ok.warnings] == ["NX_UPDATE_WARNING"]
+    assert "reverse_second" in ok.warnings[0]["message"]

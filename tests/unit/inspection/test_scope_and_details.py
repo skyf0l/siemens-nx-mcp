@@ -214,12 +214,18 @@ def test_curve_analysis_gives_length_normals_and_takes_a_one_curve_feature():
     assert many.error["code"] == "NX_WRONG_KIND" and "2 curves" in many.error["message"]
 
 
-def test_inflections_are_where_the_normal_flips():
+def test_inflections_are_where_the_signed_curvature_flips():
+    """Bisected between the bracketing samples: the flip at t = 0.6 is found to 1e-6."""
     from nx_mcp.domains.inspection import analysis
 
-    rows = [{"t": 0.0, "normal": [0, 1, 0]}, {"t": 0.5, "normal": [0, 1, 0]},
-            {"t": 1.0, "normal": [0, -1, 0]}]  # fmt: skip
-    assert analysis._inflections(rows) == [0.75]
+    def at(t):
+        side = [0, 1, 0] if t < 0.6 else [0, -1, 0]
+        return {"t": t, "point": [t, 0, 0], "tangent": [1, 0, 0], "normal": side}
+
+    rows = [at(0.0), at(0.5), at(1.0)]
+    assert analysis._inflections(rows, at) == [pytest.approx(0.6, abs=1e-6)]
+    flat = [{"t": t, "point": [t, 0, 0], "tangent": [1, 0, 0], "normal": None} for t in (0, 1)]
+    assert analysis._inflections(flat, at) == []
 
 
 def test_continuity_of_curves_far_apart_leaves_g1_g2_open(monkeypatch):

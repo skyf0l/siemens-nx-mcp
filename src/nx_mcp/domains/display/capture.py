@@ -18,7 +18,11 @@ that size without a warning (Studio quality: 1024x768); given
 ones are honoured: when the window differs, a shaded model view is rendered again at
 the exact size by Studio capture in the same style (``quality`` then says ``studio``;
 measured: same look, letterboxed to the window's aspect). A wireframe view or a drawing
-sheet keeps the window size with an ``NX_APPROXIMATED`` warning. Studio quality on a
+sheet (and a shaded view Studio fails to render) is scaled down into the requested size
+with its aspect kept, padded with its background (``kit.capture.fit_png``, an
+``NX_NOTE``); only a PNG it cannot read keeps the window size with an ``NX_APPROXIMATED``
+warning. ``style`` reports the style rendered (the view's own for ``current``) and
+``quality`` the renderer used. Studio quality on a
 drawing sheet is refused: NX 2406 renders the sheet's frame and centrelines but drops the
 views' geometry (wireframe drafting curves). Captures never use a desktop screenshot. The rendering style, lighting and (with ``fit``) the
 camera are put back afterwards, so the engineer's view is unchanged and the result's
@@ -27,7 +31,10 @@ and Studio captures in the current style, and a viewport capture in another styl
 the part unmodified; ``style=studio`` and ``lighting`` mark it modified although both are
 put back (NX stores them in the part), which ``marks_part_modified`` (true only when this
 capture set the flag; a part modified before stays so) and a warning report.
-``hidden_sketches`` counts the sketches and datums blanked for the capture only.
+``hidden_sketches`` and ``hidden_datums`` count the sketches and the datum objects (a
+datum CSYS is its planes, axes and point too) blanked for the capture only. A part that
+is not displayed is shown for the capture (gate 4s) with its own stored camera, which
+may frame something else: ``fit`` then defaults to true.
 
 ``sheet`` (a sheet ref or name of the shown part) captures that drawing sheet: it is
 opened for the capture only and the part's previous sheet or model view comes back
@@ -96,6 +103,7 @@ class CaptureData(TypedDict, total=False):
     style: str
     camera: Camera
     hidden_sketches: int
+    hidden_datums: int
     sheet: Row
 
 
@@ -240,7 +248,9 @@ def nx_capture_view(
     if up is not None and view_from is None:
         fail("NX_INVALID_ARGUMENT", "up goes with view_from", field="/up")
     aim = display.rotation_from(view_from, up) if view_from is not None else None
-    fit = aim is not None if fit is None else fit
+    if fit is None:  # a part shown for this call only keeps a camera nobody looked at
+        bound = getattr(tx, "bound", None)
+        fit = aim is not None or bool(getattr(bound, "switched", False))
     replacing = path is not None and Path(path).exists()
     if replacing and not overwrite:
         fail(
@@ -306,14 +316,10 @@ def nx_capture_view(
         _contour_note(tx, part)
     if tx.display.kept:
         tx.display.restore()  # the fitted camera goes back: the engineer's view is unchanged
+    if exact and list(size) != [width, height]:
+        size = _fitted(tx, temp, size, width, height, why)
     published = tx.files.publish()[0]  # with overwrite: atomic replace of the old PNG
     meta = files.metadata(published, root)
-    if exact and list(size) != [width, height]:
-        tx.warn(
-            "NX_APPROXIMATED",
-            f"NX exported the graphics window at {size[0]}x{size[1]}, not {width}x{height}: "
-            f"{why} is captured at the window size",
-        )
     if not was_modified and bool(part.IsModified):
         tx.warn(
             "NX_UPDATE_WARNING",
@@ -327,7 +333,6 @@ def nx_capture_view(
             "overwritten": published in tx.files.replaced,
             "marks_part_modified": not was_modified and bool(part.IsModified),
             "resolution": list(size),
-            "style": style,
             "image": {
                 "path": meta["path"],
                 "sha256": meta["sha256"],
@@ -341,10 +346,31 @@ def nx_capture_view(
     return out
 
 
+def _fitted(tx, temp, size, width, height, why):
+    """Scale the window-size PNG at ``temp`` into ``width`` x ``height`` (aspect kept,
+    padded with its background); the window size stays, with a warning, when it cannot."""
+    try:
+        fitted = capture.fit_png(temp, width, height)
+    except (ValueError, OSError):
+        tx.warn(
+            "NX_APPROXIMATED",
+            f"NX exported the graphics window at {size[0]}x{size[1]}, not {width}x{height}: "
+            f"{why} is captured at the window size",
+        )
+        return size
+    tx.warn(
+        "NX_NOTE",
+        f"NX exports the graphics window at {size[0]}x{size[1]}: {why} was scaled down to fit "
+        f"{width}x{height}, aspect kept, padded with the background",
+    )
+    return fitted
+
+
 def _render(tx, part, out, temp, *, on_sheet, fit, aim, quality, style, backdrop, rgb,
             lighting, hide_sketches, exact, width, height):  # fmt: skip
-    """Write the shown sheet or model view to ``temp``: ``(size, what was captured)``."""
-    why = "a drawing sheet" if on_sheet else "a wireframe view"
+    """Write the shown sheet or model view to ``temp``: ``(size, what was captured)``.
+    Sets ``out``'s camera, style (the one rendered), quality and hidden counts."""
+    why = "the drawing sheet" if on_sheet else "the wireframe view"
     if on_sheet:
         current = drawing.current(part)
         if current is not None:
@@ -364,8 +390,11 @@ def _render(tx, part, out, temp, *, on_sheet, fit, aim, quality, style, backdrop
         out["camera"] = camera_row(display.camera(tx, view))
         tx.frame = "display_part_absolute"
     chosen = None if style == "current" else style
+    out["style"] = style if on_sheet else chosen or out["camera"].get("style") or style
     hide = display.capture_clutter(tx, part) if hide_sketches and not on_sheet else []
-    out["hidden_sketches"] = len(hide)
+    sketches = {int(x.Tag) for x in getattr(part, "Sketches", []) or []}
+    out["hidden_sketches"] = sum(1 for x in hide if int(x.Tag) in sketches)
+    out["hidden_datums"] = len(hide) - out["hidden_sketches"]
     with tx.scratch() if hide else contextlib.nullcontext():
         try:
             for obj in hide:
@@ -381,7 +410,7 @@ def _render(tx, part, out, temp, *, on_sheet, fit, aim, quality, style, backdrop
                 size = capture.viewport_png(
                     tx, temp, width, height, style=chosen, background=backdrop, color=rgb
                 )
-                shown = chosen or out.get("camera", {}).get("style")
+                shown = out["style"]
                 if exact and list(size) != [width, height] and not on_sheet and shown in SHADED:
                     studio = _studio_over(tx, temp, width, height, chosen, backdrop, rgb)
                     if studio is not None:
@@ -393,7 +422,7 @@ def _render(tx, part, out, temp, *, on_sheet, fit, aim, quality, style, backdrop
                         )
                         size, out["quality"] = studio, "studio"
                     else:
-                        why = "NX's Studio render failed, so the view"
+                        why = "the view (NX's Studio render failed)"
         finally:
             for obj in hide:  # the scratch undo restores them too (and the modified flag)
                 with contextlib.suppress(Exception):

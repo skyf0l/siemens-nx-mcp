@@ -196,8 +196,10 @@ def resolve_size(rows, standard, text, field="/size") -> tuple[str, str]:
                 details={"candidates": found[:20]},
             )
     keys = {_size_key(s): s for name in tried for s in _sizes(rows, name)}
-    near = [keys[k] for k in difflib.get_close_matches(_size_key(text), list(keys), 3, 0.6)]
-    near = near or _nearest_sizes(rows, tried, text)
+    spelled = [keys[k] for k in difflib.get_close_matches(_size_key(text), list(keys), 3, 0.6)]
+    # A metric size: the sizes next to its number ('M7.3': M7, M8), not look-alikes ('M27').
+    numbered = _nearest_sizes(rows, tried, text) if "/" not in str(text) else []
+    near = numbered or spelled
     guess = f"; did you mean {near[0]!r}?" if near else ""
     where = " or ".join(repr(t) for t in tried) or "the thread table"
     fail(
@@ -214,8 +216,8 @@ def resolve_size(rows, standard, text, field="/size") -> tuple[str, str]:
 
 
 def _nearest_sizes(rows, tried, text) -> list[str]:
-    """The sizes of ``tried`` standards with the major diameters next below and above the
-    number in ``text`` ('M7' -> M6 and M8), when it has one."""
+    """The sizes of ``tried`` standards with the number in ``text`` as major diameter, then
+    those next below and above it ('M7' -> M6 and M8), when it has one."""
     match = re.search(r"\d+(?:\.\d+)?", str(text))
     if match is None:
         return []
@@ -225,9 +227,9 @@ def _nearest_sizes(rows, tried, text) -> list[str]:
         major = common.float_or_none(r.get("MajorDiameter"))
         if r.get("Standard") in tried and r.get("Size") and major is not None:
             majors.setdefault(r["Size"], major)
-    below = [s for s, d in majors.items() if d < wanted]
-    above = [s for s, d in majors.items() if d > wanted]
-    out = []
+    out = [s for s, d in majors.items() if abs(d - wanted) <= 1e-9 * max(1.0, wanted)][:1]
+    below = [s for s, d in majors.items() if d < wanted and s not in out]
+    above = [s for s, d in majors.items() if d > wanted and s not in out]
     if below:
         out.append(max(below, key=lambda s: majors[s]))
     if above:
@@ -289,6 +291,10 @@ def check_units(tx, row, field):
             f"{row.get('Standard')} is {row.get('Unit')}; the work part is in "
             f"{units.part_units(tx)}",
             field=field,
+            hint="Use an inch standard (e.g. size '1/4-20') in an inch part"
+            if metric
+            else "Use a metric standard (e.g. size 'M10') in a mm part",
+            retry="after_fix",
         )
 
 
@@ -463,6 +469,8 @@ class ThreadData(TypedDict, total=False):
     engagement: str | None
     length: float
     start_face: result.Row
+    hand: Literal["right", "left"]
+    starts: int
     threads: Annotated[list[ThreadItem], Doc("Several faces: one thread feature each")]
 
 
@@ -545,6 +553,27 @@ def _check_fit(tx, face, internal, diameter, fit, field="/face") -> None:
 MINOR_OFF_PITCHES = 0.25
 
 
+# A custom internal thread deeper than this many pitches into its bore is refused (an ISO
+# thread is 0.54 pitches deep).
+DEEP_PITCHES = 2.0
+
+
+def _check_shaft(plan, major, pitch) -> None:
+    """Refuse a custom external thread whose major diameter stands above the shaft (no
+    material there to cut: major 20 on a 12 shaft); an ISO thread's major is the shaft's."""
+    shaft = 2 * plan["radius"]
+    if major > shaft * (1 + 1e-6) + MINOR_OFF_PITCHES * pitch:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"major_diameter {major:g} is larger than the {shaft:.6g} shaft: an external "
+            "thread's major diameter is the shaft's diameter",
+            field="/spec/major_diameter",
+            hint=f"For this shaft use major_diameter {shaft:.6g} and minor_diameter about "
+            f"{shaft - 1.2269 * pitch:.6g} (ISO 60 degrees), or thread a larger shaft",
+            details={"shaft": shaft, "field": plan["field"]},
+        )
+
+
 def _check_custom(tx, spec, plans) -> None:
     """Warn about a custom (manual) spec: no table row of the part's unit system has its
     major diameter and pitch, or an internal thread does not fit its bore."""
@@ -591,8 +620,20 @@ def _check_custom(tx, spec, plans) -> None:
         )
     for plan in plans:
         if not plan["internal"]:
+            _check_shaft(plan, major, pitch)
             continue
         bore = 2 * plan["radius"]
+        if (major - bore) / 2 > DEEP_PITCHES * pitch:
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"major_diameter {major:g} does not fit the {bore:.6g} bore: a thread "
+                f"{(major - bore) / 2:.6g} deep is over {DEEP_PITCHES:g} pitches; a tapped "
+                "bore is about the minor diameter",
+                field="/spec/major_diameter",
+                hint=f"For this bore use minor_diameter about {bore:.6g} and major_diameter "
+                f"about {bore + 1.0825 * pitch:.6g} (ISO 60 degrees), or open the bore",
+                details={"bore": bore, "field": plan["field"]},
+            )
         if abs(minor - bore) > MINOR_OFF_PITCHES * pitch or (major - bore) / 2 > pitch:
             tx.warn(
                 "NX_NOTE",
@@ -866,7 +907,8 @@ def nx_create_thread(
                        check="volume" if len(bodies) == 1 else f"volume[{i}]")  # fmt: skip
     engagement = row.get("RadialEngage") if row is not None else None
     data: ThreadData = {**out, **made[0][1], "engagement": engagement, "length": plans[0]["span"],
-                        "start_face": tx.ref(plans[0]["start"], kind="face")}  # fmt: skip
+                        "start_face": tx.ref(plans[0]["start"], kind="face"), "hand": hand,
+                        "starts": int(manual.get("starts", 1)) if manual is not None else 1}  # fmt: skip
     if len(plans) > 1:
         data["threads"] = [
             {

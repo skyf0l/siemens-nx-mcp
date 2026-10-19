@@ -272,3 +272,12 @@ def test_a_value_of_the_wrong_kind_is_refused(start, end, field):
     assert not ok.ok and ok.error["field"] == field, ok.error
     assert ok.error["category"] == "invalid_argument"
     assert nx.undos == 0
+
+
+def test_a_word_for_a_value_is_named_without_formula_jargon():
+    nx, _frame, lid, _stop = hatch()
+    ok = run(nx, "nx_run_motion_sweep", joint="revolute", moving=[lid.ref], axis=HINGE,
+             start="abc", end=90)  # fmt: skip
+    message = ok.error["message"]
+    assert "'abc' is not an angle" in message and "expression names are not taken" in message
+    assert "evaluate" not in message

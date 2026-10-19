@@ -81,6 +81,25 @@ def test_feature_and_sketch_targets_expand_to_what_they_show():
     assert ok.ok and body.IsBlanked and curve.IsBlanked and ok.data["count"] == 2
 
 
+def test_a_colour_set_through_a_feature_stays_after_later_display_calls():
+    """A colour given through a feature ref lands on its body and its faces, is read back
+    by the call, and later display calls (a refused transparency on an edge, an edge
+    colour, hiding another body) leave it as it is."""
+    nx = display_nx()
+    body, other = nx.block(10, 10, 10), nx.block(5, 5, 5)
+    ref = nx.ref_of(Feature("EXTRUDE(1)", [body]), "feature")
+    red = run(nx, "nx_set_appearance", objects=[ref], color="red")
+    assert red.ok, red.error
+    index = red.data["objects"][0]["color"]
+    assert red.data["objects"][0]["object"]["id"] == body.ref and body.Color == index
+    refused = run(nx, "nx_set_appearance", objects=[body.edges[0].ref], transparency=50)
+    assert refused.error["code"] == "NX_WRONG_KIND" and refused.mutation_outcome == "not_started"
+    assert run(nx, "nx_set_appearance", objects=[body.edges[0].ref], color="blue").ok
+    assert run(nx, "nx_set_visibility", mode="hide", objects=[other.ref]).ok
+    rows = run(nx, "nx_get_appearance", objects=[body.ref, body.faces[0].ref]).data["objects"]
+    assert [r["color"] for r in rows] == [index, index]
+
+
 def test_appearance_by_name_reads_back_and_restores_identically():
     nx = display_nx()
     body = nx.block(1, 1, 1)
@@ -146,6 +165,19 @@ def test_highlight_replaces_and_clears_the_agents_highlights():
     assert swap.ok and not a.highlighted and b.highlighted
     clear = run(nx, "nx_set_highlight", objects=[])
     assert clear.ok and not b.highlighted and nx.highlighted == [] and clear.data["count"] == 0
+
+
+def test_highlights_read_back_through_get_appearance():
+    nx = display_nx()
+    a, b = nx.block(1, 1, 1), nx.block(2, 2, 2)
+    lit = run(nx, "nx_set_highlight", objects=[a.ref])
+    assert lit.ok and lit.data["visible"] is True
+    rows = run(nx, "nx_get_appearance", objects=[a.ref, b.ref]).data["objects"]
+    assert rows[0]["highlighted"] is True and "highlighted" not in rows[1]
+    cleared = run(nx, "nx_set_highlight", objects=[])
+    assert cleared.data["visible"] is False
+    rows = run(nx, "nx_get_appearance", objects=[a.ref]).data["objects"]
+    assert "highlighted" not in rows[0]
 
 
 def test_a_stale_member_fails_the_restore_before_anything_changes():

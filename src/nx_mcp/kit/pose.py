@@ -90,6 +90,12 @@ def rotate_about(pose, origin, axis, angle_deg):
     return moved, geom.matmul(rot, r)
 
 
+def reflected(r) -> bool:
+    """Whether a rotation matrix mirrors (determinant below zero), as a mirrored
+    component's pose does."""
+    return geom.dot(r[0], geom.cross(r[1], r[2])) < 0
+
+
 def close(a, b, tol=1e-6):
     """Same pose within ``tol`` on every translation and rotation component."""
     (ta, ra), (tb, rb) = a, b

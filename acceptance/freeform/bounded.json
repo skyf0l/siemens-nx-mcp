@@ -89,6 +89,14 @@
       0
      ],
      "tol": 0.001
+    },
+    "data.normal.0": {
+     "close": 0,
+     "tol": 1e-06
+    },
+    "data.normal.1": {
+     "close": 0,
+     "tol": 1e-06
     }
    }
   },

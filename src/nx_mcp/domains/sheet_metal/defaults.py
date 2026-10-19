@@ -203,7 +203,8 @@ def nx_get_sheet_metal_defaults(tx: Tx) -> DefaultsData:
     """Read the part's sheet-metal creation defaults (null: not set). They cover thickness,
     bend radius, neutral factor, reliefs, bend method, bend table (NX's table name, or the
     file set), both formulas, material and tool; tables and formulas apply only to their
-    bend_definition."""
+    bend_definition. Values are stored in the part (Sheet_Metal_* expressions): a new part
+    starts from NX's customer defaults until nx_set_sheet_metal_defaults changes them."""
     return read(tx)
 
 

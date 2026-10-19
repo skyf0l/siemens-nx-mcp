@@ -19,19 +19,22 @@ compensate reaches over the latter). NX keeps one linear undo list for the sessi
 the undo of part A uses NX's undo only while A's undone operations still have their
 marks and nothing else (other parts' work, a load, a close, an undo by deletion) lies
 after them; else it compensates them (``domains/session/compensate.py``: deletes what
-create-only operations made, features, sketches, curves and points, nothing depending on
-it, and sets back the values ``nx_set_attributes``, ``nx_set_expression``, ``nx_set_name``
-and the other ``@restorer`` tools changed, all verified), or it is refused with
-``NX_CROSS_PART`` naming what is in the way (``NX_NOT_FOUND`` when only dropped marks are)
-and how to fix forward. ``mode`` ``compensate`` (``delete_created`` is the same) always
+create-only operations made, of every kind with a deleter, nothing depending on it, and
+sets back the values ``nx_set_attributes``, ``nx_set_expression``, ``nx_set_name`` and the
+other ``@restorer`` tools changed, all verified), or it is refused with ``NX_CROSS_PART``
+counting what is in the way, never naming other parts or their operations
+(``NX_NOT_FOUND`` when only dropped marks are), and how to fix forward
+(``undoable.fix_forward``). An undo whose compensation deletes drawing objects, explosions
+or section views, or runs the restorer of a display-bound tool (an in-sketch edit),
+displays the part for the call (gate 4s), as ``nx_delete_objects`` does. ``mode`` ``compensate`` (``delete_created`` is the same) always
 compensates. ``operation`` undoes one named own operation (``NX_DEPENDENCY_ORDER`` while
 later operations of the part follow it, unless compensated). A compensating undo stays in
 the history as a ``compensation`` entry that is never undone itself.
 
 Checkpoints are per part too: an undo or a restore back past one (``undone_past``), its
 part's close (``part_closed``) or own save (``saved_or_closed``) and the engineer's edits
-(``engineer_change``) end it; other parts' loads, closes and saves and marks NX evicted do
-not. A restore undoes the checkpoint's part's operations since by the same rules as an
+(``engineer_change``) end it; other parts' loads, closes and saves, marks NX evicted and
+marks NX dropped during a call that saved and closed nothing (``marks_dropped``) do not. A restore undoes the checkpoint's part's operations since by the same rules as an
 undo (NX's undo to the checkpoint's mark when nothing else came after, else
 compensation; ``compensated`` in ``nx_list_checkpoints`` says which). An unavailable
 checkpoint stays listed with its ``expired_reason`` and cannot be restored. A restored
@@ -63,7 +66,7 @@ from nx_mcp.core.marks import MARK_CAP_TEXT
 from nx_mcp.core.target import ANY, counts, file_name, part_by_key
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Range, Text
-from nx_mcp.domains.session import compensate, preview
+from nx_mcp.domains.session import compensate, delete, preview
 from nx_mcp.kit import sketch as ksketch
 
 CHECKPOINT_ID = r"^cp_[0-9a-f]{32}$"
@@ -80,7 +83,9 @@ UndoMode = Annotated[
     Doc("No NX undo: delete what they made, set values back"),
 ]
 COMPENSATE = ("compensate", "delete_created")  # delete_created: the v1 name, same thing
-RedoCount = Annotated[int, Range(ge=0), Doc("Undone operations to repeat, next first")]
+RedoCount = Annotated[
+    int, Range(ge=0), Doc("Undone operations to repeat, next first; 0 only with skip")
+]
 SkipCount = Annotated[
     int, Range(ge=0), Doc("Undone operations to drop first, without running them")
 ]
@@ -92,6 +97,7 @@ ExpiredReason = Literal[
     "part_loaded",
     "display_reset",
     "mark_evicted",
+    "marks_dropped",
 ]
 # Why the undo history ends at an entry, or a checkpoint cannot be restored.
 WHY = {
@@ -102,20 +108,15 @@ WHY = {
     "part_loaded": "a part load that displayed the part dropped NX's undo marks",
     "display_reset": "a display part switch outside NX MCP dropped NX's undo marks",
     "mark_evicted": "NX dropped its undo mark: " + MARK_CAP_TEXT,
+    "marks_dropped": "NX dropped its undo marks during a call that saved and closed nothing",
 }
 STALE_HINT = (
     "Create a new checkpoint with nx_create_checkpoint; nx_list_checkpoints shows "
     "which ones are available"
 )
-DELETE_HINT = "Delete the objects with nx_delete_objects"
 # What an agent can do when no undo applies: change the model forward to the state wanted.
-FIX_FORWARD = (
-    "Fix forward instead: delete what it made with nx_delete_objects, or set the changed "
-    "values back with the tool that set them (nx_set_attributes, nx_set_expression, "
-    "nx_set_name, nx_set_feature_suppression, nx_edit_feature)"
-)
+FIX_FORWARD = undoable.fix_forward(None)
 LISTED = 20  # checkpoints named in a not-found error
-IN_THE_WAY = 10  # operations named in a cross-part refusal
 
 
 class RedoStep(TypedDict):
@@ -197,7 +198,9 @@ class _CheckpointRow(TypedDict):
 
 
 class CheckpointRow(_CheckpointRow, total=False):
-    blocked_by: BlockedBy  # the operation that keeps a compensated restore from working
+    # An operation compensation cannot undo: the restore is refused (restorable false), or
+    # works now only by NX's undo, until another part changes (restorable true)
+    blocked_by: BlockedBy
 
 
 class _CheckpointsData(TypedDict):
@@ -312,77 +315,55 @@ def _file(services, key) -> str:
     return file_name(part) if part is not None else "a closed part"
 
 
-def _in_the_way(services, entries: list) -> list[dict]:
-    """Rows of the history entries an NX undo would revert besides the undone ones: other
-    parts' operations, undos by deletion, and part loads or closes (``barrier``) NX's undo
-    would reverse."""
-    rows = []
-    for item in entries[:IN_THE_WAY]:
-        kind = undo_marks.barrier(item)
-        cut = kind in ("load", "close")
-        row: dict[str, Any] = {
-            "operation_id": item.get("operation_id"),
-            "tool": item.get("method"),
-            "part": _paths(item, str(kind)) if cut else _file(services, item.get("part_id")),
-        }
-        if cut:
-            row["barrier"] = kind  # NX's undo would unload (load) or load again (close)
-        if item.get("compensation"):
-            row["undo_by_deletion"] = True  # NX's undo would bring back what it deleted
-        rows.append(row)
-    return rows
+def _in_the_way(services, entries: list) -> dict[str, int]:
+    """Counts of the history entries an NX undo would revert besides the undone ones:
+    operations of other parts (``operations``, in ``parts`` parts), undos by deletion and
+    part loads or closes NX's undo would reverse. Other parts may be other agents': their
+    operations and files are never named."""
+    operations = [h for h in entries if undo_marks.barrier(h) is None]
+    out = {
+        "operations": len(operations),
+        "parts": len({h.get("part_id") for h in operations}),
+        "loads_or_closes": len(entries) - len(operations),
+    }
+    deletions = sum(1 for h in operations if h.get("compensation"))
+    if deletions:
+        out["undos_by_deletion"] = deletions  # NX's undo would bring back what they deleted
+    return out
 
 
-def _sentence(rows: list[dict], total: int) -> str:
-    def one(r: dict) -> str:
-        if r.get("barrier"):
-            done = "loaded" if r["barrier"] == "load" else "closed"
-            return f"{r['part']} {done} by {r['operation_id']} ({r['tool']})"
-        return (
-            f"{r['operation_id']} ({r['tool']} in {r['part']}"
-            + (", an undo by deletion" if r.get("undo_by_deletion") else "")
-            + ")"
-        )
-
-    text = ", ".join(one(r) for r in rows)
-    return text + (f" and {total - len(rows)} more" if total > len(rows) else "")
-
-
-def _summary(services, blockers: list, rows: list[dict]) -> str:
+def _summary(services, blockers: list, rows: dict) -> str:
     """``N later operation(s) in M other part(s)`` (and loads or closes) of the work in the
-    way; the rows themselves are named only when there are three or fewer (the ids are in
-    ``details.in_the_way``)."""
-    operations = [h for h in blockers if undo_marks.barrier(h) is None]
-    parts = {h.get("part_id") for h in operations}
+    way, counted only."""
     texts = []
+    operations, parts = rows["operations"], rows["parts"]
     if operations:
         texts.append(
-            f"{len(operations)} later operation{'s' if len(operations) != 1 else ''} in "
-            f"{len(parts)} other part{'s' if len(parts) != 1 else ''}"
+            f"{operations} later operation{'s' if operations != 1 else ''} in "
+            f"{parts} other part{'s' if parts != 1 else ''}"
         )
-    cuts = len(blockers) - len(operations)
+    cuts = rows["loads_or_closes"]
     if cuts:
         texts.append(
             f"{cuts} part load{'s' if cuts != 1 else ''} or close{'s' if cuts != 1 else ''}"
         )
-    text = " and ".join(texts)
-    if len(blockers) <= 3:
-        text += ": " + _sentence(rows, len(blockers))
-    return text
+    return " and ".join(texts)
 
 
-def _fix_forward(undone: list, refusal) -> str:
-    """The fix-forward hint, naming the tool of the operation that cannot be undone."""
-    operation = refusal.details.get("operation_id")
-    tool = next((str(h.get("method")) for h in undone if h.get("operation_id") == operation), None)
-    if tool == "nx_delete_objects":
-        return (
-            "Fix forward instead: create again what it deleted (a delete is undone only by "
-            "NX's undo, while no other part's work follows it)"
-        )
-    if tool:
-        return f"{FIX_FORWARD}; {operation} used {tool}: set its values back with it"
-    return FIX_FORWARD
+def _fix_forward(services, undone: list, refusal) -> str:
+    """The fix-forward hint for the unit compensation refused (``undoable.fix_forward``):
+    nx_delete_objects only for kinds it deletes, the tool itself only for values it set."""
+    unit = refusal.unit
+    if unit is None:
+        operation = refusal.details.get("operation_id")
+        entry = next((h for h in undone if h.get("operation_id") == operation), None)
+        if entry is None and len(undone) == 1:
+            entry = undone[0]
+        if entry is not None:
+            with contextlib.suppress(Exception):
+                found = undoable.units(services, entry)
+                unit = found[0] if len(found) == 1 else None
+    return undoable.fix_forward(unit)
 
 
 # ---------------------------------------------------------------------------
@@ -585,13 +566,19 @@ def _delete_created(
     undo_marks.remove_entries(services, undone)
     tx.history_note = {"compensation": True, "undid": [str(h["operation_id"]) for h in undone]}
     _push_redo(services, undone)
+    _repark(tx, undone)  # a finished sketch the undo did not delete is open again
     kinds = ", ".join(_count(n, k) for k, n in sorted(info["kinds"].items()))
     done = []
     if kinds:
-        done.append(f"deleted what {'it' if len(undone) == 1 else 'they'} created ({kinds})")
+        done.append(f"deleting what {'it' if len(undone) == 1 else 'they'} created ({kinds})")
     if info.get("restored"):
-        done.append("set back " + "; ".join(info["restored"]))
-    tx.warn("NX_UPDATE_WARNING", f"Undone without NX's undo, it {' and '.join(done)}: " + why)
+        done.append("setting back " + "; ".join(info["restored"]))
+    text = " and ".join(done) or "changing nothing (it changed no object)"
+    tx.warn(
+        "NX_NOTE",
+        f"Undone by {text}; other parts and later work are untouched (NX's undo was not "
+        f"used: {why})",
+    )
     if info.get("missing"):
         tx.warn(
             "NX_NOTE",
@@ -636,7 +623,7 @@ def _plan(
     try:
         plan = compensate.plan(tx, undone, history[start:])
     except compensate.Refusal as refusal:
-        hint = _fix_forward(undone, refusal)
+        hint = refusal.hint or _fix_forward(services, undone, refusal)
         # no fix makes the same call succeed when the receipt rules refuse (a delete, an
         # edit without before-values): only fixing forward does
         never = refusal.code in ("NX_UNSUPPORTED_OPTION", "NX_CROSS_PART")
@@ -644,8 +631,8 @@ def _plan(
         if mode in COMPENSATE:
             fail(
                 refusal.code,
-                f"{what} cannot be undone without NX's undo (deleting what it created, "
-                f"setting back the values it set): {refusal.reason}",
+                f"{what} cannot be undone by deleting what it created and setting back the "
+                f"values it set: {refusal.reason}",
                 hint=hint,
                 details={"delete_created": refusal.reason, **refusal.details},
                 retry=retry,
@@ -655,13 +642,12 @@ def _plan(
             rows = _in_the_way(services, blockers)
             fail(
                 "NX_CROSS_PART",
-                f"Undoing {what} with NX's undo would also revert later work "
-                f"({_summary(services, blockers, rows)}), and it cannot be compensated "
-                f"(deleting what it created, setting back the values it set): {refusal.reason}",
+                f"{what} cannot be undone: NX's undo would also revert later work "
+                f"({_summary(services, blockers, rows)}), and deleting what it created or "
+                f"setting back the values it set cannot undo it: {refusal.reason}",
                 hint=hint,
                 details={
                     "part_id": undone[0].get("part_id"),
-                    "operation_id": blockers[0].get("operation_id"),
                     "in_the_way": rows,
                     "in_the_way_count": len(blockers),
                     "delete_created": refusal.reason,
@@ -672,9 +658,9 @@ def _plan(
         reason = str(dropped[0].get("expired") or "mark_evicted")
         fail(
             "NX_NOT_FOUND",
-            f"{what} can no longer be undone with NX's undo ({_dropped(dropped[0])}) and "
-            "it cannot be compensated (deleting what it created, setting back the values "
-            f"it set): {refusal.reason}",
+            f"{what} cannot be undone: NX's undo no longer reaches it ({_dropped(dropped[0])}), "
+            "and deleting what it created or setting back the values it set cannot undo it: "
+            f"{refusal.reason}",
             hint=hint,
             details={"reason": reason, "delete_created": refusal.reason, **dependents},
             retry="never",  # no fix makes the same call succeed
@@ -693,30 +679,34 @@ DROPPED = {
 def _dropped(item: dict) -> str:
     """Why NX no longer has the undo mark of ``item`` (an operation an undo compensates)."""
     reason = str(item.get("expired") or "mark_evicted")
+    if reason == "marks_dropped":
+        tool = item.get("expired_tool")
+        return f"NX dropped its undo mark during {tool or 'a later call'}, which saved and closed nothing"
     if undo_marks.own_cut(item, item.get("part_id")):  # mode compensate past its own save
         return WHY.get(reason, WHY["mark_evicted"])
     return DROPPED.get(reason) or WHY.get(reason, WHY["mark_evicted"])
 
 
 def _why_deleted(blockers: list, dropped: list) -> str:
-    """Why NX's undo was not used, without naming other parts' work (the warning of an
-    undo by deletion)."""
-    texts = []
+    """Why NX's undo was not used, in plain words and without naming other parts' work
+    (the note of an undo by deletion)."""
     operations = sum(1 for h in blockers if undo_marks.barrier(h) is None)
     cuts = len(blockers) - operations
+    texts = []
     if operations:
         plural = "s" if operations != 1 else ""
         texts.append(
-            f"NX's undo would also revert {operations} later operation{plural} of other "
-            "parts or undos by deletion"
+            f"{operations} later operation{plural} of other parts came after it, and NX's "
+            "undo would revert them too"
         )
     if cuts:
         plural = "s" if cuts != 1 else ""
-        texts.append(f"NX's undo no longer reaches it across {cuts} later part load{plural} "
-                     f"or close{plural}")  # fmt: skip
+        texts.append(
+            f"NX's undo no longer reaches it across {cuts} later part load{plural} or close{plural}"
+        )
     if dropped:
-        texts.append(f"NX's undo no longer reaches it: {_dropped(dropped[0])}")
-    return "; ".join(texts) or "mode compensate, so NX's undo was not used"
+        texts.append("NX's undo no longer reaches it: " + _dropped(dropped[0]))
+    return "; ".join(texts) or "mode compensate"
 
 
 # ---------------------------------------------------------------------------
@@ -954,13 +944,12 @@ def _choose(
             details={"operation_id": operation, "part": home},
         )
     if found is None:
+        message, hint = _not_in_history(tx.services, operation, file)
         fail(
             "NX_NOT_FOUND",
-            f"{operation} is not an operation of {file} that can be undone (it is not in "
-            "the part's undo history: another part's, already undone, or not a model "
-            "change)",
+            message,
             field="/operation",
-            hint="nx_list_checkpoints shows last_operation; nx_get_operation shows what ran",
+            hint=hint,
             details={"undo_depth": _depth(tx.services, key), "operation_id": operation},
             retry="never",
         )
@@ -988,12 +977,134 @@ def _choose(
     return [found]
 
 
+def _compensation_displays(services, chosen: list, mode) -> bool:
+    """Whether undoing ``chosen`` (history entries, newest first) will compensate operations
+    that created objects deleted in the displayed part (drawing objects, explosions,
+    section views: ``delete.DISPLAYED_KINDS``) or whose values a display-bound tool's
+    restorer sets back (an in-sketch edit). Never raises."""
+    try:
+        if not chosen:
+            return False
+        history = services.undo_history()
+        if mode not in COMPENSATE:
+            ids = {id(h) for h in chosen}
+            start = min(i for i, h in enumerate(history) if id(h) in ids)
+            alone = all(id(h) in ids for h in history[start:])
+            if alone and all(_alive_entry(services, h) for h in chosen):
+                return False  # NX's undo: nothing is deleted one by one
+        for item in chosen:
+            with contextlib.suppress(undoable.Refusal):
+                for unit in undoable.units(services, item):
+                    created = unit.changes.get("created") or []
+                    if any(
+                        isinstance(r, dict) and r.get("kind") in delete.DISPLAYED_KINDS
+                        for r in created
+                    ):
+                        return True
+                    if undoable.restorer_of(unit) is not None and _shown_tool(unit.tool):
+                        return True  # its restorer runs the tool's code: displayed, as it
+    except Exception:
+        return False
+    return False
+
+
+def _shown_tool(tool: str) -> bool:
+    """Whether ``tool`` works in the displayed part (``display_bound``): its restorer does
+    too (activating a sketch outside the displayed part faults NX)."""
+    from nx_mcp.core import catalogue
+
+    spec = catalogue.get(tool)
+    return spec is not None and bool(spec.display_bound)
+
+
+def _undo_displays(services, part, args) -> bool:
+    """Gate 4s (``display_bound``): an undo of a part that is not displayed displays it
+    for the call when it will delete drawing objects, explosions or section views, as
+    ``nx_delete_objects`` does."""
+    try:
+        mode = args.get("mode")
+        reach = _reach(services.undo_history(), _key(services, part), mode)[0]
+        operation = args.get("operation")
+        if isinstance(operation, str):
+            chosen = [h for h in reach if h.get("operation_id") == operation]
+        else:
+            steps = args.get("steps")
+            chosen = reach[: steps if isinstance(steps, int) and steps > 0 else 1]
+        return _compensation_displays(services, chosen, mode)
+    except Exception:
+        return False
+
+
+def _restore_displays(services, part, args) -> bool:
+    """Gate 4s for nx_restore_checkpoint, as :func:`_undo_displays`."""
+    try:
+        checkpoints = services.undo_checkpoints()
+        key = _key(services, part)
+        cp = checkpoints[_lookup(services, checkpoints, str(args.get("checkpoint_id")), key)]
+        later = [h for h in services.undo_history()[int(cp["index"]) :] if _own(h, key)]
+        return _compensation_displays(services, list(reversed(later)), None)
+    except Exception:
+        return False
+
+
+def _not_in_history(services, operation: str, file: str) -> tuple[str, str]:
+    """``(message, hint)`` for an operation that is not in the part's undo history, read
+    from its receipt: never ran, did not commit, already undone, or not a model change (a
+    display, file or session call, which nx_undo_operation never reverts)."""
+    from nx_mcp.core import catalogue
+
+    record: dict = {}
+    with contextlib.suppress(Exception):
+        record = services.store.get(operation) or {}
+    tool = str(record.get("method") or record.get("tool") or "")
+    spec = catalogue.get(tool) if tool else None
+    what = f"{operation} ({tool})" if tool else operation
+    listed = "nx_list_checkpoints shows last_operation; nx_get_operation shows what ran"
+    if record.get("state") in (None, "unknown"):
+        return f"No operation {operation} ran in this session", listed
+    if record.get("state") != "committed":
+        return f"{what} did not commit ({record.get('mutation_outcome')}): nothing to undo", listed
+    if record.get("reverted_by"):
+        return (
+            f"{what} was already undone by {record['reverted_by']}",
+            "nx_redo_operation repeats it",
+        )
+    if tool in ("nx_undo_operation", "nx_restore_checkpoint"):
+        return (
+            f"{what} is an undo, which is never undone",
+            "nx_redo_operation repeats what it undid",
+        )
+    effect = spec.effect if spec is not None else None
+    if effect == "view":
+        restore_id = (record.get("envelope") or {}).get("restore_id")
+        return (
+            f"{what} changed the display, not the model: nx_undo_operation does not revert it",
+            f"Pass restore_id {restore_id!r} to nx_restore_display"
+            if restore_id
+            else f"Call {tool} again with the previous settings, or delete what it made "
+            "with nx_delete_objects",
+        )
+    if effect == "file":
+        return (
+            f"{what} wrote or loaded files, which no undo removes",
+            "Delete a file it wrote with nx_delete_file; close a part it loaded with nx_close_part",
+        )
+    if effect in ("session", "read"):
+        return f"{what} changed no model: there is nothing to undo", listed
+    return (
+        f"{what} is not in the undo history of {file}: an undo or restore went back past "
+        "it, or it changed nothing",
+        listed,
+    )
+
+
 @tool(
     target=_undo_part,
+    display_bound=(_undo_displays,),
     effect="model",
     label="Undo operation",
     summary="Undo the agent's last operation",
-    keywords=("undo", "revert", "undo last", "take back", "cancel last change", "step back"),
+    keywords=("undo", "revert", "undo last", "take back", "cancel last change", "rollback last"),
     requires=("work_part",),
     cost="light",
     example={},
@@ -1095,6 +1206,36 @@ def nx_create_checkpoint(tx: Tx, *, label: Label = "checkpoint") -> CheckpointDa
     return {"checkpoint_id": key, "label": label, "undo_depth": _depth(services, part_key)}
 
 
+def _plan_refusal(tx: Tx, cp: dict) -> dict | None:
+    """The restore's own check of a compensated checkpoint of the work part: the refusal
+    the compensation plan gives now (a dependent feature, a value changed since, a stale
+    ref), as a ``blocked_by`` row; None when the plan qualifies. Reads only."""
+    services = tx.services
+    key = cp.get("part_id")
+    history = services.undo_history()
+    undone = [h for h in history[int(cp["index"]) :] if _own(h, key)]
+    if not undone:
+        return None
+    start = next(i for i, h in enumerate(history) if h is undone[0])
+    try:
+        compensate.plan(tx, undone, history[start:])
+    except compensate.Refusal as refusal:
+        unit = refusal.unit
+        operation = refusal.details.get("operation_id") or (unit.operation_id if unit else "")
+        tool = (
+            unit.tool
+            if unit is not None
+            else next(
+                (str(h.get("method") or "") for h in undone if h.get("operation_id") == operation),
+                "",
+            )
+        )
+        return {"operation_id": operation, "tool": tool, "reason": refusal.reason}
+    except Exception:
+        return None
+    return None
+
+
 def _blocked(row: dict | None) -> BlockedBy | None:
     if not row:
         return None
@@ -1121,7 +1262,8 @@ def nx_list_checkpoints(
 ) -> CheckpointsData:
     """List this session's checkpoints (with part: that part's) and the part's undo depth.
     restorable=false: a restore is refused now (expired_reason, or blocked_by an operation
-    compensation cannot undo); compensated=true: it deletes and sets back, not NX's undo."""
+    compensation cannot undo); blocked_by with restorable=true: it works only until another
+    part changes; compensated=true: it deletes and sets back, not NX's undo."""
     services = tx.services
     history = services.undo_history()
     key = _key(services, services.work_part())
@@ -1137,6 +1279,12 @@ def nx_list_checkpoints(
             hidden += 1
             continue
         after = sum(1 for h in history[int(cp["index"]) :] if _own(h, cp.get("part_id")))
+        blocker = state["blocked_by"]
+        if state["restorable"] and state["compensated"] and cp.get("part_id") == key:
+            blocker = _plan_refusal(tx, cp)  # the restore's own check, not receipts only
+            state["restorable"] = blocker is None
+        elif state["restorable"] and not state["compensated"]:
+            blocker = state["fragile"]  # restorable by NX's undo only, until others change
         row: CheckpointRow = {
             "checkpoint_id": cp_key,
             "label": str(cp.get("label") or ""),
@@ -1148,7 +1296,7 @@ def nx_list_checkpoints(
             "compensated": state["compensated"],
             "restorable": state["restorable"],
         }
-        blocked = _blocked(state["blocked_by"])
+        blocked = _blocked(blocker if reason is None else None)
         if blocked is not None:
             row["blocked_by"] = blocked
         rows.append(row)
@@ -1210,10 +1358,17 @@ def _restore_refusal(services, cp: dict, reason: str) -> None:
 
 @tool(
     target=_checkpoint_part,
+    display_bound=(_restore_displays,),
     effect="model",
     label="Restore checkpoint",
     summary="Roll back to an earlier checkpoint",
-    keywords=("rollback", "restore checkpoint", "roll back", "revert to checkpoint"),
+    keywords=(
+        "rollback",
+        "restore checkpoint",
+        "earlier model state",
+        "revert to checkpoint",
+        "go back",
+    ),
     requires=("work_part",),
     cost="light",
     example={"checkpoint_id": "before fillets"},
@@ -1260,7 +1415,7 @@ def nx_restore_checkpoint(tx: Tx, *, checkpoint_id: CheckpointKey) -> RestoreDat
     if not undone:  # only other parts worked since: nothing of this part to undo
         _drop_own_mark(tx)
         references = "preserved"
-        tx.outcome = "not_applicable"  # nothing changed
+        tx.outcome = "not_applicable"  # already at the checkpoint: nothing changed
     elif alone:
         _redo, references = _nx_undo(tx, cp["mark"], start, undone, key)
     elif how == "nx":

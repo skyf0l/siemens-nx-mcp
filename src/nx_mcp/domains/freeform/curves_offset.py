@@ -236,6 +236,27 @@ def _side_reversed(tx, method, sources, values, axis, toward, flip, normal) -> b
     return geom.dot(moved, wanted) < 0
 
 
+def _planar(tx, sources) -> None:
+    """``NX_INVALID_ARGUMENT`` for curves that span a plane but leave it (a helix): NX
+    refuses them for distance and draft ("String objects not coplanar"). One straight line
+    is left to NX's own refusal (``_side``)."""
+    points = [p for c in sources[: cc.MAX_SAMPLED] for p in cc.samples(tx, c)]
+    first = points[0]
+    far = max(points, key=lambda p: geom.dist(p, first))
+    axis = geom.sub(far, first)
+    third = max(points, key=lambda p: geom.norm(geom.cross(axis, geom.sub(p, first))))
+    normal = geom.cross(axis, geom.sub(third, first))
+    size = geom.dist(far, first)
+    if size <= 0 or geom.norm(normal) <= 1e-9 * size * size:
+        return
+    off = cc.plane_gap_points(points, first, geom.unit(normal))
+    if off > cc.gap_tolerance(tx, *points):
+        fail("NX_INVALID_ARGUMENT", f"The curves are not planar (they leave a plane by "
+             f"{off:.4g}): distance and draft offset in the curves' plane", field="/curves",
+             hint="Use method axial_3d with a direction (moves them along an axis), or "
+             "offset planar curves", details={"off_plane": off})  # fmt: skip
+
+
 def _measured(tx, made, sources):
     distances = []
     for c in made[: cc.MAX_SAMPLED]:
@@ -288,6 +309,8 @@ def nx_create_offset_curve(
     with tx.checks():
         sources = cc.strings(tx, curves, "/curves")
         _chained(tx, sources)
+        if method != "axial_3d":
+            _planar(tx, sources)
         axis = select.direction(tx, direction, "/direction") if direction is not None else None
     sources = _in_chain_order(tx, sources)
     values = (distance, height, angle)

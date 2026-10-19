@@ -62,6 +62,18 @@ def moved_planes(tx, faces, before, wanted, check="offset") -> list[float]:
     return got
 
 
+def plausible(tx, distance, body, field="/distance") -> None:
+    """Refuse a distance far beyond the body's size (``kit.geom.check_plausible``: 5000 on
+    a 40 mm block is a slip, not a design)."""
+    from nx_mcp.kit import measure
+
+    try:
+        size = geom.extent(*measure.bounds(tx, [body]))
+    except Exception:  # noqa: BLE001 - no box: the distance stays unchecked
+        return
+    geom.check_plausible(distance, size, field, field.rsplit("/", 1)[-1])
+
+
 def translated_box(low, high, t):
     """The box ``[low, high]`` moved by ``t``."""
     return geom.add(low, t), geom.add(high, t)

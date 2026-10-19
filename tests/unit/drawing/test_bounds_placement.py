@@ -5,6 +5,8 @@ from types import SimpleNamespace as NS
 
 import pytest
 
+from nx_mcp.core.errors import WARNING_CODES
+from nx_mcp.kit import drawing
 from tests.kit import run
 from tests.kit.objects import Object, point
 from tests.unit.drawing.test_annotations import notes_nx
@@ -47,8 +49,18 @@ def test_a_note_reports_its_bounds_and_warns_over_a_view_or_off_the_sheet():
     assert over.ok and [w["code"] for w in over.warnings] == ["NX_VIEW_OVERLAP"]
     assert "over view" in over.warnings[0]["message"]
     off = run(nx, "nx_create_note", text=["OFF"], sheet=nx.sheet_obj.ref, origin=[400, 50])
-    assert [w["code"] for w in off.warnings] == ["NX_VIEW_OVERLAP"]
-    assert "off the sheet" in off.warnings[0]["message"]
+    assert [w["code"] for w in off.warnings] == [OFF_SHEET]
+    assert "past the edge of the 420 x 297 sheet" in off.warnings[0]["message"]
+    made = len(nx.builders)
+    gone = run(nx, "nx_create_note", text=["FAR"], sheet=nx.sheet_obj.ref, origin=[5000, 5000])
+    assert gone.error["field"] == "/origin" and gone.mutation_outcome == "not_started"
+    assert gone.error["details"]["sheet_size"] == [420.0, 297.0]
+    assert "x = 5000 is past 420" in gone.error["message"] and len(nx.builders) == made
+
+
+# The code of an object partly past its sheet's edge (NX_UPDATE_WARNING until the warning
+# table lists the dedicated code).
+OFF_SHEET = drawing.OFF_SHEET if drawing.OFF_SHEET in WARNING_CODES else "NX_UPDATE_WARNING"
 
 
 def wide_view(nx):

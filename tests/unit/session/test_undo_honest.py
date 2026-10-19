@@ -242,9 +242,11 @@ def test_checkpoints_say_whether_a_restore_works_now_and_the_call_that_breaks_on
     nx, a, b = two()
     block(nx, "a", "op_a_block_1")
     cp = run(nx, "nx_create_checkpoint", part="a", label="before delete").data["checkpoint_id"]
-    delete_old(nx, a, "op_a_delete_1")
+    deleted = delete_old(nx, a, "op_a_delete_1")  # the call that makes it fragile says so
+    assert any("only while no other part changes" in w["message"] for w in deleted.warnings)
     row = run(nx, "nx_list_checkpoints", part="a").data["checkpoints"][0]
-    assert row["restorable"] is True and "blocked_by" not in row  # NX's undo still reaches
+    assert row["restorable"] is True  # NX's undo still reaches; the delete blocks it later
+    assert row["blocked_by"]["operation_id"] == "op_a_delete_1"
     block(nx, "b", "op_b_block_1")
     listed = run(nx, "nx_list_checkpoints", part="a").data
     (row,) = listed["checkpoints"]
@@ -254,10 +256,8 @@ def test_checkpoints_say_whether_a_restore_works_now_and_the_call_that_breaks_on
     assert "deleted" in row["blocked_by"]["reason"]
     assert listed["undo_depth"] == 0 and listed["last_operation"] is None
     assert listed["undo_blocked_by"]["operation_id"] == "op_a_delete_1"
-    nxt = block(nx, "a", "op_a_block_2")  # the part's next call learns it
-    assert any("can no longer be restored" in w["message"] for w in nxt.warnings), nxt.warnings
-    again = block(nx, "a", "op_a_block_3")
-    assert not any("can no longer be restored" in w["message"] for w in again.warnings)
+    nxt = block(nx, "a", "op_a_block_2")  # said once, by the delete: never repeated later
+    assert not any("can no longer be restored" in w["message"] for w in nxt.warnings)
     refused = run(nx, "nx_restore_checkpoint", part="a", checkpoint_id=cp)
     assert refused.error["code"] == "NX_CROSS_PART" and refused.error["retry"] == "never"
 

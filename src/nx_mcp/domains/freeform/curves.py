@@ -78,6 +78,14 @@ def _check_degree(points, degree, field):
         )
 
 
+def _check_periodic(points, periodic, field):
+    """NX closes a periodic spline through at least 3 points (2: 671729, "Insufficient
+    number of points to close the spline")."""
+    if periodic and len(points) < 3:
+        fail("NX_INVALID_ARGUMENT", f"A periodic (closed) spline needs at least 3 points, got "
+             f"{len(points)}", field=field, hint="Add points, or leave periodic false")  # fmt: skip
+
+
 def _clean(p):
     """A point with round-off (|v| < 1e-9, e.g. -6e-16) snapped to 0."""
     return [0.0 if abs(v) < 1e-9 else v for v in p]
@@ -171,6 +179,7 @@ def nx_create_spline(
     points (degree 1) make a straight 3D line; degree 1 through more points a polyline. Edit
     with nx_edit_feature definition {spline: {points, method, degree, periodic}}."""
     values = _open_periodic(tx, _points(points, "/points"), periodic)
+    _check_periodic(values, periodic, "/points")
     degree = _degree(values, degree)
     _check_degree(values, degree, "/degree")
     with builders.build(tx, tx.part.Features.CreateStudioSplineBuilderEx, None) as b:
@@ -241,6 +250,7 @@ def edit_spline(tx, feature, value):
         degree = int(b.Degree) if degree is None else degree
         periodic = bool(b.IsPeriodic) if periodic is None else periodic
         points = _open_periodic(tx, points, periodic)
+        _check_periodic(points, periodic, "/definition/spline/points")
         _check_degree(points, degree, "/definition/spline/degree")
         _configure(tx, b, points, method, degree, periodic)
         b.commit(validate=True)

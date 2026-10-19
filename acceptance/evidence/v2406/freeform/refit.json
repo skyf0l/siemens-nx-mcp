@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/freeform/refit.json",
-  "scenario_sha256": "ac2c6c56c9aa2d309af73ae146804579e67dccdadb713d659993fdb04996abe4",
+  "scenario_sha256": "cdf0ee19563fd8460dcd470b7085a074dc8db68dc5376d69df0399d42dba0219",
   "domain": "freeform",
   "covers": {
     "nx_create_refit_face": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_refit_face": "f6a5de0bd04077df0fcfb64c8f5f69f33db78d1e8c76d0c0be8168d0925f4046"
+    "nx_create_refit_face": "56bb687e3b0a5eaa93cdc2a7d7f67f68b6d9c011350d279e79e82d0383616264"
   },
-  "recorded": "2026-10-16T13:15:21Z",
+  "recorded": "2026-10-19T10:47:49Z",
   "passed": true,
-  "checks": 11,
+  "checks": 9,
   "failed_checks": 0,
   "steps": [
     {
@@ -56,7 +56,7 @@
       "call": "nx_create_refit_face",
       "setup": false,
       "passed": true,
-      "checks": 7
+      "checks": 5
     },
     {
       "index": 7,

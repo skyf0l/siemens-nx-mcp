@@ -288,12 +288,17 @@
      ],
      "tol": 1e-06
     },
+    "data.moved": {
+     "count": 1
+    },
+    "data.moved.0.name": "ORTHO@2",
     "changes.modified": {
      "count_kind": {
-      "drawing_view": 1
+      "drawing_view": 2
      }
     }
-   }
+   },
+   "intent": "Acceptance: the projected view below follows its moved parent, keeping its gap"
   },
   {
    "call": "nx_edit_drawing_view",

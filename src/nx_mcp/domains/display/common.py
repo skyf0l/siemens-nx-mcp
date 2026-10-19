@@ -54,6 +54,7 @@ class DisplayRow(TypedDict, total=False):
     transparency: int | None
     faces_differ: int
     faces: list[FaceRow]
+    highlighted: bool
 
 
 def kind_of(tx, obj) -> str:

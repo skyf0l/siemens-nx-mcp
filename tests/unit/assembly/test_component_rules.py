@@ -128,3 +128,138 @@ def test_a_new_mass_keeps_the_asserted_centre(weights_nx):  # noqa: F811
     assert any(w["code"] == "NX_NOTE" for w in ok.warnings), ok.warnings
     bare = run(nx, "nx_set_component_mass", part="asm", component=nx.tank.ref, mass=5)
     assert bare.ok and bare.data["center_of_gravity"] is None and not bare.warnings
+
+
+def test_a_name_a_sibling_has_is_refused_with_a_free_one(nx):
+    a = place(nx, nx.blk, "A")
+    b = place(nx, nx.blk, "B", (20, 0, 0))
+    clash = run(nx, "nx_edit_component", components=[b.ref], name="a")
+    assert clash.error["code"] == "NX_ALREADY_EXISTS" and clash.error["field"] == "/name", clash
+    assert clash.error["details"]["suggested"] == "A_2" and "A_2" in clash.error["hint"]
+    assert clash.error["details"]["existing"]["id"] == a.ref
+    assert clash.mutation_outcome == "not_started" and b.Name == "B"
+    same = run(nx, "nx_edit_component", components=[a.ref], name="A")  # its own name
+    assert same.ok, same
+    added = run(nx, "nx_create_component", part="asm", path="parts/pin.prt", name="b")
+    assert added.error["code"] == "NX_ALREADY_EXISTS" and added.error["field"] == "/name"
+    assert len(nx.assembly.components()) == 2
+
+
+def test_default_component_names_are_numbered_and_make_unique_keeps_the_name(nx):
+    first = run(nx, "nx_create_component", part="asm", path="parts/blk.prt")
+    second = run(nx, "nx_create_component", part="asm", path="parts/blk.prt")
+    assert first.data["component"]["name"] == "BLK", first
+    assert second.data["component"]["name"] == "BLK_2", second
+    b = nx.assembly.components()[1]
+    ok = run(nx, "nx_edit_component", components=[second.data["component"]["id"]],
+             make_unique="parts/blk_u.prt")  # fmt: skip
+    assert ok.ok and b.Name == "BLK_2" and ok.data["components"][0]["name"] == "BLK_2", ok
+
+
+def test_a_mirrored_seed_is_refused_and_copies_take_free_names(nx):
+    a = place(nx, nx.blk, "A", (10, 0, 0))
+    mirrored = place(nx, nx.blk, "M", (-10, 0, 0), [[-1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    layout = {"linear": {"direction": [0, 1, 0], "count": 3, "spacing": 20}}
+    bad = run(nx, "nx_create_component_pattern", component=mirrored.ref, layout=layout,
+              associative=False)  # fmt: skip
+    assert bad.error["code"] == "NX_UNSUPPORTED_OPTION" and bad.error["field"] == "/component"
+    assert (
+        "nx_create_component_mirror" in bad.error["hint"] and bad.mutation_outcome == "not_started"
+    )
+    place(nx, nx.blk, "A_2", (90, 90, 0))
+    ok = run(nx, "nx_create_component_pattern", component=a.ref, layout=layout,
+             associative=False)  # fmt: skip
+    assert ok.ok, ok
+    names = [c.Name for c in nx.assembly.components()]
+    assert names[-2:] == ["A_2_2", "A_3"] and len(names) == len(set(names))
+
+
+def test_a_seed_patterned_again_gets_a_note(nx):
+    a = place(nx, nx.blk, "A")
+    layout = {"linear": {"direction": [1, 0, 0], "count": 2, "spacing": 30}}
+    first = run(nx, "nx_create_component_pattern", component=a.ref, layout=layout)
+    assert first.ok and not first.warnings, first
+    again = run(nx, "nx_create_component_pattern", component=a.ref,
+                layout={"linear": {"direction": [0, 1, 0], "count": 2, "spacing": 30}})  # fmt: skip
+    assert again.ok, again
+    notes = [w["message"] for w in again.warnings if w["code"] == "NX_NOTE"]
+    assert notes and first.data["pattern"]["id"] in notes[0]
+
+
+def test_compensation_sets_a_pattern_edit_back(nx):
+    a = place(nx, nx.blk, "A")
+    made = run(nx, "nx_create_component_pattern", component=a.ref,
+               layout={"linear": {"direction": [1, 0, 0], "count": 3, "spacing": 20}})  # fmt: skip
+    ref = made.data["pattern"]["id"]
+    grown = run(nx, "nx_edit_component_pattern", pattern=ref, count=5, spacing=25)
+    assert grown.ok, grown
+    undo = run(nx, "nx_undo_operation", part="asm", mode="compensate")
+    assert undo.ok and undo.data["compensated"], undo
+    pattern = nx.assembly.patterns[0]
+    assert pattern.params["n"] == 3 and pattern.params["d"] == 20
+    assert "count 3" in undo.data["restored"][0] and "spacing 20" in undo.data["restored"][0]
+
+
+def test_compensation_refuses_a_pattern_edited_again(nx):
+    a = place(nx, nx.blk, "A")
+    made = run(nx, "nx_create_component_pattern", component=a.ref,
+               layout={"linear": {"direction": [1, 0, 0], "count": 3, "spacing": 20}})  # fmt: skip
+    ref = made.data["pattern"]["id"]
+    first = run(nx, "nx_edit_component_pattern", pattern=ref, count=4)
+    run(nx, "nx_edit_component_pattern", pattern=ref, count=6)
+    undo = run(nx, "nx_undo_operation", part="asm", operation=first.operation_id,
+               mode="compensate")  # fmt: skip
+    assert undo.error["code"] == "NX_DEPENDENCY_ORDER", undo
+    assert nx.assembly.patterns[0].params["n"] == 6
+
+
+def test_compensation_sets_a_constraint_edit_and_its_moves_back(nx):
+    a = place(nx, nx.blk, "A")
+    b = place(nx, nx.blk, "B", (60, 0, 0))
+
+    def follow(_added):  # the solver puts B at the constraint's value
+        b.t = [float(nx.assembly.positioner.Constraints[-1].Expression.Value), 0.0, 0.0]
+
+    nx.assembly.on_solve = follow
+    made = run(nx, "nx_create_assembly_constraint", type="distance", component=b.ref,
+               geometry=nx.ref_of(b.face(), "face"), target_component=a.ref,
+               target_geometry=nx.ref_of(a.face(), "face"), value=7)  # fmt: skip
+    assert made.ok and b.t[0] == 7, made
+    ref = made.data["constraint"]["id"]
+    edited = run(nx, "nx_edit_assembly_constraint", constraint=ref, value=12, alignment="same")
+    assert edited.ok and b.t[0] == 12, edited
+    undo = run(nx, "nx_undo_operation", part="asm", mode="compensate")
+    assert undo.ok and undo.data["compensated"], undo
+    c = nx.assembly.positioner.Constraints[-1]
+    assert c.Expression.Value == 7 and b.t == [7.0, 0.0, 0.0]
+    off = run(nx, "nx_edit_assembly_constraint", constraint=ref, suppressed=True)
+    assert off.ok, off
+    again = run(nx, "nx_edit_assembly_constraint", constraint=ref, value=9)
+    assert again.ok
+    late = run(nx, "nx_undo_operation", part="asm", operation=off.operation_id,
+               mode="compensate")  # fmt: skip
+    assert late.error["code"] == "NX_DEPENDENCY_ORDER", late
+
+
+def test_associative_instances_named_like_the_seed_get_their_own_names(nx, monkeypatch):
+    from tests.unit.assembly import fakes
+
+    commit = fakes.PatternBuilder.Commit
+
+    def like_nx(self):  # NX names every instance after the seed
+        pattern = commit(self)
+        for member in pattern.members:
+            if member.Name.endswith(tuple(f"_P{i}" for i in range(2, 9))):
+                member.Name = pattern.seeds[0].Name
+        return pattern
+
+    monkeypatch.setattr(fakes.PatternBuilder, "Commit", like_nx)
+    a = place(nx, nx.blk, "A")
+    made = run(nx, "nx_create_component_pattern", component=a.ref,
+               layout={"linear": {"direction": [1, 0, 0], "count": 3, "spacing": 20}})  # fmt: skip
+    assert made.ok, made
+    assert [c["name"] for c in made.data["components"]] == ["A", "A_2", "A_3"]
+    grown = run(nx, "nx_edit_component_pattern", pattern=made.data["pattern"]["id"], count=4)
+    assert grown.ok, grown
+    names = [c["name"] for c in grown.data["components"]]
+    assert names[0] == "A" and len(set(names)) == 4, names

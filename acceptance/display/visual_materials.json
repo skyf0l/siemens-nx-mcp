@@ -93,8 +93,8 @@
     "data.in_part": {
      "count": 0
     },
-    "data.categories": {
-     "contains": "Glasses"
+    "data.categories.Glasses": {
+     "matches": "^[1-9][0-9]*$"
     }
    }
   },
@@ -267,6 +267,108 @@
      ],
      "tol": 1e-06
     }
+   }
+  },
+  {
+   "call": "nx_create_decal",
+   "args": {
+    "face": "$side.data.items.0.id",
+    "image": "$run/logo.png",
+    "width": 20,
+    "height": 10,
+    "center": [
+     100,
+     500,
+     500
+    ],
+    "name": "EDGE_LOGO"
+   },
+   "intent": "Acceptance: a center on the face's plane but off the face moves to the face's nearest point",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.decal.center": {
+     "close": [
+      100,
+      60,
+      20
+     ],
+     "tol": 1e-06
+    },
+    "data.projected": {
+     "close": 651.1528238439882,
+     "tol": 1e-06
+    },
+    "changes.modified": {
+     "count": 1
+    },
+    "warnings.0.message": {
+     "contains": "hang off"
+    }
+   }
+  },
+  {
+   "call": "nx_delete_decal",
+   "args": {
+    "names": [
+     "edge logo"
+    ]
+   },
+   "expect": {
+    "data.deleted": [
+     "EDGE_LOGO"
+    ]
+   },
+   "save": "edel"
+  },
+  {
+   "call": "nx_undo_operation",
+   "args": {
+    "operation": "$edel.operation_id",
+    "mode": "compensate"
+   },
+   "intent": "Acceptance: the compensating undo of a decal delete places it again",
+   "expect": {
+    "mutation_outcome": "committed"
+   }
+  },
+  {
+   "call": "nx_list_visual_materials",
+   "args": {
+    "limit": 1
+   },
+   "expect": {
+    "data.in_part": {
+     "contains": {
+      "name": "EDGE_LOGO",
+      "kind": "decal",
+      "objects": 1
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_delete_decal",
+   "setup": true,
+   "args": {
+    "names": [
+     "EDGE_LOGO"
+    ]
+   }
+  },
+  {
+   "call": "nx_set_visual_material",
+   "args": {
+    "objects": [
+     "$blk.data.bodies.0.id"
+    ],
+    "material": "Teak",
+    "remove": true
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/remove",
+    "mutation_outcome": "not_started"
    }
   },
   {

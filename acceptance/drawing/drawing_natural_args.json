@@ -364,7 +364,7 @@
      "matches": "^v:"
     },
     "data.construction_geometry": false,
-    "data.style.visible_font": "invisible",
+    "data.style.visible_font": "original",
     "data.style.hidden_font": "invisible"
    }
   },
@@ -387,7 +387,7 @@
     "view": "$below.data.view.id"
    },
    "expect": {
-    "data.style.visible_font": "invisible",
+    "data.style.visible_font": "original",
     "data.style.hidden_font": "invisible"
    }
   },

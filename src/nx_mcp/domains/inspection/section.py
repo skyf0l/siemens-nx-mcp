@@ -24,6 +24,7 @@ material spans on the positive radial side (exact for lines and arcs).
 
 from __future__ import annotations
 
+import contextlib
 import math
 from typing import Annotated, Any, Literal, TypedDict
 
@@ -32,7 +33,7 @@ from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Point3, Quantity, Range, RefTo, Vec3
 from nx_mcp.domains.inspection import common
-from nx_mcp.kit import curve, geom, measure
+from nx_mcp.kit import curve, geom, measure, select
 
 TAU = 2 * math.pi
 SAMPLES = 64  # polygon points of a curve that is neither a line nor an arc
@@ -388,7 +389,9 @@ def nx_measure_section(
     *,
     plane: Literal["xy", "yz", "xz"] | None = None,
     offset: Annotated[
-        float | str, Quantity("length"), Doc("Along z, x, y for xy, yz, xz; or '5 mm'")
+        float | str,
+        Quantity("length"),
+        Doc("Along z, x, y for xy, yz, xz; '5 mm' or an expression name, not a formula"),
     ] = 0.0,
     origin: Point3 | None = None,
     normal: Vec3 | None = None,
@@ -399,8 +402,9 @@ def nx_measure_section(
 ) -> SectionData:
     """Cut bodies with one of plane (+ offset), normal (+ origin) or radial_axis; the model is
     unchanged. Loops: role, area, box, 2D lines/arcs. radial_axis z cuts xz, x or y cut xy:
-    radius spans per axial station (at), from that one cut: for revolved parts. The axis is
-    parallel to that world axis through origin (default [0,0,0])."""
+    radius spans per axial station (at), from that one cut: for revolved parts (area sums
+    both sides of the axis). The axis is parallel to that world axis through origin (default
+    [0,0,0])."""
     common.note_exploded(tx)
     given = [n for n, v in (("plane", plane), ("normal", normal), ("radial_axis", radial_axis))
              if v is not None]  # fmt: skip
@@ -478,6 +482,8 @@ def nx_measure_section(
             "NX_UPDATE_WARNING",
             "The plane does not cut the bodies: no loops" + _span(tx, frame, cut_plane, found),
         )
+    else:
+        _note_on_face(tx, frame, found, tol)
     out: SectionData = {"frame": frame, "area": total, "loops": loops}
     if radial_axis is not None:
         out["profile"] = [
@@ -486,6 +492,35 @@ def nx_measure_section(
         ]
         _note_off_axis(tx, material, axial, radial_axis, frame["origin"], tol)
     return out
+
+
+ON_FACE_LIMIT = 5000  # faces checked for a plane lying on one (larger models: not checked)
+
+
+def _note_on_face(tx, frame, found, tol) -> None:
+    """``NX_NOTE`` when the plane lies on a planar face of the bodies: the loops are that
+    face's boundary (a boundary case, not a cut through material)."""
+    faces = []
+    for body in found:
+        with contextlib.suppress(Exception):  # a body NX cannot list: not checked
+            faces.extend(body.GetFaces())
+        if len(faces) > ON_FACE_LIMIT:
+            return
+    normal, origin = frame["normal"], frame["origin"]
+    lying = []
+    for face in faces:
+        with contextlib.suppress(Exception):
+            code, point, direction = select.face_data(tx, face)
+            if (
+                code == select.FACE_PLANE
+                and geom.parallel(geom.unit(direction), normal)
+                and abs(geom.dot(geom.sub(point, origin), normal)) <= max(tol, 1e-9)
+            ):
+                lying.append(tx.ref(face, kind="face")["id"])
+    if lying:
+        shown = ", ".join(lying[:3]) + (", ..." if len(lying) > 3 else "")
+        tx.warn("NX_NOTE", f"The plane lies on planar face {shown}: its loops are that face's "
+                "boundary, not a cut through material; offset the plane to cut inside")  # fmt: skip
 
 
 def _note_off_axis(tx, material, axial, radial_axis, origin, tol) -> None:

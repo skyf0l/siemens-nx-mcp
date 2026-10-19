@@ -387,7 +387,7 @@
      "tol": 0.0001
     },
     "error.hint": {
-     "contains": "direction"
+     "contains": "beside the sheet"
     }
    }
   },

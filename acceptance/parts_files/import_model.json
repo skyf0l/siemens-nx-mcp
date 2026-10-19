@@ -10,7 +10,7 @@
     {"call": "nx_import_model", "args": {"part": "$part", "path": "$run/im/block.step", "format": "step"},
      "expect": {"mutation_outcome": "committed", "data.body_count": 1, "data.components_created": 0,
                 "data.target": "work_part", "data.flatten": true, "data.bodies": {"count": 1},
-                "data.staging": {"matches": "^imports/op_"}, "changes.references": "preserved"}},
+                "data.staging": null, "changes.references": "preserved"}},
     {"call": "nx_list_objects", "args": {"part": "$part", "kind": "body"},
      "expect": {"page.total": 1}},
     {"call": "nx_list_parts", "args": {"active_only": true},

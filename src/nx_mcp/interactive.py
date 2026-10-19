@@ -1968,15 +1968,35 @@ class InteractiveHost:
     def _reject_gone(self):
         """Answer queued calls whose client gave up before they are shown or run; the
         activity log says so (one line per call)."""
-        from nx_mcp.bridge import client_gone
+        from nx_mcp.bridge import client_gone, peer_closed
+        from nx_mcp.core import target
 
-        gone = [p for p in self.dispatcher.waiting() if self._gone(p)]
+        waiting = self.dispatcher.waiting()
+        gone = [p for p in waiting if self._gone(p)]
         if not gone:
             return
-        ids = {id(p) for p in gone}
-        self.dispatcher.reject_where(lambda p: id(p) in ids, client_gone())
         for pending in gone:
+            error = client_gone()
+            if not peer_closed(getattr(pending, "peer", None)):  # its start deadline passed
+                error = self._expired(pending, waiting.index(pending), target)
+            self.dispatcher.reject_where(lambda p, one=pending: p is one, error)
             self._log_skipped(pending)
+
+    def _expired(self, pending, ahead: int, target):
+        """``NX_CALL_EXPIRED`` for a queued call past its start deadline whose client still
+        waits: how late it is, what NX runs and how many calls were queued before it."""
+        expires = None
+        with contextlib.suppress(Exception):
+            expires = target.check_call_keys(None, pending.params.get("expires_at"))
+        busy = ""
+        with contextlib.suppress(Exception):
+            busy = self.dispatcher._busy_with(pending)
+        if ahead:
+            busy = (busy or "NX was busy") + f"; {ahead} call(s) were queued before it"
+        late = time.time() - expires if expires is not None else 0.0
+        error = target.expired_error(expires, late, busy)
+        error.details["queued_before"] = ahead
+        return error
 
     def _log_skipped(self, pending):
         """``Skipped [b.prt] Extrude ...: the agent stopped waiting``: a queued call the

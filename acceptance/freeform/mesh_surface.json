@@ -421,7 +421,7 @@
      "tol": 0.0001
     },
     "error.hint": {
-     "contains": "tolerance 5.5"
+     "contains": "are 5 apart"
     }
    }
   },

@@ -321,6 +321,8 @@ def status_row(tx, sk, state, *, dof: bool = True) -> tuple[Status, dict | None]
     (``dof.checked``: per curve and total, None when not computable or not asked)."""
     name = ksketch.snake(state["status"])
     count = state["dof"]  # NX 2406: curves not fully constrained (None unless solved)
+    if not ksketch.geometry(sk):  # NX calls a sketch without geometry well constrained
+        return {"state": "empty", "fully_constrained": False, "dof": 0, "free_curves": 0}, None
     why: list[str] = []
     found = kdof.checked(tx, sk, count, why) if dof else None
     row: Status = {
@@ -467,6 +469,8 @@ def explain_conflict(tx, sk, error, curves=None, before=None, field=None, refere
     if not found and not conflict:
         return error  # an unreachable value, not a conflict: the error stands as it is
     error.details["relieving"] = found
+    if found:
+        error.details["relieving_constraints"] = [_label(tx, ref) for ref in found]
     other = "add it as reference: true" if reference else "drop this item"
     if found:
         error.hint = (
@@ -479,6 +483,18 @@ def explain_conflict(tx, sk, error, curves=None, before=None, field=None, refere
             f"delete one of those first, or {other}"
         )
     return error
+
+
+def _label(tx, ref) -> dict:
+    """``{"constraint", "type", "expression"?}`` of a constraint ref (best effort)."""
+    out: dict = {"constraint": ref}
+    with contextlib.suppress(Exception):
+        constraint = tx.resolve(ref, "sketch_constraint")
+        out["type"] = ksketch.constraint_type(tx, constraint)
+        exp = getattr(constraint, "AssociatedExpression", None)
+        if exp is not None:
+            out["expression"] = str(exp.Name)
+    return out
 
 
 # ---- fixed geometry guard ----------------------------------------------------------

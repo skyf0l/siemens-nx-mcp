@@ -86,6 +86,7 @@ class BridgeData(TypedDict):
 
 class JoinData(cc.CurvesData):
     source_length: float
+    deviation: float  # largest distance from sample points of the inputs to the joined curve
 
 
 class MirrorData(cc.CurvesData):
@@ -153,6 +154,14 @@ def nx_create_bridge_curve(
             fail("NX_INVALID_ARGUMENT", "start and end name the same curve end", field="/end/end")
         p0, out0 = _end_frame(tx, first, start["end"])
         p1, out1 = _end_frame(tx, second, end["end"])
+        for side, obj, kind in (("start", first, start_continuity),
+                                ("end", second, end_continuity)):  # fmt: skip
+            a, b = kcurve.ends(tx, obj)
+            if kind != "G0" and geom.dist(a, b) <= cc.gap_tolerance(tx, a, b):
+                fail("NX_INVALID_ARGUMENT", f"{side}.curve is closed: its start and end are "
+                     "one point, so the way a tangent bridge leaves it is ambiguous",
+                     field=f"/{side}/curve", hint=f"Bridge from an open curve, or send "
+                     f"{side}_continuity G0 for that side")  # fmt: skip
         if geom.dist(p0, p1) <= cc.gap_tolerance(tx, p0, p1):
             fail("NX_INVALID_ARGUMENT", "The two ends touch: there is nothing to bridge",
                  field="/end")  # fmt: skip
@@ -226,7 +235,8 @@ def nx_create_joined_curve(
 ) -> JoinData:
     """Join curves or edges that chain end to end into one associative curve (Join Curves);
     the inputs stay. Gaps over 0.001 mm or branches are refused. general keeps the exact
-    shape and length; cubic and quintic approximate it with one degree 3 or 5 spline."""
+    shape and length; cubic and quintic approximate it with one degree 3 or 5 spline
+    (deviation: largest distance of the inputs from it)."""
     with tx.checks():
         objs = cc.strings(tx, curves, "/curves")
         limit = units.part_tolerance(tx) + geom.tol(*(kcurve.ends(tx, objs[0])))
@@ -267,7 +277,12 @@ def nx_create_joined_curve(
     readback.expect(abs(data["length"] - source) <= limit, "length",
                     "The joined length differs from the inputs'", length=data["length"],
                     source_length=source)  # fmt: skip
-    return {**data, "source_length": source}
+    deviation = max(
+        kcurve.point_distance(tx, joined, p)[0]
+        for o in objs[: cc.MAX_SAMPLED]
+        for p in cc.samples(tx, o)
+    )
+    return {**data, "source_length": source, "deviation": deviation}
 
 
 # ---- mirror ---------------------------------------------------------------------------------

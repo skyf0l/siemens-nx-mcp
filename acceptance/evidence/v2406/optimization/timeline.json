@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/optimization/timeline.json",
-  "scenario_sha256": "bd616e75b436c304593a0f9438bf8fc6fce86a921236757c5adfbfc6b8d0697f",
+  "scenario_sha256": "3aff6710ac5c6cdc1c7d7a5ad206b5459335ba2c1ca582aac0d87359789266b8",
   "domain": "optimization",
   "covers": {
     "nx_create_topology_environment": [
@@ -15,12 +15,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_topology_environment": "d46e73926144d53827daf3df4ee7888e74185d44e78db47b97a4fff26c38ff99",
-    "nx_create_topology_condition": "013a72b50e2db830767061a81ebd08a42ea6205dfb8cf1ff386888d87177f5f0"
+    "nx_create_topology_environment": "806e0a5987c321e10569bb7278e83a4f35f92daa3013b709e7b05573e4e89624",
+    "nx_create_topology_condition": "9ca1742694101701c036a3a5485c3d44c5a81329e5c7537ffc322492b45dce73"
   },
-  "recorded": "2026-10-15T11:09:12Z",
+  "recorded": "2026-10-19T13:26:56Z",
   "passed": true,
-  "checks": 17,
+  "checks": 24,
   "failed_checks": 0,
   "steps": [
     {
@@ -95,7 +95,7 @@
     },
     {
       "index": 11,
-      "call": "nx_create_topology_environment",
+      "call": "nx_undo_operation",
       "setup": false,
       "passed": true,
       "checks": 3
@@ -105,10 +105,38 @@
       "call": "nx_get_topology_study",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 1
     },
     {
       "index": 13,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 14,
+      "call": "nx_create_topology_environment",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 15,
+      "call": "nx_create_topology_environment",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 16,
+      "call": "nx_get_topology_study",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 17,
       "call": "nx_check_model",
       "setup": false,
       "passed": true,

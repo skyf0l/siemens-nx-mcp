@@ -30,10 +30,10 @@ from __future__ import annotations
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import NXError, fail
+from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import BodyRef, Doc, EdgeRef, FaceRef, Items, Length
-from nx_mcp.domains.modeling import common
+from nx_mcp.domains.modeling import common, hooks
 from nx_mcp.kit import bodies as kbodies
 from nx_mcp.kit import builders, measure, readback, result, select, units
 
@@ -46,16 +46,8 @@ PATCH_HINT = (
 )
 
 
-def _sheetlike(body) -> bool:
-    flag = getattr(body, "IsSheetBody", None)
-    return bool(flag) if flag is not None else not getattr(body, "IsSolidBody", True)
-
-
-def _size(tx, body) -> float:
-    """A solid's volume, or a sheet's area."""
-    if _sheetlike(body):
-        return measure.area(tx, list(body.GetFaces()))
-    return measure.volume(tx, body)
+_sheetlike = common.sheetlike
+_size = common.size_of
 
 
 def _alive(tx) -> set[int]:
@@ -87,7 +79,8 @@ class PatchData(TypedDict):
         "repair import",
         "sheet replaces faces",
         "hole patch",
-        "add sheet region",
+        "trim body with sheet",
+        "close hole in sheet",
     ),  # fmt: skip
     requires=("work_part", "no_active_sketch"),
     cost="heavy",
@@ -241,20 +234,47 @@ class UnsewData(TypedDict):
     kept_original: bool
 
 
-def _sheet_rows(tx, made, picked, by) -> list[UnsewSheet]:
-    """``{body, faces, area, selected}`` per sheet: which one holds the faces given."""
+def _sheet_rows(tx, made, picked, by, copies=None) -> list[UnsewSheet]:
+    """``{body, faces, area, selected}`` per sheet: which one holds the faces given.
+    ``copies``: with keep_original NX unsews a copy of the body, so the faces given are
+    found by their surface and area (:func:`_signatures`)."""
     chosen = {int(f.Tag) for f in picked} if by == "faces" else set()
     rows: list[UnsewSheet] = []
     for x in made:
         tx.checkpoint()
         faces = list(x.GetFaces())
+        if by != "faces":
+            selected = None
+        elif copies is not None:
+            selected = any(_matches(tx, f, copies) for f in faces)
+        else:
+            selected = any(int(f.Tag) in chosen for f in faces)
         rows.append({
             "body": tx.ref(x, kind="body"),
             "faces": len(faces),
             "area": measure.area(tx, faces) if faces else 0.0,
-            "selected": any(int(f.Tag) in chosen for f in faces) if by == "faces" else None,
+            "selected": selected,
         })  # fmt: skip
     return rows
+
+
+def _signatures(tx, faces) -> list:
+    """``(frame, area)`` of each face (``kit.readback.face_frame``)."""
+    return [(readback.face_frame(tx, f), measure.area(tx, [f])) for f in faces]
+
+
+def _matches(tx, face, signatures) -> bool:
+    """Whether ``face`` lies on the surface of one of the ``signatures``, with its area."""
+    frame = readback.face_frame(tx, face)
+    if frame is None:
+        return False
+    area = measure.area(tx, [face])
+    return any(
+        old is not None
+        and readback.same_surface(old, frame)
+        and abs(area - size) <= AREA_REL * max(1.0, size)
+        for old, size in signatures
+    )
 
 
 def _one_body(objects, field):
@@ -322,6 +342,7 @@ def nx_create_unsew(
                 hint="Leave one face out: with output each_face every face becomes a sheet",
             )
     before = measure.area(tx, list(source.GetFaces()))
+    copies = _signatures(tx, picked) if keep_original and by == "faces" else None
     known = _alive(tx)
     U = tx.nx.Features.UnsewBuilder
     with builders.build(tx, tx.part.Features.CreateUnsewBuilder, None) as b:
@@ -353,7 +374,7 @@ def nx_create_unsew(
     return {
         "feature": tx.ref(feature, kind="feature"),
         "bodies": common.body_rows(tx, made),
-        "sheets": _sheet_rows(tx, made, picked, by),
+        "sheets": _sheet_rows(tx, made, picked, by, copies),
         "count": len(made),
         "area": area,
         "kept_original": bool(keep_original),
@@ -369,6 +390,7 @@ class UntrimData(TypedDict):
     bodies: list[result.Row]  # one sheet per face
     area: float  # the untrimmed sheets' total
     trimmed_area: float  # the input faces' total
+    hidden: Annotated[list[result.Row], Doc("hide_original: the source bodies, now hidden")]
 
 
 @tool(
@@ -415,9 +437,26 @@ def nx_create_untrim(
         area >= trimmed * (1 - AREA_REL), "area", "The untrimmed sheets are smaller than the faces",
         area=area, trimmed_area=trimmed,
     )  # fmt: skip
+    hidden = _hide(tx, picked) if hide_original else []
     return {
         "feature": tx.ref(feature, kind="feature"),
         "bodies": common.body_rows(tx, made),
         "area": area,
         "trimmed_area": trimmed,
+        "hidden": hidden,
     }
+
+
+def _hide(tx, faces) -> list[result.Row]:
+    """Blank the bodies the faces belong to (NX 2406 commits Untrim with HideOriginal
+    yet leaves the source shown) and read their hidden state back."""
+    sources = list({int(f.GetBody().Tag): f.GetBody() for f in faces}.values())
+    shown = [b for b in sources if not bool(getattr(b, "IsBlanked", False))]
+    if shown:
+        with native():
+            tx.session.DisplayManager.BlankObjects(shown)
+    left = [tx.ref(b, kind="body")["id"] for b in sources if not getattr(b, "IsBlanked", True)]
+    readback.expect(not left, "hidden", f"NX still shows {', '.join(left)}", bodies=left)
+    # an undo deletes the sheets, then shows again the bodies this call hid
+    hooks.note_hidden(tx, [tx.ref(b, kind="body") for b in shown])
+    return [tx.ref(b, kind="body") for b in sources]

@@ -3,6 +3,7 @@
     normal, shape = surface.differential(tx, face, point)        # unit normal, 3x3 shape operator
     angle, k = surface.continuity_difference(first, second)      # degrees, 1/part unit
     report = surface.edge_continuity(tx, edge, face, other_edge, other_face)
+    points = surface.iso_line_points(tx, face, 0, 3)             # 3 lines of constant u
 
 The shape operator is coordinate invariant (parameterisation and orientation
 free), so G2 compares the Frobenius norm of the difference of two shape operators
@@ -15,6 +16,9 @@ NX 2406 findings encoded here:
   ``Modeling.EvaluateFace(face, UF_MODL_EVAL_DERIV2, uv)`` returns ``SrfDu``,
   ``SrfDv``, ``SrfD2u``, ``SrfDudv``, ``SrfD2v``. ``UF_MODL_EVAL_DERIV2`` is 2.
 - UF expects float coordinate lists ("Expecting List of double type").
+- A planar face's UV box (``AskFaceUvMinmax``) can be wider than the face: a disc of
+  radius 20 has the box +-20.24 (in NX's metres); ``AskPointContainment`` answers 1
+  inside, 3 on the boundary, 2 outside.
 """
 
 from __future__ import annotations
@@ -145,3 +149,63 @@ def edge_continuity(tx, edge, face, other_edge, other_face, samples=9):
             for name, w in worst.items()
         },
     }
+
+
+# UF_MODL_ask_point_containment: 1 inside the trimmed face, 3 on its boundary.
+ON_FACE = (1, 3)
+SCAN = 33  # parameter values tried across a face's UV box
+EDGE = 0.005  # share of the UV range within which the end of a family is located
+
+
+def _crossing(tx, face, box, k, value):
+    """``(point, uv)`` on the trimmed face where face parameter ``k`` (0 u, 1 v) equals
+    ``value``, the one nearest the middle of the other parameter's range; None when the
+    line of constant ``value`` misses the face."""
+    modeling = tx.uf.Modeling
+    low, high = box[2 * (1 - k)], box[2 * (1 - k) + 1]
+    order = sorted(range(SCAN), key=lambda i: (abs(2 * i - (SCAN - 1)), i))
+    for i in order:
+        t = low + (high - low) * i / (SCAN - 1)
+        uv = [float(value), t] if k == 0 else [t, float(value)]
+        with native(default="NX_ERROR"):
+            point = [float(v) for v in modeling.AskFaceProps(face.Tag, uv)[0][:3]]
+            inside = int(modeling.AskPointContainment(point, face.Tag))
+        if inside in ON_FACE:
+            return point, uv
+    return None
+
+
+def iso_line_points(tx, face, k, count) -> list[list[float]]:
+    """One point per line of constant face parameter ``k`` (0 u, 1 v): ``count`` values
+    spread evenly over the trimmed face's real extent in that parameter, both ends
+    included. Where the face's UV box is wider than the face (a disc), an end moves in
+    to ``EDGE`` to ``2 EDGE`` of the range inside where the lines leave the face: a short
+    chord near the rim, not a degenerate one. A value whose line misses a non-convex face
+    is skipped."""
+    with native(default="NX_ERROR"):
+        box = [float(v) for v in tx.uf.Modeling.AskFaceUvMinmax(face.Tag)]
+    low, high = box[2 * k], box[2 * k + 1]
+
+    def hits(value):
+        return _crossing(tx, face, box, k, value) is not None
+
+    order = sorted(range(SCAN), key=lambda i: (abs(2 * i - (SCAN - 1)), i))
+    seed = next((v for v in (low + (high - low) * i / (SCAN - 1) for i in order) if hits(v)), None)
+    if seed is None:
+        fail("NX_WRONG_GEOMETRY", "No point inside the face was found", field="/face")
+
+    def end(outer):
+        if hits(outer):
+            return outer
+        good, bad = seed, outer
+        while abs(good - bad) > EDGE * abs(high - low):
+            tx.checkpoint()
+            middle = (good + bad) / 2
+            good, bad = (middle, bad) if hits(middle) else (good, middle)
+        inward = min(EDGE * abs(high - low), abs(seed - good))  # clear of the rim
+        return good + math.copysign(inward, seed - good)
+
+    a, b = end(low), end(high)
+    values = [(a + b) / 2] if count == 1 else [a + (b - a) * i / (count - 1) for i in range(count)]
+    found = (_crossing(tx, face, box, k, v) for v in values)
+    return [hit[0] for hit in found if hit is not None]

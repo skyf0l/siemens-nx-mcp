@@ -103,6 +103,28 @@ def _tool_like(body) -> bool:
     return all(k.startswith(TOOL_FEATURES) for k in kinds)
 
 
+def _check_tool(tx, body) -> None:
+    """``NX_WRONG_GEOMETRY`` before NX for a tool NX refuses (4120001, "The tool body must
+    be a revolved feature, cylindrical extrude, or a cylinder feature"): a body whose
+    features NX lists are not all cylinder, revolve or extrude, or an extrude without a
+    cylindrical face."""
+    get = getattr(body, "GetFeatures", None)
+    try:
+        kinds = [str(getattr(f, "FeatureType", "")).upper() for f in get()] if get else []
+    except Exception:  # noqa: BLE001 - unknown: NX decides
+        return
+    if not kinds:
+        return
+    wrong = sorted({k for k in kinds if not k.startswith(TOOL_FEATURES)})
+    flat = all(k.startswith("EXTRUDE") for k in kinds) and _axis(tx, body) is None
+    if wrong or flat:
+        made = ", ".join(wrong) if wrong else "an extrude without a cylindrical face"
+        fail("NX_WRONG_GEOMETRY", f"The tool must be a body made by a cylinder, revolve or "
+             f"cylindrical extrude feature, not by {made}", field="/tool",
+             hint="Model the tool with nx_create_primitive cylinder, a revolve, or an extrude "
+             "of a circle", details={"features": kinds})  # fmt: skip
+
+
 def _check_start(tx, body, curves) -> None:
     """Refuse a path that does not start level with the tool axis.
 
@@ -186,6 +208,7 @@ def nx_create_swept_volume(
         body = select.one(tx, tool, "body", field="/tool")
         if common.is_sheet(body):
             fail("NX_WRONG_GEOMETRY", "The tool must be a solid", field="/tool")
+        _check_tool(tx, body)
         found = select.bodies(tx, targets, "/targets")
         for i, target in enumerate(found):
             if common.is_sheet(target):

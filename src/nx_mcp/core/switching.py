@@ -49,8 +49,8 @@ LOG_KEPT = 500  # switch log entries kept (Services.switch_log)
 NAMED_SOURCES = frozenset({"part", "refs", "resolver"})  # Target.source of a named target
 DEFERRED_NOTE = (
     "{file} is not displayed, so its drawing views and annotations were not refreshed "
-    "(NX updates them only on the displayed part); they refresh on its next drawing call or "
-    "nx_update_annotations, and out-of-date views when it is saved"
+    "(NX updates them only on the displayed part): refresh them with nx_update_annotations "
+    "(part {file}); out-of-date views also update when it is saved"
 )
 LEAK_NOTE = "NX MCP first restored the display and work parts an earlier call left switched"
 

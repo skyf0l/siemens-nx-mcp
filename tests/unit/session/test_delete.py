@@ -167,6 +167,11 @@ def test_every_deletable_kind_has_a_deleter():
         "section_view",
         "drawing_sheet",
         "drawing_view",
+        "component_pattern",
+        "assembly_constraint",
+        "reference_set",
+        "point",
+        "facet_body",
     }
 
 

@@ -56,7 +56,10 @@ from nx_mcp.core.errors import fail
 BUSY_SECONDS = 300.0  # unsaved changes this recent make a part busy
 RECENT_SECONDS = 30.0  # ... when a call also worked in it this recently (shared connection)
 CHANGING = ("model", "file", "session")  # calls that stamp the parts they worked in
-CHANGES = ("model", "session")  # calls that change their part (file calls never do)
+# Calls that change their part: model calls, and a session call only through steps it ran
+# (an accepted preview). A checkpoint, an activation or an opened file changes nothing, so
+# it never makes a close of the part "discard a recent change"; file calls never change it.
+CHANGES = ("model",)
 SAVE = "nx_save_part"  # its part's changes are on disk: not busy until the next change
 OWNERS_FILE = "part-owners.json"  # in <workspace>/.nx-mcp: agent parts across host reloads
 
@@ -106,7 +109,9 @@ def _record(services, spec, target, tx, loaded_before, now) -> None:
     entries = _entries(services)
     operation_id = getattr(tx, "operation_id", None)
     caller = _caller_id(getattr(tx, "caller", None))
-    changes = spec.effect in CHANGES
+    changes = spec.effect in CHANGES or bool(
+        spec.effect == "session" and getattr(tx, "children", None)
+    )
 
     def stamp(
         key, *, worked: bool, loaded: bool = False, made: bool = False, saved: bool = False

@@ -138,6 +138,11 @@
    "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/name", "mutation_outcome": "not_started"}},
   {"call": "nx_list_components", "args": {"part": "$part"},
    "expect": {"page.total": 4, "data.items.0.name": "A", "data.items.1.name": "B2", "data.items.2.name": "C_LOW",
-              "data.items.2.suppressed": true, "data.items.2.reference_set": "SOLID", "data.items.3.name": "P"}}
+              "data.items.2.suppressed": true, "data.items.2.reference_set": "SOLID", "data.items.3.name": "P"}},
+  {"call": "nx_edit_component", "intent": "A name a sibling has", "args": {"components": ["$B.data.component.id"], "name": "a"}, "expect": {"error.code": "NX_ALREADY_EXISTS", "error.field": "/name", "error.details.suggested": "A_2", "error.details.existing.name": "A", "mutation_outcome": "not_started"}},
+  {"call": "nx_create_component", "args": {"part": "$part", "path": "$run/cmp/asm_cmp_pin.prt", "name": "p"}, "expect": {"error.code": "NX_ALREADY_EXISTS", "error.field": "/name", "error.details.suggested": "P_2", "mutation_outcome": "not_started"}},
+  {"call": "nx_create_component", "save": "D1", "args": {"part": "$part", "path": "$run/cmp/asm_cmp_pin.prt", "pose": {"translation": [0, 80, 0]}}, "expect": {"mutation_outcome": "committed", "data.component.name": "ASM_CMP_PIN"}},
+  {"call": "nx_create_component", "save": "D2", "args": {"part": "$part", "path": "$run/cmp/asm_cmp_pin.prt", "pose": {"translation": [0, 120, 0]}}, "expect": {"mutation_outcome": "committed", "data.component.name": "ASM_CMP_PIN_2", "data.component.translation": {"close": [0, 120, 0], "tol": 1e-06}}},
+  {"call": "nx_list_components", "args": {"part": "$part"}, "expect": {"page.total": 6, "data.items.1.name": "ASM_CMP_PIN", "data.items.2.name": "ASM_CMP_PIN_2"}}
  ]
 }

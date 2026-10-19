@@ -35,7 +35,7 @@
               "kind": "fillet", "radius": 100},
      "expect": {"error.category": "invalid_argument", "error.field": "/radius",
                 "error.details.max_radius": {"close": 27, "tol": 1e-6},
-                "mutation_outcome": {"matches": "^(not_started|rolled_back)$"}}},
+                "mutation_outcome": "not_started"}},
     {"call": "nx_list_objects", "setup": true, "save": "again", "args": {"kind": "sketch", "name_contains": "SKETCH_000"}},
     {"call": "nx_finish_sketch", "setup": true, "args": {"sketch": "$again.data.items.0.id"}},
     {"call": "nx_create_extrude", "args": {"sketch": "$again.data.items.0.id", "end": {"type": "distance", "value": 10}},

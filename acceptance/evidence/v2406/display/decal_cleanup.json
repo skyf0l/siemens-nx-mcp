@@ -10,10 +10,10 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_decal": "56f4869570b6e7ecfe26870b25132422cc398de72d2a609a8040db2803d2f87f",
-    "nx_delete_decal": "56f4869570b6e7ecfe26870b25132422cc398de72d2a609a8040db2803d2f87f"
+    "nx_create_decal": "a4f5c9ae7954dac2c9c45ecc643464e0f1dfa54e9555403ee2ec0720218131ed",
+    "nx_delete_decal": "a4f5c9ae7954dac2c9c45ecc643464e0f1dfa54e9555403ee2ec0720218131ed"
   },
-  "recorded": "2026-10-15T11:45:30Z",
+  "recorded": "2026-10-19T11:11:46Z",
   "passed": true,
   "checks": 26,
   "failed_checks": 0,

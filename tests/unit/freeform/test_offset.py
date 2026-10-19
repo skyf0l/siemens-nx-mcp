@@ -162,3 +162,17 @@ def test_offset_collects_sheets_the_feature_does_not_list():
     assert ok.ok, ok
     assert len(ok.data["bodies"]) == 2 and ok.data["area"] == pytest.approx(400)
     assert ok.data["bounds"]["max"][2] == pytest.approx(53)
+
+
+def test_offset_sets_sharing_an_edge_at_different_distances_are_refused_before_nx():
+    from tests.unit.freeform.fakes import edge
+
+    nx = freeform_nx()
+    top, side = plate(nx, 0), plate(nx, 50)
+    shared = edge(nx, [0, 0, 0], [20, 0, 0], [top, side])
+    top.GetEdges = side.GetEdges = lambda: [shared]
+    bad = run(nx, "nx_create_offset_surface", sets=[
+        {"faces": [top.ref], "distance": 2}, {"faces": [side.ref], "distance": 3}])  # fmt: skip
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/sets/1/faces/0"
+    assert bad.error["details"]["other_set"] == 0 and bad.mutation_outcome == "not_started"
+    assert not nx.builders

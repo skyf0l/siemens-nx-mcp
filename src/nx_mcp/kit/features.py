@@ -13,6 +13,8 @@ NX 2406 lessons:
 
 from __future__ import annotations
 
+import re
+
 USER_SUPPRESSED = 1  # AskSuppressFeature mask: suppressed by the user
 INACTIVE = 16  # AskSuppressFeature mask: after the current feature
 
@@ -84,3 +86,52 @@ def alerts(feature, kinds=("warning",)) -> list[str]:
         if text not in out:
             out.append(text)
     return out
+
+
+# NX 2406 threaded holes (HOLE PACKAGE, probed live): the thread table drives the major
+# and minor diameters, the pitch and the thread angle ("6 // Used By ..."), and, while the
+# radial engagement is a table value ("0.75"), the tap drill diameter and the tip angle.
+# NX flags them ``IsRightHandSideLockedFromEdit`` only after the hole's first model update
+# (an edit before that commits, then locks), and refuses ``EditExpression`` on them then
+# ("This expression cannot be modified because it is locked."). A radial engagement of
+# "Custom" frees the tap drill and the tip angle; a new thread size derives the others.
+_HOLE_PARAMETER = re.compile(r"Threaded Hole\(\d+\)\s+(.+?)\)?\s*$", re.IGNORECASE)
+THREAD_TABLE = frozenset({"major diameter", "minor diameter", "pitch", "angle"})
+ENGAGEMENT_DRIVEN = frozenset({"tap drill diameter", "tip angle"})
+CUSTOM_ENGAGEMENT = '"Custom"'
+
+
+def hole_parameter(exp) -> str | None:
+    """The threaded-hole parameter an expression holds (``"tap drill diameter"``), from
+    its description "(M6 x 1.0 Threaded Hole(2) Tap Drill Diameter)"; None otherwise."""
+    match = _HOLE_PARAMETER.search(str(getattr(exp, "Description", "") or ""))
+    return match.group(1).strip().casefold() if match else None
+
+
+def engagement(feature):
+    """The radial-engagement expression of a threaded hole (``"0.75"``, ``"Custom"``), or
+    None for another feature."""
+    query = getattr(feature, "GetExpressions", None)
+    for exp in query() if query is not None else ():
+        if hole_parameter(exp) == "radial engage":
+            return exp
+    return None
+
+
+def parameter_lock(feature, exp) -> str | None:
+    """Why ``nx_edit_feature`` cannot set ``exp`` of ``feature`` directly: ``interpart``,
+    ``thread_table`` (a new thread size changes it), ``engagement`` (free once the radial
+    engagement is "Custom"), ``locked`` (NX's own lock), or None. Read from the feature's
+    own parameters, so the answer does not change after the first model update."""
+    if getattr(exp, "IsInterpartExpression", False):
+        return "interpart"
+    what = hole_parameter(exp)
+    if what in THREAD_TABLE:
+        return "thread_table"
+    if what in ENGAGEMENT_DRIVEN:
+        engage = engagement(feature)
+        if engage is not None and str(engage.RightHandSide).strip() != CUSTOM_ENGAGEMENT:
+            return "engagement"
+    if getattr(exp, "IsNoEdit", False) or getattr(exp, "IsRightHandSideLockedFromEdit", False):
+        return None if what in ENGAGEMENT_DRIVEN else "locked"
+    return None

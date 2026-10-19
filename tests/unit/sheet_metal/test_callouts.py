@@ -98,6 +98,7 @@ def test_missing_sheet_metal_pmi_license_is_reported_and_rolled_back():
     bad = run(nx, TOOL, kind="body", body=body.ref, position=[0, 0, 0])
     assert bad.error["code"] == "NX_LICENSE_UNAVAILABLE" and bad.error["nx_code"] == 948801
     assert bad.error["category"] == "unavailable" and nx.live_builders == 0
+    assert "nx_create_note" in bad.error["hint"]  # the way to show the values without it
     assert nx.part.Notes == []
 
 

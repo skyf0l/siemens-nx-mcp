@@ -264,3 +264,25 @@ def test_an_interference_without_volume_is_contact(monkeypatch):
     none = run(nx, "nx_check_interference", objects=refs)
     assert none.data["counts"] == {**ok.data["counts"]}
     assert none.data["pairs"][0]["classification"] == "contact"
+
+
+def test_report_repeats_its_pair_table_and_takes_include_clear(monkeypatch):
+    nx = inspection_nx()
+    nx.block(10, 10, 10)
+    nx.block(10, 10, 10, origin=(5, 0, 0))  # overlaps the first
+    nx.block(10, 10, 10, origin=(40, 0, 0))  # 30 and 25 away: clear
+    root = services(nx).root
+    plain = run(nx, "nx_export_inspection_report", path=str(root / "a.zip"), capture=False,
+                clearance=1)  # fmt: skip
+    assert plain.ok, plain
+    assert [p["classification"] for p in plain.data["pairs"]] == ["penetration"]
+    assert plain.data["counts"]["skipped"] == 2
+    assert "include_clear=true" in plain.data["skipped_reason"]
+    every = run(nx, "nx_export_inspection_report", path=str(root / "b.zip"), capture=False,
+                clearance=1, include_clear=True)  # fmt: skip
+    assert every.ok and "skipped_reason" not in every.data, every
+    kinds = sorted(p["classification"] for p in every.data["pairs"])
+    assert kinds == ["clear", "clear", "penetration"] and every.data["counts"]["clear"] == 2
+    with zipfile.ZipFile(root / "b.zip") as archive:
+        report = json.loads(archive.read("report.json"))
+    assert report["interference"]["pairs"] == every.data["pairs"]

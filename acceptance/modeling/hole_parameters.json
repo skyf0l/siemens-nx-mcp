@@ -1,0 +1,245 @@
+{
+ "covers": {
+  "nx_edit_feature": [],
+  "nx_get_feature": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "shape": "block",
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "length": 40,
+    "width": 30,
+    "height": 20
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "highest",
+    "axis": "z",
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_hole",
+   "setup": true,
+   "save": "h",
+   "args": {
+    "face": "$top.data.items.0.id",
+    "positions": [
+     [
+      20,
+      15,
+      20
+     ]
+    ],
+    "form": "threaded",
+    "diameter": 5,
+    "depth": {
+     "type": "distance",
+     "value": 15
+    },
+    "thread": {
+     "standard": "Metric Coarse",
+     "size": "M6 x 1",
+     "depth": 10
+    }
+   }
+  },
+  {
+   "call": "nx_get_feature",
+   "args": {
+    "feature": "$h.data.feature.id"
+   },
+   "intent": "Acceptance: the tap drill is editable, the thread-table values are not, and both keep their aliases",
+   "expect": {
+    "data.parameters": {
+     "contains": {
+      "aliases": [
+       "tap",
+       "drill"
+      ],
+      "editable": true,
+      "value": 5.0
+     }
+    },
+    "data.parameters.3": {
+     "contains": {
+      "aliases": [
+       "major"
+      ],
+      "editable": false
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_edit_feature",
+   "args": {
+    "feature": "$h.data.feature.id",
+    "parameters": [
+     {
+      "name": "tap",
+      "value": 5.2
+     }
+    ]
+   },
+   "intent": "Acceptance: a tap drill edit frees it from the thread table (radial engagement Custom)",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.parameters": {
+     "contains": {
+      "aliases": [
+       "tap",
+       "drill"
+      ],
+      "editable": true,
+      "value": 5.2
+     }
+    },
+    "warnings": {
+     "contains": {
+      "code": "NX_NOTE"
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_edit_feature",
+   "args": {
+    "feature": "$h.data.feature.id",
+    "parameters": [
+     {
+      "name": "tap",
+      "value": 5.1
+     }
+    ]
+   },
+   "intent": "Acceptance: the tap drill takes a second edit (NX locked it after the first before)",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.parameters": {
+     "contains": {
+      "aliases": [
+       "tap",
+       "drill"
+      ],
+      "editable": true,
+      "value": 5.1
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_edit_feature",
+   "args": {
+    "feature": "$h.data.feature.id",
+    "parameters": [
+     {
+      "name": "major",
+      "value": 7
+     }
+    ]
+   },
+   "intent": "Acceptance: a thread-table value is refused with the reason and the way to change it",
+   "expect": {
+    "error.code": "NX_READ_ONLY",
+    "error.details.reason": "thread_table",
+    "error.hint": {
+     "contains": "thread size"
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_feature",
+   "args": {
+    "feature": "$h.data.feature.id",
+    "parameters": [
+     {
+      "name": "size",
+      "value": "M8 x 1.25"
+     }
+    ]
+   },
+   "intent": "Acceptance: the thread size takes plain text and drives the thread-table values; a custom tap drill of the old size goes back to the table's",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.parameters": {
+     "contains": {
+      "aliases": [
+       "major"
+      ],
+      "value": 8.0
+     }
+    },
+    "data.parameters.1.formula": "\"0.75\"",
+    "warnings": {
+     "contains": {
+      "code": "NX_NOTE"
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_undo_operation",
+   "args": {
+    "mode": "compensate"
+   },
+   "expect": {
+    "data.compensated": true
+   }
+  },
+  {
+   "call": "nx_get_feature",
+   "args": {
+    "feature": "$h.data.feature.id"
+   },
+   "expect": {
+    "data.parameters": {
+     "contains": {
+      "aliases": [
+       "major"
+      ],
+      "value": 6.0
+     }
+    },
+    "data.parameters.1.formula": "\"Custom\"",
+    "data.parameters.7.value": {
+     "close": 5.1,
+     "tol": 1e-09
+    }
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
+  }
+ ]
+}

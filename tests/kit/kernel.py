@@ -373,11 +373,17 @@ class KitServices(Services):
         self.fake.refs.clear()
 
     def retire_undone(self, parts):
-        """Refs of bodies, features, sketches and curves the undo removed."""
+        """Refs of bodies, features, sketches and curves of ``parts`` (like the host: only
+        theirs) the undo removed."""
+        parts = list(parts)
+        keys = {self.part_key(p) for p in parts}
         live = {id(o) for p in parts for name, _ in KINDS for o in getattr(p, name, [])}
         kinds = {kind for _, kind in KINDS}
         retired = set()
         for ref, (obj, kind) in list(self.fake.refs.items()):
+            owner = getattr(obj, "OwningPart", None)
+            if owner is not None and self.part_key(owner) not in keys:
+                continue
             if kind in kinds and id(obj) not in live:
                 del self.fake.refs[ref]
                 retired.add(ref)

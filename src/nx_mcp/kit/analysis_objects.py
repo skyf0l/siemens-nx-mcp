@@ -12,6 +12,11 @@ displayed part closed cleanly (two parts in a row, live). So:
 - ``remember`` records every object a tool commits, per part;
 - ``delete_all(tx, part)`` deletes a part's analysis objects (remembered ones plus any its
   ``AnalysisManager.AnalysisObjects`` lists) before the part closes.
+
+Each call's objects carry one name (``unique_name``: ``NX_MCP_<TYPE>_<n>``), the handle
+``named`` finds them by again and ``delete`` removes them with the expressions their
+builder added (``remember(..., expressions=)``: a continuity analysis adds its two
+thresholds), for nx_delete_surface_analysis and the compensating undo.
 """
 
 from __future__ import annotations
@@ -22,6 +27,9 @@ from nx_mcp.core.errors import fail, native
 
 # part tag -> analysis objects the tools committed in it (cleared by delete_all)
 _MADE: dict[int, list] = {}
+# part tag -> analysis name (case-folded) -> expressions its builder added
+_EXPRESSIONS: dict[int, dict[str, list[str]]] = {}
+PREFIX = "NX_MCP_"
 HINT = (
     "Display the part first (nx_activate_part), or get numbers without a display object: "
     "nx_analyze_faces (normals, draft), nx_measure_distance"
@@ -51,11 +59,21 @@ def require_displayed(tx, field=None) -> None:
         )
 
 
-def remember(part, objects) -> None:
-    """Record analysis ``objects`` committed in ``part`` for ``delete_all``."""
+def remember(part, objects, expressions=()) -> None:
+    """Record analysis ``objects`` committed in ``part`` for ``delete_all``, and the names
+    of the ``expressions`` their builder added (deleted with them)."""
     found = _MADE.setdefault(_tag(part), [])
     known = {_tag(o) for o in found}
     found.extend(o for o in objects if _tag(o) not in known)
+    for name in {_name(o).casefold() for o in objects} - {""}:
+        _EXPRESSIONS.setdefault(_tag(part), {})[name] = list(expressions)
+
+
+def _name(obj) -> str:
+    try:
+        return str(obj.Name or "")
+    except Exception:  # a deleted object
+        return ""
 
 
 UF_OBJ_ALIVE = 3  # UF_OBJ_ask_status: an object that exists (not deleted or undone)
@@ -81,13 +99,54 @@ def of_part(tx, part) -> list:
     return found
 
 
-def delete_all(tx, part) -> int:
-    """Delete every analysis object of ``part`` (call before closing it); returns how many.
-    Runs ``UpdateManager`` delete + update under its own undo mark."""
-    objects = of_part(tx, part)
-    _MADE.pop(_tag(part), None)
-    if not objects:
-        return 0
+def _by_name(tx, part, name) -> list:
+    """Objects of the work part called ``name`` (UF ``CycleByName``: also analyses this
+    session did not make and NX does not list); [] for another part or without UF."""
+    cycle = getattr(getattr(tx.uf, "Obj", None), "CycleByName", None)
+    work = getattr(tx.session.Parts, "Work", None)
+    if cycle is None or work is None or _tag(work) != _tag(part):
+        return []
+    out: list = []
+    tag = 0  # the null tag starts the cycle; NX returns it (or None) at the end
+    with contextlib.suppress(Exception):  # a host without the call: nothing found
+        for _ in range(1000):
+            tag = cycle(name, tag)
+            if not tag:
+                break
+            out.append(tx.nx.TaggedObjectManager.GetTaggedObject(tag))
+    return out
+
+
+def named(tx, part, name) -> list:
+    """The live analysis objects of ``part`` called ``name`` (any case)."""
+    key = str(name).casefold()
+    found = [o for o in of_part(tx, part) if _name(o).casefold() == key]
+    known = {_tag(o) for o in found}
+    if key.startswith(PREFIX.casefold()):  # names only the analysis tools give
+        for obj in _by_name(tx, part, _name(found[0]) if found else str(name).upper()):
+            if _tag(obj) not in known and _alive(tx, obj):
+                found.append(obj)
+                known.add(_tag(obj))
+    return found
+
+
+def names(tx, part) -> list[str]:
+    """Names of the live analyses the tools made in ``part`` (``PREFIX``), sorted."""
+    return sorted({n for n in map(_name, of_part(tx, part)) if n.startswith(PREFIX)})
+
+
+def unique_name(tx, part, kind: str) -> str:
+    """``NX_MCP_<KIND>_<n>``: the first ``n`` no live analysis of ``part`` is called."""
+    base = f"{PREFIX}{kind.upper()}_"
+    taken = {n.casefold() for n in names(tx, part)}
+    n = 1
+    while (base + str(n)).casefold() in taken or named(tx, part, base + str(n)):
+        n += 1
+    return base + str(n)
+
+
+def _drop(tx, objects) -> None:
+    """``UpdateManager`` delete + update of ``objects`` under an invisible undo mark."""
     session = tx.session
     with native(default="NX_UPDATE_FAILED"):
         mark = session.SetUndoMark(
@@ -98,4 +157,49 @@ def delete_all(tx, part) -> int:
         errors = session.UpdateManager.DoUpdate(mark)
     if errors:
         fail("NX_UPDATE_FAILED", f"Deleting {len(objects)} analysis objects: {errors} errors")
+
+
+def delete(tx, part, name) -> tuple[int, list[str]]:
+    """Delete the analysis objects of ``part`` called ``name`` and the expressions their
+    builder added that nothing else uses; returns ``(objects, expressions deleted)``.
+    Verified: none of them is left."""
+    objects = named(tx, part, name)
+    if not objects:
+        return 0, []
+    # remembered objects stay listed: of_part skips dead ones, and a rolled-back call
+    # brings them back alive (still to delete before the part closes)
+    _drop(tx, objects)
+    left = [o for o in objects if _alive(tx, o)]
+    if left:
+        fail("NX_VERIFICATION_FAILED", f"NX kept {len(left)} of the {name} analysis objects")
+    added = _EXPRESSIONS.get(_tag(part), {}).get(str(name).casefold(), [])
+    return len(objects), drop_expressions(tx, part, added)
+
+
+def drop_expressions(tx, part, wanted) -> list[str]:
+    """Delete the expressions of ``part`` called one of ``wanted`` that no other expression
+    uses (one still in use stays: never fatal); returns the names deleted."""
+    out: list[str] = []
+    collection = getattr(part, "Expressions", None)
+    if collection is None or not wanted:
+        return out
+    for exp in [e for e in list(collection) if str(e.Name) in set(wanted)]:
+        with contextlib.suppress(Exception):
+            query = getattr(exp, "GetReferencingExpressions", None)
+            if query is None or not list(query()):
+                name = str(exp.Name)
+                collection.Delete(exp)
+                out.append(name)
+    return out
+
+
+def delete_all(tx, part) -> int:
+    """Delete every analysis object of ``part`` (call before closing it); returns how many.
+    Runs ``UpdateManager`` delete + update under its own undo mark."""
+    objects = of_part(tx, part)
+    _MADE.pop(_tag(part), None)
+    _EXPRESSIONS.pop(_tag(part), None)
+    if not objects:
+        return 0
+    _drop(tx, objects)
     return len(objects)

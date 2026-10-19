@@ -135,3 +135,31 @@ def test_vector_projection_flags_curves_behind_a_nearer_hit():
     one = run(nx, "nx_create_projected_curve", curves=[line.ref], faces=[body.ref],
               along="vector", direction="-z")  # fmt: skip
     assert one.data["far_curves"] == [] and not one.warnings
+
+
+def test_projection_that_misses_the_target_is_refused_before_nx():
+    nx = curves_nx()
+    body = nx.block(100, 50, 20)
+    top = body.face((0, 0, 1))
+    beside = curve(nx, [10, 200, 50], [90, 200, 50])
+    miss = run(nx, "nx_create_projected_curve", curves=[beside.ref], faces=[top.ref],
+               along="vector", direction="-z")  # fmt: skip
+    assert miss.error["code"] == "NX_INVALID_ARGUMENT" and miss.error["field"] == "/direction"
+    assert miss.mutation_outcome == "not_started"
+    below = curve(nx, [10, 10, -50], [90, 40, -50])
+    back = run(nx, "nx_create_projected_curve", curves=[below.ref], faces=[top.ref],
+               along="vector", direction="-z")  # fmt: skip
+    assert back.error["field"] == "/direction" and "both_sides" in back.error["hint"]
+    flat = run(nx, "nx_create_projected_curve", curves=[beside.ref], plane="xy",
+               along="vector", direction="x")  # fmt: skip
+    assert flat.error["field"] == "/direction" and not nx.builders
+
+
+def test_combined_projection_with_parallel_views_is_refused_before_nx():
+    nx = curves_nx()
+    top = curve(nx, [0, 0, 0], [100, 50, 0])
+    side = curve(nx, [0, -10, 0], [100, -10, 30])
+    bad = run(nx, "nx_create_combined_projection", first=[top.ref], second=[side.ref],
+              first_direction="z", second_direction="-z")  # fmt: skip
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT"
+    assert bad.error["field"] == "/second_direction" and not nx.builders

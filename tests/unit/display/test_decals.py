@@ -161,3 +161,46 @@ def test_a_curved_projection_says_to_check_the_render(setup):
               projection="cylindrical")  # fmt: skip
     assert out.ok, out.error
     assert any("check it with nx_capture_view" in w["message"] for w in out.warnings)
+
+
+def test_a_center_off_the_face_on_its_plane_moves_onto_the_face(setup):
+    """A center on the face's plane but outside the face is moved to the face's nearest
+    point (not kept where it is because it lies on the underlying plane)."""
+    nx, block, image = setup
+    front = block.faces[5]  # -Y at y=0: x 0..100, z 0..20
+    out = run(nx, "nx_create_decal", face=front.ref, image=str(image), width=20, height=10,
+              center=[500, 0, 500])  # fmt: skip
+    assert out.ok, out.error
+    assert out.data["decal"]["center"] == [100.0, 0.0, 20.0]
+    assert out.data["projected"] == pytest.approx(math.hypot(400, 480))
+    assert "hang off" in out.warnings[0]["message"]
+    assert [r["id"] for r in out.changes["modified"]] == [front.ref]
+
+
+def test_compensation_places_deleted_decals_again(setup):
+    nx, block, image = setup
+    side = block.faces[2]
+    made = run(nx, "nx_create_decal", face=side.ref, image=str(image), width=40, height=20,
+               center=[100, 30, 10], rotation=30, name="HULL_LOGO")  # fmt: skip
+    assert made.ok, made.error
+    gone = run(nx, "nx_delete_decal", names=["hull logo"])
+    assert gone.ok and "HULL_LOGO" not in nx.part.VisualMaterialCollection.items
+    undo = run(nx, "nx_undo_operation", mode="compensate")
+    assert undo.ok and undo.data["compensated"], undo
+    assert undo.data["restored"] == ["decals HULL_LOGO placed again"]
+    back = run(nx, "nx_list_visual_materials", limit=1).data["in_part"]
+    assert {"name": "HULL_LOGO", "kind": "decal", "objects": 1} in back
+    state = next(v for v in nx.decals.values() if v["name"] == "HULL_LOGO" and v["faces"])
+    assert state["center"] == (100.0, 30.0, 10.0) and state["width"] == 40.0
+
+
+def test_compensation_refuses_a_deleted_decal_whose_image_is_gone(setup):
+    nx, block, image = setup
+    run(nx, "nx_create_decal", face=block.faces[0].ref, image=str(image), width=10, name="A")
+    assert run(nx, "nx_delete_decal", names=["A"]).ok
+    image.unlink()
+    undo = run(nx, "nx_undo_operation", mode="compensate")
+    assert (
+        undo.error["code"] == "NX_UNSUPPORTED_OPTION"
+        and "no longer readable" in undo.error["message"]
+    )

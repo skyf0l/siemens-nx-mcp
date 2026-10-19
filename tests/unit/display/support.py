@@ -250,7 +250,21 @@ def visual_nx(units="mm"):
     nx.uf.Modeling.AskFaceProps = lambda tag, uv: _face_props(nx, tag, uv)
     nx.uf.Modeling.AskFaceUvMinmax = lambda tag: [0.0, 1.0, 0.0, 1.0]
     nx.uf.Modeling.AskPointContainment = lambda p, tag: 1
+    nx.uf.Modeling.AskMinimumDist = lambda a, _b, _g1, _p1, _g2, p2: _min_dist(nx, a, p2)
     return nx
+
+
+def _min_dist(nx, tag, p):
+    """UF minimum distance from a point to a block face: the nearest point of the face's
+    rectangle (the body's box with the face's own coordinate fixed)."""
+    body = next(b for b in nx.part.Bodies if any(f.Tag == tag for f in b.faces))
+    _kind, origin, normal = nx.face_data[tag]
+    box = body.box
+    near = [min(max(float(v), box[i]), box[i + 3]) for i, v in enumerate(p)]
+    axis = next(i for i, n in enumerate(normal) if n)
+    near[axis] = float(origin[axis])
+    gap = sum((a - b) ** 2 for a, b in zip(p, near, strict=True)) ** 0.5
+    return gap, near, list(p)
 
 
 def _face_parm(nx, tag, p):

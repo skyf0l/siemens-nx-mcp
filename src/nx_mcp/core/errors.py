@@ -9,6 +9,7 @@ overrides it for one error (a refusal no fix can turn into a success).
 from __future__ import annotations
 
 import contextlib
+import difflib
 import os
 import re
 import traceback
@@ -102,9 +103,13 @@ CATEGORIES: dict[str, tuple[str, tuple[str, ...], str]] = {
         "Diagnose with nx_check_sketch and remove the conflicting constraint",
     ),
     "verification_failed": (
-        "ask_engineer",
+        # Mostly an input the geometry cannot take (a size, an adjacent set): a changed
+        # call can succeed; the hint says when to tell the engineer instead.
+        "after_fix",
         ("NX_VERIFICATION_FAILED",),
-        "NX built something different from the request and it was rolled back; report it",
+        "NX built something other than the request and it was rolled back; details give "
+        "expected and actual: change that input or the approach; if the input is right, "
+        "tell the engineer",
     ),
     "limit_exceeded": (
         "after_fix",
@@ -193,6 +198,7 @@ WARNING_CODES = frozenset(
         "NX_NO_EFFECT",
         "NX_NOTE",
         "NX_TARGET_UNCHANGED",  # a combine target the call left as it was
+        "NX_OFF_SHEET",  # a drawing object lies partly past the sheet edge
     }
 )
 RETRY_VALUES = frozenset(
@@ -257,8 +263,61 @@ KNOWN_NX_CODES: dict[int, tuple[str, str]] = {
         "NX_NOT_FOUND",
         "Name a part that has drawing sheets",
     ),
+    650008: (  # "Transformation is not valid."
+        "NX_INVALID_ARGUMENT",
+        "NX takes only a rigid transformation here (no mirror or scale): use the unmirrored "
+        "object, then mirror the result",
+    ),
+    671729: (  # "Insufficient number of points to close the spline"
+        "NX_INVALID_ARGUMENT",
+        "A closed (periodic) spline needs at least 3 points: add points or leave it open",
+    ),
+    640005: (  # "Invalid file name"
+        "NX_INVALID_ARGUMENT",
+        "Use a file name of letters, digits, '_', '-' and '.' (no spaces or * ? < > | : \")",
+    ),
+    1050053: (  # expression import: expressions that refer to each other in a cycle
+        "NX_INVALID_ARGUMENT",
+        "Break the cycle: an expression may not depend on itself through others "
+        "(a = b + 1 with b = a + 1)",
+    ),
+    3545001: (  # "A cut was not performed on the tool and target bodies"
+        "NX_BUILD_FAILED",
+        "The tool does not intersect the target: pass tool bodies that overlap it",
+    ),
+    670416: (  # "No curve projected."
+        "NX_BUILD_FAILED",
+        "The projection misses the faces: change the direction or the curves so they "
+        "project onto them",
+    ),
+    1395078: (  # "No curves were created from the given input."
+        "NX_BUILD_FAILED",
+        "The input yields no curve on this geometry (the value does not occur on these "
+        "faces, or the plane misses them): compare it with the faces' shape and bounds",
+    ),
+    671358: (  # "Boolean error. Unable to unite ... solids."
+        "NX_BUILD_FAILED",
+        "The solids to unite do not touch or overlap: make them overlap, or keep them separate",
+    ),
+    670422: (  # "Invalid body."
+        "NX_BUILD_FAILED",
+        "NX made an invalid (twisted or self-intersecting) body: check guides touch every "
+        "section, start points line up and sizes fit the geometry",
+    ),
+    4120001: (  # "The tool body must be a revolved feature, cylindrical extrude, or ..."
+        "NX_WRONG_GEOMETRY",
+        "Pass a tool body made by a revolve, a cylindrical extrude or a cylinder feature",
+    ),
+    4685108: (  # "The specified study is optimized and up-to-date. Optimization will not..."
+        "NX_UNSUPPORTED_OPTION",
+        "The study is already optimized and up to date: read its results, or change the "
+        "study before running it again",
+    ),
 }
 
+# Known codes whose hint also goes with a tool's own default code (NX_SAVE_FAILED,
+# NX_IMPORT_FAILED): their cause does not depend on what the tool was doing.
+HINT_ANY_DEFAULT = frozenset({640005, 1050053})
 
 # ---------------------------------------------------------------------------
 # Grammar of messages and panel lines (one place: no "bodys" or "a explosion")
@@ -319,6 +378,112 @@ def counted(count: int, word: str) -> str:
 def with_article(word: str) -> str:
     """``an edge``, ``a face``."""
     return f"{article(word)} {word}"
+
+
+def nearest(text: str, names, *, first=(), limit: int = 3) -> list[str]:
+    """Up to ``limit`` of ``names`` closest to ``text`` (case and a ``.prt`` suffix
+    ignored), the ``first`` ones (the caller's own parts) ahead of equally close others;
+    when fewer are close, the remaining ``first`` names fill the list (never unrelated
+    names: a hint lists what the caller likely meant, not everything loaded)."""
+
+    def key(name) -> str:
+        stem = str(name).strip().casefold()
+        return stem[:-4] if stem.endswith(".prt") else stem
+
+    wanted = key(text)
+    unique = list(dict.fromkeys(str(n) for n in names))
+    mine = {str(n) for n in first}
+    scored = []
+    for index, name in enumerate(unique):
+        stem = key(name)
+        ratio = difflib.SequenceMatcher(None, wanted, stem).ratio()
+        if wanted and (wanted in stem or stem in wanted):
+            ratio = max(ratio, 0.8)
+        if ratio >= 0.5:
+            scored.append((-round(ratio, 2), name not in mine, index, name))
+    out = [name for *_, name in sorted(scored)][:limit]
+    for name in unique:
+        if len(out) >= limit:
+            break
+        if name in mine and name not in out:
+            out.append(name)
+    return out
+
+
+def listed_names(text: str, names, *, first=(), limit: int = 3) -> str:
+    """``a.prt, b.prt (12 loaded)``: :func:`nearest` names plus the total when more exist;
+    ``none is loaded`` for no names."""
+    names = list(dict.fromkeys(str(n) for n in names))
+    if not names:
+        return "none is loaded"
+    shown = nearest(text, names, first=first, limit=limit)
+    more = len(names) - len(shown)
+    if not shown:
+        return f"{len(names)} loaded, none named like {text!r}; nx_list_parts lists them"
+    return ", ".join(shown) + (f" ({len(names)} loaded; nx_list_parts lists all)" if more else "")
+
+
+# "The work part has no expression 'x'": a handler's wording, named after the call's
+# target file instead (the agent may have passed ``part``); hints keep their wording.
+_WORK_PART = re.compile(
+    r"\b([Tt])he work part(?= (?:has|is|already|was|cannot|does|holds|contains)\b)"
+)
+
+
+def _pointers(value, wanted: str, path: str = "") -> list[str]:
+    """JSON pointers of every string in ``value`` equal to ``wanted``."""
+    if isinstance(value, str):
+        return [path] if value == wanted else []
+    found: list[str] = []
+    if isinstance(value, dict):
+        for k, v in value.items():
+            found += _pointers(v, wanted, f"{path}/{k}")
+    elif isinstance(value, (list, tuple)):
+        for i, v in enumerate(value):
+            found += _pointers(v, wanted, f"{path}/{i}")
+    return found
+
+
+def _at(args, pointer: str):
+    """``(found, value)`` at ``pointer`` in ``args``."""
+    node = args
+    for part in str(pointer).split("/")[1:]:
+        if isinstance(node, dict) and part in node:
+            node = node[part]
+        elif isinstance(node, (list, tuple)) and part.isdigit() and int(part) < len(node):
+            node = node[int(part)]
+        else:
+            return False, None
+    return True, node
+
+
+def pinpoint(error: NXError, args=None, part_file: str | None = None) -> NXError:
+    """Make a failed call's error name what it is about (the kernel calls it once):
+
+    - ``field`` null on an error about one reference (``details.ref``): the JSON pointer of
+      the argument holding that ref, when exactly one does (``/first``,
+      ``/operations/2/arguments/sketch``);
+    - an index pointer into a scalar argument (``/face/0`` for ``face: "e:3"``): the
+      argument itself (``/face``);
+    - ``The work part has ...`` in the message: the target's file (``bracket.prt has ...``).
+    """
+    if isinstance(args, dict):
+        ref = (error.details or {}).get("ref")
+        if error.field is None and isinstance(ref, str) and ref:
+            found = list(dict.fromkeys(_pointers(args, ref)))
+            if len(found) == 1:
+                error.field = found[0]
+        field = error.field
+        if isinstance(field, str) and field.startswith("/") and not _at(args, field)[0]:
+            head, _, last = field.rpartition("/")
+            exists, value = _at(args, head) if head else (False, None)
+            if last.isdigit() and exists and isinstance(value, (str, int, float)):
+                error.field = head
+                if error.message.startswith(field + ":"):
+                    error.message = head + error.message[len(field) :]
+    if part_file:
+        error.message = _WORK_PART.sub(lambda _m: part_file, error.message)
+    return error
 
 
 def dev_mode() -> bool:
@@ -544,13 +709,16 @@ def _classify(error, nx_code, details, codes, default) -> NXError:
         if member is not None:  # the kernel decides: our bug, or a build without it
             details["nx_member"] = member
         return NXError("NX_ERROR", f"{type(error).__name__}: {error}", details=details)
-    if nx_code in KNOWN_NX_CODES and default in GENERIC_DEFAULTS:
-        code, hint = KNOWN_NX_CODES[nx_code]
-        return NXError(code, str(error), nx_code=nx_code, details=details, hint=hint)
+    known = KNOWN_NX_CODES.get(nx_code)
+    if known is not None and default in GENERIC_DEFAULTS:
+        return NXError(known[0], str(error), nx_code=nx_code, details=details, hint=known[1])
     # NX refused the input for a reason no table names: changing the input is the way on,
     # not a report to the engineer (a Python exception, a bug, stays ``ask_engineer``).
     retry = "after_fix" if default == "NX_ERROR" else None
-    return NXError(default, str(error), nx_code=nx_code, details=details, retry=retry)
+    # A tool's own default code stays; codes whose meaning no tool context changes (a bad
+    # file name, an expression cycle) still say what to change.
+    hint = known[1] if known is not None and nx_code in HINT_ANY_DEFAULT else None
+    return NXError(default, str(error), nx_code=nx_code, details=details, retry=retry, hint=hint)
 
 
 @contextlib.contextmanager

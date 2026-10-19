@@ -60,7 +60,8 @@ def test_lofted_flange_takes_two_profiles_and_reads_the_thickness_back(monkeypat
     closed = profile(nx, (0, 0, 0), (10, 0, 0), (10, 10, 0), (0, 0, 0))
     bad = create(nx, "lofted_flange", section=closed.ref, end_section=end.ref, thickness=2)
     assert bad.error["code"] == "NX_WRONG_GEOMETRY" and bad.error["field"] == "/parameters/section"
-    assert bad.mutation_outcome == "rolled_back" and nx.live_builders == 0
+    # refused while the builder was set up, before any commit: NX made nothing
+    assert bad.mutation_outcome == "not_started" and nx.live_builders == 0
 
 
 @pytest.mark.parametrize(

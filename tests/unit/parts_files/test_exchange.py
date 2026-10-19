@@ -113,7 +113,7 @@ def test_import_into_the_work_part(nx, root, ugii):
     assert importer.FlattenAssembly is True and importer.FileOpenFlag is False
     assert importer.ImportTo == nx.nx.Step214Importer.ImportToOption.WorkPart
     assert importer.destroyed and ok.data["body_count"] == 1 and len(part.Bodies) == 1
-    assert ok.data["staging"] == "imports/op_import_1"
+    assert ok.data["staging"] is None and not (root / "imports" / "op_import_1").exists()
     assert ok.changes["references"] == "preserved"
 
 

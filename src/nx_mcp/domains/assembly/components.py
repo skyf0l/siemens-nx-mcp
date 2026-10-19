@@ -14,7 +14,9 @@ NX 2406 findings encoded here:
   the part's first save.
 - Make unique: ``Part.SetMakeUniqueName`` names the copy, then
   ``MakeUniquePartBuilder`` points the selected occurrence at it and renames it
-  after the new part; other occurrences keep the original part.
+  after the new part (the edit names it back); other occurrences keep the original part.
+- NX accepts two sibling components of one name (they would share a path and an
+  anchor): a name a sibling has is refused, and a default name is numbered (``_2``).
 - NX cannot change the reference set of a suppressed component ("Cannot change
   reference set on suppressed component", 720173): an edit unsuppresses first and
   suppresses last, and a reference set for a component that stays suppressed is
@@ -292,6 +294,12 @@ def nx_create_component(
     needed = "path" if mode == "from_file" else "new_path"
     if given[needed] is None:
         fail("NX_INVALID_ARGUMENT", f"{mode} needs {needed}", field="/" + needed)
+    if name is not None:
+        with tx.checks():
+            common.unique_name(tx, name, "/name")
+    else:  # NX names it after the file: numbered when a sibling has that name
+        stem = Path(str(new_path if mode == "new_in_context" else path)).stem
+        name = common.free_name(stem, common.sibling_names(tx.part))
     if mode == "new_in_context":
         assert new_path is not None  # checked above
         created, c = _new_in_context(tx, Path(new_path), units, objects_to_move or [], name, target)
@@ -304,7 +312,7 @@ def nx_create_component(
         c, status = part.ComponentAssembly.AddComponent(
             str(path),
             "Entire Part",
-            name or Path(path).stem,
+            name,
             tx.nx.Point3d(*target[0]),
             builders.matrix(tx, target[1]),
             -1,
@@ -479,8 +487,8 @@ def nx_edit_component(
 ) -> EditComponentData:
     """Edit direct components: rename (one), replace or make unique the part, (un)suppress, or
     set the reference set. Options combine in one call. reference_set must exist in the
-    component's part. replace_with keeps the names and needs the current part saved once;
-    make_unique renames it after the copy. Placement never changes; delete with
+    component's part. Names stay unique among siblings; replace_with (current part saved
+    once) and make_unique keep them. Placement never changes; delete with
     nx_delete_objects."""
     edits = (name, replace_with, make_unique, suppressed, reference_set)
     if all(v is None for v in edits):
@@ -497,6 +505,8 @@ def nx_edit_component(
     args.distinct("/components", components, "components")
     with tx.checks():
         values = [common.component(tx, r, f"/components/{i}") for i, r in enumerate(components)]
+        if name is not None:
+            common.unique_name(tx, name, "/name", skip=values)
         if replace_with is not None:
             _check_file(tx, replace_with, "/replace_with")
             for i, c in enumerate(values):
@@ -550,6 +560,8 @@ def nx_edit_component(
                     result.rename(tx, c, was)
     if make_unique is not None:
         _make_unique(tx, values[0], Path(make_unique))
+        if name is None and str(values[0].Name) != old_names[0]:  # NX names it after the copy
+            result.rename(tx, values[0], old_names[0])
     sets: list[str | None] = [None] * len(values)
     if reference_set is not None:
         owner = "The new part" if replace_with is not None else None

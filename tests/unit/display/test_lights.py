@@ -14,6 +14,7 @@ SCENE_NAMES = ["Scene Ambient", "Scene Left Top", "Scene Top", "Scene Right Top"
                "Scene Left Bottom", "Scene Bottom", "Scene Right Bottom"]  # fmt: skip
 SHADOW = {"NotSet": 0, "SoftEdged": 1, "HardEdged": 2}
 PRESET_LIGHTS = {0: SCENE_NAMES[:2] + ["Scene Right Top"], 1: SCENE_NAMES[:4]}
+PRESET_LEVEL = 0.68
 
 
 class Light(Object):
@@ -30,6 +31,8 @@ class Light(Object):
         return self.on
 
     def SetEnabledInView(self, _view, flag):
+        if flag and self.on and self.scene == 0:  # NX 2406: Scene Ambient on, on again
+            raise NXException(3705008, "H")
         self.on = bool(flag)
 
 
@@ -48,6 +51,7 @@ class LightBuilder:
             raise self.fake.light_error
         light = self.light
         light.Intensity, light.shadow = self.Intensity, self.LightShadowType
+        light.on = True  # NX 2406: a builder commit switches the light on
         if not self.studio:
             return
         light.cone = self.ConeAngle
@@ -75,6 +79,8 @@ class Lighting:
         names = PRESET_LIGHTS.get(self.fake.preset, SCENE_NAMES[:1])
         for light in self.fake.part.Lights:
             light.on = light.Name in names
+            if light.on:  # NX 2406: a preset sets its scene lights' intensities too
+                light.Intensity = PRESET_LEVEL
 
     def Destroy(self):
         pass
@@ -319,3 +325,43 @@ def test_compensation_switches_the_previous_lights_back_on():
     undo = run(nx, "nx_undo_operation", mode="compensate")
     assert undo.ok and undo.data["compensated"], undo
     assert run(nx, "nx_list_lights").data["on"] == before
+
+
+def test_off_with_an_intensity_stays_off_and_keeps_the_intensity():
+    """NX 2406: the light builder switches a light on when it commits, so on=false is
+    applied last and an intensity-only call leaves an off light off."""
+    nx = lights_nx()
+    distant = light(nx, "Distant 1")
+    distant.on = True
+    off = run(nx, "nx_set_light", name="Distant 1", on=False, intensity=0.2)
+    assert off.ok, off.error
+    assert off.data["light"]["on"] is False and off.data["light"]["intensity"] == 0.2
+    assert distant.on is False and distant.Intensity == 0.2
+    dim = run(nx, "nx_set_light", name="Point 1", intensity=0.3)
+    assert dim.ok, dim.error
+    assert dim.data["light"]["on"] is False and light(nx, "Point 1").on is False
+    assert light(nx, "Point 1").Intensity == 0.3
+
+
+def test_preset_compensation_sets_the_intensities_back():
+    nx = lights_nx()
+    light(nx, "Scene Left Top").Intensity = 0.4
+    light(nx, "Point 1").on = True
+    two = run(nx, "nx_set_lighting_preset", preset="lighting_2")
+    assert two.ok, two.error
+    assert light(nx, "Scene Left Top").Intensity == PRESET_LEVEL
+    undo = run(nx, "nx_undo_operation", mode="compensate")
+    assert undo.ok and undo.data["compensated"], undo
+    assert light(nx, "Scene Left Top").Intensity == 0.4
+    assert light(nx, "Scene Top").Intensity == 0.3 and light(nx, "Point 1").on is True
+    assert light(nx, "Point 1").Intensity == 0.75
+
+
+def test_preset_compensation_refuses_an_intensity_changed_since():
+    nx = lights_nx()
+    assert run(nx, "nx_set_lighting_preset", preset="lighting_2").ok
+    first = run(nx, "nx_list_lights").data["on"]
+    light(nx, "Scene Top").Intensity = 0.9
+    undo = run(nx, "nx_undo_operation", mode="compensate")
+    assert undo.error["code"] == "NX_DEPENDENCY_ORDER" and "Scene Top" in undo.error["message"]
+    assert run(nx, "nx_list_lights").data["on"] == first

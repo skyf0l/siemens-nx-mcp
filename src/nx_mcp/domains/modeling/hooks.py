@@ -1,10 +1,11 @@
 """Modeling listers for ``nx_list_objects`` (bodies, faces, edges, features, datums,
-expressions) and the
-feature deleter for ``nx_delete_objects`` (``fn(tx, objects)``, inside the caller's mark)."""
+expressions), the feature and point deleters for ``nx_delete_objects`` (``fn(tx, objects)``,
+inside the caller's mark) and the restorer that shows again the source bodies a mirror or
+an untrim hid, once the undo deleted its feature (``note_hidden``)."""
 
 from __future__ import annotations
 
-from nx_mcp.core.catalogue import deleter, lister
+from nx_mcp.core.catalogue import deleter, lister, restorer
 from nx_mcp.core.errors import fail, native
 from nx_mcp.kit import expr, geom, model, result, select
 
@@ -159,6 +160,37 @@ def no_active_sketch(tx):
              hint="Finish the active sketch, then retry")  # fmt: skip
 
 
+@deleter("point")
+def delete_points(tx, objects):
+    """Points (loose, imported, fitted or a point feature's): a point a feature owns goes
+    with its feature (deleting the point alone would leave the feature empty); the others
+    through NX's Delete, like features."""
+    owners: dict[int, object] = {}
+    loose = []
+    for point in objects:
+        owner = _point_feature(tx, point)
+        if owner is not None:
+            owners[int(owner.Tag)] = owner
+        else:
+            loose.append(point)
+    delete_features(tx, [*owners.values(), *loose])
+
+
+def _point_feature(tx, point):
+    """The point feature that owns ``point`` (its only entity), or None."""
+    tag = int(point.Tag)
+    for feature in tx.part.Features:
+        if "POINT" not in str(getattr(feature, "FeatureType", "")).upper():
+            continue
+        try:
+            entities = list(feature.GetEntities())
+        except Exception:  # noqa: BLE001 - a feature without entities owns no point
+            continue
+        if entities and all(int(e.Tag) == tag for e in entities):
+            return feature
+    return None
+
+
 @deleter("feature")
 def delete_features(tx, objects):
     """NX's Delete through the update manager: dependent features and their bodies go too."""
@@ -166,3 +198,32 @@ def delete_features(tx, objects):
     with native(default="NX_BUILD_FAILED"):
         tx.session.UpdateManager.AddToDeleteList(list(objects))
     model.update(tx)
+
+
+def note_hidden(tx, rows: list) -> None:
+    """Keep the bodies a creating call hid (their result rows): an undo by compensation
+    deletes the call's feature, then :func:`restore_hidden` shows them again."""
+    refs = [str(r["id"]) for r in rows if isinstance(r, dict) and r.get("id")]
+    if refs:
+        tx.note_restore({"hidden": refs}, after_delete=True)
+
+
+@restorer("nx_create_mirror")
+@restorer("nx_create_untrim")
+def restore_hidden(tx, data: dict, *, apply: bool) -> str:
+    """Show again the source bodies a mirror or an untrim hid (``note_hidden``), after the
+    undo deleted its feature. A body deleted since is refused; one shown since is left."""
+    found = [(ref, tx.resolve(ref, "body")) for ref in data.get("hidden") or []]
+    if not apply:
+        return ""
+    shown = []
+    for ref, body in found:
+        if bool(getattr(body, "IsBlanked", False)):
+            with native():
+                body.Unblank()
+            shown.append(ref)
+    left = [ref for ref, body in found if bool(getattr(body, "IsBlanked", False))]
+    if left:
+        fail("NX_VERIFICATION_FAILED", f"NX still hides {', '.join(left)}",
+             details={"bodies": left})  # fmt: skip
+    return f"showed {', '.join(shown)} again" if shown else "the hidden bodies were shown already"

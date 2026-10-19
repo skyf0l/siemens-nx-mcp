@@ -23,7 +23,7 @@ from __future__ import annotations
 import contextlib
 from typing import Annotated, Literal, TypedDict, cast
 
-from nx_mcp.core.catalogue import tool
+from nx_mcp.core.catalogue import restorer, tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
@@ -276,7 +276,7 @@ def _warn_off_sheet(tx, out, sheet):
     ]
     if past:
         tx.warn(
-            "NX_UPDATE_WARNING",
+            drawing.OFF_SHEET,
             f"The table at {out['position']} reaches {', '.join(past)}, past the {length:g} x "
             f"{height:g} sheet (extent {[round(v, 6) for v in (x0, y0, x1, y1)]}): move it "
             "with position",
@@ -343,6 +343,7 @@ def nx_create_drawing_table(
     block's bottom-right corner, a revision table's top-left corner (rows grow down) and a
     parts list's top-left corner (header at the bottom, rows added above it); the result's
     bounds give the extent."""
+    _position_on_sheet(tx, view if kind in ("hole", "bend") else None, sheet, position)
     if kind == "hole":
         args.need(view=view, origin=origin)
         return hole_callouts.create_table(tx, view, position, origin, origin_point, table_info)
@@ -357,6 +358,16 @@ def nx_create_drawing_table(
     args.need(rows=rows, widths=widths)
     _check_grid(rows, widths)
     return _create_grid(tx, kind, sheet, position, rows, widths, row_height)
+
+
+def _position_on_sheet(tx, view, sheet, position):
+    """The sheet-bounds gate for a new table: its position on the view's or given sheet
+    (a missing one is refused later, with the kind's other needs)."""
+    if view is None and sheet is None:
+        return
+    with tx.checks():
+        target = drawing.view(tx, view)[1] if view is not None else sheet_of(tx, sheet, "/sheet")
+        drawing.check_on_sheet(target, position, "/position")
 
 
 def _check_grid(rows, widths):
@@ -675,6 +686,13 @@ def nx_edit_drawing_table(
             if current and rows is None:
                 pairs = title_blocks.resolve_edits(current, cells)
         sheet = drawing.sheet_of_annotation(tx, obj)
+        if sheet is not None:
+            drawing.check_on_sheet(sheet, position, "/position")
+        gridded = kind in ("title_block", "revision") and table_tag(tx, obj) is not None
+        undoable = given <= {"position"} or (
+            gridded and given <= {"position", "rows", "append_rows"}
+        )
+        old = _table_values(tx, obj, sheet, given) if undoable and sheet is not None else None
     with drawing.on_sheet(tx, sheet) as sh:
         if kind == "parts_list" and columns:
             for i, edit in enumerate(columns):
@@ -705,7 +723,56 @@ def nx_edit_drawing_table(
             tx.warn("NX_UPDATE_WARNING", f"NX keeps the first row {out['row_height']:g} high, "
                     f"not {row_height:g}: its text needs more height")  # fmt: skip
         _warn_off_sheet(tx, out, sheet)
+    tx.modified(obj, "drawing_table")
+    if old is not None:
+        tx.note_restore({"table": out["table"]["id"], "kind": kind, "before": old,
+                         "after": _table_values(tx, obj, sheet, given)})  # fmt: skip
     return out
+
+
+def _table_values(tx, obj, sheet, given):
+    """What a table edit of ``given`` sets, as it reads now (an undo's before-values): the
+    position (sheet units) and the stored rows (attribute links kept)."""
+    values: dict = {}
+    if "position" in given:
+        values["position"] = drawing.Sheet(tx, sheet).to_sheet(
+            drawing.anchor_of(tx, obj).AnnotationOrigin
+        )
+    if {"rows", "append_rows"} & set(given):
+        values["rows"] = _stored_rows(tx, table_tag(tx, obj))
+    return values
+
+
+@restorer("nx_edit_drawing_table")
+def _restore_table(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Set back the position or rows an ``nx_edit_drawing_table`` changed (edits of other
+    table fields keep no before-values): refused when the table changed since."""
+    ref, before, after = data["table"], data["before"], data["after"]
+    obj = shown_table(tx, select.resolve(tx, ref, "drawing_table", "annotation", field="/table",
+                                         work_part=True))  # fmt: skip
+    if data.get("kind") == "title_block":
+        obj = _title_block_of(tx, obj)
+    sheet = drawing.sheet_of_annotation(tx, obj)
+    now = _table_values(tx, obj, sheet, after)
+    moved = "position" in after and any(
+        abs(a - b) > 1e-6 * max(1.0, abs(b)) for a, b in zip(now["position"], after["position"],
+                                                              strict=True)
+    )  # fmt: skip
+    if moved or now.get("rows") != after.get("rows"):
+        fail("NX_DEPENDENCY_ORDER", f"Table {ref} was edited since", details={"table": ref})
+    if apply:
+        with drawing.on_sheet(tx, sheet) as sh:
+            if "rows" in before:
+                _edit_grid(tx, obj, before["rows"], None, None, sh)
+            if "position" in before:
+                drawing.anchor_of(tx, obj).AnnotationOrigin = sh.point(before["position"])
+            update(tx)
+        back = _table_values(tx, obj, sheet, before)
+        if "rows" in before:
+            readback.expect(back["rows"] == before["rows"], "rows", rows=back["rows"])
+        if "position" in before:
+            readback.expect_close(back["position"], before["position"], "position", 1e-3)
+    return f"the {', '.join(sorted(before))} of table {ref} set back"
 
 
 def _edit_hint(kind, field, allowed):
@@ -886,9 +953,9 @@ def nx_get_drawing_table(
 ) -> TableInfo:
     """Read a drawing table, or a sheet's title block. Give exactly one of table (that table)
     or sheet (its title block, table null when it has none, plus tables: every table on the
-    sheet). Gives kind, rows, columns,
-    update mode and position (the anchor given at creation); title blocks list cells (label,
-    lock, text with <W@TITLE> links, value)."""
+    sheet). Gives kind, rows, columns, automatic (parts lists, bend tables: follow the model)
+    and position (the anchor given at creation); title blocks list cells (label, lock, text
+    with <W@TITLE> links, value)."""
     if (table is None) == (sheet is None):
         both = table is not None
         fail("NX_INVALID_ARGUMENT", "Give table or sheet" + (", not both" if both else ""),
@@ -1000,7 +1067,13 @@ class BalloonData(TypedDict, total=False):
     effect="model",
     label="Create balloons",
     summary="Balloons of {parts_list} in {view}",
-    keywords=("balloon", "callout", "item number", "id symbol", "find number"),
+    keywords=(
+        "balloon",
+        "number the parts",
+        "item number",
+        "part numbers on drawing",
+        "find number",
+    ),
     requires=("work_part", "no_active_sketch"),
     cost="heavy",
     invalidates="deleted",
@@ -1013,8 +1086,9 @@ def nx_create_balloons(
     view: ViewArg,
 ) -> BalloonData:
     """Create parts-list balloons for the components shown in a drawing view of an assembly.
-    parts_list: a table from nx_create_drawing_table kind=parts_list. One per parts-list row;
-    rows already ballooned in the view get none."""
+    parts_list: a table from nx_create_drawing_table kind=parts_list. One balloon per
+    parts-list row, not per component (a row of 2 identical parts: 1 balloon); rows already
+    ballooned in the view get none."""
     with tx.checks():
         obj = select.resolve(
             tx, parts_list, "drawing_table", "annotation", field="/parts_list", work_part=True

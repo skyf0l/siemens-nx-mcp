@@ -129,6 +129,23 @@ def _section(tx, before, table):
     return made[0] if len(made) == 1 else shown_table(tx, table)
 
 
+def _warn_duplicate(tx, before, sheet, cells, sh):
+    """Warn when the sheet already holds a table with the same cells (a repeated call)."""
+    same = []
+    for section in before.values():
+        with contextlib.suppress(Exception):  # a section NX cannot place or read
+            on = drawing.sheet_of_annotation(tx, section)
+            if (
+                on is not None
+                and int(on.Tag) == int(sheet.Tag)
+                and _cells(tx, section, sh) == cells
+            ):
+                same.append(tx.ref(section, "drawing_table")["id"])
+    if same:
+        tx.warn("NX_UPDATE_WARNING", "This sheet already shows the same family table "
+                f"({', '.join(same)}): delete the extra one with nx_delete_objects")  # fmt: skip
+
+
 @tool(
     effect="model",
     label="Create part family table",
@@ -181,6 +198,7 @@ def nx_create_part_family_table(
             rows=cells[:20],
             members=members[:20],
         )
+        _warn_duplicate(tx, before, target, cells, sh)
         out: FamilyTableData = {
             "table": tx.ref(_section(tx, before, table), "drawing_table"),
             "sheet": tx.ref(target, "drawing_sheet"),

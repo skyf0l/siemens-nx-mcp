@@ -309,6 +309,10 @@
       0
      ],
      "tol": 1e-06
+    },
+    "data.deviation": {
+     "close": 0,
+     "tol": 1e-06
     }
    }
   },
@@ -328,6 +332,10 @@
     "data.length": {
      "close": 160.081042,
      "tol": 0.01
+    },
+    "data.deviation": {
+     "close": 0,
+     "tol": 0.5
     }
    }
   },
@@ -893,6 +901,28 @@
      "close": 100,
      "tol": 1e-06
     }
+   }
+  },
+  {
+   "call": "nx_create_bridge_curve",
+   "intent": "The closed ring has no distinct end for a tangent bridge: refused before NX",
+   "args": {
+    "start": {
+     "curve": "$R.data.curve.id",
+     "end": "end"
+    },
+    "end": {
+     "curve": "$B.data.curve.id",
+     "end": "end"
+    }
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/start/curve",
+    "error.hint": {
+     "contains": "G0"
+    },
+    "mutation_outcome": "not_started"
    }
   }
  ]

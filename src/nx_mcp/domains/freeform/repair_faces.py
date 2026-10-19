@@ -22,6 +22,8 @@ NX 2406 lessons kept here (probed live):
   (even their getters refuse without it), so NX's defaults are kept. NX 2406's Python
   UF has no ``AskBsurf`` (only the ``ModlBsurface_Struct`` type), so poles and degrees
   cannot be read back: the change is measured (sample deviation, area before/after).
+  Ruled and mesh B-surfaces came back unchanged at every tolerance (5 down to 1e-6):
+  such a no-op refit is refused and rolled back rather than leaving an empty feature.
 - Not exposed (their type and option setters refuse with 949895 without an advanced
   freeform or Studio license, and NX's defaults alone build nothing useful): Section
   Surface (``CreateSectionSurfaceBuilder``/``Ex``: conic type and spine), Variable
@@ -46,6 +48,7 @@ MODELING = "solid_modeling"
 FREEFORM = "nx_freeform_1"
 StringRef = Annotated[str, RefTo("curve", "edge", doc="Curve or edge 'c:7'/'e:21'")]
 ANALYTIC = {16: "cylinder", 17: "cone", 18: "sphere", 19: "torus", 22: "plane"}
+SHARP = 5.0  # degrees: a rim corner sharper than this cannot take a G1 patch
 
 
 def _license(tx, *features):
@@ -70,7 +73,7 @@ class FillHoleData(common.SheetData):
         "close opening",
         "patch hole",
         "cap sheet",
-        "close sheet",
+        "close hole in sheet",
         "repair surface hole",
     ),  # fmt: skip
     requires=("work_part", "no_active_sketch"),
@@ -91,10 +94,10 @@ def nx_create_fill_hole(
     sew: Annotated[bool, Doc("Sew the patch into the rim's sheet (needs its edges)")] = True,
     tolerance: Annotated[Length, Doc("Fit tolerance")] | None = None,
 ) -> FillHoleData:
-    """Fill an opening in a sheet with a patch, G0 or G1 to the rim faces, and sew it in
-    (sew false: a separate sheet). Filling the last opening closes the sheet into a solid
-    (free_edges 0). g1 needs a rim without sharp corners. Planar loop of curves:
-    nx_create_bounded_plane."""
+    """Fill an opening in a sheet with a patch, G0 or G1 to the rim faces, sewn in. sew
+    false: a separate sheet (join it later with nx_create_sew). Filling the last opening
+    closes the sheet into a solid (free_edges 0). g1 needs a rim without sharp corners; a
+    planar rim gives a plane face. Planar loop of curves: nx_create_bounded_plane."""
     if len(set(boundary)) != len(boundary):
         fail("NX_INVALID_ARGUMENT", "A boundary curve is listed twice", field="/boundary")
     with tx.checks():
@@ -121,6 +124,13 @@ def nx_create_fill_hole(
                 owners.add(int(faces[0].GetBody().Tag))
         if sew and len(owners) != 1:
             fail("NX_INVALID_ARGUMENT", "sew needs the edges of one sheet", field="/boundary")
+        if continuity == "g1":
+            kink, at = surface_loops.sharpest_corner(tx, objs, surface_loops.chaining(tol))
+            if kink > SHARP:
+                fail("NX_INVALID_ARGUMENT", f"g1 needs a smooth rim: the boundary turns "
+                     f"{kink:.0f} deg at {[round(v, 6) for v in at]}", field="/continuity",
+                     hint="Send continuity g0, or fill a rim without sharp corners",
+                     details={"corner": kink, "at": at})  # fmt: skip
         points = [p for o in objs for p in surface_loops.curve_points(tx, o)]
         rim_sheets = [x for x in tx.part.Bodies if int(x.Tag) in owners]
         open_before = len(surface_loops.free_edges(rim_sheets))
@@ -166,7 +176,6 @@ class RefitData(common.SheetData):
     deviation: float  # largest distance from the original face's sample points to the refit
     samples: int
     area_before: float  # the original face's area (area: the refit body's faces)
-    changed: bool  # the refit face moved off the original samples or changed its area
 
 
 @tool(
@@ -192,9 +201,9 @@ def nx_create_refit_face(
     tolerance: Annotated[Length, Doc("Largest allowed deviation from the face")] = 0.01,
 ) -> RefitData:
     """Refit a freeform (B-surface) face in place within a tolerance to smooth or simplify
-    it (imported or wavy faces). NX's default degrees and patches are used (not settable);
-    the face keeps its edges. Returns deviation (original samples to the refit face),
-    area_before and changed."""
+    it (imported or dense faces). NX's default degrees and patches are used (not settable);
+    the face keeps its edges. A face they already fit comes back unchanged: refused, rolled
+    back. Returns deviation (original samples to the refit face) and area_before."""
     tol = float(tolerance)
     if not tol > 0:
         fail("NX_INVALID_ARGUMENT", "tolerance must be positive", field="/tolerance")
@@ -231,7 +240,15 @@ def nx_create_refit_face(
         abs(area_after - area_before) > 1e-6 * max(1.0, area_before)
     )
     if not changed:
-        tx.warn("NX_NOTE", "NX kept the face's shape within the tolerance (same points and "
-                "area): Refit Face uses NX's default degrees and patches")  # fmt: skip
+        fail(
+            "NX_UNSUPPORTED_GEOMETRY",
+            "NX's refit returned this face unchanged (same sample points and area), so "
+            "nothing was added; rolled back",
+            field="/face",
+            hint="Refit uses NX's default degrees and patches and only changes a face they "
+            "simplify (a dense or high-degree B-surface, e.g. imported); this face already "
+            "fits them: keep it, or rebuild it (nx_create_mesh_surface, nx_create_ruled)",
+            details={"tolerance": tol, "deviation": deviation, "area": area_after},
+        )
     return {**out, "tolerance": tol, "deviation": deviation, "samples": len(points),
-            "area_before": area_before, "changed": bool(changed)}  # fmt: skip
+            "area_before": area_before}  # fmt: skip

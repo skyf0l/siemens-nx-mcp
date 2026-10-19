@@ -61,3 +61,9 @@ def test_temp_path_is_under_reserved_staging(tmp_path):
     temp = files.temp_path(tmp_path, "sub/x.step", "op_1")
     assert temp.parent == tmp_path / ".nx-mcp" / "staging" / "op_1"
     assert temp.name.endswith("_x.step") and temp.parent.is_dir()
+
+
+def test_every_published_file_is_recorded_as_written_by_its_call():
+    from nx_mcp.core import tx as tx_module
+
+    assert files.note_written in tx_module.WRITTEN_HOOKS  # Files.publish runs it

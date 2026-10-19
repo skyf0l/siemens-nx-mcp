@@ -23,17 +23,27 @@ NX 2406 findings encoded here (``Annotations.DraftingImages.CreateDraftingImageB
 
 from __future__ import annotations
 
+import contextlib
 import math
 import struct
 from pathlib import Path
 from typing import Annotated, Literal, TypedDict
 
-from nx_mcp.core.catalogue import tool
+from nx_mcp.core.catalogue import restorer, tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Angle, Doc, PathTo, RefTo, SheetLength, SheetPoint
-from nx_mcp.domains.drawing.common import SheetArg, open_or_only_sheet, sheet_of, update
-from nx_mcp.kit import builders, drawing, files, readback, result, select
+from nx_mcp.domains.drawing.common import (
+    SheetArg,
+    attribute,
+    open_or_only_sheet,
+    sheet_of,
+    update,
+)
+from nx_mcp.kit import builders, drawing, files, readback, records, result, select
+
+# The workspace-relative file an image was placed from (NX keeps only the file name).
+IMAGE_FILE = "NX_MCP_IMAGE_FILE_V1"
 
 SUFFIXES = (".png", ".jpg", ".jpeg", ".tif", ".tiff")
 FORMATS = {".png": "png", ".jpg": "jpg", ".jpeg": "jpg", ".tif": "tif", ".tiff": "tif"}
@@ -378,16 +388,22 @@ def nx_set_sheet_image(
     """Place a PNG/JPEG/TIFF image from the workspace on a drawing sheet, e.g. a logo in the
     title block. New: path, position and width and/or height (both: stretched to them).
     anchor names the image point put at position (bottom_left default, center...). Edit:
-    image + any of the fields (path replaces the file); omitted keep the current values.
-    Refuses an image off the sheet. Delete: nx_delete_objects."""
+    image + any of the fields (path replaces the file); omitted keep the current values; an
+    undo of an edit sets them back. Refuses an image off the sheet. Delete: nx_delete_objects."""
     with tx.checks():
         before = {int(i.Tag) for i in tx.part.Annotations.DraftingImages}
         plan = _plan(tx, path, image, sheet, position, anchor, width, height, rotation,
                      lock_aspect)  # fmt: skip
+        old = _placement(tx, plan) if plan.get("image") is not None and path is None else None
     with drawing.on_sheet(tx, plan["sheet"]) as sh:
         made = _commit(tx, plan, sh)
         update(tx)
         corners, lock, current, kind, bounds = _verify(tx, plan, made, sh, before)
+        if plan["path"] is not None:
+            with contextlib.suppress(Exception):  # an image without user attributes
+                records.set_text(
+                    tx, made, IMAGE_FILE, files.relative(plan["path"], tx.workspace.root)
+                )
         position, w, h, turn = placement(corners, anchor)
         views, _off = drawing.crowding(tx, sh.sheet, bounds)
         if views:
@@ -399,7 +415,7 @@ def nx_set_sheet_image(
         "image": tx.ref(made, "annotation"),
         "sheet": tx.ref(plan["sheet"], "drawing_sheet"),
         "file": files.relative(shown, tx.workspace.root) if plan["path"] is not None
-        else Path(str(shown)).name,
+        else attribute(tx, made, IMAGE_FILE) or Path(str(shown)).name,
         "format": kind,
         "anchor": anchor,
         "position": _round(position),
@@ -413,4 +429,42 @@ def nx_set_sheet_image(
     }  # fmt: skip
     if "pixels" in plan:
         out["pixels"] = list(plan["pixels"])
+    if image is not None:
+        tx.modified(made, "annotation")
+        if old is not None:
+            tx.note_restore({"image": image, "before": old, "after": _placement(tx, plan)})
     return out
+
+
+def _placement(tx, plan):
+    """An image's corners (sheet units) and aspect lock: an edit's before-values."""
+    with drawing.on_sheet(tx, plan["sheet"]) as sh:
+        corners, lock, _file = _read(tx, plan["image"], sh)
+    return {"corners": corners, "lock": lock}
+
+
+@restorer("nx_set_sheet_image")
+def _restore_image(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Set back the corners and aspect lock an image edit changed (an edit that replaced
+    the file keeps no before-values): refused when the image changed since."""
+    ref, before, after = data["image"], data["before"], data["after"]
+    image, sheet = _existing(tx, ref)
+    plan = {"image": image, "sheet": sheet, "path": None}
+    now = _placement(tx, plan)
+    length, tall = drawing.size(sheet)
+    tol = SIZE_TOL * max(length, tall)
+    flat = [v for c in now["corners"] for v in c]
+    if now["lock"] != after["lock"] or any(
+        abs(a - b) > tol
+        for a, b in zip(flat, [v for c in after["corners"] for v in c], strict=True)
+    ):
+        fail("NX_DEPENDENCY_ORDER", f"Image {ref} was changed since", details={"image": ref})
+    if apply:
+        with drawing.on_sheet(tx, sheet) as sh:
+            _commit(tx, {**plan, "lock": before["lock"], "corners": before["corners"]}, sh)
+            update(tx)
+            corners, lock, _file = _read(tx, image, sh)
+        readback.expect_close([v for c in corners for v in c],
+                              [v for c in before["corners"] for v in c], "corners", tol)  # fmt: skip
+        readback.expect(lock == before["lock"], "lock_aspect", "NX kept another aspect lock")
+    return f"the placement of image {ref} set back"

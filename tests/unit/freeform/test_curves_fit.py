@@ -212,3 +212,38 @@ def test_fit_runs_from_the_first_point_to_the_last():
     assert ok.ok, ok.error
     assert edits == [True] and ok.data["start"] == pytest.approx(pts[0])
     assert ok.data["end"] == pytest.approx(pts[-1])
+
+
+def test_a_spline_missing_its_points_beyond_the_tolerance_warns():
+    nx = fit_nx(lambda b: {"Order": b.Degree + 1, "Periodic": b.IsClosedBSpline,
+                           "Get3DPoles": lambda: [0] * 4})  # fmt: skip
+    refs = [nx.ref_of(nx.part.Points.add(p), "point") for p in circle()]
+
+    def coarse(b):  # NX's 2-segment closed fit: chords across every other point
+        f = feature(nx, "Fit Curve")
+        c = nx.remember(Fitted(circle()[::2], True, Order=4, Periodic=True,
+                               Get3DPoles=lambda: [0] * 4))  # fmt: skip
+        f.GetEntities = lambda: [c]
+        return f
+
+    nx.on_commit(FIT, coarse)
+    loose = run(nx, "nx_create_fit_curve", points=refs, closed=True, segments=2)
+    assert loose.ok and loose.data["max_deviation"] > 1, loose
+    assert [w["code"] for w in loose.warnings] == ["NX_APPROXIMATED"]
+    assert "add segments (now 2)" in loose.warnings[0]["message"]
+    tight = run(nx, "nx_create_fit_curve", points=refs, closed=True, tolerance=5)
+    assert tight.ok and not tight.warnings, tight
+
+
+def test_ellipse_reports_its_major_axis_and_normal_from_nx_matrix():
+    from types import SimpleNamespace as NS
+
+    # NX 2406: the major axis is cos(r) X + sin(r) Y of the ellipse matrix, the normal Z.
+    m = NS(Xx=0.0, Xy=1.0, Xz=0.0, Yx=0.0, Yy=0.0, Yz=1.0, Zx=1.0, Zy=0.0, Zz=0.0)
+    nx = fit_nx({"MajorRadius": 40.0, "MinorRadius": 20.0, "CenterPoint": point(5, 0, 0),
+                 "RotationAngle": math.radians(30), "Matrix": NS(Element=m)})  # fmt: skip
+    refs = [nx.ref_of(nx.part.Points.add(p), "point") for p in circle(n=8)]
+    ok = run(nx, "nx_create_fit_curve", shape="ellipse", points=refs, closed=True)
+    assert ok.ok, ok.error
+    assert ok.data["major_axis"] == pytest.approx([0, math.sqrt(3) / 2, 0.5])
+    assert ok.data["normal"] == [1, 0, 0]

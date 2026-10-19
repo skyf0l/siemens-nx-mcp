@@ -353,3 +353,76 @@ def test_create_directory_refuses_names_before_creating_anything(tree, path, wor
 def test_create_directory_takes_dotted_version_folders(tree):
     ok = side(tree, ws.nx_create_directory, path="proj/v1.2")
     assert ok.ok and ok.data == {"path": "proj/v1.2", "created": True}
+
+
+def test_upload_names_a_gap_before_the_size_checks(tree):
+    data = b"0123456789"
+    digest = hashlib.sha256(data).hexdigest()
+    common = {"path": "in/gap.txt", "total_size": 10, "sha256": digest}
+    first = side(tree, ws.nx_upload_file, data_base64=base64.b64encode(data[:5]).decode(),
+                 offset=0, **common)  # fmt: skip
+    assert first.ok and first.data["received"] == 5
+    gap = side(tree, ws.nx_upload_file, data_base64=base64.b64encode(data[5:]).decode(),
+               offset=7, **common)  # fmt: skip
+    assert gap.error["code"] == "NX_TRANSFER_FAILED" and gap.error["field"] == "/offset", gap
+    assert "next chunk starts at offset 5" in gap.error["message"]
+    big = side(tree, ws.nx_upload_file, path="in/big.txt",
+               data_base64=base64.b64encode(b"x" * (ws.CHUNK_BYTES + 1)).decode())  # fmt: skip
+    assert big.error["code"] == "NX_REQUEST_TOO_LARGE" and "256 KiB" in big.error["hint"]
+
+
+def test_the_upload_description_lists_every_suffix():
+    described = ws.nx_upload_file.spec.description
+    assert all(suffix in described.split() or f"{suffix}." in described
+               for suffix in ws.UPLOAD_SUFFIXES), described  # fmt: skip
+
+
+def test_create_directory_names_a_file_in_the_path_and_starts_nothing(tree):
+    bad = side(tree, ws.nx_create_directory, path="proj/a.txt/sub")
+    assert bad.error["code"] == "NX_WRONG_KIND" and bad.mutation_outcome == "not_started", bad
+    assert bad.error["message"].startswith("proj/a.txt is a file")
+    assert bad.error["details"]["file"] == "proj/a.txt"
+
+
+def test_delete_file_deletes_only_files_a_tool_created(tree):
+    made = side(tree, ws.nx_upload_file, path="in/notes.txt", content="hello")
+    assert made.ok, made
+    gone = side(tree, ws.nx_delete_file, path="in/notes.txt")
+    assert gone.ok and gone.mutation_outcome == "committed", gone
+    assert gone.data == {"path": "in/notes.txt", "size": 5, "created_by": "nx_upload_file"}
+    assert not (tree / "in" / "notes.txt").exists()
+    again = side(tree, ws.nx_delete_file, path="in/notes.txt")
+    assert again.error["code"] == "NX_FILE_NOT_FOUND" and again.mutation_outcome == "not_started"
+    theirs = side(tree, ws.nx_delete_file, path="proj/a.txt")  # not made by a tool
+    assert theirs.error["code"] == "NX_READ_ONLY" and theirs.mutation_outcome == "not_started"
+    assert (tree / "proj" / "a.txt").read_bytes() == b"alpha"
+    folder = side(tree, ws.nx_delete_file, path="proj/sub")
+    assert folder.error["code"] in ("NX_WRONG_KIND", "NX_FILE_NOT_FOUND"), folder
+    assert (tree / "proj" / "sub").is_dir()
+
+
+def test_delete_file_refuses_another_agents_file_and_a_loaded_part(tree):
+    import json
+
+    from nx_mcp.kit import files
+
+    for name in ("in/a.prt", "in/b.txt"):
+        (tree / name).parent.mkdir(parents=True, exist_ok=True)
+        (tree / name).write_bytes(b"x")
+    files.note_created(tree, tree / "in/b.txt", tool="nx_export_model", caller={"id": "sc-b"})
+    from nx_mcp.sidecar import local
+    from nx_mcp.workspace import Workspace
+    from tests.unit.parts_files.support import Result
+
+    svc = local.SidecarServices(Workspace(tree), build="v2406", dev=True)
+    spec = ws.nx_delete_file.spec
+    other = Result(local.run(spec, {"path": "in/b.txt", "caller": {"id": "sc-a"}}, svc))
+    assert other.error["code"] == "NX_PART_BUSY" and (tree / "in/b.txt").exists(), other
+    files.note_created(tree, tree / "in/a.prt", tool="nx_create_part")
+    owners = tree / ".nx-mcp" / "part-owners.json"
+    full = str((tree / "in/a.prt").resolve()).replace("\\", "/").casefold()
+    owners.write_text(json.dumps({"pid": 1, "parts": {"7": {"file": full}}}), encoding="utf-8")
+    loaded = side(tree, ws.nx_delete_file, path="in/a.prt")
+    assert loaded.error["code"] == "NX_PART_IN_USE" and "nx_close_part" in loaded.error["hint"]
+    owners.unlink()
+    assert side(tree, ws.nx_delete_file, path="in/a.prt").ok

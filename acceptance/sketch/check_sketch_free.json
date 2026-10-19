@@ -1,0 +1,30 @@
+{
+  "covers": {"nx_check_sketch": [], "nx_get_sketch": []},
+  "fixture": null,
+  "part": "new",
+  "steps": [
+    {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+    {"call": "nx_create_sketch", "setup": true, "save": "a", "args": {"placement": {"principal": "xy"}, "curves": [
+      {"type": "rectangle", "corner1": [0, 0], "corner2": [40, 20]},
+      {"type": "line", "start": [60, 0], "end": [90, 0]}]}},
+    {"call": "nx_create_sketch_corner", "setup": true,
+     "args": {"sketch": "$a.data.sketch.id", "first": "$a.data.curves.0.id", "second": "$a.data.curves.1.id",
+              "kind": "fillet", "radius": 5}},
+    {"call": "nx_create_sketch_copy", "setup": true,
+     "args": {"sketch": "$a.data.sketch.id", "curves": ["$a.data.curves.4.id"], "mode": "offset", "distance": 3}},
+    {"call": "nx_check_sketch", "args": {"sketch": "$a.data.sketch.id"},
+     "expect": {"mutation_outcome": "not_applicable", "data.state": "under_constrained", "data.free": {"count": 7},
+                "data.free.0.dof": 4, "data.dof": null,
+                "data.note": {"contains": "NX counts them all as free"}}},
+    {"call": "nx_finish_sketch", "setup": true, "args": {}},
+    {"call": "nx_create_sketch", "setup": true, "save": "b", "args": {"placement": {"principal": "xy", "origin": [0, 0, 5]},
+     "curves": [{"type": "line", "start": [0, 0], "end": [10, 0]}]}},
+    {"call": "nx_check_sketch", "args": {"sketch": "$a.data.sketch.id"},
+     "expect": {"data.state": "under_constrained", "data.free": {"count": 7}}},
+    {"call": "nx_get_sketch", "args": {"sketch": "$a.data.sketch.id", "include": ["status"]},
+     "expect": {"data.status.free_curves": 7, "data.active": false}},
+    {"call": "nx_list_objects", "args": {"kind": "sketch", "name_contains": "SKETCH_001"},
+     "expect": {"data.items.0.details.active": true, "data.items.0.details.parked": true}},
+    {"call": "nx_finish_sketch", "setup": true, "args": {}}
+  ]
+}

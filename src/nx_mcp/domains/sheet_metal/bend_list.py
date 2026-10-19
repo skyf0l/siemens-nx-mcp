@@ -291,9 +291,10 @@ def nx_get_bend_list(
 ) -> BendListData:
     """List the bends of a sheet-metal body with angle, radius, length, K, allowance and up/down.
     Per bend: angle (deg), inner radius, bend line length, K factor, allowance (flat strip
-    width), deduction (null for 180-degree hems). Up/down is relative to a Flat Pattern's upward face (direction_from),
-    else the top layer; sequence: NX's bend list IDs and names of that Flat Pattern. CSV:
-    nx_export_bend_list."""
+    width), deduction (null for 180-degree hems). up: the flange folds toward the side the
+    Flat Pattern's upward face points to (direction_from), else the top layer's side; down:
+    away. sequence: NX's bend list IDs and names of that Flat Pattern. face: the inner
+    bend face. CSV: nx_export_bend_list."""
     with tx.checks():
         found, feature, items, sequence = bend_list(tx, body, flat_pattern)
     selected, page = result.page(items, offset, limit)

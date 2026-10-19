@@ -580,6 +580,89 @@
    }
   },
   {
+   "call": "nx_set_light",
+   "args": {
+    "name": "Distant 2",
+    "intensity": 0.3
+   },
+   "intent": "Acceptance: an intensity alone keeps an off light off",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.light.on": false,
+    "data.light.intensity": {
+     "close": 0.3,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_light",
+   "setup": true,
+   "args": {
+    "name": "Distant 1",
+    "on": true
+   }
+  },
+  {
+   "call": "nx_set_light",
+   "args": {
+    "name": "Distant 1",
+    "on": false,
+    "intensity": 0.2
+   },
+   "intent": "Acceptance: on=false with an intensity sets it and switches the light off",
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.light.on": false,
+    "data.light.intensity": {
+     "close": 0.2,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_set_light",
+   "setup": true,
+   "args": {
+    "name": "Scene Left Top",
+    "on": true,
+    "intensity": 0.4
+   }
+  },
+  {
+   "call": "nx_set_lighting_preset",
+   "save": "l2",
+   "args": {
+    "preset": "lighting_2"
+   },
+   "expect": {
+    "mutation_outcome": "committed"
+   }
+  },
+  {
+   "call": "nx_undo_operation",
+   "args": {
+    "operation": "$l2.operation_id",
+    "mode": "compensate"
+   },
+   "intent": "Acceptance: the compensating undo of a preset sets the intensities back",
+   "expect": {
+    "mutation_outcome": "committed"
+   }
+  },
+  {
+   "call": "nx_list_lights",
+   "expect": {
+    "data.lights": {
+     "contains": {
+      "name": "Scene Left Top",
+      "on": true,
+      "intensity": 0.4
+     }
+    }
+   }
+  },
+  {
    "call": "engineer",
    "args": {
     "code": "import struct, zlib\ndef mean(path):\n    data = open(path, 'rb').read()\n    pos, idat = 8, b''\n    while pos < len(data):\n        n, typ = struct.unpack('>I4s', data[pos:pos + 8])\n        body = data[pos + 8:pos + 8 + n]\n        pos += 12 + n\n        if typ == b'IHDR':\n            w, h, depth, ctype = struct.unpack('>IIBB', body[:10])\n        elif typ == b'IDAT':\n            idat += body\n    bpp = {2: 3, 6: 4}[ctype]\n    raw, stride, prev, i = zlib.decompress(idat), w * bpp, bytearray(w * bpp), 0\n    total, count = [0, 0, 0], 0\n    for _ in range(h):\n        f, line = raw[i], bytearray(raw[i + 1:i + 1 + stride])\n        i += 1 + stride\n        for x in range(stride):\n            a = line[x - bpp] if x >= bpp else 0\n            b = prev[x]\n            c = prev[x - bpp] if x >= bpp else 0\n            if f == 1:\n                line[x] = (line[x] + a) & 255\n            elif f == 2:\n                line[x] = (line[x] + b) & 255\n            elif f == 3:\n                line[x] = (line[x] + (a + b) // 2) & 255\n            elif f == 4:\n                p = a + b - c\n                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)\n                line[x] = (line[x] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255\n        for x in range(0, stride, bpp):\n            px = line[x:x + 3]\n            if min(px) < 245:\n                total = [t + v for t, v in zip(total, px)]\n                count += 1\n        prev = line\n    return [t / max(count, 1) for t in total]\nout = {}\nfor style in ('studio', 'shaded'):\n    base, red = mean(r'$run/base_' + style + '.png'), mean(r'$run/red_' + style + '.png')\n    shift = [round(r - b, 1) for r, b in zip(red, base)]\n    out[style] = {'base': [round(v, 1) for v in base], 'red': [round(v, 1) for v in red],\n                  'shift': shift, 'redder': shift[0] - (shift[1] + shift[2]) / 2 > 20}\n    print(style, 'base', out[style]['base'], 'red', out[style]['red'], 'shift', shift,\n          'redder', out[style]['redder'])\nresult = out"

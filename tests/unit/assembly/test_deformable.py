@@ -394,3 +394,50 @@ def test_a_wrong_deformed_value_rolls_back(nx):
     bad = deform(nx, a, ("extension", 120))
     assert bad.error["category"] == "verification_failed", bad
     assert bad.mutation_outcome == "rolled_back" and not list(nx.asm.Features)
+
+
+def test_define_validates_the_expressions_before_saying_the_part_is_deformable(nx):
+    assert define(nx).ok
+    bad = define(nx, expressions=[{"expression": "nope"}])
+    assert bad.error["code"] == "NX_NOT_FOUND", bad
+    assert bad.error["field"] == "/expressions/0/expression" and "blk.prt" in bad.error["message"]
+
+
+def test_define_refuses_an_expression_no_feature_uses(nx):
+    ext = next(e for e in nx.blk.Expressions if e.Name == "extension")
+    p5 = LiveExpr("p5", "extension", lambda: nx.blk.Expressions)
+    ext.GetReferencingExpressions = lambda: [p5]
+    for e in nx.blk.Expressions:
+        e.GetReferencingExpressions = getattr(e, "GetReferencingExpressions", lambda: [])
+    for feature in nx.blk.Features:
+        feature.expressions = [p5]
+    bad = define(nx, expressions=[{"expression": "rod_d"}])
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT", bad
+    assert bad.error["field"] == "/expressions/0/expression"
+    assert "No feature" in bad.error["message"] and bad.mutation_outcome == "not_started"
+    assert not nx.definition_builders
+    assert define(nx).ok  # extension drives p5, a feature's expression
+
+
+def test_compensation_sets_an_edited_deformation_back(nx):
+    assert define(nx).ok
+    a = place(nx, nx.blk, "A", (100, 0, 0))
+    assert deform(nx, a, ("extension", 150)).ok
+    edit = deform(nx, a, ("extension", 80))
+    assert edit.ok, edit
+    undo = run(nx, "nx_undo_operation", part="asm", mode="compensate")
+    assert undo.ok and undo.data["compensated"], undo
+    flexed = next(f for f in nx.asm.Features if f.FeatureType == "FLEXED_PART")
+    assert flexed.expressions[0].Value == 150.0
+    assert "extension = 150" in undo.data["restored"][0]
+
+
+def test_compensation_refuses_a_deformation_changed_since(nx):
+    assert define(nx).ok
+    a = place(nx, nx.blk, "A", (100, 0, 0))
+    assert deform(nx, a, ("extension", 150)).ok
+    first = deform(nx, a, ("extension", 80))
+    assert deform(nx, a, ("extension", 90)).ok
+    undo = run(nx, "nx_undo_operation", part="asm", operation=first.operation_id,
+               mode="compensate")  # fmt: skip
+    assert undo.error["code"] == "NX_DEPENDENCY_ORDER", undo

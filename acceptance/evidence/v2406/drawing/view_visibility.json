@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/drawing/view_visibility.json",
-  "scenario_sha256": "96c62d756c72d5a41c9299f5aceba88cb4d499e58f1050a3baa50c778c08b531",
+  "scenario_sha256": "d8f491d8aa0520ff4ae9bae7674a3e2c597697cb085ffa9367d83c73662b2219",
   "domain": "drawing",
   "covers": {
     "nx_list_view_edges": [],
@@ -18,15 +18,15 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_list_view_edges": "887b533c8b08c831afad36038228c3cd365dc0cf21837578c9dc38e502ff2e76",
-    "nx_create_drawing_view": "15aa050ef45c31a748ac282ac7a885a8791eb73eb8a63626749e5372a0f5bea2",
-    "nx_edit_drawing_view": "15aa050ef45c31a748ac282ac7a885a8791eb73eb8a63626749e5372a0f5bea2",
-    "nx_get_drawing_view": "15aa050ef45c31a748ac282ac7a885a8791eb73eb8a63626749e5372a0f5bea2",
-    "nx_set_view_settings": "7f89abd00b3289bf0f87e6bf85a80bd79c0a01f9df6b7da2f96ab120790c2d2a"
+    "nx_list_view_edges": "ce634bb7086ee3a1b4770f69f0009f9fc125eb2229d3f5990fb8b756ebf3d8b1",
+    "nx_create_drawing_view": "427bcf89de9f2baeef97b5fd5f82f504a5ddcba003bf744f988038d12517107a",
+    "nx_edit_drawing_view": "427bcf89de9f2baeef97b5fd5f82f504a5ddcba003bf744f988038d12517107a",
+    "nx_get_drawing_view": "427bcf89de9f2baeef97b5fd5f82f504a5ddcba003bf744f988038d12517107a",
+    "nx_set_view_settings": "57242da9c8f15b3dcc08c8d28866ddd78bc27671e5ba81b064e12dff94ce52dd"
   },
-  "recorded": "2026-10-16T13:12:17Z",
+  "recorded": "2026-10-19T12:45:10Z",
   "passed": true,
-  "checks": 36,
+  "checks": 38,
   "failed_checks": 0,
   "steps": [
     {
@@ -146,7 +146,7 @@
       "call": "nx_edit_drawing_view",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 5
     },
     {
       "index": 18,

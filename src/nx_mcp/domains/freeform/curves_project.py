@@ -18,6 +18,7 @@ NX 2406 lessons kept here:
 
 from __future__ import annotations
 
+import math
 from typing import Annotated, Literal
 
 from nx_mcp.core.catalogue import tool
@@ -25,7 +26,7 @@ from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Direction, Doc, Items, Plane, RefTo
 from nx_mcp.domains.freeform import curves_common as cc
-from nx_mcp.kit import args, builders, geom, readback, result, select, units
+from nx_mcp.kit import args, builders, geom, measure, readback, result, select, units
 
 StringRef = Annotated[str, RefTo("curve", "edge", doc="Curve or edge 'c:7'/'e:21'")]
 Strings = Annotated[list[StringRef], Items(1, 200)]
@@ -73,6 +74,38 @@ def _ray_gap(tx, curves, sources, direction) -> float:
     return worst
 
 
+PARALLEL = 0.9998  # |cos| of view or projection directions treated as parallel (~1 deg)
+
+
+def _footprint(tx, sources, targets, ray, both_sides) -> None:
+    """``NX_INVALID_ARGUMENT`` when no sample of the curves sees the targets' box along
+    ``ray`` (NX: "No curve projected."): every sight line passes beside the box."""
+    low, high = measure.bounds(tx, list(targets))
+    limit = cc.gap_tolerance(tx)
+    for c in sources[: cc.MAX_SAMPLED]:
+        for p in cc.samples(tx, c):
+            enter, leave = -math.inf, math.inf
+            for i in range(3):
+                if abs(ray[i]) < 1e-12:
+                    if not low[i] - limit <= p[i] <= high[i] + limit:
+                        enter, leave = 1.0, 0.0
+                        break
+                    continue
+                a = (low[i] - limit - p[i]) / ray[i]
+                b = (high[i] + limit - p[i]) / ray[i]
+                enter, leave = max(enter, min(a, b)), min(leave, max(a, b))
+            if enter <= leave and (both_sides or leave >= 0):
+                return
+    fail(
+        "NX_INVALID_ARGUMENT",
+        "No curve projects onto the targets along the direction: every sight line passes "
+        f"beside their box ({cc.clean(low)} to {cc.clean(high)})",
+        field="/direction",
+        hint="Change the direction, or project curves that lie over the faces"
+        + ("" if both_sides else " (both_sides also projects backwards)"),
+    )
+
+
 @tool(
     effect="model",
     label="Create projected curve",
@@ -117,6 +150,11 @@ def nx_create_projected_curve(
             _o, origin, normal = select.plane(tx, plane, "/plane")
             cut = (origin, normal)
         ray = select.direction(tx, direction, "/direction") if along == "vector" else None
+        if ray is not None and cut is not None and abs(geom.dot(ray, cut[1])) < 1 - PARALLEL:
+            fail("NX_INVALID_ARGUMENT", "The direction runs parallel to the plane: nothing "
+                 "projects onto it", field="/direction")  # fmt: skip
+        if ray is not None and cut is None:
+            _footprint(tx, sources, targets, ray, both_sides)
     F = tx.nx.Features.ProjectCurveBuilder
     tol = units.part_tolerance(tx)
     with (
@@ -218,6 +256,14 @@ def nx_create_combined_projection(
             fail("NX_INVALID_ARGUMENT", "first and second share a curve", field="/second")
         d1 = _view(tx, first_direction, one, "/first_direction")
         d2 = _view(tx, second_direction, two, "/second_direction")
+        if abs(geom.dot(d1, d2)) > PARALLEL:
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"The two view directions are parallel ({cc.clean(d1)} and {cc.clean(d2)}): "
+                "the views must look from different sides",
+                field="/second_direction" if second_direction is not None else "/first_direction",
+                hint="Give two different views, e.g. z for the plan curve and y for the side one",
+            )
     tol = units.part_tolerance(tx)
     factory = tx.part.Features.CreateCombinedProjectionBuilder
     with (

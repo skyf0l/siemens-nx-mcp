@@ -312,3 +312,16 @@ def test_projection_mode_defaults_from_the_objects_and_names_the_mode_a_face_nee
     assert wrong.mutation_outcome == "not_started" and wrong.error["field"] == "/objects/0"
     mixed = run(nx, "nx_create_sketch_projection", sketch=sk.ref, objects=[edge.ref, face.ref])
     assert mixed.error["field"] == "/objects/1" and "two calls" in mixed.error["hint"], mixed
+
+
+def test_a_radius_too_large_is_refused_before_nx_and_parallel_lines_say_what_to_pick():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    bottom = nx.line(sk, (0, 0, 0), (40, 0, 0))
+    right = nx.line(sk, (40, 0, 0), (40, 30, 0))
+    top = nx.line(sk, (0, 10, 0), (40, 10, 0))
+    bad = _corner(nx, sk, bottom, right, kind="fillet", radius=100)
+    assert bad.error["details"]["max_radius"] == pytest.approx(30)
+    assert bad.mutation_outcome == "not_started", bad
+    parallel = _corner(nx, sk, bottom, top, kind="chamfer", distance=2)
+    assert parallel.error["code"] == "NX_WRONG_GEOMETRY" and "intersect" in parallel.error["hint"]

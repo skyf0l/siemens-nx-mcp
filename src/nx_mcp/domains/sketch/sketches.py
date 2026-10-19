@@ -49,6 +49,7 @@ from nx_mcp.core.types import (
 )
 from nx_mcp.domains.sketch import common
 from nx_mcp.domains.sketch import curves as sketch_curves
+from nx_mcp.domains.sketch import dof as kdof
 from nx_mcp.domains.sketch.common import CurveRow, Frame, Status
 from nx_mcp.kit import builders, curve, geom, readback, result, select, units
 from nx_mcp.kit import sketch as ksketch
@@ -93,7 +94,7 @@ class OnPlacement(_On, total=False):
 
 
 class _Path(TypedDict):
-    path: Annotated[list[EdgeRef], Items(1, 50)]
+    path: Annotated[list[EdgeRef], Items(1, 50), Doc("Model edges (not sketch curves)")]
     help_point: Point3
 
 
@@ -377,7 +378,8 @@ def nx_create_sketch(
     """Create a sketch on a principal plane, a planar face or datum plane, or normal to an edge
     path. It stays open (parked: deactivated between calls) for the sketch tools; curves and
     finish make a profile in one call (loops reports closure): each closed loop is a region,
-    a loop inside another makes a hollow profile. Finish before modeling."""
+    a loop inside another makes a hollow profile. Finish before modeling. Default name:
+    SKETCH_000, SKETCH_001..."""
     where = normal_placement(placement)
     plans = sketch_curves.check_curves(curves) if curves else []
     want = _principal_frame(where) if "principal" in where else None
@@ -507,6 +509,7 @@ def nx_finish_sketch(
         active = ksketch.open_sketch(tx)
         if sketch is None:
             if active is None:
+                tx.warn("NX_NO_EFFECT", "No sketch is open in the part: nothing to finish")
                 return {"was_active": False}
             sk = active
         else:
@@ -525,11 +528,12 @@ def nx_finish_sketch(
         _deactivate(tx, sk)
         parking.unpark(tx.services, tx.part)
         _reopen_on_undo(tx, sk)
-    return {
-        **common.sketch_rows(tx, sk),
-        "was_active": active is not None,
-        "curve_count": len(ksketch.geometry(sk)),
-    }
+    else:
+        tx.warn("NX_NO_EFFECT", f"{sketch} is finished already: nothing to finish")
+    count = len(ksketch.geometry(sk))
+    if active is not None and not count:
+        tx.warn("NX_NOTE", "The finished sketch has no curves: add curves before modeling with it")
+    return {**common.sketch_rows(tx, sk), "was_active": active is not None, "curve_count": count}
 
 
 def _reopen_on_undo(tx, sk) -> None:
@@ -679,9 +683,9 @@ def _intersection_sources(tx, part, s, pending, out) -> None:
     """The faces of the intersection features (``pending``: ``(feature, curves)``); NX
     opens their builders only with the sketch active, so a parked sketch is activated
     under a scratch mark; with another sketch open the faces are left out."""
-    if _other_active(tx, s):
+    if ksketch.blocks_reading(tx, s):
         return
-    with tx.scratch(), ksketch.editing(tx, s):
+    with tx.scratch(), ksketch.editing(tx, s, read=True):
         factory = part.Sketches.CreateIntersectionCurveBuilder
         for feature, made in pending:
             try:
@@ -730,23 +734,24 @@ def _constraints(tx, sk):
     ]
 
 
-def _other_active(tx, sk) -> bool:
-    active = ksketch.open_sketch(tx)
-    return active is not None and int(active.Tag) != int(sk.Tag)
+def _refuse_blocked(tx, sk) -> None:
+    """Refuse a read that needs ``sk`` activated while NX has another sketch active (a
+    parked sketch does not block it: ``ksketch.blocks_reading``)."""
+    if ksketch.blocks_reading(tx, sk):
+        fail(
+            "NX_SKETCH_ACTIVE",
+            "Another sketch is active in NX; this one's solver state cannot be read now",
+            hint="Finish the active sketch (details.open_sketch) first, or ask for geometry and "
+            "constraints only",
+            details=ksketch.open_details(tx, tx.session.ActiveSketch),
+        )
 
 
 def _solver_status(tx, sk):
     """Solver status and checked DOF analysis of a sketch, activating it temporarily
-    under a scratch mark."""
-    if _other_active(tx, sk):
-        fail(
-            "NX_SKETCH_ACTIVE",
-            "Another sketch of the part is open; its status can be read, this one's cannot",
-            hint="Finish the open sketch (details.open_sketch) first, or ask for geometry and "
-            "constraints only",
-            details=ksketch.open_details(tx, ksketch.open_sketch(tx)),
-        )
-    with tx.scratch(), ksketch.editing(tx, sk) as editing:
+    under a scratch mark (beside a parked sketch too)."""
+    _refuse_blocked(tx, sk)
+    with tx.scratch(), ksketch.editing(tx, sk, read=True) as editing:
         return common.status_row(tx, editing, ksketch.status(tx, editing))
 
 
@@ -792,14 +797,14 @@ def nx_get_sketch(
     if data["active"] and tx.session.ActiveSketch is None:
         data["parked"] = True
     found = None
-    other = _other_active(tx, sk)
+    other = ksketch.blocks_reading(tx, sk)
     if other and wanted != {"status"}:  # the solver status needs this sketch activated
         if "status" in wanted:
             wanted.discard("status")
-            open_ = ksketch.open_details(tx, ksketch.open_sketch(tx))
+            open_ = ksketch.open_details(tx, tx.session.ActiveSketch)
             tx.warn(
                 "NX_NOTE",
-                f"status and per-curve dof left out: another sketch of the part is open "
+                f"status and per-curve dof left out: another sketch is active in NX "
                 f"({open_.get('open_sketch_name', '')} {open_.get('open_sketch', '')}); "
                 "finish it to read them",
             )
@@ -847,19 +852,41 @@ class ConflictData(TypedDict, total=False):
     free: Annotated[list[FreeCurve], Doc("Under-constrained: the curves that can still move")]
 
 
-def _free_curves(tx, sk, found) -> list[FreeCurve]:
-    """Curves that can still move: by the DOF analysis, else those without constraints."""
+def _free_curves(tx, sk, count) -> tuple[list[FreeCurve], int | None, str | None]:
+    """``(free, dof, why)``: every curve that is not fully constrained, with its DOF where
+    the analysis models its group of joined curves (``dof.analyse(partial=True)``), else
+    None; ``count``: NX's count of curves not fully constrained, which the list must match
+    (curves that only may move are all listed when NX counts them all, dropped when NX
+    counts none of them). ``dof``: the total, None unless every group is modelled."""
+    why: list[str] = []
+    found = kdof.analyse(tx, sk, why, partial=True)
+    curves = {int(c.Tag): c for c in ksketch.geometry(sk)}
+    exact: dict = {}
+    maybe: list = []
+    if found is not None:
+        exact = {t: n for t, n in found["curves"].items() if n > 0}
+        maybe = list(found["maybe"])
+        agrees = count is None or len(exact) <= count <= len(exact) + len(maybe)
+        if count is not None and found["dof"] is not None and len(exact) != count:
+            agrees = False
+        if not agrees:
+            why = ["the computed freedom disagrees with NX's count of free curves"]
+            found = None
+        elif count is not None and len(exact) == count:
+            maybe = []  # NX counts none of them: they are fixed
+    if found is None:  # not modelled: every curve that carries no constraint, and the rest unknown
+        exact = {}
+        maybe = [t for t, c in curves.items() if ksketch.curve_kind(tx, c) != "other"]
+        if count is not None and count < len(maybe):
+            maybe = [t for t in maybe if not ksketch.attached(tx, sk, curves[t])] or maybe
     out: list[FreeCurve] = []
-    for c in ksketch.geometry(sk):
-        if ksketch.curve_kind(tx, c) == "other":
-            continue
-        if found is not None:
-            n = found["curves"].get(int(c.Tag), 0)
-            if n > 0:
-                out.append({"curve": tx.ref(c, "curve")["id"], "dof": n})
-        elif not ksketch.attached(tx, sk, c):
+    for tag, c in curves.items():
+        if tag in exact:
+            out.append({"curve": tx.ref(c, "curve")["id"], "dof": exact[tag]})
+        elif tag in maybe:
             out.append({"curve": tx.ref(c, "curve")["id"], "dof": None})
-    return out
+    dof = found["dof"] if found is not None else None
+    return out, dof, (why[0] if why else None)
 
 
 @tool(
@@ -874,7 +901,7 @@ def _free_curves(tx, sk, found) -> list[FreeCurve]:
         "check sketch",
         "fully constrained",
         "free curves",
-        "constraint conflict",
+        "sketch dof",
     ),
     requires=("work_part",),
     display_bound=True,  # activates the sketch: NX 2406 faults outside the shown part
@@ -887,25 +914,20 @@ def nx_check_sketch(
     sketch: SketchRef,
     max_checks: Annotated[int, Range(ge=1, le=50), Doc("Constraints to try removing")] = 20,
 ) -> ConflictData:
-    """Diagnose a sketch's constraints. Under-constrained: free lists the curves that can still
-    move (dimension or constrain them). Over- or inconsistently constrained (sketches opened
-    from files: the sketch tools refuse conflicts): each constraint is removed on trial (always
-    undone) and relieving lists those whose removal alone solves it."""
+    """Diagnose a sketch's constraints. Under-constrained: free lists every curve not fully
+    constrained with its dof (null: not computable). Over- or inconsistently constrained
+    (sketches opened from files: the sketch tools refuse conflicts): each constraint is
+    removed on trial (always undone) and relieving lists those whose removal alone solves
+    it. Works while another sketch is open (parked)."""
     sk = ksketch.resolve(tx, sketch)
-    if _other_active(tx, sk):
-        fail(
-            "NX_SKETCH_ACTIVE",
-            "Another sketch is active",
-            hint="Finish the active sketch (details.open_sketch) first",
-            details=ksketch.open_details(tx, ksketch.open_sketch(tx)),
-        )
+    _refuse_blocked(tx, sk)
     trials: list[Trial] = []
     free: list[FreeCurve] | None = None
-    dof = None
-    with tx.scratch(), ksketch.editing(tx, sk) as editing:
+    dof = why = None
+    with tx.scratch(), ksketch.editing(tx, sk, read=True) as editing:
         native = ksketch.status(tx, editing)
         under = native["status"] == "UnderConstrained"
-        baseline, found = common.status_row(tx, editing, native, dof=under)
+        baseline = common.status_row(tx, editing, native, dof=False)[0]
         explicit = common.explicit_conflicts(tx, editing)
         constraints = ksketch.constraints(tx, editing)
         bad = baseline["state"] in ("over_constrained", "inconsistently_constrained")
@@ -916,7 +938,7 @@ def nx_check_sketch(
             trial.update(common.trial(tx, editing, con))  # type: ignore[typeddict-item]
             trials.append(trial)
         if under and not candidates:
-            free, dof = _free_curves(tx, editing, found), baseline["dof"]
+            free, dof, why = _free_curves(tx, editing, baseline["free_curves"])
     out: ConflictData = {
         "sketch": tx.ref(sk, "sketch"),
         "state": baseline["state"],
@@ -930,10 +952,16 @@ def nx_check_sketch(
     if free is not None:
         out["free"], out["dof"] = free, dof
         count = baseline["free_curves"] if baseline["free_curves"] is not None else len(free)
+        unknown = sum(1 for f in free if f["dof"] is None)
         out["note"] = (
             f"The sketch is under-constrained (NX counts {count} curves not fully "
             "constrained): add dimensions or constraints to the curves in free"
-            + ("" if found is not None else " (free lists only those without any constraint)")
+            + (
+                f" ({unknown} with dof null: {why or 'not computable'}; "
+                + ("NX counts them all as free)" if len(free) == count else "they may move)")
+                if unknown
+                else ""
+            )
         )
     elif not candidates:
         out["note"] = (

@@ -65,18 +65,28 @@ PROPERTIES = {
 # ---- style ----------------------------------------------------------------------------
 
 
-def font_name(value):
+# A visible-line font of 0 is NX's "Original": each edge keeps its own font (model edges
+# draw solid). NX 2406 gives projected views that font; read as "invisible" it looked as if
+# their lines were not drawn while their drafting curves are solid (measured).
+ORIGINAL = "original"
+
+
+def font_name(value, key=None):
     """A font as its name (``dashed``); a name or an NX value 0-7 is accepted, other NX
-    values stay numbers."""
+    values stay numbers. ``key`` ``visible_font``: 0 is ``original``."""
     if isinstance(value, str):
         return value
     number = int(getattr(value, "value", value))
+    if number == 0 and key == "visible_font":
+        return ORIGINAL
     return FONTS[number] if 0 <= number < len(FONTS) else number
 
 
 def _native(tx, key, value):
     P = tx.nx.Preferences
     if key.endswith("font"):
+        if value == ORIGINAL:
+            return P.Font.ValueOf(0)
         return P.Font.ValueOf(FONTS.index(value) if isinstance(value, str) else int(value))
     if key.endswith("width"):
         return getattr(P.Width, WIDTHS[value])
@@ -88,7 +98,7 @@ def _native(tx, key, value):
 def _plain(tx, key, value):
     P = tx.nx.Preferences
     if key.endswith("font"):
-        return font_name(value)
+        return font_name(value, key)
     if key.endswith("width"):
         native = result.enum_name(value, P.Width)
         return next((k for k, v in WIDTHS.items() if v == native), native)

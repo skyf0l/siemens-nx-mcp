@@ -147,7 +147,7 @@ def test_loose_curves_and_points_are_deleted_and_in_sketch_curves_refused():
     assert run(nx, "nx_list_checkpoints", part="a").data["undo_depth"] == 2
     refused = run(nx, "nx_undo_operation", part="a")
     assert refused.error["code"] == "NX_CROSS_PART", refused
-    assert "lies in a sketch it did not create" in refused.error["message"]
+    assert "a curve in a sketch it did not create" in refused.error["message"]
     assert len(a.Curves) == 2 and len(a.Sketches) == 1
     both = run(nx, "nx_undo_operation", part="a", steps=2)  # with the sketch: it goes along
     assert both.ok and both.data["compensated"] and list(a.Curves) == [], both

@@ -9,7 +9,8 @@ issue a ``p:N`` ref for a part it reports). The call keys ``part`` and
 Order (:func:`resolve`): the tool's own part argument (``target="arg:<param>"``), a
 ``resolver`` hook (it may return :data:`ANY`: the call's own object is gone, any part will
 do because the handler only reports it; a resolver marked ``yields_to_part``, the steps of
-a batch or preview, gives way to a ``part`` key), then the references' part (an
+a batch or preview, gives way to a ``part`` key, and so does a part the resolver takes from
+session state rather than the call's arguments: :func:`_from_state`), then the references' part (an
 occurrence pins its prototype's owner, except under ``target="assembly"`` and for components, which pin the assembly)
 and the ``part`` key (a loaded part's file name with or without ``.prt``, its workspace
 path or ``p:N``; a ``part`` that contradicts the references is ``NX_WRONG_PART_CONTEXT``,
@@ -39,7 +40,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from nx_mcp.core.errors import NXError, fail
+from nx_mcp.core.errors import NXError, fail, listed_names, nearest
 from nx_mcp.core.types import REF_PATTERN, expand_kinds
 from nx_mcp.core.validate import get_at, pointer
 
@@ -156,20 +157,28 @@ def check_caller(caller) -> dict | None:
 
 
 def check_expiry(spec, expires_at: float | None, now: float | None = None) -> None:
-    """The ghost guard: a changing call whose client gave up (``expires_at`` passed) never
-    runs (reads still answer)."""
+    """The ghost guard: a changing call that could not start before ``expires_at`` (its
+    start deadline) never runs (reads still answer)."""
     if expires_at is None or spec.effect == "read":
         return
     late = (time.time() if now is None else now) - expires_at
     if late > 0:
-        fail(
-            "NX_CALL_EXPIRED",
-            f"The call expired {late:.0f} s before NX could run it: its client gave up, "
-            "so it did not run",
-            hint="Send the call again if it is still wanted (nx_get_operation shows what ran)",
-            details={"expires_at": expires_at, "late_seconds": round(late, 3)},
-            retry="after_fix",
-        )
+        raise expired_error(expires_at, late)
+
+
+def expired_error(expires_at: float | None, late: float, busy: str = "") -> NXError:
+    """``NX_CALL_EXPIRED`` for a changing call that waited past its start deadline (NX ran
+    other calls first, ``busy`` says which): nothing ran, sending it again is safe. The
+    client did not give up: the deadline only keeps a late call from running unseen."""
+    return NXError(
+        "NX_CALL_EXPIRED",
+        f"The call did not start before its start deadline ({late:.0f} s late): "
+        + (busy or "NX was busy with calls queued before it")
+        + ". It did not run and nothing changed",
+        hint="Send the call again (it did not run); nx_get_status shows what NX runs",
+        details={"expires_at": expires_at, "late_seconds": round(late, 3)},
+        retry="after_wait",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -294,6 +303,15 @@ def _names(parts) -> str:
     return ", ".join(file_name(p) for p in list(parts)[:LISTED])
 
 
+def _close(services, loaded, text: str) -> tuple[str, list]:
+    """``(hint text, parts)``: the loaded parts named closest to ``text`` (the agent's own
+    first, errors.nearest) and the total, never every loaded part of a shared session."""
+    files = {file_name(p): p for p in loaded}
+    mine = [file_name(p) for p in agent_parts(services, loaded)]
+    near = nearest(text, list(files), first=mine)
+    return listed_names(text, list(files), first=mine), [files[n] for n in near]
+
+
 def part_from_text(services, text: str, field: str = "/part"):
     """The loaded part ``text`` names: ``p:N``, a workspace path, or a file name with or
     without ``.prt`` (``bracket.v2`` is ``bracket.v2.prt``, never ``bracket.prt``)."""
@@ -307,11 +325,13 @@ def part_from_text(services, text: str, field: str = "/part"):
             error.details.setdefault("loaded_parts", rows(services, loaded))
             if error.category == "stale_reference":
                 error.hint = (
-                    f"That part is closed; use a loaded file name: {_names(loaded)} "
+                    "That part is closed; use a loaded file name: "
+                    f"{_close(services, loaded, text)[0]} "
                     f"(e.g. {EXAMPLE}) or p:N from nx_list_parts"
                 )
             raise
     name = text if text.casefold().endswith(".prt") else text + ".prt"
+    on_disk = False
     if re.search(r"[/\\:]", text):  # a path: inside the workspace only, never by stem
         try:
             wanted = Path(services.workspace.resolve(name)).resolve()
@@ -320,10 +340,11 @@ def part_from_text(services, text: str, field: str = "/part"):
                 "NX_PATH_OUTSIDE_WORKSPACE",
                 f"{field}: {error}",
                 field=field,
-                hint=f"Name the part by its file name: {_names(loaded)} (e.g. {EXAMPLE})",
+                hint=f"Name the part by its file name: {_close(services, loaded, text)[0]}",
                 details={"part": text, "loaded_parts": rows(services, loaded)},
             )
         found = [p for p in loaded if _same_file(p, wanted)]
+        on_disk = wanted.is_file()
     else:
         found = [p for p in loaded if file_name(p).casefold() == name.casefold()]
     if len(found) == 1:
@@ -336,13 +357,23 @@ def part_from_text(services, text: str, field: str = "/part"):
             hint="Pass the part's workspace path or its p:N from nx_list_parts",
             details={"part": text, "loaded_parts": rows(services, found)},
         )
+    if on_disk:
+        hint = f"The file exists but is not loaded: open it with nx_open_part (path {text})"
+    else:
+        hint = (
+            f"Use a loaded file name: {_close(services, loaded, text)[0]}; a part file not "
+            "loaded yet: nx_open_part first"
+        )
     fail(
         "NX_NOT_FOUND",
         f"{field}: no loaded part has the file {name}",
         field=field,
-        hint=f"Use a loaded file name: {_names(loaded) or 'none is loaded'}"
-        + (f" (e.g. {EXAMPLE})" if loaded else ""),
-        details={"part": text, "loaded_parts": rows(services, loaded)},
+        hint=hint,
+        details={
+            "part": text,
+            "loaded_parts": rows(services, _close(services, loaded, text)[1]),
+            "loaded_count": len(loaded),
+        },
     )
 
 
@@ -504,8 +535,10 @@ def resolve(spec, checked, services, *, part: str | None = None, parent=None) ->
     args = checked.args
     if spec.runs != "nx" or policy in ("none", "creates"):
         return None
-    if spec.new_part is not None and args.get(spec.new_part) is not None:
-        return None  # the call works in a part it creates
+    if spec.new_part is not None and (
+        args.get(spec.new_part) is not None or args.get("target") == "new_part"
+    ):
+        return None  # the call works in a part it creates (the handler checks its path)
     loaded = list(services.parts() or [])
     if not loaded:
         return None  # gate 4: no work part
@@ -537,6 +570,8 @@ def resolve(spec, checked, services, *, part: str | None = None, parent=None) ->
             return _target(services, services.work_part() or loaded[0], "any", count)
         if found is not None:
             if explicit is not None and not same(services, explicit, found):
+                if _from_state(spec, services, found):  # not the call's own object
+                    return _target(services, explicit, "part", count, "/part")
                 fail(
                     "NX_WRONG_PART_CONTEXT",
                     f"/part names {file_name(explicit)} but the call's own object belongs to "
@@ -551,6 +586,18 @@ def resolve(spec, checked, services, *, part: str | None = None, parent=None) ->
     if found is not None:
         found.kinds = frozenset().union(*(v[2] for v in pinned.values())) - {None}
     return found
+
+
+def _from_state(spec, services, found) -> bool:
+    """Whether a resolver's part comes from shared session state (the only part with
+    calls to redo, the displayed part), not from an object the call's arguments name: the
+    resolver gives the same part without any argument. Such a part never overrides the
+    call's ``part``: another agent's state must not decide this call's target."""
+    try:
+        bare = spec.target_resolver(services, {})
+    except Exception:
+        return False
+    return bare is not None and bare is not ANY and same(services, bare, found)
 
 
 def _by_refs(spec, services, loaded, pinned, explicit, checked, parent) -> Target | None:

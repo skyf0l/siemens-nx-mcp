@@ -372,6 +372,9 @@ def test_an_over_constrained_dimension_names_the_relieving_constraint():
     relieving = {nx.ref_of(c, "sketch_constraint") for c in sk.constraints}
     assert set(bad.error["details"]["relieving"]) <= relieving
     assert bad.error["details"]["relieving"], bad.error
+    labels = bad.error["details"]["relieving_constraints"]
+    assert [x["constraint"] for x in labels] == bad.error["details"]["relieving"]
+    assert all(x["type"] for x in labels)
     assert "nx_check_sketch" not in bad.error["hint"] and "reference" in bad.error["hint"]
 
 

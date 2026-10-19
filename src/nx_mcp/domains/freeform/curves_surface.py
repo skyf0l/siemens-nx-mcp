@@ -10,7 +10,12 @@ NX 2406 lessons kept here (probed live on a cylinder d 40 h 60 and a sphere d 60
   cylinder gives lines at 0, 180 and 360 degrees, length 60; v 3 circles at z 0, 30, 60,
   length 125.66371). ``ThroughPoints`` makes one curve per ``ConstraintManager`` point,
   ``BetweenPoints`` ``Number`` curves from the first point to the second, both included.
-  ``Spacing`` (a percent, with ``IsSpacingEnabled``) is not exposed.
+  ``Spacing`` (a percent, with ``IsSpacingEnabled``) is not exposed. On a trimmed plane
+  ``Uniform`` is wrong: count 3 on a disc d 40 gave 2 lines per family, at -19.94 and
+  0.30 (a shifted range, the third line off the face). Planar faces therefore get one
+  ``ThroughPoints`` feature per family through points the tool spreads over the face's
+  real extent (``kit.surface.iso_line_points``); a point on the boundary (an edge of a
+  rectangle) gives the edge's line.
 - ``FreeformCurveCollection.CreateIsoclineCurveBuilder`` (licensed with Modeling or a
   Studio freeform license): ``Face`` is a collector, ``ReferenceDirection`` a direction,
   ``IsoclineTypes`` ``Single`` (``IsoclineAngle``) or ``Multiple`` (``StartAngle``..
@@ -37,7 +42,18 @@ from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Angle, Direction, Doc, FaceRef, Items, Point3, Range
 from nx_mcp.domains.freeform import curves_common as cc
-from nx_mcp.kit import args, builders, curve, geom, licenses, readback, result, select, units
+from nx_mcp.kit import (
+    args,
+    builders,
+    curve,
+    geom,
+    licenses,
+    readback,
+    result,
+    select,
+    surface,
+    units,
+)
 
 MAX_CURVES = 100
 Faces = Annotated[list[FaceRef], Items(1, 100)]
@@ -100,6 +116,7 @@ class IsoRow(cc.CurveRow):
 
 class IsoData(TypedDict):
     feature: result.Row
+    features: list[result.Row]  # one per family on a planar face with uniform, else feature
     curves: list[IsoRow]
     count: int
     length: float
@@ -155,6 +172,26 @@ def _iso_rows(tx, face, curves, rows, direction) -> list[IsoRow]:
     return out
 
 
+def _iso_feature(tx, target, direction, method, count, pts):
+    """One committed isoparametric curves feature on ``target``."""
+    B = tx.nx.Features.IsoparametricCurvesBuilder
+    with (
+        cc.licensed(tx),
+        builders.build(tx, tx.part.Features.CreateIsoparametricCurvesBuilder, None) as b,
+    ):
+        b.SelectObject.Value = target
+        b.Associative = True
+        b.Direction = getattr(
+            B.DirectionTypes, {"u": "IsoU", "v": "IsoV", "uv": "IsoUV"}[direction]
+        )
+        b.Placement = getattr(B.PlacementTypes, {"uniform": "Uniform", "through_points":
+                              "ThroughPoints", "between_points": "BetweenPoints"}[method])  # fmt: skip
+        if count is not None and method != "through_points":
+            b.Number = int(count)
+        _append_points(tx, b.ConstraintManager, pts)
+        return b.commit()
+
+
 @tool(
     effect="model",
     label="Create isoparametric curves",
@@ -203,10 +240,10 @@ def nx_create_isoparametric_curves(
 ) -> IsoData:
     """Create associative curves of constant u and/or v on a face. uniform: count curves
     per family from boundary to boundary, both included (a closed face repeats its seam:
-    duplicate_of marks the copy); through_points: one curve through each point;
-    between_points: count curves from the first point to the second, both included. u and
-    v are NX's face parameters (on a cylinder one family runs along the axis, the other
-    around): each curve row gives its family and parameter."""
+    duplicate_of marks the copy; a round planar face's end curves are short chords near the
+    rim); through_points: one curve per point; between_points: count curves from the first
+    point to the second. u and v are NX's face parameters; each row gives its family and
+    parameter (NX's raw value, e.g. metres along a cylinder axis)."""
     with tx.checks():
         target = select.one(tx, face, "face", field="/face")
         pts = []
@@ -216,27 +253,20 @@ def nx_create_isoparametric_curves(
             fail("NX_INVALID_ARGUMENT", "between_points takes exactly 2 points", field="/points")
         if method != "through_points":
             args.need(count=count)
-    B = tx.nx.Features.IsoparametricCurvesBuilder
-    with (
-        cc.licensed(tx),
-        builders.build(tx, tx.part.Features.CreateIsoparametricCurvesBuilder, None) as b,
-    ):
-        b.SelectObject.Value = target
-        b.Associative = True
-        b.Direction = getattr(
-            B.DirectionTypes, {"u": "IsoU", "v": "IsoV", "uv": "IsoUV"}[direction]
-        )
-        b.Placement = getattr(B.PlacementTypes, {"uniform": "Uniform", "through_points":
-                              "ThroughPoints", "between_points": "BetweenPoints"}[method])  # fmt: skip
-        if count is not None and method != "through_points":
-            b.Number = int(count)
-        _append_points(tx, b.ConstraintManager, pts)
-        feature = b.commit()
-    curves = cc.output_curves(tx, feature)
+    if method == "uniform" and select.face_data(tx, target)[0] == select.FACE_PLANE:
+        # NX's Uniform misplaces lines on a trimmed plane: through points per family.
+        made = []
+        for family in ("u", "v") if direction == "uv" else (direction,):
+            spread = surface.iso_line_points(tx, target, 0 if family == "u" else 1, count)
+            made.append(_iso_feature(tx, target, family, "through_points", None, spread))
+        pts = []
+    else:
+        made = [_iso_feature(tx, target, direction, method, count, pts)]
+    curves = [c for f in made for c in cc.output_curves(tx, f)]
     gap = _on_faces(tx, curves, [target])
     if pts:
         _miss(tx, curves, pts)
-    data = cc.describe(tx, feature, curves)
+    data = cc.describe(tx, made[0], curves)
     rows = _iso_rows(tx, target, curves, data["curves"], direction)
     copies = [r for r in rows if r["duplicate_of"] is not None]
     if copies:
@@ -248,7 +278,8 @@ def nx_create_isoparametric_curves(
         )
         tx.warn("NX_NOTE", f"Curves {pairs} coincide on the closed face's seam (duplicate_of)"
                 f"{more}")  # fmt: skip
-    return {**data, "curves": rows, "gap": gap, "distinct": len(rows) - len(copies)}
+    return {**data, "features": [tx.ref(f, kind="feature") for f in made], "curves": rows,
+            "gap": gap, "distinct": len(rows) - len(copies)}  # fmt: skip
 
 
 # ---------------------------------------------------------------------------
@@ -313,6 +344,26 @@ def _angles(method, angle, start_angle, end_angle, step) -> list[float]:
 Draft = Annotated[Angle, Doc("Degrees, between -90 and 90 (exclusive)")]
 
 
+def _not_all_planar(tx, faces, along) -> None:
+    """``NX_INVALID_ARGUMENT`` for planar faces only: a plane meets the direction at one
+    draft angle everywhere, so it has no isocline curve (NX: "No curves were created")."""
+    drafts = []
+    for face in faces:
+        kind, _point, normal = select.face_data(tx, face)
+        if kind != select.FACE_PLANE:
+            return
+        drafts.append(round(_draft(geom.unit(normal, "normal"), along), 3))
+    fail(
+        "NX_INVALID_ARGUMENT",
+        f"The faces are planar (draft angle {sorted(set(drafts))} deg everywhere): a plane "
+        "has no isocline curve",
+        field="/faces",
+        hint="Give curved faces (cylinder, cone, sphere, freeform); where a plane meets "
+        "others use nx_create_intersection_curve",
+        details={"drafts": drafts},
+    )
+
+
 @tool(
     effect="model",
     label="Create isocline curves",
@@ -356,6 +407,7 @@ def nx_create_isocline_curves(
         targets = _faces(tx, faces, "/faces")
         along = select.direction(tx, direction, "/direction")
         angles = _angles(method, angle, start_angle, end_angle, step)
+        _not_all_planar(tx, targets, along)
     B = tx.nx.Features.IsoclineCurveBuilder
     collection = tx.part.Features.FreeformCurveCollection
     with (
@@ -415,8 +467,9 @@ def nx_create_curve_on_surface(
     periodic: Annotated[bool, Doc("Closed: back to the first point")] = False,
 ) -> CurveOnSurfaceData:
     """Create an associative spline that lies on the faces and passes through the points
-    in order (each must be on a face). Curves projected onto faces from points off them:
-    nx_create_projected_curve."""
+    in order (each must be on a face). Returns gap (curve to faces) and miss (points to
+    curve), sampled distances in part units; above 0.01 mm the call rolls back. Curves
+    projected onto faces from points off them: nx_create_projected_curve."""
     with tx.checks():
         targets = _faces(tx, faces, "/faces")
         pts = _on_points(tx, targets, points, "/points")

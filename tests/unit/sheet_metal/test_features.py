@@ -35,6 +35,23 @@ def test_tab_sets_section_and_thickness_and_reads_the_thickness_back():
     assert nx.live_builders == 0
 
 
+def test_a_tab_lying_on_an_existing_sheet_metal_body_is_noted():
+    nx = sm_nx()
+    sk = nx.sketch()
+    nx.on_commit("TabFeatureBuilder", lambda b: nx.made("SB_TAB", nx.tab(100, 80, 2)))
+    first = create(nx, "tab", section=sk.ref, thickness=2)
+    assert first.ok and not first.warnings, first
+    again = create(nx, "tab", section=sk.ref, thickness=2)
+    assert again.ok, again
+    note = [w["message"] for w in again.warnings if w["code"] == "NX_NOTE"]
+    old = first.data["body"]["id"]
+    assert len(note) == 1 and f"lies exactly on the sheet-metal body {old}" in note[0]
+    assert f"pass body {old}" in note[0]
+    nx.on_commit("TabFeatureBuilder", lambda b: nx.made("SB_TAB", nx.tab(50, 80, 2)))
+    other = create(nx, "tab", section=sk.ref, thickness=2)
+    assert other.ok and not [w for w in other.warnings if "lies exactly" in w["message"]]
+
+
 def test_inch_part_converts_thickness_to_inches():
     nx = sm_nx(units="in")
     sk = nx.sketch()

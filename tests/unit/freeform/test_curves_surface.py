@@ -18,10 +18,10 @@ SIN30, COS30 = 0.5, math.sqrt(3) / 2
 
 
 def surface_nx(normal=(0, 0, 1)):
-    """A fake with one face: the box [-20, -20, 0, 20, 20, 60] (UF distance) whose
+    """A fake with one curved face: the box [-20, -20, 0, 20, 20, 60] (UF distance) whose
     normal is ``normal`` everywhere (face props), and the isocline builder collection."""
     nx = curves_nx()
-    f = face(nx, flat(), normal=normal)
+    f = face(nx, flat(), normal=normal, kind="cylinder")
     f.box = [-20, -20, 0, 20, 20, 60]
     f.at = lambda *p: list(p)
     nx.part.Features.FreeformCurveCollection = NS(
@@ -52,6 +52,47 @@ def test_uniform_iso_curves_set_family_count_and_read_back_on_the_face():
     assert b.Number == 3 and not b.ConstraintManager.Append.calls
     assert ok.data["count"] == 3 and ok.data["length"] == pytest.approx(180)
     assert ok.data["gap"] == 0 and nx.live_builders == 0
+
+
+def _disc_nx():
+    """A planar disc of radius 20 at z 60 whose UV box is wider than the disc (as NX's)."""
+    nx = curves_nx()
+    f = face(nx, flat())
+    f.box = [-20, -20, 60, 20, 20, 60]
+    f.at = lambda u, v: [-20.24 + 40.48 * u, -20.24 + 40.48 * v, 60.0]
+    f.contains = lambda p: 1 if math.hypot(p[0], p[1]) < 20 else 2
+    B = nx.nx.Features.IsoparametricCurvesBuilder
+
+    def commit(b):
+        lines = []
+        for x, y, z in _points(b):
+            if b.Direction is B.DirectionTypes.IsoU:
+                h = math.sqrt(400 - x * x)
+                lines.append([[x, -h, z], [x, h, z]])
+            else:
+                h = math.sqrt(400 - y * y)
+                lines.append([[-h, y, z], [h, y, z]])
+        return made(nx, "ISOPARAMETRIC_CURVES", lines)
+
+    nx.on_commit(ISO, commit)
+    return nx, f, B
+
+
+def test_uniform_iso_curves_on_a_disc_span_the_face_per_family():
+    nx, f, B = _disc_nx()
+    ok = run(nx, "nx_create_isoparametric_curves", face=nx.ref_of(f, "face"), direction="uv",
+             count=3)  # fmt: skip
+    assert ok.ok, ok
+    first, second = nx.builders[-2:]
+    assert first.Placement is B.PlacementTypes.ThroughPoints and "Number" not in first.__dict__
+    assert first.Direction is B.DirectionTypes.IsoU and second.Direction is B.DirectionTypes.IsoV
+    xs = [p[0] for p in _points(first)]
+    assert xs[1] == pytest.approx(0, abs=1e-9) and xs[0] == pytest.approx(-xs[2])
+    assert -20 < xs[0] < -19.5  # the end line is a short chord near the rim, not a point
+    assert ok.data["count"] == 6 and len(ok.data["features"]) == 2
+    assert [r["family"] for r in ok.data["curves"]] == ["u"] * 3 + ["v"] * 3
+    assert ok.data["curves"][1]["length"] == pytest.approx(40)
+    assert nx.live_builders == 0
 
 
 def test_iso_curves_through_and_between_points():
@@ -194,3 +235,15 @@ def test_curve_on_surface_checks_points_and_reads_back_misses():
                periodic=True)  # fmt: skip
     assert miss.error["details"]["check"] == "points" and miss.mutation_outcome == "rolled_back"
     assert nx.last(COS).IsPeriodic is True and nx.live_builders == 0
+
+
+def test_isocline_on_planar_faces_only_is_refused_before_nx():
+    nx = curves_nx()
+    flat_face = face(nx, flat(), normal=(0, 0, 1))  # a plane: one draft angle everywhere
+    nx.part.Features.FreeformCurveCollection = NS(
+        CreateIsoclineCurveBuilder=lambda *a: nx.builder(INC, *a)
+    )
+    bad = run(nx, "nx_create_isocline_curves", faces=[nx.ref_of(flat_face, "face")],
+              direction="z", angle=10)  # fmt: skip
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/faces"
+    assert bad.error["details"]["drafts"] == [90.0] and not nx.builders

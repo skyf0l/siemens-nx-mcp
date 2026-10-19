@@ -182,3 +182,57 @@ def test_a_cut_of_shared_poses_ignores_the_active_arrangement(nx):
     ok = run(nx, "nx_create_assembly_cut", part="asm", targets=[nx.deck.ref],
              tools=[nx.trunk.ref])  # fmt: skip
     assert ok.ok, ok
+
+
+def _boxes(nx, boxes):
+    """UF bounding boxes by body: ``{body: (low, high)}``."""
+    by_tag = {int(b.Tag): [*low, *high] for b, (low, high) in boxes.items()}
+    nx.uf.ModlGeneral = NS(AskBoundingBox=lambda tag: by_tag[int(tag)])
+
+
+def test_a_target_no_tool_reaches_is_left_whole_and_reported(nx):
+    far = place(nx, nx.blk, "far", translation=(5000, 0, 0))
+    far_body = _solid(nx, far, 1200000.0)
+    trunk_body = next(iter(nx.trunk.occurrences.values()))
+    _boxes(nx, {nx.deck_body: ((0, 0, 0), (400, 300, 10)),
+                far_body: ((5000, 0, 0), (5400, 300, 10)),
+                trunk_body: ((150, 110, -20), (250, 190, 40))})  # fmt: skip
+    ok = run(nx, "nx_create_assembly_cut", part="asm", targets=[nx.deck.ref, far.ref],
+             tools=[nx.trunk.ref])  # fmt: skip
+    assert ok.ok, ok
+    assert nx.cut_builders[0].TargetBody.items == [nx.deck_body]
+    deck, whole = ok.data["targets"]
+    assert deck["removed"] == pytest.approx(80000) and whole["removed"] == 0
+    assert whole["volume_after"] == pytest.approx(1200000)
+    assert any(w["code"] == "NX_NO_EFFECT" and far.ref in w["message"] for w in ok.warnings)
+
+
+def test_a_cut_no_tool_reaches_is_refused_before_nx(nx):
+    trunk_body = next(iter(nx.trunk.occurrences.values()))
+    _boxes(nx, {nx.deck_body: ((0, 0, 0), (400, 300, 10)),
+                trunk_body: ((600, 110, -20), (700, 190, 40))})  # fmt: skip
+    bad = run(nx, "nx_create_assembly_cut", part="asm", targets=[nx.deck.ref],
+              tools=[nx.trunk.ref])  # fmt: skip
+    assert bad.error["code"] == "NX_WRONG_GEOMETRY" and bad.error["field"] == "/tools", bad
+    assert bad.error["details"]["targets"] == [nx.deck.ref]
+    assert bad.mutation_outcome == "not_started" and nx.cut_builders == []
+
+
+def test_nx_refusing_a_cut_of_untouched_bodies_names_the_cause(nx):
+    info = NS(ErrorCode=3545001, Description="A cut was not performed on the tool and target "
+              "bodies. An Assembly Cut feature is still generated.")  # fmt: skip
+
+    def refuse(self):  # NX lists the failure after committing the feature
+        return NS(Length=1, GetErrorInfo=lambda i: info, Dispose=lambda: None)
+
+    original = CutBuilder.GetOperationFailures
+    CutBuilder.GetOperationFailures = refuse
+    try:
+        bad = run(nx, "nx_create_assembly_cut", part="asm", targets=[nx.deck.ref],
+                  tools=[nx.trunk.ref])  # fmt: skip
+    finally:
+        CutBuilder.GetOperationFailures = original
+    assert bad.error["code"] == "NX_WRONG_GEOMETRY" and bad.error["field"] == "/tools", bad
+    assert bad.mutation_outcome == "rolled_back"
+    assert bad.error["nx_code"] == 3545001 and "do not intersect" in bad.error["message"]
+    assert "nx_set_component_pose" in bad.error["hint"]

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/assembly_cut.json",
-  "scenario_sha256": "3275da17e5c3225c12e7f2395ea914b7cb86fa94c4d56e149acd8aa8d235854f",
+  "scenario_sha256": "c77fafdbcc6e8bddc2870832eed951967ed636ae66e5d94a65a84c72b478c557",
   "domain": "assembly",
   "covers": {
     "nx_create_assembly_cut": [],
@@ -14,14 +14,14 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_assembly_cut": "5f593fa28304d6b343507a83f11c2c9979d4159b43de5995fcbbf1cdfd80e98e",
-    "nx_create_arrangement": "a3b8343fe69fcd6cf7f37f175f98caa53e8bcfdbd980d683a21e49f336187a32",
-    "nx_set_arrangement_component": "a3b8343fe69fcd6cf7f37f175f98caa53e8bcfdbd980d683a21e49f336187a32",
-    "nx_edit_arrangement": "a3b8343fe69fcd6cf7f37f175f98caa53e8bcfdbd980d683a21e49f336187a32"
+    "nx_create_assembly_cut": "563c3d52fec95eb197db31cd866fc11bb7d97993075bde06890e180c1435554f",
+    "nx_create_arrangement": "995ff0db913d270487248f6bfca632a16c87d116b20fdce53d022600cfd8a772",
+    "nx_set_arrangement_component": "995ff0db913d270487248f6bfca632a16c87d116b20fdce53d022600cfd8a772",
+    "nx_edit_arrangement": "995ff0db913d270487248f6bfca632a16c87d116b20fdce53d022600cfd8a772"
   },
-  "recorded": "2026-10-16T13:12:30Z",
+  "recorded": "2026-10-19T10:48:57Z",
   "passed": true,
-  "checks": 24,
+  "checks": 40,
   "failed_checks": 0,
   "steps": [
     {
@@ -142,6 +142,62 @@
       "setup": false,
       "passed": true,
       "checks": 1
+    },
+    {
+      "index": 18,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 19,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 20,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 21,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 22,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 23,
+      "call": "nx_create_assembly_cut",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 24,
+      "call": "nx_create_assembly_cut",
+      "setup": false,
+      "passed": true,
+      "checks": 8
+    },
+    {
+      "index": 25,
+      "call": "nx_create_assembly_cut",
+      "setup": false,
+      "passed": true,
+      "checks": 4
     }
   ]
 }

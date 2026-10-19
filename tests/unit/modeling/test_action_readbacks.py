@@ -31,7 +31,7 @@ def test_draft_refuses_a_face_that_is_no_wall_of_the_pull_direction():
     nx, _block, side, bottom = _draft_block()
     bad = run(nx, "nx_create_draft", faces=[side.ref], stationary_face=bottom.ref,
               direction=[1, 0, 0], angle=3)  # fmt: skip
-    assert bad.error["field"] == "/direction" and bad.mutation_outcome == "not_started"
+    assert bad.error["field"] == "/faces/0" and bad.mutation_outcome == "not_started"
     assert "pull" in bad.error["hint"] and nx.builders == []
     same = run(nx, "nx_create_draft", faces=[bottom.ref], stationary_face=bottom.ref,
                direction="z", angle=3)  # fmt: skip

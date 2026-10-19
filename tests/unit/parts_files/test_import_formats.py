@@ -253,6 +253,8 @@ def test_stl_makes_facet_bodies_in_the_file_units(fx, root):
     b = fx.importers[-1]
     assert b.FileFormat == 1 and b.FileUnits == 2 and b.DisplayInformation is False
     assert ok.data["volume"] is None and ok.data["bounds"]["max"] == BOX[3:]
+    (facet,) = ok.data["facets"]  # named apart from bodies
+    assert facet["kind"] == "facet_body" and facet["name"], facet
     text = call(
         fx, importing.nx_import_model, part="w", path="t.stl", format="stl", options={"units": "in"}
     )
@@ -526,3 +528,20 @@ def test_iges_solid_bounds_are_exact_although_the_quick_box_is_padded(fx, root, 
     ok = call(fx, importing.nx_import_model, part="w", path="a.igs")
     assert ok.ok and ok.data["solids"] == 1, ok
     assert ok.data["bounds"] == {"min": BOX[:3], "max": BOX[3:]}
+
+
+def test_imports_list_their_facet_bodies_in_changes_also_in_a_new_part(fx, root, monkeypatch):
+    from tests.kit import kernel as kit_kernel
+
+    monkeypatch.setattr(kit_kernel, "KINDS", (*kit_kernel.KINDS, ("FacetedBodies", "facet_body")))
+    put(root, "a.stl", neutral_files.stl([BOX]))
+    here = call(fx, importing.nx_import_model, part="w", path="a.stl", format="stl")
+    assert here.ok and [r["kind"] for r in here.changes["created"]] == ["facet_body"], here
+    new = call(fx, importing.nx_import_model, part="w", path="a.stl", format="stl",
+               target="new_part", new_part_path="imp/mesh.prt")  # fmt: skip
+    assert new.ok and [r["kind"] for r in new.changes["created"]] == ["facet_body"], new
+    # Two agent parts are loaded now: target new_part needs no part key, and a missing
+    # new_part_path is named instead of an ambiguous part.
+    bad = call(fx, importing.nx_import_model, path="a.stl", format="stl", target="new_part")
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT", bad
+    assert bad.error["field"] == "/new_part_path" and bad.mutation_outcome == "not_started"

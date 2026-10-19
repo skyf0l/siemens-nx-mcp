@@ -108,7 +108,7 @@ class PartMaterial(TypedDict):
 
 class VisualLibraryData(TypedDict, total=False):
     items: list[LibraryEntry]
-    categories: list[str]
+    categories: dict[str, int]
     in_part: list[PartMaterial]
     page: dict
 
@@ -256,12 +256,12 @@ def _visual_targets(tx, refs) -> list:
     keywords=(
         "visual material",
         "render material",
-        "studio material",
-        "paint",
+        "paint color",
+        "steel",
         "glass",
         "wood",
         "material look",
-        "svm",
+        "metal finish",
     ),  # fmt: skip
     requires=("work_part",),
     cost="light",
@@ -304,7 +304,10 @@ def nx_list_visual_materials(
     selected, page = result.page(found, offset, limit)
     out: VisualLibraryData = {"items": selected, "page": page}
     if offset == 0:
-        out["categories"] = sorted({c for c, _ in library()})
+        categories: dict[str, int] = {}
+        for category, _name in library():  # a dict: compact results never cut it
+            categories[category] = categories.get(category, 0) + 1
+        out["categories"] = dict(sorted(categories.items()))
         in_part: list[PartMaterial] = []
         for material, name in part_materials(tx):
             with native(default="NX_ERROR"):
@@ -317,14 +320,19 @@ def nx_list_visual_materials(
 
 def _near(words, entries) -> list[dict]:
     """Library entries matching some query words in any spelling (best first): every
-    word's best ratio against the name and category words, kept when one word matches."""
+    word's best ratio against the name and category words, kept when one word matches;
+    ties go to the name made most of those words ('stel' ranks Steel before Stainless
+    Steel Printed)."""
     scored = []
     for index, (category, name) in enumerate(entries):
-        theirs = _material_words(name) + _material_words(category)
+        own = _material_words(name)
+        theirs = own + _material_words(category)
         best = [max(difflib.SequenceMatcher(None, w, t).ratio() for t in theirs) for w in words]
         hits = sum(1 for b in best if b >= WORD_MATCH)
         if hits:
-            scored.append((-hits, -round(sum(best), 6), index, name, category))
+            ratios = [max(difflib.SequenceMatcher(None, w, t).ratio() for w in words) for t in own]
+            share = sum(ratios) / len(ratios) if ratios else 0.0
+            scored.append((-hits, -round(sum(best), 6), -round(share, 6), index, name, category))
     return [{"name": n, "category": c} for *_rank, n, c in sorted(scored)]
 
 
@@ -364,8 +372,12 @@ def nx_set_visual_material(
     clear theirs. A face's own material wins over its body's. Seen in the Studio style with
     true shading off (nx_capture_view style=studio; nx_get_true_shading); saved with the part.
     Not density: nx_set_material. Names: nx_list_visual_materials."""
-    if remove == (material is not None):
-        fail("NX_INVALID_ARGUMENT", "Give material, or remove=true without material",
+    if remove and material is not None:
+        fail("NX_INVALID_ARGUMENT", "material and remove=true exclude each other: give one",
+             field="/remove",
+             hint="Drop remove to apply the material, or drop material to clear")  # fmt: skip
+    if not remove and material is None:
+        fail("NX_INVALID_ARGUMENT", "Give material to apply, or remove=true to clear",
              field="/material")  # fmt: skip
     collection = tx.part.VisualMaterialCollection
     with tx.checks():
@@ -399,15 +411,16 @@ def nx_set_visual_material(
         "render material",
         "which material look",
         "assigned paint",
-        "studio material",
+        "material colour",
     ),  # fmt: skip
     requires=("work_part",),
     cost="light",
     example={"objects": ["b:3"]},
 )
 def nx_get_visual_material(tx: Tx, *, objects: VisualTargets) -> VisualMaterialInfo:
-    """Read the visual material of bodies and faces; bodies also list their faces that carry
-    their own. A face without its own shows its body's (from_body=true); null: none."""
+    """Read the visual material of bodies and faces. Bodies also list their faces that carry
+    their own; a feature reads as its bodies. A face without its own shows its body's
+    (from_body=true); null: none."""
     values = targets(tx, objects, expand=True, kinds=VISUAL_KINDS)
     listed: dict[int, object] = {}  # one row per object: a face and its body list it once
     for i, obj in enumerate(values):
@@ -617,9 +630,9 @@ def nx_set_true_shading(
     environment: Environment | None = None,
 ) -> TrueShadingData:
     """Turn on true shading (a Studio look: one global material, floor shadow and reflection)
-    for the shown view and set it up. It hides visual materials and decals; enabled=false
-    keeps the settings and leaves it. Omitted settings keep their value. Read without
-    changing: nx_get_true_shading. Saved with the part; undo with nx_undo_operation."""
+    and set it up. Each part stores its own, for its model view. It hides visual materials
+    and decals; enabled=false keeps the settings and leaves it. Omitted settings keep their
+    value. Read: nx_get_true_shading. Undo: nx_undo_operation."""
     with tx.checks():
         part = display.shown_part(tx, work=True)
         view = display.model_view(tx, part)
@@ -704,9 +717,9 @@ def _shown_for_read(services, part, args) -> bool:
     example={},
 )
 def nx_get_true_shading(tx: Tx) -> TrueShadingData:
-    """Read whether true shading is on, without changing it. Also its global material,
-    background, shadows, reflections and environment; part X: X is shown for the read. Set
-    with nx_set_true_shading."""
+    """Read a part's true shading without changing it. enabled: on in its model view (Studio
+    style); also global material, background, shadows, reflections, environment. Each part
+    stores its own; part X: X is shown for the read. Set: nx_set_true_shading."""
     with tx.checks():
         part = display.shown_part(tx)
         view = display.model_view(tx, part)

@@ -398,9 +398,22 @@ def _zone_set(tx, faces, thickness, outward: bool):
         return tx.part.CreateExpressionCollectorSet(collector, rhs, "", 0)
 
 
-def _too_thick(tx, error, target, thickness, outward) -> None:
-    """Explain an inward shell NX refuses because the wall leaves no cavity."""
-    if error.code != "NX_BUILD_FAILED" or outward:
+def _too_thick(tx, error, target, thickness, outward, shelled) -> None:
+    """Explain a shell NX refuses: the body carried a shell before the call (``shelled``,
+    read before the build: a refused commit can leave its own shell on the body until the
+    undo; NX shells a body once: "Cannot shell an existing Shell"), or an inward wall
+    leaves no cavity."""
+    if error.code != "NX_BUILD_FAILED":
+        return
+    if shelled is not None:
+        error.field = error.field or "/body"
+        error.hint = (
+            f"The body is shelled already ({shelled}): change that shell's thickness with "
+            "nx_edit_feature, or undo it and shell once with every face to open"
+        )
+        error.details = {**(error.details or {}), "shell": shelled}
+        return
+    if outward:
         return
     try:
         low, high = measure.bounds(tx, target)
@@ -414,6 +427,15 @@ def _too_thick(tx, error, target, thickness, outward) -> None:
             f"its thinnest; use less than {smallest / 2:g} (or outward)"
         )
         error.details = {**(error.details or {}), "smallest_extent": smallest}
+
+
+def _shell_of(tx, body) -> str | None:
+    """The ref of a shell feature of the body, or None."""
+    try:
+        found = [f for f in body.GetFeatures() if "SHELL" in str(f.FeatureType).upper()]
+        return tx.ref(found[-1], kind="feature")["id"] if found else None
+    except Exception:  # noqa: BLE001 - no feature listing: no shell named
+        return None
 
 
 def _zone_rhs(thickness, outward: bool) -> str:
@@ -479,6 +501,7 @@ def nx_create_shell(
         _own_faces(faces, target, "/remove_faces")
         zones = _zones(tx, alternate, target, faces)
     before = measure.volume(tx, target)
+    shelled = _shell_of(tx, target)
     try:
         with builders.build(tx, tx.part.Features.CreateShellBuilder, None) as b:
             b.Tolerance = units.part_tolerance(tx)
@@ -491,11 +514,15 @@ def nx_create_shell(
                 b.FaceThicknesses.Append(_zone_set(tx, zone_faces, zone_thickness, outward))
             feature = b.commit()
     except NXError as error:
-        _too_thick(tx, error, target, thickness, outward)
+        _too_thick(tx, error, target, thickness, outward, shelled)
         raise
     out = common.result_of(tx, feature, [target])
     common.changed(before, out["volume"], "differs" if outward else "less")
     return out
+
+
+class DraftData(common.FeatureData):
+    angles: Annotated[list[float], Doc("Each planar wall's draft angle read back, degrees")]
 
 
 @tool(
@@ -515,7 +542,7 @@ def nx_create_draft(
     stationary_face: FaceRef,
     direction: Direction,
     angle: Angle,
-) -> common.FeatureData:
+) -> DraftData:
     """Draft (taper) wall faces about a stationary face along the draw (pull) direction. A
     positive angle tapers them inward, a negative one outward. The walls must run roughly
     along the direction (a face leaning over 45 deg off it is refused); each planar wall's
@@ -555,9 +582,9 @@ def nx_create_draft(
         )
         b.FaceSetAngleExpressionList.Append(group)
         feature = b.commit()
-    out = common.result_of(tx, feature, [body])
+    out = cast(DraftData, common.result_of(tx, feature, [body]))
     common.changed(before, out["volume"], "differs")
-    _drafted_angles(tx, feature, walls, vector, abs(a))
+    out["angles"] = _drafted_angles(tx, feature, walls, vector, abs(a))
     if abs(out["volume"] - before) > DRAFT_VOLUME_SHARE * before:
         tx.warn(
             "NX_UPDATE_WARNING",
@@ -596,7 +623,7 @@ def _draft_walls(tx, selected, vector) -> list:
                 "NX_INVALID_ARGUMENT",
                 f"faces[{i}] leans {lean:.3g} deg off the draw direction: it is not a wall of "
                 "that pull, and drafting it would collapse the body",
-                field="/direction",
+                field=f"/faces/{i}",
                 hint="direction is the pull (draw) direction: the walls to taper run along it "
                 "and the stationary face is roughly square to it (e.g. 'z' for vertical walls "
                 "standing on an XY floor)",
@@ -607,9 +634,9 @@ def _draft_walls(tx, selected, vector) -> list:
     return walls
 
 
-def _drafted_angles(tx, feature, walls, vector, angle: float) -> None:
+def _drafted_angles(tx, feature, walls, vector, angle: float) -> list[float]:
     """Read back the draft angle of each planar wall NX kept (else of the feature's own
-    planar faces): at least one must lie at ``angle`` to the pull direction."""
+    planar faces): at least one must lie at ``angle`` to the pull direction. Returns them."""
     found = []
     for _i, face in walls:
         frame = readback.face_frame(tx, face)
@@ -621,7 +648,7 @@ def _drafted_angles(tx, feature, walls, vector, angle: float) -> None:
             if frame is not None and frame["type"] == readback.PLANE:
                 found.append(readback.draft_angle(frame["dir"], vector))
     if not found:
-        return  # cylinders or cones only: the volume read-back stands
+        return []  # cylinders or cones only: the volume read-back stands
     off = [x for x in found if abs(x - angle) > DRAFT_ANGLE_TOL]
     readback.expect(
         len(off) < len(found),
@@ -630,3 +657,4 @@ def _drafted_angles(tx, feature, walls, vector, angle: float) -> None:
         f"{', '.join(f'{x:.4g}' for x in found[:5])} deg)",
         angles=found,
     )
+    return found

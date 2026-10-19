@@ -385,8 +385,9 @@
     ]
    },
    "expect": {
-    "error.code": "NX_ALREADY_EXISTS",
+    "error.code": "NX_INVALID_ARGUMENT",
     "error.field": "/values/0/type",
+    "error.message": {"matches": "as an integer attribute, not a string"},
     "mutation_outcome": "not_started"
    }
   },
@@ -648,7 +649,7 @@
     }
    },
    "expect": {
-    "error.code": "NX_ALREADY_EXISTS",
+    "error.code": "NX_INVALID_ARGUMENT",
     "error.field": "/attributes/MAP_QTY",
     "mutation_outcome": "not_started"
    }

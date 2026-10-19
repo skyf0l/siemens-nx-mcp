@@ -125,6 +125,9 @@ def test_checkpoint_restore_undoes_everything_since(nx):
     delete(nx, c, "op_delete_c")
     listed = run(nx, "nx_list_checkpoints").data
     assert listed["undo_depth"] == 3 and listed["last_operation"] == "op_delete_c"
+    # restorable now by NX's undo only: a delete since blocks it once another part changes
+    blocked = listed["checkpoints"][0].pop("blocked_by")
+    assert blocked["operation_id"] == "op_delete_b" and blocked["tool"] == "nx_delete_objects"
     assert listed["checkpoints"] == [
         {
             "checkpoint_id": checkpoint,
@@ -238,7 +241,12 @@ def test_undo_takes_several_steps_and_bounds_them(nx):
     services(nx).history[-2]["part_id"] = "part_other"
     crossed = run(nx, "nx_undo_operation", steps=2)
     assert crossed.error["code"] == "NX_CROSS_PART"
-    assert crossed.error["details"]["operation_id"] == "op_del_b" and names(nx) == []
+    assert crossed.error["details"]["in_the_way"] == {
+        "operations": 1,
+        "parts": 1,
+        "loads_or_closes": 0,
+    }  # counted, never named: other parts may be other agents'
+    assert "op_del_b" not in crossed.error["message"] and names(nx) == []
     services(nx).history[-2]["part_id"] = services(nx).part_key(nx.part)
     ok = run(nx, "nx_undo_operation", operation_id="op_undo_two", steps=2)
     assert ok.ok, ok
@@ -263,7 +271,7 @@ def test_undo_depth_counts_only_operations_the_undo_can_still_undo(nx):
     refused = run(nx, "nx_undo_operation", steps=2)
     assert refused.error["code"] == "NX_NOT_FOUND", refused
     assert refused.error["details"]["reason"] == "mark_evicted"
-    assert "did more than create objects (deleted" in refused.error["message"]
+    assert "changed objects it did not create (deleted" in refused.error["message"]
     too_many = run(nx, "nx_undo_operation", steps=3)
     assert too_many.error["field"] == "/steps" and too_many.error["details"]["undo_depth"] == 1
 

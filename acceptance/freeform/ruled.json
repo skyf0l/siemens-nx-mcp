@@ -326,7 +326,7 @@
     "second": "$low.data.curves.0.id"
    },
    "expect": {
-    "error.field": "/second/0",
+    "error.field": "/second",
     "mutation_outcome": "not_started"
    }
   },
@@ -405,6 +405,64 @@
     "data.area": {
      "close": 1884.956,
      "tol": 0.1
+    }
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "l1",
+   "args": {
+    "points": [
+     [
+      400,
+      0,
+      0
+     ],
+     [
+      450,
+      0,
+      0
+     ]
+    ],
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "l2",
+   "args": {
+    "points": [
+     [
+      400,
+      30,
+      2
+     ],
+     [
+      450,
+      30,
+      2
+     ]
+    ],
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_ruled",
+   "intent": "reverse_second between two parallel lines: every ruling crosses the others, NX refuses and the hint names reverse_second",
+   "args": {
+    "first": "$l1.data.curve.id",
+    "second": "$l2.data.curve.id",
+    "reverse_second": true
+   },
+   "expect": {
+    "ok": false,
+    "error.code": "NX_BUILD_FAILED",
+    "error.nx_code": 670982,
+    "mutation_outcome": "rolled_back",
+    "error.hint": {
+     "contains": "reverse_second"
     }
    }
   },

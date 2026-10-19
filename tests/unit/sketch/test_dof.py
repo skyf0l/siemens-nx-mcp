@@ -181,3 +181,39 @@ def test_reference_dimensions_do_not_constrain():
     dimension(sk, CT.ParallelDim, [(line, "StartPoint"), (line, "EndPoint")], reference=True)
     assert analysed(nx, sk)["dof"] == 4
     assert not dof.driving(nx.tx, sk.constraints[0])
+
+
+def test_a_partial_analysis_leaves_only_the_unmodelled_group_open():
+    nx = sketch_nx()
+    sk = nx.sketch()
+    free = nx.line(sk, (0, 20, 0), (10, 20, 0))
+    a = nx.line(sk, (0, 0, 0), (10, 0, 0))
+    b = nx.line(sk, (0, 5, 0), (10, 5, 0))
+    fixed = nx.line(sk, (30, 0, 0), (40, 0, 0))
+    con(sk, CT.Mirror, (a, "NotSet"), (b, "NotSet"))
+    con(sk, CT.Fixed, (fixed, "NotSet"))
+    con(sk, CT.Fixed, (fixed, "StartVertex"))
+    con(sk, CT.Fixed, (fixed, "EndVertex"))
+    why = []
+    found = dof.analyse(nx.tx, sk, why, partial=True)
+    assert found["dof"] is None and "mirror" in why[0]
+    assert found["curves"] == {free.Tag: 4, fixed.Tag: 0}
+    assert sorted(found["maybe"]) == sorted([a.Tag, b.Tag])
+
+
+def test_check_sketch_lists_every_curve_that_can_move():
+    nx = sketch_nx()
+    sk = nx.sketch()
+    free = nx.line(sk, (0, 20, 0), (10, 20, 0))
+    a = nx.line(sk, (0, 0, 0), (10, 0, 0))
+    b = nx.line(sk, (0, 5, 0), (10, 5, 0))
+    con(sk, CT.Mirror, (a, "NotSet"), (b, "NotSet"))
+    nx.status = (UNDER, 3)  # NX: all three not fully constrained
+    out = run(nx, "nx_check_sketch", sketch=sk.ref)
+    assert out.ok, out
+    rows = {r["curve"]: r["dof"] for r in out.data["free"]}
+    assert rows == {nx.cref(free): 4, nx.cref(a): None, nx.cref(b): None}
+    assert out.data["dof"] is None and "NX counts them all as free" in out.data["note"]
+    nx.status = (UNDER, 1)  # NX: only the lone line moves
+    out = run(nx, "nx_check_sketch", sketch=sk.ref)
+    assert [r["curve"] for r in out.data["free"]] == [nx.cref(free)], out

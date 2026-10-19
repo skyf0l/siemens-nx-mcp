@@ -315,3 +315,14 @@ def test_resolve_names_the_field_of_a_wrong_kind_or_unknown_ref():
     with pytest.raises(NXError) as error:
         sketch.resolve(nx.tx, "s:999999")
     assert error.value.field == "/sketch"
+
+
+def test_loops_keep_only_the_chains_holding_the_given_rows():
+    rows = [
+        {"start": [0, 0], "end": [10, 0]},
+        {"start": [10, 0], "end": [0, 0]},
+        {"start": [50, 0], "end": [50, 0]},  # a circle: closed on itself
+    ]
+    assert len(sketch.loops(rows)) == 2
+    assert sketch.loops(rows, keep={2}) == [{"closed": True, "curves": 1}]
+    assert sketch.loops(rows, keep=set()) == []

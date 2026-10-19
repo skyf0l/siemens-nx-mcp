@@ -18,8 +18,8 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, TypedDict
 
-from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail, native
+from nx_mcp.core.catalogue import restorer, tool
+from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
     BodyRef,
@@ -34,7 +34,7 @@ from nx_mcp.core.types import (
     Text,
 )
 from nx_mcp.domains.optimization import common
-from nx_mcp.kit import builders, readback, result, select, units
+from nx_mcp.kit import builders, geom, model, readback, result, select, units
 
 Kind = Literal[
     "fixed", "pinned", "force", "pressure", "keep_in", "keep_out", "symmetry", "member_size",
@@ -44,6 +44,23 @@ SymmetryPlane = Annotated[str, RefTo("datum_plane", "face", doc="Symmetry plane 
 DEFAULT_DEPTH_MM = 5.0  # region depth grown from faces when none is given
 SUPPORTS = {"fixed": "Fixed", "pinned": "Pinned"}
 REGIONS = {"keep_in": "KeepIn", "keep_out": "KeepOut"}
+REGION_GETTER = "GetAllConstructionBodies"
+
+
+class Region(TypedDict):
+    method: str
+    faces: int
+    bodies: int
+    regions: int
+    thickness: float | None
+    thickness_default: bool
+
+
+class Shape(TypedDict):
+    type: str
+    planes: int
+    size: float | None
+    direction: list[float] | None
 
 
 class ConditionData(TypedDict):
@@ -54,6 +71,8 @@ class ConditionData(TypedDict):
     loads: int
     load_case: str | None
     condition: common.Condition | None
+    region: Region | None
+    shape: Shape | None
 
 
 def _check(kind, faces, bodies, thickness, magnitude, direction, planes, size, load_case):
@@ -204,12 +223,24 @@ def _load(tx, study, kind, faces, magnitude, vector):
         return committed(b)
 
 
+def default_depth(tx) -> float:
+    """The region depth grown from faces when none is given, in part units."""
+    return DEFAULT_DEPTH_MM / units.MM_PER[units.part_units(tx)]
+
+
 def _regions(tx, study, design, kind, faces, bodies, thickness):
     """One region per face (NX refuses faces that do not touch: "Selected faces are not
     connected"), or one over the bodies; returns what NX committed."""
     if faces:
         return [_region(tx, study, design, kind, [f], [], thickness) for f in faces]
     return [_region(tx, study, design, kind, [], bodies, None)]
+
+
+def _listed(study, getter) -> list | None:
+    """``study.<getter>()`` as a list, None when this NX has no such query."""
+    if not hasattr(study, getter):
+        return None
+    return common.all_of(study, getter)
 
 
 def _region(tx, study, design, kind, faces, bodies, thickness):
@@ -222,9 +253,9 @@ def _region(tx, study, design, kind, faces, bodies, thickness):
         if faces:
             b.Type = options.ConstructionType.ByFace
             builders.fill(tx, b.FaceCollector, faces, "Face")
-            if thickness is None:
-                thickness = DEFAULT_DEPTH_MM / units.MM_PER[units.part_units(tx)]
-            common.length(tx, b.ThickenOffset, thickness)
+            common.length(
+                tx, b.ThickenOffset, default_depth(tx) if thickness is None else thickness
+            )
         else:
             b.Type = options.ConstructionType.ByBody
             for body in bodies:
@@ -278,7 +309,7 @@ def _shape(tx, study, design, kind, planes, size, vector):
     keywords=(
         "support",
         "fixed constraint",
-        "load",
+        "apply load",
         "force",
         "pressure",
         "keep in",
@@ -313,7 +344,8 @@ def nx_create_topology_condition(
     ]
     | None = None,
     bodies: Annotated[list[BodyRef], Items(1, 20), Doc("keep_in/out: region bodies")] | None = None,
-    thickness: Annotated[Length, Doc("keep_in/out depth from faces; 5 mm")] | None = None,
+    thickness: Annotated[Length, Doc("keep_in/out depth into the body from faces; default 5 mm")]
+    | None = None,
     magnitude: Annotated[float, Range(gt=0, le=1e9), Doc("force N; pressure MPa")] | None = None,
     direction: Annotated[Direction, Doc("force or extrude direction")] | None = None,
     planes: Annotated[list[SymmetryPlane], Items(1, 2)] | None = None,
@@ -323,8 +355,10 @@ def nx_create_topology_condition(
 ) -> ConditionData:
     """Add a support, load, keep-in/out region or shape constraint to a topology study.
     Pressure acts along the face normal; keep-in grows thickness into the body; region
-    bodies must be made before the study. Returns the new support or load as read back.
-    Gravity, scenery bodies, bonds: nx_create_topology_environment."""
+    bodies must be made before the study. Returns the new support or load as read back
+    (condition), the region (region: depth used) or shape constraint (shape). Gravity,
+    scenery bodies, bonds: nx_create_topology_environment. A solved study takes no more
+    conditions (NX cannot update it): make a new study."""
     _check(kind, faces, bodies, thickness, magnitude, direction, planes, size, load_case)
     with tx.checks():
         feature = common.feature_of(tx, study)
@@ -332,6 +366,7 @@ def nx_create_topology_condition(
         designs = common.all_of(found, "GetAllDesignSpaces")
         if not designs:
             fail("NX_NOT_FOUND", "The study has no design space", field="/study")
+        common.refuse_solved(tx, feature, "add conditions to", found)
         body = designs[0].Body
         scenery = common.scenery_bodies(found) if kind not in REGIONS else []
         picked = common.design_faces(tx, faces, "/faces", body, scenery) if faces else []
@@ -350,6 +385,7 @@ def nx_create_topology_condition(
             len(common.all_of(found, "GetAllAnalysisLoads")),
         )
     made = None
+    regions_before = _listed(found, REGION_GETTER)
     with common.task(tx, feature, cycle_field="/bodies" if others else None) as active:
         current = common.active_study(active)
         design = common.all_of(current, "GetAllDesignSpaces")[0]
@@ -377,12 +413,22 @@ def nx_create_topology_condition(
     want = (before[0] + (kind in SUPPORTS), before[1] + (kind in ("force", "pressure")))
     readback.expect((supports, loads) == want, "count", supports=supports, loads=loads)
     role = "support" if kind in SUPPORTS else "load"
-    condition = None
+    condition = region = shape = None
     if made is not None:
         same = [
             x for x in common.all_of(found, common.GETTERS[role]) if int(x.Tag) == int(made.Tag)
         ]
         condition = common.condition_row(tx, found, same[0] if same else made, role)
+    elif kind in REGIONS:
+        region = _region_row(tx, found, kind, picked, others, thickness, regions_before)
+    else:
+        shape = _shape_row(tx, kind, planes, size, vector)
+    study_id = tx.ref(feature, kind="feature")["id"]
+    if condition is not None:
+        tx.note_restore({"study": study_id, "role": role, "type": kind,
+                         "faces": list(condition["face_refs"])})  # fmt: skip
+    else:
+        tx.note_restore({"study": study_id, "role": None, "type": kind})
     return {
         "study": tx.ref(feature, kind="feature"),
         "kind": kind,
@@ -391,4 +437,89 @@ def nx_create_topology_condition(
         "loads": loads,
         "load_case": load_case,
         "condition": condition,
+        "region": region,
+        "shape": shape,
     }
+
+
+def _region_row(tx, study, kind, faces, bodies, thickness, before) -> Region:
+    """The keep-in/out regions as made: NX's region count read back where this NX lists
+    them, the depth grown from faces (``thickness_default``: the 5 mm default, noted)."""
+    made = len(faces) if faces else 1
+    after = _listed(study, REGION_GETTER)
+    if before is not None and after is not None:
+        readback.expect(len(after) == len(before) + made, "regions",
+                        f"NX made {len(after) - len(before)} regions, not {made}",
+                        regions=len(after) - len(before))  # fmt: skip
+    depth = None
+    if faces:
+        depth = float(default_depth(tx) if thickness is None else thickness)
+        if thickness is None:
+            tx.warn("NX_NOTE", f"{kind} grew {depth:g} {units.part_units(tx)} into the body "
+                    "from each face (the default depth); pass thickness to choose it")  # fmt: skip
+    return {
+        "method": kind,
+        "faces": len(faces),
+        "bodies": len(bodies),
+        "regions": made,
+        "thickness": depth,
+        "thickness_default": bool(faces) and thickness is None,
+    }
+
+
+def _shape_row(tx, kind, planes, size, vector) -> Shape:
+    """The shape constraint as committed (NX lists no shape constraint to read back)."""
+    return {
+        "type": kind,
+        "planes": len(planes or []),
+        "size": None if size is None else float(size),
+        "direction": None if vector is None else geom.unit(list(vector)),
+    }
+
+
+def _added(tx, study, data):
+    """The support or load an ``nx_create_topology_condition`` added (its type on its
+    faces; the newest such one), else ``NX_DEPENDENCY_ORDER``."""
+    try:
+        tags = {int(tx.resolve(ref).Tag) for ref in data["faces"]}
+    except NXError as error:
+        fail("NX_DEPENDENCY_ORDER", f"A face of the {data['type']} is gone since ({error.message})",
+             details={"faces": data["faces"]})  # fmt: skip
+    found = [
+        item
+        for item in common.all_of(study, common.GETTERS[data["role"]])
+        if common.condition_type(tx, item, data["role"]) == data["type"] and _same_faces(item, tags)
+    ]
+    if not found:
+        fail("NX_DEPENDENCY_ORDER", f"The {data['type']} the operation added on "
+             f"{len(tags)} face(s) is gone or changed since", details={"faces": data["faces"]})  # fmt: skip
+    return found[-1]
+
+
+@restorer("nx_create_topology_condition")
+def _restore_condition(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Remove the support or load an ``nx_create_topology_condition`` added (the
+    compensating undo; a load case it made stays). Keep-in/out regions and shape
+    constraints are refused: NX lists none of them to delete."""
+    kind, ref = data["type"], data["study"]
+    if data.get("role") is None:
+        fail("NX_UNSUPPORTED_OPTION", f"NX lists no {kind} constraint to remove: an undo by "
+             "compensation cannot take it out of the study",
+             hint="Delete the study (nx_delete_objects) and make it again, or undo before "
+             "other parts' work")  # fmt: skip
+    feature = common.feature_of(tx, ref)
+    _added(tx, common.active_study(feature), data)
+    common.refuse_solved(tx, feature, "remove conditions from")
+    if apply:
+        common.require_license(tx)
+        getter = common.GETTERS[data["role"]]
+        with common.task(tx, feature) as active:
+            current = common.active_study(active)
+            before = len(common.all_of(current, getter))
+            item = _added(tx, current, data)
+            with native():
+                tx.session.UpdateManager.AddToDeleteList([item])
+            model.update(tx)
+            after = len(common.all_of(current, getter))
+        readback.expect(after == before - 1, "count", f"NX kept the {kind}", count=after)
+    return f"the {kind} on {len(data['faces'])} face(s) removed from {ref}"

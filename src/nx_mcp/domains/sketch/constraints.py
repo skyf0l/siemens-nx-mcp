@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import contextlib
 import math
+import re
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
@@ -53,7 +54,7 @@ from nx_mcp.core.types import (
     convert_quantity,
     forbid_extra,
 )
-from nx_mcp.domains.sketch import common
+from nx_mcp.domains.sketch import common, undo
 from nx_mcp.domains.sketch import dof as kdof
 from nx_mcp.domains.sketch.common import XY, Loose
 from nx_mcp.kit import builders, expr, geom, readback, result, units
@@ -558,12 +559,18 @@ def _not_created(tx, sk, kind, objs, field):
             "Delete that constraint first (nx_edit_sketch_curves {type: delete, object: "
             f"{e['constraint']!r}}}), then add {kind}"
         )
+    elif _holds(tx, sk, kind, objs):
+        message = (
+            f"NX created no {kind} constraint: the geometry satisfies it already and the "
+            "constraints on these curves imply it (details.existing)"
+        )
+        hint = "Drop this item: the existing constraints hold it already"
     else:
         message = (
-            f"NX created no {kind} constraint: it exists already or contradicts the "
-            "constraints on these curves (details.existing)"
+            f"NX created no {kind} constraint: it contradicts the constraints on these curves "
+            "(details.existing)"
         )
-        hint = "Drop the item, or delete the conflicting constraint with nx_edit_sketch_curves"
+        hint = "Delete the conflicting constraint first (nx_edit_sketch_curves), or drop the item"
     fail(
         "NX_CONSTRAINT_UNSATISFIED",
         message,
@@ -571,6 +578,15 @@ def _not_created(tx, sk, kind, objs, field):
         hint=hint,
         details={"existing": existing},
     )
+
+
+def _holds(tx, sk, kind, objs) -> bool:
+    """Whether the geometry satisfies the item already (its residual is zero)."""
+    try:
+        residual, tol = _residual(tx, sk, kind, objs)
+    except Exception:  # a residual NX geometry cannot give: not known to hold
+        return False
+    return kind != "fixed" and residual <= tol
 
 
 # NX's name of each constraint type where it differs from the tool's.
@@ -612,6 +628,7 @@ class AppliedConstraint(TypedDict, total=False):
     already_existed: Annotated[bool, Doc("The same constraint was there: nothing was added")]
     residual: float
     drag_status: str
+    at: Annotated[list[Point2], Doc("The points the item names, after the solve (sketch-local)")]
 
 
 class _ConstraintsData(TypedDict):
@@ -670,6 +687,7 @@ def nx_create_sketch_constraints(
         for i, item in enumerate(items):
             _resolve_item(tx, pre, item, f"/constraints/{i}")
     with ksketch.editing(tx, sketch) as sk:
+        kept = undo.capture(tx, sk)
         before = {int(c.Tag) for c in ksketch.constraints(tx, sk)}
         fixed = common.fixed_positions(tx, sk)
         shapes = ksketch.shapes(tx, sk)
@@ -726,6 +744,13 @@ def nx_create_sketch_constraints(
                     details={"residual": residual},
                 )
         status = common.require_solved(tx, sk, before, touched)
+        for row in rows:  # where the named points ended up (a swapped end shows here)
+            item = items[row["item"]]
+            if item.get("points"):
+                row["at"] = [
+                    _local(tx, sk, tx.resolve(p["curve"], "curve"), p["point"])
+                    for p in item["points"]
+                ]
         data: ConstraintsData = {
             "sketch": tx.ref(sk.sketch, "sketch"),
             "constraints": rows,
@@ -734,6 +759,7 @@ def nx_create_sketch_constraints(
         moved = common.report_moved(tx, sk, shapes, _named_ids(tx, applied))
         if moved:
             data["moved"] = moved
+        undo.note(tx, sk, kept)
         return data
 
 
@@ -1179,6 +1205,31 @@ def _value(tx, kind, value, field):
         )
 
 
+_WORD = re.compile(r"(?<![\w.])[A-Za-z_]\w*")
+
+
+def _names_earlier(items, i) -> bool:
+    """Whether item ``i``'s formula names an expression an earlier item of the call names."""
+    value = items[i].get("value")
+    if not isinstance(value, str):
+        return False
+    earlier = {str(it["name"]).lower() for it in items[:i] if it.get("name")}
+    return any(w.lower() in earlier for w in _WORD.findall(value))
+
+
+def _resolve_value(tx, item, i) -> None:
+    """The item's value in part units (degrees), checked; a formula is kept."""
+    if item.get("value") is not None:
+        item["value"] = _value(tx, item["kind"], item["value"], f"/dimensions/{i}")
+    if item.get("reference") and getattr(item.get("value"), "formula", None):
+        fail(
+            "NX_INVALID_ARGUMENT",
+            "A reference dimension measures only: it takes no formula",
+            field=f"/dimensions/{i}/value",
+        )
+    _check_value(item["kind"], item.get("value"), f"/dimensions/{i}")
+
+
 def _check_value(kind, value, field):
     if value is None:
         return
@@ -1276,24 +1327,21 @@ def nx_create_sketch_dimensions(
     items = common.check_items(
         named, DIMENSION_TYPES, "kind", "/dimensions", "nx_create_sketch_dimensions"
     )
-    for i, item in enumerate(items):
-        if item.get("value") is not None:
-            item["value"] = _value(tx, item["kind"], item["value"], f"/dimensions/{i}")
-        if item.get("reference") and getattr(item.get("value"), "formula", None):
-            fail(
-                "NX_INVALID_ARGUMENT",
-                "A reference dimension measures only: it takes no formula",
-                field=f"/dimensions/{i}/value",
-            )
-        _check_value(item["kind"], item.get("value"), f"/dimensions/{i}")
     tx.frame = "sketch_local"
-    with tx.checks():  # every ref, curve kind and name before the sketch is opened
+    later: set[int] = set()  # items whose formula names a dimension made earlier in the call
+    with tx.checks():  # every ref, curve kind, name and value before the sketch is opened
         pre = ksketch.Editing(tx, ksketch.resolve(tx, sketch), False)
         for i, item in enumerate(items):
             _Dim(tx, pre, item, f"/dimensions/{i}")
         _check_names(tx, items)
+        for i, item in enumerate(items):
+            if _names_earlier(items, i):
+                later.add(i)  # evaluated once the earlier dimensions exist
+            else:
+                _resolve_value(tx, item, i)
     with ksketch.editing(tx, sketch) as sk:
         _fully_constrained(tx, sk, items)
+        kept = undo.capture(tx, sk)
         before = {int(c.Tag) for c in ksketch.constraints(tx, sk)}
         fixed = common.fixed_positions(tx, sk)
         shapes = ksketch.shapes(tx, sk)
@@ -1306,6 +1354,8 @@ def nx_create_sketch_dimensions(
             dim = _Dim(tx, sk, item, field)
             curves = [c for c in (dim.a, dim.b) if c is not None]
             touched += curves
+            if i in later:
+                _resolve_value(tx, item, i)
             try:
                 rows.append(_dimension(tx, sk, dim, item, i, made, fixed))
             except NXError as error:
@@ -1332,6 +1382,7 @@ def nx_create_sketch_dimensions(
         moved = common.report_moved(tx, sk, shapes, {tx.ref(c, "curve")["id"] for c in touched})
         if moved:
             data["moved"] = moved
+        undo.note(tx, sk, kept)
         return data
 
 

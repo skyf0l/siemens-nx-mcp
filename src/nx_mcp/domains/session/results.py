@@ -64,16 +64,17 @@ class ResultData(TypedDict, total=False):
 
 class CleanupData(TypedDict):
     applied: bool  # false for a preview (dry_run)
-    # own: this caller's snapshots (counts and sizes too); all: every agent's
+    # own: this MCP connection's snapshots (agents sharing it share them); all: every agent's
     # (all_agents); ids: exactly result_ids
     scope: Literal["own", "all", "ids"]
     deleted_count: int  # snapshots actually deleted (0 for a preview)
-    policy: dict  # {max_age_seconds, max_bytes}
-    # counts and sizes of the snapshots in scope (own, all, or the result_ids found)
-    snapshot_count: int
-    bytes_before: int
-    selected_count: int
-    bytes_after_cleanup: int
+    policy: Annotated[
+        dict | None, Doc("Age/size limits applied: {max_age_seconds, max_bytes}; null for ids")
+    ]
+    snapshot_count: Annotated[int, Doc("Snapshots in scope: own, all, or the result_ids found")]
+    bytes_before: Annotated[int, Doc("Their total size")]
+    selected_count: Annotated[int, Doc("Of those, the ones the call selects")]
+    bytes_after_cleanup: Annotated[int, Doc("Size in scope left once the selection is gone")]
     workspace_snapshot_count: int  # every agent's snapshots in the workspace, any scope
     missing: list[str]  # requested result_ids that never existed in this workspace
     already_deleted: list[str]  # requested result_ids deleted or pruned earlier
@@ -186,7 +187,7 @@ def _size(value) -> int:
         "omitted items",
         "next page",
         "full result",
-        "snapshot",
+        "retrieve result",
         "truncated",
     ),  # fmt: skip
     cost="light",
@@ -281,8 +282,8 @@ def nx_delete_results(
     all_agents: Annotated[bool, Doc("Age/size: every agent's snapshots, not only yours")] = False,
 ) -> CleanupData:
     """Preview (default) or delete stored result snapshots by age, total size, or exactly
-    result_ids (alone). Defaults: 7 days, 256 MiB, only your own snapshots. Receipts and CAD
-    files are never touched."""
+    result_ids (alone). Defaults: 7 days, 256 MiB, only this MCP connection's snapshots (agents
+    on one connection share them). Receipts and CAD files stay."""
     with tx.checks():
         if result_ids:
             _ids_alone(max_age_seconds, max_bytes, all_agents)
@@ -349,7 +350,7 @@ def _delete(
             "applied": not dry_run,
             "scope": "ids",
             "deleted_count": 0,
-            "policy": policy,
+            "policy": None,  # exactly these ids: no age or size limit applies
             "snapshot_count": len(present),
             "bytes_before": sum(sizes.values()),
             "selected_count": len(present),

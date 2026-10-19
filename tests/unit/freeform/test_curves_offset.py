@@ -163,3 +163,12 @@ def test_offset_argument_checks_and_a_straight_line_refusal():
     line = run(nx, "nx_create_offset_curve", curves=[loop.ref], distance=5)
     assert line.error["code"] == "NX_BUILD_FAILED" and "axial_3d" in line.error["hint"]
     assert nx.live_builders == 0
+
+
+def test_distance_offset_of_a_non_planar_curve_points_at_axial_3d_before_nx():
+    nx, _loop = offset_nx()
+    helix = curve(nx, [10, 0, 0], [0, 10, 5], [-10, 0, 10], [0, -10, 15], [10, 0, 20])
+    bad = run(nx, "nx_create_offset_curve", curves=[helix.ref], distance=2)
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/curves"
+    assert "axial_3d" in bad.error["hint"] and bad.error["details"]["off_plane"] > 1
+    assert bad.mutation_outcome == "not_started" and not nx.builders

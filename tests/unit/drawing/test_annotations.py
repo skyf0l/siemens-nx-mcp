@@ -221,8 +221,29 @@ def test_update_reports_objects_it_did_not_refresh():
     given = run(nx, "nx_update_annotations", objects=[ref])
     assert given.ok, given
     assert given.data["refreshed"] == []
-    assert given.data["skipped"] == [{"id": ref, "reason": "follows the model on its own"}]
+    assert given.data["skipped"] == [
+        {"id": ref, "reason": "annotation: follows the model on its own"}
+    ]
     assert "Not managed" in given.data["note"]
+    assert given.mutation_outcome == "not_applicable"  # nothing was refreshed
+    assert [w["code"] for w in given.warnings] == ["NX_NO_EFFECT"]
     every = run(nx, "nx_update_annotations")
     assert every.data["refreshed"] == [] and "skipped" not in every.data
     assert every.data["note"].startswith("Nothing needed a refresh")
+    assert every.mutation_outcome == "not_applicable"
+
+
+def test_update_names_the_kind_of_each_object_it_skips():
+    nx = notes_nx()
+    d = NS(Tag=8101, Name="D", ComputedSize=20.0, NumberOfAssociativities=0, IsRetained=False,
+           OwningPart=nx.part, IsOccurrence=False, AnnotationOrigin=point(1, 1, 0))  # fmt: skip
+    nx.part.Dimensions.append(d)
+    body = nx.block(10, 10, 10)
+    refs = [nx.ref_of(d, "dimension"), nx.top.ref, nx.sheet_obj.ref, body.ref]
+    out = run(nx, "nx_update_annotations", objects=refs)
+    assert out.ok, out
+    reasons = [row["reason"] for row in out.data["skipped"]]
+    assert reasons[0].startswith("dimension: follows its view")
+    assert reasons[1].startswith("view: up to date")
+    assert reasons[2].startswith("sheet: nothing to refresh")
+    assert reasons[3].startswith("not a drawing object (body)")

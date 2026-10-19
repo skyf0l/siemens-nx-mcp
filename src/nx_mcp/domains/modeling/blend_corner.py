@@ -130,7 +130,7 @@ def nx_create_blend_corner(
     radius: Annotated[Length, Doc("Blend radius of every edge, > 0")],
     setback: Annotated[
         Length,
-        Doc("Setback along each edge from the vertex, > radius (blend_ends: where blends end)"),
+        Doc("Setback along each edge from the vertex, > radius"),
     ],
     setback_faces: Annotated[
         Literal["with_corner", "separate"],
@@ -140,7 +140,7 @@ def nx_create_blend_corner(
     """Blend the edges meeting at a corner and set the blends back for a smooth corner patch.
     Every edge gets radius and a setback measured along it from the vertex; NX fills the
     corner with a patch, and each plain round blend ends about setback + radius from the
-    vertex (blend_ends gives it per edge; cube corner R5, setback 12: 17). Edges already
+    vertex (blend_ends gives it per edge). Edges already
     blended: delete or edit that blend first. Plain blends: nx_create_blend."""
     r, s = float(radius), float(setback)
     if r <= 0:

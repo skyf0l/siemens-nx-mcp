@@ -46,7 +46,23 @@
      "close": 0,
      "tol": 0.0001
     },
-    "data.closed": true
+    "data.closed": true,
+    "data.normal.0": {
+     "close": 0,
+     "tol": 1e-06
+    },
+    "data.normal.1": {
+     "close": 0,
+     "tol": 1e-06
+    },
+    "data.major_axis.1": {
+     "close": 0,
+     "tol": 0.0001
+    },
+    "data.major_axis.2": {
+     "close": 0,
+     "tol": 1e-06
+    }
    }
   }
  ]

@@ -183,11 +183,22 @@ def _centre(s):
     return [(box[i] + box[i + 3]) / 2 for i in range(3)]
 
 
+def _overlapping(a, b, tol) -> bool:
+    """Whether the boxes of two faces overlap or touch (within ``tol``): a face a feature
+    cut keeps part of its area where it was; two separate faces on one plane do not."""
+    box, other = a["box"], b["box"]
+    return all(box[i] <= other[i + 3] + tol and other[i] <= box[i + 3] + tol for i in range(3))
+
+
+def _changed(a, b, tol) -> bool:
+    return same_surface(a, b, tol) and _overlapping(a, b, tol)
+
+
 def match(control, sample, tol):
     """``(matching pairs, changed pairs, removed, added)`` of two signature lists."""
     left, right = list(control), list(sample)
     matching, changed = [], []
-    for wanted in (identical, same_surface):
+    for wanted in (identical, _changed):
         for a in list(left):
             found = [b for b in right if wanted(a, b, tol)]
             if not found:
@@ -209,12 +220,12 @@ def _totals(control, sample) -> Totals:
     summary="Compare two bodies face by face",
     keywords=(
         "body compare",
-        "geometry compare",
+        "what changed in body",
         "version compare",
         "supplier part",
         "changed faces",
         "model diff",
-        "revision",
+        "before after edit",
     ),
     requires=("work_part",),
     cost="light",
@@ -229,10 +240,11 @@ def nx_analyze_body_changes(
     limit: Annotated[int, Range(ge=1, le=500), Doc("Rows per list")] = LIMIT,
 ) -> CompareData:
     """Compare two versions of a solid face by face, plus volume and area differences.
-    Bodies are compared where they sit (no alignment). changed: same surface but new
-    bounds, edges or area (e.g. cut by a new hole); added: sample only; removed: control
-    only; differences are sample - control. Components: their occurrences in one assembly;
-    bodies of two loaded parts compare too."""
+    Bodies are compared where they sit (no alignment). changed: same surface, overlapping
+    box, but new bounds, edges or area (e.g. cut by a new hole; an area within tolerance x
+    perimeter counts as equal); added: sample only; removed: control only; differences are
+    sample - control. Components: their occurrences in one assembly; bodies of two loaded
+    parts compare too."""
     first = _solid(tx, control, "/control")
     second = _solid(tx, sample, "/sample")
     if int(first.Tag) == int(second.Tag):

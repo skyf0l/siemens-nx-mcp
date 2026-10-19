@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/freeform/curve_fit.json",
-  "scenario_sha256": "fe1eec09b9a2d7e723055b88ab617e8cb0db296b3411de8a544e00020182c118",
+  "scenario_sha256": "f3837aed0c337e1b65931ba57e2fdbc1cee3b1cd9136252fea1a2960a47818bc",
   "domain": "freeform",
   "covers": {
     "nx_import_points": [],
@@ -14,12 +14,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_import_points": "15093b5d1bdf6f629aa9f98f1f806592dac1e9fee739f0453d58e545d22ce167",
-    "nx_create_fit_curve": "15093b5d1bdf6f629aa9f98f1f806592dac1e9fee739f0453d58e545d22ce167"
+    "nx_import_points": "86a1136ccc43594f2be5742c23258062b9a948369efb9cde791c8174801e13c9",
+    "nx_create_fit_curve": "86a1136ccc43594f2be5742c23258062b9a948369efb9cde791c8174801e13c9"
   },
-  "recorded": "2026-10-16T13:14:42Z",
+  "recorded": "2026-10-19T11:34:14Z",
   "passed": true,
-  "checks": 39,
+  "checks": 46,
   "failed_checks": 0,
   "steps": [
     {
@@ -84,6 +84,20 @@
       "setup": false,
       "passed": true,
       "checks": 4
+    },
+    {
+      "index": 10,
+      "call": "nx_create_fit_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 11,
+      "call": "nx_create_fit_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 3
     }
   ]
 }

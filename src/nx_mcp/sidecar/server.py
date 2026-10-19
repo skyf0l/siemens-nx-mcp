@@ -329,6 +329,18 @@ class Surface:
         return gateways.suggestions(name, self.known(), self._visible_entries(), self.index)
 
     def unknown(self, name: str, *, field: str | None = "/tool") -> NXError:
+        spec = self.specs.get(name)
+        reason = self.proxy.unavailable(spec) if spec is not None else None
+        if reason is not None:  # a catalogue tool this NX build does not offer
+            matches = self.suggest(name)
+            return NXError(
+                "NX_VERSION_UNSUPPORTED",
+                f"{name} is not available on this NX build: {reason}",
+                field=field,
+                hint="Find an available tool with nx_find_tools"
+                + (f" (close: {', '.join(matches)})" if matches else ""),
+                details={"not_available": name, "reason": reason, "close_matches": matches},
+            )
         return gateways.unknown_tool(
             name, self.known(), field=field, entries=self._visible_entries(), index=self.index
         )
@@ -595,6 +607,8 @@ class Surface:
                 out["example"] = example
             if spec.requires:
                 out["requires"] = list(spec.requires)
+            if spec.batchable:  # may run as a step of nx_run_batch
+                out["batchable"] = True
             # Tested on this build adds nothing; else ``tested: false`` (the tool) or
             # ``untested_variants`` (offered variants tested on other builds only, or
             # untested ones development mode offers for evidence runs).

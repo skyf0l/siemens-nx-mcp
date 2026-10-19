@@ -93,6 +93,7 @@ def test_iges_from_display_part_without_saving(nx, root, ugii):
     assert iges.SettingsFile == str(ugii / "IGES" / "igesexport.def")
     assert ok.data["surfaces"] == 4 and ok.data["file_units"] == "mm"
     assert ok.data["schema"] == "5.3" and ok.data["bounds"]["max"] == [210, 20, 30]
+    assert ok.data["model_bounds"]["max"] == [210, 20, 30]  # the bodies' exact box
 
 
 @pytest.mark.parametrize(("suffix", "encoding"), [(".x_t", "text"), (".x_b", "binary")])

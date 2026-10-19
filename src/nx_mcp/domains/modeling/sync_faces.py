@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Annotated, Literal
 
 from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import BodyRef, Doc, FaceRef, Items
 from nx_mcp.domains.modeling import bodies, common, sync_common, sync_relate
@@ -73,18 +73,36 @@ def nx_create_face_copy(
         body = common.one_body(selected, "/faces")
         if not getattr(body, "IsSolidBody", True):
             fail("NX_WRONG_GEOMETRY", "Select faces of a solid body", field="/faces")
-    low, high = measure.bounds(tx, selected)
+        low, high = measure.bounds(tx, selected)
+        if _onto_itself(tx, selected, (low, high), translation, rotation):
+            fail(
+                "NX_INVALID_ARGUMENT",
+                "This transform maps the faces onto themselves (a rotation about their own "
+                "axis): the copy would coincide with them",
+                field="/transform",
+                hint="Rotate about another axis or add a translation, e.g. "
+                + bodies.MOTION_EXAMPLE,
+            )
     before = measure.volume(tx, body)
     known = common.body_tags(tx)
     factory = tx.part.Features.CreateCopyFaceBuilder
     if mode == "cut":
         factory = tx.part.Features.CreateCutFaceBuilder
-    with sync_relate.synchronous(tx), builders.build(tx, factory, None) as b:
-        held = b.FaceToCopy if mode == "copy" else b.FaceToCut
-        builders.fill(tx, held.FaceCollector, selected, "Face")
-        sync_common.csys_motion(tx, b.Motion, translation, rotation)
-        b.DoPaste = paste
-        feature = b.commit()
+    try:
+        with sync_relate.synchronous(tx), builders.build(tx, factory, None) as b:
+            held = b.FaceToCopy if mode == "copy" else b.FaceToCut
+            builders.fill(tx, held.FaceCollector, selected, "Face")
+            sync_common.csys_motion(tx, b.Motion, translation, rotation)
+            b.DoPaste = paste
+            feature = b.commit()
+    except NXError as error:
+        if error.code == "NX_BUILD_FAILED" and paste and not error.hint:
+            error.hint = (
+                "Pasted faces must land on or in their body (a boss moved along the face it "
+                "stands on, a hole within the material); paste false keeps them as a sheet"
+            )
+            error.field = error.field or "/transform"
+        raise
     sync_common.consistent(tx, body)
     sheet = None
     if not paste:
@@ -104,6 +122,35 @@ def nx_create_face_copy(
     if mode == "cut" and not paste:
         common.changed(before, out["volume"], "differs")
     return {**out, "volume_change": out["volume"] - before, "sheet": sheet}
+
+
+def _onto_itself(tx, faces, box, translation, rotation) -> bool:
+    """Whether the motion (p -> R p + t) maps every face onto its own surface and the faces'
+    box onto itself: nothing would move (a boss turned about its own axis)."""
+    if not bodies._moves(translation, rotation):
+        return False  # no motion at all: refused (or a sheet copy) by the caller
+    low, high = box
+    corners = [[(low, high)[(k >> i) & 1][i] for i in range(3)] for k in range(8)]
+    moved = [geom.add(geom.matvec(rotation, c), translation) for c in corners]
+    tol = 1e-6 * max(1.0, *map(abs, [*low, *high]))
+    for i in range(3):
+        if (
+            abs(min(p[i] for p in moved) - low[i]) > tol
+            or abs(max(p[i] for p in moved) - high[i]) > tol
+        ):
+            return False
+    for face in faces:
+        frame = readback.face_frame(tx, face)
+        if frame is None:
+            return False
+        image = {
+            **frame,
+            "point": geom.add(geom.matvec(rotation, frame["point"]), translation),
+            "dir": geom.matvec(rotation, frame["dir"]),
+        }
+        if not readback.same_surface(frame, image):
+            return False
+    return True
 
 
 PASTE_TYPES = {"auto": "Automatic", "add": "Add", "subtract": "Subtract"}

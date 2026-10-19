@@ -300,10 +300,10 @@ Present in every result, success or error.
 
 | Value | Meaning | References | Agent may |
 |---|---|---|---|
-| `not_applicable` | Nothing in NX changed: tool effect `read`, or a `view` call that changes nothing in the session, such as `nx_capture_view` (it writes a PNG to the workspace and puts the view back) | preserved | continue |
+| `not_applicable` | Nothing in NX changed: tool effect `read`, a `view` call that changes nothing in the session, such as `nx_capture_view` (it writes a PNG to the workspace and puts the view back), or a changing call that found nothing to change and says so with an `NX_NO_EFFECT` warning (no undo-history entry) | preserved | continue |
 | `committed` | Every change applied and verified | `changes.references` says which survive | continue |
 | `previewed` | Changes applied temporarily and reverted (`nx_preview_changes`) | refs in the preview result are stale | accept or discard the preview |
-| `not_started` | Failed before NX, the session or the workspace changed | preserved | fix and retry |
+| `not_started` | Failed before NX, the session or the workspace changed; also a model call its own argument check refused (no NX error code) after reading NX, once its rollback left the part as it was | preserved | fix and retry |
 | `rolled_back` | Started, failed, undo mark restored | `changes.references` = `preserved` or `part_invalidated` (with `changes.stale_references`; the error's `details.references` = `renumbered`, 1.6) | fix, reacquire if needed, retry |
 | `partial` | Some changes remain (rollback failed, or a non-undoable step such as a translator file or a session change ran) | `part_invalidated` | inspect (`nx_check_model`, screenshot); ask the engineer before more mutations |
 | `unknown` | Transport lost or timeout; NX may still finish | unknown | query `nx_get_operation` with the `operation_id` only; never retry until it reports `committed` or `failed` |

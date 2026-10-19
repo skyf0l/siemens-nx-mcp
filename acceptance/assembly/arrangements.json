@@ -68,6 +68,12 @@
   {"call": "nx_edit_arrangement", "args": {"part": "$part", "arrangement": "SHUT", "action": "set_default"},
    "expect": {"data.arrangement.default": true}},
   {"call": "nx_edit_arrangement", "args": {"part": "$part", "arrangement": "HATCH_OPEN", "action": "delete"},
-   "expect": {"mutation_outcome": "committed", "data.arrangements": {"count": 2}, "data.arrangement.name": "HATCH_OPEN"}}
+   "expect": {"mutation_outcome": "committed", "data.arrangements": {"count": 2}, "data.arrangement.name": "HATCH_OPEN"}},
+  {"call": "nx_undo_operation", "args": {"part": "$part", "mode": "compensate"}, "intent": "Acceptance: recreate the deleted arrangement by compensation", "expect": {"ok": true, "data.compensated": true, "data.restored.0": {"matches": "HATCH_OPEN recreated with its 2 component"}}},
+  {"call": "nx_list_arrangements", "args": {"part": "$part"}, "expect": {"data.items": {"count": 3}, "data.items.1.name": "HATCH_OPEN", "data.items.1.suppressed": {"count": 1}, "data.items.1.suppressed.0.name": "DECK", "data.items.2.default": true}},
+  {"call": "nx_edit_arrangement", "args": {"part": "$part", "arrangement": "HATCH_OPEN", "action": "activate"}, "expect": {"mutation_outcome": "committed", "data.components.1.translation": {"close": [150, 110, 15], "tol": 1e-06}, "data.components.0.suppressed": true}},
+  {"call": "nx_create_arrangement", "save": "tmp", "args": {"part": "$part", "name": "TEMP", "activate": true}, "expect": {"mutation_outcome": "committed", "data.arrangements": {"count": 4}}},
+  {"call": "nx_undo_operation", "args": {"part": "$part", "mode": "compensate"}, "intent": "Acceptance: delete the created arrangement by compensation", "expect": {"ok": true, "data.compensated": true, "data.restored.0": {"matches": "TEMP deleted"}}},
+  {"call": "nx_list_arrangements", "args": {"part": "$part"}, "expect": {"data.items": {"count": 3}, "data.items.1.name": "HATCH_OPEN", "data.items.1.active": true}}
  ]
 }

@@ -151,7 +151,7 @@ class ExtensionData(common.SheetData):
     method: Literal["distance", "until", "corner"]
     area_before: float  # total area of the extended sheets before
     added_area: float  # area now minus area_before (negative: trimmed back)
-    edges: int  # edges of the result bodies
+    result_edges: int  # edges of the result bodies (not the input edges)
     gaps: list[float]  # until/corner: distance of the result to each limit/tool
 
 
@@ -305,7 +305,7 @@ def nx_create_sheet_extension(
                         + ("limit faces" if limits else "other sheet"), gaps=gaps)  # fmt: skip
     edge_count = sum(len(b.GetEdges()) for b in bodies)
     return {**out, "method": method, "area_before": area_before, "added_area": added,
-            "edges": edge_count, "gaps": gaps}  # fmt: skip
+            "result_edges": edge_count, "gaps": gaps}  # fmt: skip
 
 
 # ---------------------------------------------------------------------------

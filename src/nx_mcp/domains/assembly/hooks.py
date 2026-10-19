@@ -122,6 +122,44 @@ def delete_traces(tx, objects):
     model.update(tx)
 
 
+@deleter("component_pattern")
+def delete_component_patterns(tx, objects):
+    """Delete component patterns of the work part; NX deletes their instances with them
+    (the seed stays)."""
+    _owned(tx, objects, "component pattern")
+    with native(default="NX_BUILD_FAILED"):
+        tx.session.UpdateManager.AddToDeleteList(list(objects))
+    model.update(tx)
+
+
+@deleter("assembly_constraint")
+def delete_assembly_constraints(tx, objects):
+    """Delete assembly constraints of the work part; the components stay where they are."""
+    _owned(tx, objects, "assembly constraint")
+    with native(default="NX_BUILD_FAILED"):
+        tx.session.UpdateManager.AddToDeleteList(list(objects))
+    model.update(tx)
+
+
+@deleter("reference_set")
+def delete_reference_sets(tx, objects):
+    """Delete reference sets (of the work part, or of a component's part a reference-set
+    tool created them in); a component using one falls back to NX's default set."""
+    with native(default="NX_BUILD_FAILED"):
+        for obj in objects:
+            owner = getattr(obj, "OwningPart", None) or tx.part
+            owner.DeleteReferenceSet(obj)
+    model.update(tx)
+
+
+def _owned(tx, objects, what) -> None:
+    part = tx.part
+    for obj in objects:
+        owner = getattr(obj, "OwningPart", None)
+        if owner is not None and int(owner.Tag) != int(part.Tag):
+            fail("NX_WRONG_OWNER", f"The {what} belongs to another part", hint=common.OWNER_HINT)
+
+
 def _considered(tx, work) -> list:
     """``[(part, constraint)]``: the work part's constraints and those of every loaded
     assembly that position an occurrence of the work part."""

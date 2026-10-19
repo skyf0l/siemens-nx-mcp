@@ -21,6 +21,13 @@ NX 2406 (probed live):
   per face. The feature owns a result body from the start, empty until solved.
 - Expressions are written in their own NX units (Newton, PressureNewtonPerSquareMilliMeter,
   Kilogram, MilliMeter; inch parts convert): forces are N, pressures MPa, masses kg.
+- Once a study is solved, NX 2406 no longer updates it: every later task ``Exit`` that
+  keeps changes (a new support or load, a g-load, the same study solved again, even an
+  unchanged Enter/Exit) fails "Update undo happened" (670024; NX cannot rebuild the result
+  body: "Error creating body of feature"). Deleting its results (``discard``) still
+  updates, but the study cannot be solved or changed afterwards either. So these calls
+  refuse a solved study up front (``refuse_solved``; the discard leaves ``SOLVED_RECORD``
+  on the feature) and a 670024 from ``Exit`` on an existing study says the same.
 - A bracket 100x60x10 mm at quality 9 solves in about 2 minutes (NX busy meanwhile); the
   solve needs only des_top_opt (no Simcenter solver license or dialog).
 """
@@ -31,8 +38,8 @@ import contextlib
 import importlib
 from typing import TypedDict
 
-from nx_mcp.core.errors import NXError, fail, native
-from nx_mcp.kit import geom, licenses, measure, result, select, units
+from nx_mcp.core.errors import UPDATE_UNDONE_CODE, NXError, fail, native
+from nx_mcp.kit import geom, licenses, measure, records, result, select, units
 
 # Either feature unlocks the Topology Optimization task (its Enter/Exit, per NX's NXOpen
 # reference). Performance Predictor's nx_perf_predictor serves the solve and the study
@@ -44,6 +51,12 @@ LICENSE_HINT = (
 )
 TYPE_NAME = "TopologyOptimizationFeature"
 CYCLE_CODE = 600008  # "There is an object which depends on itself" (task Exit update)
+SOLVED_BELOW = 0.999  # result volume / design volume of a solved study
+SOLVED_RECORD = "NX_MCP_TOPOLOGY_SOLVED"  # on a study whose results were deleted
+SOLVED_HINT = (
+    "Make a new study (nx_create_topology_study) with the same design space and "
+    "conditions; nx_delete_objects deletes this one"
+)
 TIMELINE_HINT = (
     "Use bodies made before the study, make a new study after the body "
     "(nx_create_topology_study), or move the study after it with nx_set_feature_order"
@@ -174,6 +187,72 @@ def after_study(tx, feature, bodies, field) -> None:
             )
 
 
+def has_results(study) -> bool:
+    """Whether the study holds solved results: an analysis body with subcase results (NX
+    drops them with the study's ``DiscardOptimizationResults``: ``Results`` is then None)."""
+    for body in all_of(study, "GetAllAnalysisBodies"):
+        found = getattr(body, "Results", None)
+        if found is None:
+            continue
+        try:
+            if list(found.GetSubcaseResults() or []):
+                return True
+        except Exception:  # no result query on this body
+            continue
+    return False
+
+
+def solved_fraction(tx, feature, study=None) -> tuple[float | None, list]:
+    """``(result volume / design volume, result bodies)``: None without a design space or
+    result body; 0 for NX's empty result body (an unsolved study has no volume)."""
+    study = study if study is not None else active_study(feature)
+    designs = all_of(study, "GetAllDesignSpaces")
+    bodies = result_bodies(feature, study)
+    if not bodies or not designs:
+        return None, bodies
+    try:
+        volume = measure.volume(tx, bodies)
+    except NXError:
+        volume = 0.0
+    return volume / measure.volume(tx, [designs[0].Body]), bodies
+
+
+def is_solved(tx, feature, study=None) -> bool:
+    """Whether the study's result body holds a solved result (lighter than the design)."""
+    fraction, _bodies = solved_fraction(tx, feature, study)
+    return fraction is not None and 0.0 < fraction < SOLVED_BELOW
+
+
+def was_solved(tx, feature) -> bool:
+    """Whether the study's results were deleted (``SOLVED_RECORD``, left by ``discard``)."""
+    try:
+        return records.has(tx, feature, SOLVED_RECORD)
+    except Exception:  # no user attributes: the Exit fallback in ``task`` still says it
+        return False
+
+
+def mark_solved(tx, feature) -> None:
+    """Leave ``SOLVED_RECORD`` on a study whose results are deleted (best effort)."""
+    with contextlib.suppress(Exception):
+        records.set_text(tx, feature, SOLVED_RECORD, "results deleted")
+
+
+def refuse_solved(tx, feature, action: str, study=None) -> None:
+    """``NX_UNSUPPORTED_OPTION`` on ``/study`` when the study is solved or was (NX 2406
+    no longer updates it), before NX is asked."""
+    now = is_solved(tx, feature, study)
+    if now or was_solved(tx, feature):
+        state = "is solved" if now else "was solved (its results were deleted since)"
+        fail(
+            "NX_UNSUPPORTED_OPTION",
+            f"The study {state}: NX cannot {action} a topology study once it has solved it "
+            "(NX no longer updates the study)",
+            field="/study",
+            hint=SOLVED_HINT,
+            details={"solved": now},
+        )
+
+
 @contextlib.contextmanager
 def task(tx, feature=None, keep=True, cycle_field=None):
     """Inside NX's Topology Optimization task environment; yields its active feature.
@@ -183,6 +262,8 @@ def task(tx, feature=None, keep=True, cycle_field=None):
     end of the block without ``keep`` (a solve whose results are read, then dropped).
     An update that finds the study depending on itself (``CYCLE_CODE``, from ``Exit``)
     is ``NX_INVALID_ARGUMENT`` on ``cycle_field`` when given, else ``NX_UPDATE_FAILED``.
+    An update NX undid (``UPDATE_UNDONE_CODE``) while keeping an edit of an existing study
+    is ``NX_UNSUPPORTED_OPTION`` on ``/study``: a study solved before no longer updates.
     """
     environment = tx.session.TopologyOptimizationTaskEnvironment
     outside_task(tx)
@@ -216,6 +297,16 @@ def task(tx, feature=None, keep=True, cycle_field=None):
                 field=cycle_field,
                 hint=TIMELINE_HINT,
                 nx_code=CYCLE_CODE,
+            )
+        if error.nx_code == UPDATE_UNDONE_CODE and feature is not None and keep:
+            fail(
+                "NX_UNSUPPORTED_OPTION",
+                "NX could not update the study and undid the change: NX cannot update a "
+                "topology study it has solved before, also after its results were deleted "
+                f"({error.message})",
+                field="/study",
+                hint=SOLVED_HINT,
+                nx_code=UPDATE_UNDONE_CODE,
             )
         raise
 

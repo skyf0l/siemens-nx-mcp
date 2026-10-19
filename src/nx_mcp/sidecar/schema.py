@@ -91,7 +91,7 @@ INTENT = {"type": "string", "maxLength": 120}
 # instructions, and with ``part`` left out they did not pass it when 2+ parts were loaded.
 PART_KEY = {
     "type": "string",
-    "description": "Target part's file name when 2+ are loaded",
+    "description": "Target part file when 2+ are loaded",
 }
 # Regular expressions gate 1 checks but listings omit (references, unit strings); a
 # string carrying one of them also loses its ``maxLength`` (gate 1 checks it too).
@@ -653,16 +653,14 @@ def _arguments_schema(spec) -> str:
 
 
 def takes_part_key(spec) -> bool:
-    """A tool that acts on a loaded part and can be called without references: the
-    ``part`` call key picks its part when two or more are loaded (rule G). The proxy pops
-    it as a call key before gate 1; the kernel resolves it (gate 3t)."""
-    if spec.runs != "nx" or spec.target in ("none", "creates", "any"):
+    """A tool that acts on a loaded part: the ``part`` call key picks its part when two or
+    more are loaded (rule G), and every such schema lists it, refs or not (a strict schema
+    without it reads as "not accepted"; with refs it must name their part). The proxy pops
+    it as a call key before gate 1; the kernel resolves it (gate 3t). Tools that create or
+    load their part, act on no part, or take their own part argument do not take it."""
+    if spec.runs != "nx" or spec.target in ("none", "creates"):
         return False
-    if spec.target.startswith("arg:"):
-        return False
-    return not any(
-        p.required and core_types.RefKind in unwrap(p.hint)[1] for p in spec.params.values()
-    )
+    return not spec.target.startswith("arg:")
 
 
 def with_part_key(spec, schema: dict) -> dict:
@@ -803,8 +801,22 @@ def variant_schema(spec, variant: str, *, call_keys: bool = True) -> dict:
                 form = TypeAdapter(_Converter()(by.forms[variant])).json_schema()
                 schema["properties"][name] = _unshown_patterns(tidy(_inline(form)))
     else:
+        # A list of typed items (``type`` picks each item's form): the list's items become
+        # this variant's form, so the schema shows only what that variant takes.
         sub = spec.variants[variant]
-        schema["x-variant"] = tidy(_inline(TypeAdapter(_Converter()(sub)).json_schema()))
+        form = _unshown_patterns(tidy(_inline(TypeAdapter(_Converter()(sub)).json_schema())))
+        replaced = False
+        for prop in schema.get("properties", {}).values():
+            items = prop.get("items") if isinstance(prop, dict) else None
+            fields = set(form.get("properties", {}))
+            if isinstance(items, dict) and fields and fields <= set(items.get("properties", {})):
+                prop["items"] = {**form, **({"description": items["description"]}
+                                            if "description" in items else {})}  # fmt: skip
+                replaced = True
+        if replaced:
+            _drop_unused_defs(schema)
+        else:
+            schema["x-variant"] = form
     return schema
 
 

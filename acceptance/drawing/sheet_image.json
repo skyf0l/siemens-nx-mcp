@@ -235,10 +235,23 @@
      ],
      "tol": 1e-06
     },
-    "data.file": {
-     "matches": "drawing_logo\\.png$"
+    "data.file": "$logo.data.file",
+    "changes.modified": {
+     "count": 1
     }
-   }
+   },
+   "save": "resized"
+  },
+  {
+   "call": "nx_undo_operation",
+   "args": {
+    "operation": "$resized.operation_id",
+    "mode": "compensate"
+   },
+   "expect": {
+    "data.compensated": true
+   },
+   "intent": "Acceptance: an image edit is set back by compensation"
   },
   {
    "call": "nx_set_sheet_image",

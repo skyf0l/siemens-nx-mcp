@@ -15,7 +15,9 @@ objects given (``fit_to_error`` makes it raise). Both set the scale to 2.5.
 
 from __future__ import annotations
 
+import functools
 import struct
+import zlib
 from pathlib import Path
 from types import SimpleNamespace as NS
 
@@ -48,8 +50,24 @@ class Colors:
 
 
 def png(path, size):
-    header = b"\x89PNG\r\n\x1a\n" + b"\0\0\0\rIHDR" + struct.pack(">II", *size)
-    Path(path).write_bytes(header + b"\0" * 16)
+    """A real 8-bit RGB PNG, white (NX's capture background)."""
+    Path(path).write_bytes(_png_bytes(tuple(size)))
+
+
+@functools.cache
+def _png_bytes(size) -> bytes:
+    def chunk(kind, body):
+        return (
+            struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body))
+        )
+
+    width, height = size
+    rows = b"".join(b"\0" + b"\xff\xff\xff" * width for _ in range(height))
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return (
+        b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(rows))
+        + chunk(b"IEND", b"")
+    )  # fmt: skip
 
 
 def nx_matrix(rotation):

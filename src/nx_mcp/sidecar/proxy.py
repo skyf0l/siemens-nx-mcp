@@ -25,6 +25,7 @@ import typing
 import uuid
 import weakref
 from collections import Counter
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
@@ -37,6 +38,7 @@ from nx_mcp.core.errors import NXError
 from nx_mcp.core.receipts import OPERATION_ID_HINT, new_operation_id, operation_id_problem
 from nx_mcp.core.types import REF_PATTERN, RefKind
 from nx_mcp.core.validate import child_problems, combine, is_union, unknown_field, unwrap
+from nx_mcp.kit.result import tidy
 from nx_mcp.kit.snapshots import claim
 from nx_mcp.sidecar import schema
 from nx_mcp.workspace import WorkspaceViolation, kinds, relative, scrub, suffix_of
@@ -54,6 +56,14 @@ TERSE_MIN_SAVING = 160
 # ("ENTITY 3 1 1"); kept in the stored full result, counted in compact detail.
 HELPER_NAME = re.compile(r"^(p\d+|ENTITY \d+ \d+ \d+)$")
 INLINE_IMAGE_BYTES = 8 * 1024 * 1024
+# ``nx_tool#variant`` in a hint: checked against the variants the schema fetch serves.
+VARIANT_POINTER = re.compile(r"\b(nx_[a-z0-9_]+)#([a-z0-9_]+)\b")
+# Part and exchange files: a wrong-suffix hint names another tool only between these (a
+# .step given to nx_open_part is read by nx_import_model).
+MODEL_SUFFIXES = frozenset(
+    {".prt", ".step", ".stp", ".igs", ".iges", ".x_t", ".x_b", ".stl", ".jt", ".dxf", ".dwg"}
+    | {".catpart", ".catproduct"}
+)
 
 
 def result(envelope: dict, *, extra: list | None = None) -> CallToolResult:
@@ -123,6 +133,22 @@ def from_bridge_error(tool: str, effect: str, error: NXError, operation_id=None)
         # The request was forwarded and NX did not state an outcome.
         outcome = "unknown"
     return failure(tool, classified, outcome, operation_id=operation_id)
+
+
+def _tidy(envelope: dict) -> dict:
+    """``envelope`` with its ``data`` and error details free of float noise
+    (``kit.result.tidy``: 2.9999999999999996 -> 3.0, 6.1e-17 beside 1.0 -> 0.0), in
+    compact and full detail alike."""
+    try:
+        out = dict(envelope)
+        if "data" in out:
+            out["data"] = tidy(out["data"])
+        error = out.get("error")
+        if isinstance(error, dict) and isinstance(error.get("details"), dict):
+            out["error"] = {**error, "details": tidy(error["details"])}
+        return out
+    except Exception:
+        return envelope  # a courtesy: never fails the finished call
 
 
 def _walk_paths(args: dict, pointer: str):
@@ -238,7 +264,7 @@ def _cut_note(total: int, kept: int, first_last: bool = True) -> dict:
     return note
 
 
-def _terse_changes(envelope: dict, omitted: dict) -> dict | None:
+def _terse_changes(envelope: dict, omitted: dict, ordered: dict | None = None) -> dict | None:
     """Compact ``changes``. Created and modified keep their rows even when ``data`` shows
     the objects (an agent reads ``changes`` alone to learn what a call changed): when
     ``data`` names the call's main objects at its top level (its feature, body or sketch),
@@ -267,10 +293,19 @@ def _terse_changes(envelope: dict, omitted: dict) -> dict | None:
                 candidates = [r for r in rows if not HELPER_NAME.match(str(r.get("name") or ""))]
         keep = _ends(candidates)
         if len(keep) < len(unseen):
+            if ordered is not None and key != "deleted":
+                # The stored result lists the rows compact shows first (nx_get_result
+                # pages them in the same order): main objects, then the rest in NX's order.
+                picked = {id(r) for r in candidates}
+                order = candidates + [r for r in rows if id(r) not in picked]
+                if order != rows:
+                    ordered[key] = order
             kinds = Counter(str(r.get("kind")) for r in rows if isinstance(r, dict))
             counts[key] = dict(sorted(kinds.items()))
             ends = len(candidates) > COMPACT_REF_ROWS
             notes[f"/changes/{key}"] = _cut_note(len(rows), len(keep), ends)
+            if ordered is not None and key in ordered:
+                notes[f"/changes/{key}"]["order"] = "main_first"
             terse[key] = keep
     if counts:
         terse["counts"] = counts
@@ -305,6 +340,34 @@ def _size(value) -> int:
     return len(json.dumps(value, ensure_ascii=False, separators=(",", ":"), default=str))
 
 
+def _terse_nested(value, omitted: dict, path: str, depth: int = 0):
+    """``data`` with the envelopes nested in it (an nx_get_operation result, a batch's
+    steps) given terse ``changes`` like a top-level result (:func:`_terse_changes`); their
+    cut lists are noted in ``omitted`` at their own pointer. None when nothing changed."""
+    if depth > 6:
+        return None
+    if isinstance(value, dict):
+        out, changed = {}, False
+        for k, v in value.items():
+            inner = _terse_nested(v, omitted, f"{path}/{k}", depth + 1)
+            out[k] = v if inner is None else inner
+            changed = changed or inner is not None
+        if {"ok", "tool", "mutation_outcome"} <= set(out) and isinstance(out.get("changes"), dict):
+            notes: dict[str, Any] = {}
+            terse = _terse_changes(out, notes)
+            if terse is not None and notes:
+                out["changes"] = terse
+                omitted.update({path + k: v for k, v in notes.items()})
+                changed = True
+        return out if changed else None
+    if isinstance(value, list):
+        items = [_terse_nested(v, omitted, f"{path}/{i}", depth + 1) for i, v in enumerate(value)]
+        if all(i is None for i in items):
+            return None
+        return [v if i is None else i for v, i in zip(value, items, strict=True)]
+    return None
+
+
 def _project(envelope: dict, store) -> dict:
     """Compact detail (gate 14, S): terse ``data`` body lists (:func:`_terse_data`) and
     ``changes`` (:func:`_terse_changes`), arrays over 20 items cut; the full result goes to
@@ -313,8 +376,12 @@ def _project(envelope: dict, store) -> dict:
         return envelope
     omitted: dict[str, Any] = {}
     paged = envelope.get("page") is not None
-    terse = _terse_changes(envelope, omitted)
+    ordered: dict[str, list] = {}
+    terse = _terse_changes(envelope, omitted, ordered)
+    for key in [k for k in ordered if f"/changes/{k}" not in omitted]:
+        del ordered[key]  # shown in full: the stored order stays NX's
     terse_data = _terse_data(envelope, omitted)
+    nested = _terse_nested(envelope.get("data"), omitted, "/data")
 
     def cut(value, path):
         if isinstance(value, dict):
@@ -331,6 +398,8 @@ def _project(envelope: dict, store) -> dict:
     envelope_view = {**envelope, "changes": terse} if terse is not None else envelope
     if terse_data is not None:
         envelope_view = {**envelope_view, "data": terse_data}
+    elif nested is not None:
+        envelope_view = {**envelope_view, "data": nested}
     projected = {
         k: v if k in ("warnings", "error", "page") else cut(v, "/" + k)
         for k, v in envelope_view.items()
@@ -338,7 +407,10 @@ def _project(envelope: dict, store) -> dict:
     if not omitted:
         return projected
     try:
-        result_id = store.put(envelope)
+        stored = envelope
+        if ordered:
+            stored = {**envelope, "changes": {**envelope["changes"], **ordered}}
+        result_id = store.put(stored)
     except Exception:
         return envelope  # A storage fault never changes a finished call's answer.
     projected.update(result_id=result_id, omitted=omitted, expand_with="nx_get_result")
@@ -897,17 +969,27 @@ class CatalogueProxy:
         if resolved.suffix.lower() in suffixes:
             return resolved
         suffix = resolved.suffix.lower()
-        others = _tools_taking(spec.name, suffix, reads=mode == "read")
-        if others:
-            hint = f"A {suffix} file is {'read' if mode == 'read' else 'written'} by " + (
-                " or ".join(others[:2])
+        example = PurePosixPath(shown).with_suffix(suffixes[0]).as_posix()
+        if mode == "read":
+            hint = (
+                f"Name an existing {expected} file (e.g. '{example}'); nx_list_files shows "
+                "the folder"
             )
-        elif mode == "read":
-            hint = f"Name an existing {expected} file; nx_list_files shows the folder"
         elif len(kinds(suffixes)) == 1:
-            hint = f"End the path with {suffixes[0]}, or leave the suffix out"
+            hint = f"Use a {expected} path such as '{example}', or leave the suffix out"
         else:
-            hint = f"End the path with one of {expected}"
+            hint = f"End the path with one of {expected}, e.g. '{example}'"
+        # Another tool only when both are model-file tools: a .step given to nx_open_part
+        # is nx_import_model's; a .txt for an export is no reason to name nx_upload_file.
+        if suffix in MODEL_SUFFIXES and set(suffixes) & MODEL_SUFFIXES:
+            others = [
+                n for n in _tools_taking(spec.name, suffix, reads=mode == "read")
+                if _suffixes_of(n) <= MODEL_SUFFIXES
+                and getattr(catalogue.get(n), "domain", None) == "parts_files"
+            ]  # fmt: skip
+            if others:
+                verb = "read" if mode == "read" else "written"
+                hint += f"; a {suffix} file is {verb} by {' or '.join(others[:2])}"
         return NXError(
             "NX_UNSUPPORTED_FILE_TYPE",
             f"{field}: {spec.name} takes a {expected} file, not {suffix} ('{shown}')",
@@ -953,7 +1035,7 @@ class CatalogueProxy:
             if entry is None and failed is not None:
                 problem = evidence.version_error(failed)
         if problem is not None:
-            return result(failure(spec.name, problem, "not_started", operation_id=operation_id))
+            return result(self._served_hints(self._refused(spec, problem, operation_id)))
         if "detail" in spec.params:  # nx_get_result: the call's detail is its own argument
             args["detail"] = detail
         if operation_id is None and spec.effect != "read":
@@ -961,8 +1043,9 @@ class CatalogueProxy:
             operation_id = new_operation_id()
         params = dict(args)
         if spec.runs == "sidecar":  # Workspace tools never reach NX (sidecar/local.py).
-            envelope = await asyncio.to_thread(self._local, spec, params, operation_id)
-            envelope = self._relative_paths(spec, envelope)
+            caller = {"id": CALLER.get() or PROCESS_ID, "shared": False}  # who wrote a file
+            envelope = await asyncio.to_thread(self._local, spec, params, operation_id, caller)
+            envelope = self._served_hints(_tidy(self._relative_paths(spec, envelope)))
             if detail == "compact":
                 envelope = _project(envelope, self.store)
             return result(envelope, extra=self._attachments(envelope))
@@ -1040,10 +1123,53 @@ class CatalogueProxy:
                     "not_applicable" if spec.effect == "read" else "unknown",
                     operation_id=operation_id,
                 )
-        envelope = self._relative_paths(spec, envelope)
+        envelope = self._served_hints(_tidy(self._relative_paths(spec, envelope)))
         if detail == "compact":
             envelope = _project(envelope, self.store)
         return result(envelope, extra=self._attachments(envelope))
+
+    def _served_hints(self, envelope: dict) -> dict:
+        """An error's ``tool#variant`` pointers only where nx_get_tool_schemas serves that
+        variant on this build; another becomes the plain tool name (its schema is
+        served), so a hint never names a schema the fetch refuses."""
+        error = envelope.get("error")
+        if not isinstance(error, dict):
+            return envelope
+
+        def served(match) -> str:
+            name, variant = match.group(1), match.group(2)
+            spec = catalogue.get(name)
+            try:
+                if (
+                    spec is not None
+                    and variant in spec.variant_values()
+                    and (not isinstance(spec.variants, str) or variant in self.variants(spec))
+                ):
+                    return match.group(0)
+            except Exception:
+                return match.group(0)  # no build known: leave the pointer
+            return name
+
+        fixed = {
+            key: VARIANT_POINTER.sub(served, error[key])
+            for key in ("hint", "message")
+            if isinstance(error.get(key), str) and "#" in error[key]
+        }
+        return {**envelope, "error": {**error, **fixed}} if fixed else envelope
+
+    @staticmethod
+    def _refused(spec, problem: NXError, operation_id) -> dict:
+        """The envelope of a call refused before it left (gates 1-3): the same fields as
+        the kernel's refusals, an ``operation_id`` for a changing tool (the caller's when
+        valid, else a new one) and, for a model tool, ``changes`` saying nothing changed."""
+        if operation_id is not None and operation_id_problem(operation_id) is not None:
+            operation_id = None  # never echo an id the call got refused for
+        if operation_id is None and spec.effect != "read":
+            operation_id = new_operation_id()
+        envelope = failure(spec.name, problem, "not_started", operation_id=operation_id)
+        if spec.effect == "model":
+            envelope["changes"] = {"references": "preserved"}
+        return envelope
 
     def _relative_paths(self, spec, envelope: dict) -> dict:
         """The envelope with every absolute path inside the workspace written relative to
@@ -1109,14 +1235,17 @@ class CatalogueProxy:
         except Exception:
             return False
 
-    def _local(self, spec, params: dict, operation_id) -> dict:
+    def _local(self, spec, params: dict, operation_id, caller=None) -> dict:
+        """A sidecar tool's envelope; ``caller`` (the MCP request's caller id) reaches the
+        kernel as for NX calls (``tx.caller``: nx_delete_file deletes only what that
+        caller wrote)."""
         from nx_mcp.sidecar import local
 
         if self._services is None:
             self._services = local.SidecarServices(self.workspace)
         self._services.build = self.build()
         self._services.dev = self.dev()
-        return local.run(spec, params, self._services, operation_id=operation_id)
+        return local.run(spec, params, self._services, operation_id=operation_id, caller=caller)
 
     def _attachments(self, envelope: dict) -> list:
         """An inline PNG (``data.image``) and a resource link to a workspace file the

@@ -210,6 +210,31 @@ def _relief(tx, feature, relief, target, origin, normal):
     return out
 
 
+def _warn_overhang(tx, target, box, normal, kind) -> None:
+    """Warn when the text runs past the target body across the plane (NX then embosses or
+    engraves only the part over it, with an NX-worded alert): along each world axis lying
+    in the text plane, the curves' box against the body's."""
+    try:
+        blow, bhigh = measure.bounds(tx, [target])
+    except Exception:  # noqa: BLE001 - no box: no overhang check
+        return
+    low, high = box
+    tol = 10 * units.part_tolerance(tx)
+    out = [
+        i
+        for i in range(3)
+        if abs(normal[i]) < 1e-6 and (low[i] < blow[i] - tol or high[i] > bhigh[i] + tol)
+    ]
+    if out:
+        axis = "xyz"[out[0]]
+        tx.warn(
+            "NX_NOTE",
+            f"The text spans {axis} {low[out[0]]:.6g}..{high[out[0]]:.6g}, past the target body "
+            f"({blow[out[0]]:.6g}..{bhigh[out[0]]:.6g}): letters off it are not {kind.rstrip('e')}ed; "
+            "lower height or move origin",
+        )
+
+
 @tool(
     effect="model",
     label="Create text",
@@ -315,6 +340,7 @@ def nx_create_text(
         "max": high,
     }
     if relief is not None and target is not None:
+        _warn_overhang(tx, target, (low, high), axes[3], relief["kind"])
         relieved = _relief(tx, feature, relief, target, axes[0], axes[3])
         out["relief"] = relieved["feature"]
         out["bodies"] = relieved["bodies"]

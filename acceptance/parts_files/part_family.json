@@ -7,6 +7,16 @@
     {"call": "nx_get_part_family", "args": {},
      "expect": {"ok": true, "data.role": "none", "data.members": {"count": 0}}},
     {"call": "nx_create_part_family",
+     "args": {"expressions": ["p0", "p2"], "directory": "$run/fam_bad",
+              "members": [{"name": "pf_bad_1", "values": [50, "abc+"]}]},
+     "intent": "Acceptance: a formula NX refuses is refused with its field before the family table exists: no phantom member, the template stays unmodified",
+     "expect": {"error.code": {"matches": "^NX_INVALID_(FORMULA|ARGUMENT)$"},
+                "error.field": "/members/0/values/1", "mutation_outcome": "not_started"}},
+    {"call": "nx_list_parts", "args": {"path_prefix": "$fixture", "modified": true},
+     "expect": {"page.total": 0}},
+    {"call": "nx_get_part_family", "args": {},
+     "expect": {"data.role": "none", "data.members": {"count": 0}}},
+    {"call": "nx_create_part_family",
      "args": {"expressions": ["p0", "p2"], "directory": "$run/fam",
               "members": [{"name": "pf_block_50", "values": [50, 12.5]},
                           {"name": "pf_block_60", "values": ["60", "p1+1"]}]},
@@ -23,7 +33,8 @@
                 "data.members": {"count": 2}, "data.members.0.name": "pf_block_50",
                 "data.members.0.values.p0": "50", "data.members.0.exists": true,
                 "data.members.1.values.p2": "p1+1", "data.members.1.exists": true,
-                "data.directory": {"matches": "/fam$"}}},
+                "data.directory": {"matches": "/fam$"}, "data.up_to_date": true,
+                "data.template": {"matches": "(?i)parts_files_part_family[^/]*[.]prt$"}}},
     {"call": "nx_list_parts", "args": {"path_prefix": "$fixture", "modified": true},
      "expect": {"page.total": 0}},
     {"call": "nx_list_files", "args": {"path": "$run/fam"},
@@ -35,6 +46,8 @@
     {"call": "nx_open_part", "setup": true, "args": {"path": "$run/fam/pf_block_50.prt", "display": true}},
     {"call": "nx_get_part_family", "args": {"part": "pf_block_50"},
      "expect": {"data.role": "member", "data.up_to_date": true,
-                "data.template": {"matches": "(?i)parts_files_part_family"}}}
+                "data.template": {"matches": "(?i)parts_files_part_family"},
+                "data.columns": ["p0", "p2"], "data.values.p0": {"close": 50, "tol": 1e-9},
+                "data.values.p2": {"close": 12.5, "tol": 1e-9}}}
   ]
 }

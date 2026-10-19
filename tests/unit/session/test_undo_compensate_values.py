@@ -54,7 +54,7 @@ def test_set_attributes_is_undone_by_setting_the_previous_values_back(nx):
     assert undo.data["undone"] == ["op_a_attr_2"]
     assert undo.data["restored"] == ["PART_NO of a.prt back to 'PC-000'"]
     assert attributes(nx.a) == {"PART_NO": "PC-000", "REV": "A"} and counts(nx.b) == [(1, 1)]
-    assert any("set back PART_NO" in w["message"] for w in undo.warnings), undo.warnings
+    assert any("setting back PART_NO" in w["message"] for w in undo.warnings), undo.warnings
     assert history(nx)[-1] == ("op_a_undo_1", True)  # never undone itself
     first = run(nx, "nx_undo_operation", part="a")  # the titles the first call created go
     assert first.ok and first.data["undone"] == ["op_a_attr_1"], first
@@ -146,7 +146,7 @@ def test_drawing_views_nx_refreshed_do_not_block_a_create_only_undo():
     record["envelope"]["changes"]["modified"].append({"id": "b:3", "kind": "body"})
     assert undoable.creates(undoable.units(None, entry, record)[0]) == [feature]
     record["envelope"]["changes"]["modified"].append({"id": "o:4", "kind": "component"})
-    with pytest.raises(compensate.Refusal, match="did more than create objects"):
+    with pytest.raises(compensate.Refusal, match="changed objects it did not create"):
         undoable.creates(undoable.units(None, entry, record)[0])
 
 
@@ -179,12 +179,15 @@ def test_an_operation_behind_a_close_that_cannot_be_compensated_is_refused_with_
     refused = run(nx, "nx_undo_operation", part="a")
     # Another part's close does not end a.prt's history: it is in the way of NX's undo
     assert refused.error["code"] == "NX_CROSS_PART", refused
-    assert refused.error["details"]["in_the_way"] == [
-        {"operation_id": "op_close", "tool": "nx_close_part", "part": "c.prt", "barrier": "close"}
-    ]
-    assert "c.prt closed by op_close (nx_close_part)" in refused.error["message"]
-    assert "cannot be compensated" in refused.error["message"]
-    assert refused.error["hint"].startswith("Fix forward instead")
+    assert refused.error["details"]["in_the_way"] == {
+        "operations": 0,
+        "parts": 0,
+        "loads_or_closes": 1,
+    }
+    assert "1 part load or close" in refused.error["message"]
+    assert "c.prt" not in refused.error["message"] and "op_close" not in refused.error["message"]
+    assert "setting back the values it set cannot undo it" in refused.error["message"]
+    assert refused.error["hint"].startswith("Fix forward instead: create again what it deleted")
 
 
 def test_an_operation_that_qualifies_for_nothing_gets_the_fix_forward_hint(nx):

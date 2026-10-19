@@ -1079,14 +1079,105 @@ def _format_message(value: str, markers) -> str:
             f"expected {article(what)} {what} ref like {ref_example(kinds)} (from "
             f"{source}){anchor}, got {value!r}; display names are not refs"
         )
-    doc = markers.get(Doc)
-    pattern = markers[Text].pattern
-    text = "has an invalid format"
-    if doc is not None:
-        text += f"; expected {doc.text}"
-    if pattern and len(pattern) <= 40:
-        text += f" (pattern {pattern})"
+    limits = markers[Text]
+    described = pattern_text(limits.pattern)
+    text = f"{value!r} has an invalid format"
+    if described:
+        return f"{text}: use {described} (at most {limits.max} characters)"
+    if limits.pattern and len(limits.pattern) <= 60:
+        text += f" (pattern {limits.pattern})"
     return text
+
+
+# The characters of a regular-expression class, in words ("A-Z" -> letters).
+_CLASS_WORDS = (
+    ("A-Za-z0-9", "letters, digits"),
+    ("A-Za-z", "letters"),
+    ("a-zA-Z", "letters"),
+    ("a-z0-9", "lowercase letters, digits"),
+    ("A-Z", "capital letters"),
+    ("a-z", "lowercase letters"),
+    ("0-9a-fA-F", "hexadecimal digits"),
+    ("0-9a-f", "hexadecimal digits"),
+    ("0-9", "digits"),
+    ("\\x00-\\x1f", "control characters"),
+    ("\\w", "letters, digits, '_'"),
+    ("\\s", "spaces"),
+    ("\\r\\n", "line breaks"),
+    ("\\r", "line breaks"),
+    ("\\n", "line breaks"),
+    ("\\-", "'-'"),
+    ("\\.", "'.'"),
+    (" ", "space"),
+)
+_CLASS = re.compile(r"\[(\^?)((?:\\.|[^\]\\])+)\]")
+
+
+def _class_words(body: str) -> list[str]:
+    words: list[str] = []
+    rest = body
+    while rest:
+        for chars, label in _CLASS_WORDS:
+            if rest.startswith(chars):
+                rest, word = rest[len(chars) :], label
+                break
+        else:
+            char, rest = rest[0], rest[1:]
+            if char == "\\" and rest:
+                char, rest = rest[0], rest[1:]
+            word = repr(char)
+        for item in word.split(", "):
+            if item not in words:
+                words.append(item)
+    return words
+
+
+def pattern_text(pattern: str | None) -> str | None:
+    """What a string ``pattern`` accepts, in words, for the common shapes of argument
+    patterns (character classes, ``\\S`` ends): ``^[A-Za-z_][A-Za-z0-9_]*$`` -> ``letters,
+    digits and '_', starting with a letter or '_'``. None for a pattern of another shape
+    (an alternation, literal text), which an error then shows as it is."""
+    if not pattern or "|" in pattern:
+        return None
+    body = pattern.removeprefix("^").removesuffix("$")
+    classes = _CLASS.findall(body)
+    rest = re.sub(r"\{\d*,?\d*\}|[()*+?.]|\\S", "", _CLASS.sub("", body))
+    if rest:
+        return None  # literal text besides the classes
+    edges = body.startswith(("\\S", "[^\\s"))
+    trimmed = " (no leading or trailing spaces)" if edges else ""
+
+    def joined(words: list[str], last: str = "and") -> str:
+        return ", ".join(words[:-1]) + f" {last} " + words[-1] if len(words) > 1 else words[0]
+
+    negated = [_class_words(b) for neg, b in classes if neg]
+    allowed = [_class_words(b) for neg, b in classes if not neg]
+    if not classes:
+        both = body.endswith(("\\S", "\\S)?"))
+        return (
+            f"text without {'leading or trailing' if both else 'leading'} spaces" if edges else None
+        )
+    if negated and not allowed:
+        common = [w for w in negated[0] if all(w in n for n in negated)]
+        if edges:
+            common = [w for w in common if w != "spaces"] or common
+        return "any text without " + joined(common) + trimmed if common else None
+    if negated:
+        return None
+    main = max(allowed, key=len)
+    text = joined(main)
+    if len(allowed) > 1 and allowed[0] != main and body.startswith("["):
+        first = [_ONE.get(w, w) for w in allowed[0]]
+        text += ", starting with " + joined(first, "or")
+    return text
+
+
+_ONE = {
+    "letters": "a letter",
+    "digits": "a digit",
+    "capital letters": "a capital letter",
+    "lowercase letters": "a lowercase letter",
+}
 
 
 def _variant_fields(params) -> list:
@@ -1148,7 +1239,9 @@ def validate(
         given = {name for name, value in args.items() if value is not None}
         errors.extend(
             e
-            for e in variant_needs(params, walker.out.args, variant, required_by, tool)
+            for e in variant_needs(
+                params, walker.out.args, variant, required_by, tool, (shown or {}).get(variant)
+            )
             if error_rows(e)[0]["field"].lstrip("/") not in given
         )
     if errors:
@@ -1158,20 +1251,29 @@ def validate(
 
 
 def variant_needs(
-    params, args: Mapping, variant: str, required_by: Mapping, tool: str | None = None
+    params,
+    args: Mapping,
+    variant: str,
+    required_by: Mapping,
+    tool: str | None = None,
+    offered=None,
 ) -> list:
-    """Errors for the fields the call's variant needs that ``args`` leaves out (None); with
-    ``tool``, the hint names the variant's schema (``nx_get_tool_schemas tool#variant``)."""
+    """Errors for the fields the call's variant needs that ``args`` leaves out (None). The
+    hint names those fields and, with ``tool``, the variant's own schema
+    (``nx_get_tool_schemas tool#variant``) when this build offers the variant (``offered``:
+    the variant values on offer, None for all)."""
     value = args.get(variant)
     if value is None and variant in params and not params[variant].required:
         value = params[variant].default
     needs = required_by.get(value, ()) if isinstance(value, str) else ()
-    hint = f"nx_get_tool_schemas {tool}#{value} lists the fields" if tool else None
-    return [
-        _bad([name], f"required when {variant} is {value!r}", hint=hint)
-        for name in needs
-        if args.get(name) is None
-    ]
+    missing = [name for name in needs if args.get(name) is None]
+    if not missing:
+        return []
+    listed = ", ".join(missing)
+    hint = f"Add {listed}: {variant} {value!r} needs {'it' if len(missing) == 1 else 'them'}"
+    if tool and (offered is None or value in offered):
+        hint += f" (nx_get_tool_schemas {tool}#{value} shows only that variant's fields)"
+    return [_bad([name], f"required when {variant} is {value!r}", hint=hint) for name in missing]
 
 
 def _form(hint, args):

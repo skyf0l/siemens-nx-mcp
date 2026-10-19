@@ -8,10 +8,13 @@ NX display analyses (reflection stripes, curvature combs, continuity, radius) to
 gateway) runs on the same faces under ``tx.scratch`` and adds its G0/G1 verdict.
 
 ``nx_create_surface_analysis`` keeps one NX analysis object in the work part (saved with
-it, shown in its views) for nx_capture_view; ``nx_undo_operation`` with the call's
-operation removes it. Only gateway analysis builders are used, and only in the displayed
-part: one made in a background part stays registered after that part closes and makes NX
-reopen it later (``kit.analysis_objects``).
+it, shown in its views) for nx_capture_view, under a name of its own
+(``NX_MCP_REFLECTION_1``): ``nx_delete_surface_analysis`` deletes it by that name, and
+``nx_undo_operation`` removes it (NX's undo, or the compensating undo through the
+``@restorer``, which deletes it by name with the expressions its builder added). Only
+gateway analysis builders are used, and only in the displayed part: one made in a
+background part stays registered after that part closes and makes NX reopen it later
+(``kit.analysis_objects``).
 
 NX 2406 measured (``GeometricAnalysis``, part not displayed):
 
@@ -43,7 +46,7 @@ from __future__ import annotations
 import math
 from typing import Annotated, Literal, TypedDict
 
-from nx_mcp.core.catalogue import tool
+from nx_mcp.core.catalogue import restorer, tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
@@ -55,6 +58,7 @@ from nx_mcp.core.types import (
     Plane,
     Range,
     RefTo,
+    Text,
     forbid_extra,
 )
 from nx_mcp.domains.inspection import common
@@ -257,10 +261,10 @@ class Values(TypedDict):
 
 class _AnalysisRequired(TypedDict):
     type: str
-    name: str
+    name: str  # this analysis: nx_delete_surface_analysis takes it ("" with display false)
     faces: int
     curves: int
-    analyses: int
+    analyses: int  # NX MCP analyses the part now keeps
 
 
 class AnalysisData(_AnalysisRequired, total=False):
@@ -275,11 +279,12 @@ def _collection(tx):
     return collection
 
 
-def _count(collection) -> int:
+def _expressions(part) -> dict[int, str]:
+    """Tag -> name of the part's expressions ({} where NX lists none)."""
     try:
-        return len(list(collection))
-    except TypeError:  # not iterable on this host
-        return 0
+        return {int(e.Tag): str(e.Name) for e in part.Expressions}
+    except Exception:  # no expression collection on this host
+        return {}
 
 
 def _reflection(tx, collection, faces, lines, line_type, orientation):
@@ -454,10 +459,10 @@ def nx_create_surface_analysis(
     display: Annotated[bool, Doc("false: slope/distance values only, any loaded part")] = True,
 ) -> AnalysisData:
     """Create an NX display analysis to look at or capture with nx_capture_view. Displayed
-    part only (display false: slope/distance values without one); it stays until
-    nx_undo_operation. slope and distance return values (min/max/mean on a UV grid): slope =
-    angle from direction to face normal (0 faces along it, 90 wall); distance = signed,
-    along the plane normal. Numbers: nx_check_face_continuity, nx_analyze_faces."""
+    part only (display false: slope/distance values, nothing made). It stays until
+    nx_delete_surface_analysis(names=[name]) or nx_undo_operation. slope and distance return
+    values (min/max/mean on a UV grid): slope = angle 0-180 from direction to face normal
+    (0 faces along it, 90 wall); distance = signed, along the plane normal."""
     with tx.checks():  # argument rules and lookups: refusals are not_started
         if type != "curvature_comb" and curves is not None:
             fail("NX_INVALID_ARGUMENT", f"{type} takes faces, not curves", field="/curves")
@@ -490,6 +495,7 @@ def nx_create_surface_analysis(
         if display:
             analysis_objects.require_displayed(tx)
             collection = _collection(tx)
+            name = analysis_objects.unique_name(tx, tx.part, type)
     values: Values | None = None
     if type == "slope":
         values = _sampled(tx, picked_faces, samples_per_axis, _slope_of(vector))
@@ -497,8 +503,11 @@ def nx_create_surface_analysis(
         values = _sampled(tx, picked_faces, samples_per_axis, _distance_of(origin, normal))
     if not display:
         assert values is not None  # slope or distance
+        tx.warn("NX_NO_EFFECT", "display false: values only, no analysis object was made")
         return {"type": type, "name": "", "faces": len(picked_faces), "curves": 0,
-                "analyses": 0, "values": values}  # fmt: skip
+                "analyses": len(analysis_objects.names(tx, tx.part)),
+                "values": values}  # fmt: skip
+    before = _expressions(tx.part)
     with licenses.attempt(tx, LICENSE), native(default="NX_BUILD_FAILED"):
         if type == "reflection":
             made = _reflection(tx, collection, picked_faces, lines, line_type, orientation)
@@ -514,18 +523,97 @@ def nx_create_surface_analysis(
             made = _radius(tx, collection, picked_faces, radius_type)
     if not made:
         fail("NX_BUILD_FAILED", f"NX made no {type} analysis")
-    name = f"NX_MCP_{type.upper()}"
+    # a continuity analysis adds its two thresholds as expressions: deleted with it
+    added = sorted(n for tag, n in _expressions(tx.part).items() if tag not in before)
     with native():
         for obj in made:
             obj.SetName(name)
-    analysis_objects.remember(tx.part, made)
+    analysis_objects.remember(tx.part, made, expressions=added)
+    tx.note_restore({"name": name, "expressions": added})
     out: AnalysisData = {
         "type": type,
         "name": name,
         "faces": len(picked_faces),
         "curves": len(picked_curves),
-        "analyses": _count(collection),
+        "analyses": len(analysis_objects.names(tx, tx.part)),
     }
     if values is not None:
         out["values"] = values
     return out
+
+
+@restorer("nx_create_surface_analysis")
+def _restore_analysis(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Delete the analysis an ``nx_create_surface_analysis`` made, by its name, with the
+    expressions its builder added (the compensating undo); refused when it is gone."""
+    name = str(data["name"])
+    if not analysis_objects.named(tx, tx.part, name):
+        fail("NX_NOT_FOUND", f"Surface analysis {name} no longer exists", details={"name": name})
+    if apply:
+        with native(default="NX_UPDATE_FAILED"):
+            analysis_objects.delete(tx, tx.part, name)
+            analysis_objects.drop_expressions(tx, tx.part, data.get("expressions") or [])
+    return f"surface analysis {name} deleted (the operation made it)"
+
+
+class DeletedAnalyses(TypedDict):
+    deleted: list[str]
+    objects: int
+    expressions: list[str]  # threshold expressions their builders added, deleted too
+
+
+AnalysisName = Annotated[str, Text(64), Doc("data.name of nx_create_surface_analysis")]
+
+
+@tool(
+    effect="model",
+    label="Delete surface analyses",
+    summary=lambda a, say: (
+        "Delete surface analyses " + (", ".join(a.get("names") or []) or "of the part")
+    ),
+    keywords=(
+        "remove surface analysis",
+        "clear zebra",
+        "delete reflection analysis",
+        "remove curvature comb",
+        "clear analysis display",
+    ),
+    requires=("work_part",),
+    cost="light",
+    invalidates="deleted",  # display data only: every reference stays valid
+    example={"names": ["NX_MCP_REFLECTION_1"]},
+)
+def nx_delete_surface_analysis(
+    tx: Tx,
+    *,
+    names: Annotated[list[AnalysisName], Items(1, 50)] | None = None,
+) -> DeletedAnalyses:
+    """Delete display analyses (zebra, combs, radius maps) of the work part by name, any case.
+    names: data.name of nx_create_surface_analysis; none: every analysis it made in the
+    part. The threshold expressions a continuity analysis added go too."""
+    part = tx.part
+    with tx.checks():
+        known = analysis_objects.names(tx, part)
+        wanted: dict[str, str] = {}  # case-folded -> name as NX keeps it: one delete each
+        for i, text in enumerate(names if names is not None else known):
+            found = analysis_objects.named(tx, part, text)
+            if not found:
+                fail(
+                    "NX_NOT_FOUND",
+                    f"The work part has no surface analysis named {text!r}",
+                    field=f"/names/{i}",
+                    hint="Omit names to delete every analysis nx_create_surface_analysis made "
+                    "in the part",
+                    details={"names": known[:20]},
+                )
+            wanted.setdefault(str(text).casefold(), str(found[0].Name))
+    if not wanted:
+        tx.warn("NX_NO_EFFECT", "The work part keeps no NX MCP surface analysis")
+    deleted, objects, expressions = [], 0, []
+    with native(default="NX_UPDATE_FAILED"):
+        for name in wanted.values():
+            count, dropped = analysis_objects.delete(tx, part, name)
+            deleted.append(name)
+            objects += count
+            expressions.extend(dropped)
+    return {"deleted": deleted, "objects": objects, "expressions": expressions}

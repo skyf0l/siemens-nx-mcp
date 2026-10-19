@@ -18,6 +18,8 @@ def test_distance_between_bodies_and_feature_bodies():
     assert ok.ok and ok.data["distance"] == 15 and ok.data["pairs"] == 1, ok
     assert ok.data["points"][0][0] == 10 and ok.data["points"][1][0] == 25
     assert ok.data["first"]["id"] == a.ref and ok.units["length"] == "mm"
+    same = run(nx, "nx_measure_distance", first=a.ref, second=a.ref)
+    assert same.error["code"] == "NX_INVALID_ARGUMENT" and same.error["field"] == "/second"
 
 
 def test_distance_of_components_takes_the_closest_occurrence_pair():
@@ -43,6 +45,13 @@ def test_angle_between_planar_faces_edges_and_lines():
     arc = curve(nx, radius=2)
     bad = run(nx, "nx_measure_angle", first=arc.ref, second=top.ref)
     assert bad.error["code"] == "NX_WRONG_GEOMETRY" and bad.error["field"] == "/first"
+    bottom = next(f for f in body.faces if list(f.normal) == [0, 0, -1])
+    opposite = run(nx, "nx_measure_angle", first=top.ref, second=bottom.ref)
+    folded = run(nx, "nx_measure_angle", first=top.ref, second=bottom.ref, undirected=True)
+    assert opposite.data["angle"] == pytest.approx(180) and folded.data["angle"] == pytest.approx(0)
+    kind = run(nx, "nx_measure_angle", first=body.ref, second=top.ref)
+    assert kind.error["code"] == "NX_WRONG_KIND" and kind.error["field"] == "/first", kind
+    assert "nx_find_geometry" in kind.error["hint"]
 
 
 @pytest.mark.parametrize("units", ["mm", "in"])
@@ -285,3 +294,19 @@ def test_mass_of_many_bodies_reads_one_uf_call_per_body():
     assert ok.ok and len(ok.data["bodies"]) == 40, ok
     assert ok.data["volume"] == pytest.approx(40 * 125) and ok.data["area"] == pytest.approx(6000)
     assert sorted(calls) == [1] * 40 + [40]
+
+
+def test_wall_thickness_keeps_the_five_thinnest_rows_unless_asked():
+    nx = inspection_nx()
+    body = nx.block(20, 10, 5)
+    ok = run(nx, "nx_measure_wall_thickness", body=body.ref, samples_per_axis=3)
+    assert ok.ok and ok.data["measured"] == 54, ok
+    rows = ok.data["samples"]
+    assert len(rows) == 5 and rows[0] == ok.data["thinnest"]
+    assert all(r["thickness"] == pytest.approx(5) for r in rows)
+    assert len(ok.data["by_face"]) == 6
+    every = run(nx, "nx_measure_wall_thickness", body=body.ref, samples_per_axis=3, samples="all")
+    assert len(every.data["samples"]) == 54
+    assert every.data["samples"][-1]["thickness"] == pytest.approx(20)
+    none = run(nx, "nx_measure_wall_thickness", body=body.ref, samples_per_axis=3, samples="none")
+    assert none.data["samples"] == [] and none.data["thinnest"]["thickness"] == pytest.approx(5)

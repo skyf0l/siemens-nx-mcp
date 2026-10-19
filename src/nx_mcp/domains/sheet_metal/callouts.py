@@ -19,7 +19,7 @@ import json
 from typing import Annotated, Any, Literal, TypedDict
 
 from nx_mcp.core.catalogue import refresher, tool
-from nx_mcp.core.errors import fail
+from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import BodyRef, Doc, FaceRef, Items, Point3
 from nx_mcp.domains.sheet_metal import common
@@ -27,6 +27,10 @@ from nx_mcp.kit import builders, drawing, geom, model, readback, records, result
 
 MANAGED = "NX_MCP_MEASURED_PMI_V1"
 KINDS = {"body": "Body", "bend": "Bend"}
+UNLICENSED_HINT = (
+    "This NX seat lacks the Sheet Metal PMI license: put the values of nx_get_bend_list or "
+    "nx_get_sheet_metal in a drawing note (nx_create_note) instead"
+)
 
 
 class CalloutData(TypedDict):
@@ -113,7 +117,9 @@ def nx_create_sheet_metal_callout(
     automatic: Annotated[bool, Doc("Re-measure after model changes")] = True,
 ) -> CalloutData:
     """Place a Sheet Metal PMI callout with the measured thickness or bend data. Bend data is
-    radius, angle and neutral factor; automatic callouts follow later model changes."""
+    radius, angle and neutral factor; automatic callouts follow later model changes. Needs
+    NX's Sheet Metal PMI license (else NX_LICENSE_UNAVAILABLE); without it put
+    nx_get_bend_list values in a drawing note (nx_create_note)."""
     if kind == "body" and faces:
         fail("NX_INVALID_ARGUMENT", "A body callout takes no faces", field="/faces")
     if kind == "bend" and not faces:
@@ -128,7 +134,12 @@ def nx_create_sheet_metal_callout(
                      field=f"/faces/{i}")  # fmt: skip
     measured = measure(tx, kind, target, selected)
     text = lines(kind, measured, tx.units["length"], automatic)
-    values = _commit(tx, None, kind, target, selected, text, position)
+    try:
+        values = _commit(tx, None, kind, target, selected, text, position)
+    except NXError as error:
+        if error.code == "NX_LICENSE_UNAVAILABLE" and not error.hint:
+            error.hint = UNLICENSED_HINT
+        raise
     if automatic:
         record = {
             "kind": kind,

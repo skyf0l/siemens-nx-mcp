@@ -103,7 +103,11 @@ def test_refs_and_patterns_say_what_to_send():
     assert "display names are not refs" in error.message
     word = Annotated[str, T.Text(8, r"^[a-z]+$"), T.Doc("a lower-case word")]
     message = refused(params(w=word), {"w": "ABC1"}).message
-    assert "expected a lower-case word" in message and "^[a-z]+$" in message
+    # the format in words, never the field's description ("expected a lower-case word")
+    assert "use lowercase letters (at most 8 characters)" in message, message
+    assert "a lower-case word" not in message
+    odd = Annotated[str, T.Text(8, r"^nx_[a-z]+$"), T.Doc("a tool")]
+    assert "(pattern ^nx_[a-z]+$)" in refused(params(w=odd), {"w": "x"}).message
 
 
 def test_union_errors_list_the_accepted_forms():
@@ -161,7 +165,7 @@ def test_gate_9_turns_an_expression_into_a_float_that_keeps_its_formula():
     assert count == 5 and isinstance(count, int) and count.formula == "n"
     with pytest.raises(ValueError, match="not a whole number"):
         T.convert_quantity("n", "count", "unitless", lambda *a, **k: 2.5)
-    with pytest.raises(ValueError, match="needs NX"):
+    with pytest.raises(ValueError, match="takes no NX expression names"):
         T.convert_quantity("thickness", "length", "mm")
     assert T.convert_quantity("2 in", "length", "mm") == pytest.approx(50.8)
 

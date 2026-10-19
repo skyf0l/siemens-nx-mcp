@@ -174,8 +174,9 @@ def test_edit_native_refusal_destroys_the_builder():
     nx = freeform_nx()
     f = studio_spline(nx)
     nx.errors["StudioSplineBuilderEx"] = NXException(670015, "bad")
+    spec = {"points": [[0, 0, 0], [1, 1, 1]], "degree": 1, "periodic": False}
     with pytest.raises(NXError) as error:
-        edit(nx, f, {"spline": {"points": [[0, 0, 0], [1, 1, 1]], "degree": 1}})
+        edit(nx, f, {"spline": spec})
     assert error.value.code == "NX_BUILD_FAILED" and nx.live_builders == 0
 
 
@@ -207,3 +208,10 @@ def test_spline_ends_drop_round_off():
     nx = freeform_nx()
     ok = run(nx, "nx_create_spline", points=[[-6e-16, 1e-12, 0], [10, 5, 0], [20, 0, 3]])
     assert ok.ok and ok.data["start"] == [0.0, 0.0, 0.0], ok
+
+
+def test_periodic_spline_with_two_points_is_refused_before_nx():
+    nx = freeform_nx()
+    bad = run(nx, "nx_create_spline", points=POINTS[:2], periodic=True)
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/points"
+    assert "at least 3 points" in bad.error["message"] and not nx.builders

@@ -9,6 +9,10 @@ solve (``nx.solve_fraction``: the optimized body's share of the design volume).
 The graphics window (``part.Views.CreateImageExportBuilder``) draws a plot like NX 2406:
 the legend's colour bar always, the coloured result body only inside the task (and
 ``nx.body_drawn``); ``nx.window`` is its size, ``nx.exports`` what was captured.
+Like NX 2406, a cancelled task puts the study's results and result body back as they were,
+and a study whose solved result was once kept no longer updates: a later kept ``Exit``
+with results fails "Update undo happened" (670024); after ``DiscardOptimizationResults``
+the empty update still works. Topology features carry string user attributes.
 """
 
 from __future__ import annotations
@@ -17,6 +21,7 @@ import struct
 import zlib
 from types import SimpleNamespace as NS
 
+from tests.kit.attributes import UserAttributes
 from tests.kit.objects import NXException, Object
 from tests.unit.modeling.fakes import feature, modeling_nx, new_body
 
@@ -159,6 +164,16 @@ class Study(Object):
         mass = repr(body.volume * self.nx.density)
         self.owner.expressions.append(NS(RightHandSide=mass, Units=NS(Name="Kilogram")))
 
+    def DiscardOptimizationResults(self):
+        """NX 2406: the results go (``Results`` None); the result body empties (volume 0)."""
+        design = self.designs[0]
+        design.Results = None
+        self.optimized = []
+        self.copy = new_body(self.nx, list(design.Body.box), volume=0.0)
+        inputs = {id(d.Body) for d in self.designs} | {id(b.Body) for b in self.scenery}
+        self.owner.bodies = [b for b in self.owner.bodies if id(b) in inputs] + [self.copy]
+        self.discards = getattr(self, "discards", 0) + 1
+
     def RunAnalysis(self):  # NX 2406 refuses it on a topology study
         raise NXException(3520201, "Operation cannot be performed while in a task environment")
 
@@ -216,6 +231,18 @@ class TaskEnvironment:
     def SetFeatureToEdit(self, f):
         self.edit = f
 
+    @staticmethod
+    def _state(f):
+        study = f.ActiveStudy
+        if study is None or not study.designs:
+            return None
+        return study, study.designs[0].Results, list(f.bodies), study.copy, list(study.optimized)
+
+    @staticmethod
+    def _results(f):
+        study = f.ActiveStudy
+        return study is not None and bool(study.designs) and study.designs[0].Results is not None
+
     def Enter(self):
         if not self.nx.licenses:
             raise NXException(949895, "The requested license feature is not available")
@@ -223,6 +250,7 @@ class TaskEnvironment:
         self.nx.part.PostManager.plot = None  # NX 2406: entering the task clears the plot
         if self.edit is not None:
             self.ActiveFeature = self.edit
+            self.saved = self._state(self.edit)
             return
         self.new = self.ActiveFeature = topology_feature(self.nx)
 
@@ -232,8 +260,21 @@ class TaskEnvironment:
 
     def Exit(self):
         self.log.append("Exit")
+        edited = self.edit
         if self.cancelled:
             self.nx.part.PostManager.plot = None  # NX 2406: a cancelled task takes its plot
+            saved = getattr(self, "saved", None) if edited is not None else None
+            if saved is not None:  # the task's changes go, a solve's result with them
+                study, results, bodies, copy, optimized = saved
+                study.designs[0].Results, edited.bodies = results, bodies
+                study.copy, study.optimized = copy, optimized
+        elif edited is not None and self._results(edited):
+            if getattr(edited, "built", False):  # NX 2406: a solved study no longer updates
+                self.ActiveFeature = self.edit = self.new = None
+                raise NXException(670024, "Update undo happened.")
+            edited.built = True
+        elif self.new is not None and self._results(self.new):
+            self.new.built = True
         if self.cancelled and self.new is not None and self.new in self.nx.part.Features:
             self.nx.part.Features.remove(self.new)
         self.ActiveFeature = self.edit = self.new = None
@@ -244,6 +285,9 @@ def topology_feature(nx):
     f = feature(
         nx, "TOPOLOGY_OPTIMIZATION", name=f"Topology Optimization({len(nx.part.Features) + 1})"
     )
+    for name in ("HasUserAttribute", "GetUserAttributeAsString", "SetUserAttribute",
+                 "DeleteUserAttribute", "_store", "_log", "_value"):  # fmt: skip
+        setattr(f, name, getattr(UserAttributes, name).__get__(f))
     f.studies = []
     f.expressions = []
     f.GetExpressions = lambda: list(f.expressions)
@@ -494,6 +538,28 @@ def topo_nx(units="mm", licensed=True):
         nx.on_commit(kind, _commit(nx, kind))
         nx.lacks(kind, "GetCommittedObjects")
     nx.edits = []
+    deleting = getattr(nx.session.UpdateManager, "AddToDeleteList", lambda objects: None)
+
+    def delete(objects):
+        """NX deletes a study's support or load (in the task) and drops it from the subcases."""
+        objects = list(objects)
+        for f in nx.part.Features:
+            for study in getattr(f, "studies", []):
+                for name in ("supports", "loads", "scenery", "connections"):
+                    setattr(study, name, [x for x in getattr(study, name) if x not in objects])
+                for case in study.subcases:
+                    case.refs = [x for x in case.refs if x not in objects]
+        deleting(
+            [
+                o
+                for o in objects
+                if not hasattr(o, "GetFaces")
+                and not hasattr(o, "Body")
+                and not hasattr(o, "bodies")
+            ]
+        )
+
+    nx.session.UpdateManager.AddToDeleteList = delete
 
     def edit_with_units(expression, unit, text):
         nx.edits.append((expression, unit, text))

@@ -75,7 +75,7 @@ class FacesData(TypedDict):
     effect="read",
     label="Analyze faces",
     summary=lambda a, say: "Analyze " + common.count_text(a, "faces", "face"),
-    keywords=("curvature", "draft analysis", "face normals", "surface analysis", "mold draft"),
+    keywords=("curvature", "draft analysis", "face normals", "flat or curved faces", "mold draft"),
     requires=("work_part",),
     cost="light",
     example={"faces": ["fc:12"], "pull_direction": "z", "minimum_draft": "3 deg"},
@@ -95,7 +95,8 @@ def nx_analyze_faces(
 ) -> FacesData:
     """Sample normals and principal curvatures on a UV grid of each face, with a summary per
     face. pull_direction adds draft (90 faces the pull, 0 a wall along it, <0 undercut).
-    Curvature is negative on convex, positive on concave faces; uv are NX face parameters."""
+    Curvature is negative on convex, positive on concave faces; uv are NX face parameters
+    (internal units, not part units)."""
     pull = None
     if pull_direction is not None:  # [x, y, z] or an axis word: z, +Z, -x, top, up...
         pull = geometry.direction(pull_direction, "/pull_direction")
@@ -188,7 +189,7 @@ class CurveData(TypedDict, total=False):
     curve: result.Row
     length: float
     samples: list[CurveSample]
-    inflections: list[float]  # parameters where the bending side flips
+    inflections: list[float] | None  # where a planar curve's bending side flips; None: 3D
     spline: dict[str, Any]
 
 
@@ -239,14 +240,71 @@ def _edge_sample(e, t) -> CurveSample:
             "radius": radius}  # fmt: skip
 
 
-def _inflections(rows) -> list[float]:
-    """Parameters (midway between samples) where the principal normal turns over: the
-    curve's bending side flips (an S bend)."""
-    out = []
-    for a, b in zip(rows, rows[1:], strict=False):
-        na, nb = a.get("normal"), b.get("normal")
-        if na is not None and nb is not None and geom.dot(na, nb) < 0:
-            out.append((a["t"] + b["t"]) / 2)
+# Binormals of a planar curve are parallel to its plane's normal within this cosine.
+PLANAR_COS = 1.0 - 1e-8
+PLANAR_GAP = 1e-6  # times the sampled extent: the farthest a sample may lie off the plane
+BISECTIONS = 20  # halvings of the bracketing parameter interval: 1e-6 of the curve
+
+
+def _binormal(row) -> list[float] | None:
+    """Unit tangent x principal normal of a sample; None where it is straight."""
+    tangent, normal = row.get("tangent"), row.get("normal")
+    if tangent is None or normal is None:
+        return None
+    return common.unit_or_none(geom.cross(tangent, normal))
+
+
+def _plane_normal(rows) -> list[float] | None:
+    """The normal of the plane every sample bends in (from the first bending sample), or
+    None when the samples do not lie in one plane (a 3D curve). ``[]``: nothing bends."""
+    binormals = [b for b in map(_binormal, rows) if b is not None]
+    if not binormals:
+        return []
+    ref = binormals[0]
+    if any(abs(geom.dot(b, ref)) < PLANAR_COS for b in binormals):
+        return None
+    points = [r["point"] for r in rows]
+    extent = geom.dist(*([f(p[i] for p in points) for i in range(3)] for f in (min, max)))
+    origin = points[0]
+    if any(abs(geom.dot(geom.sub(p, origin), ref)) > PLANAR_GAP * max(extent, 1.0)
+           for p in points):  # fmt: skip
+        return None
+    return ref
+
+
+def _side(row, ref) -> int:
+    """+1/-1: the side of ``ref`` the curve bends to (signed curvature), 0 straight."""
+    binormal = _binormal(row)
+    if binormal is None:
+        return 0
+    return 1 if geom.dot(binormal, ref) > 0 else -1
+
+
+def _inflections(rows, at) -> list[float] | None:
+    """Parameters where a planar curve's signed curvature changes sign (its bending side
+    flips: an S bend), located by bisection between the bracketing samples with ``at(t)``
+    (a sample at ``t``). Two flips between neighbouring samples cancel out: more samples
+    find them. None for a curve that does not lie in one plane."""
+    ref = _plane_normal(rows)
+    if ref is None:
+        return None
+    out: list[float] = []
+    last = None  # (t, side) of the previous bending sample
+    for row in rows:
+        side = _side(row, ref) if ref else 0
+        if not side:
+            continue
+        if last is not None and side != last[1]:
+            low, high = last[0], row["t"]
+            for _ in range(BISECTIONS):
+                mid = (low + high) / 2
+                found = _side(at(mid), ref)
+                if not found:
+                    low = high = mid
+                    break
+                low, high = (mid, high) if found == last[1] else (low, mid)
+            out.append(round((low + high) / 2, 6))
+        last = (row["t"], side)
     return out
 
 
@@ -272,7 +330,7 @@ def _single_curve(tx, feature, ref):
     effect="read",
     label="Analyze curve",
     summary="Analyze curve {curve}",
-    keywords=("curve curvature", "edge curvature", "spline analysis", "tangent", "knots"),
+    keywords=("curve curvature", "curvature quality", "spline analysis", "inflection", "knots"),
     requires=("work_part",),
     cost="light",
     example={"curve": "c:7", "samples": 11},
@@ -284,29 +342,33 @@ def nx_analyze_curve(
     samples: Annotated[int, Range(ge=2, le=1000)] = 11,
 ) -> CurveData:
     """Sample points, unit tangents, principal normals and curvature along a curve or edge at
-    even parameters 0..1. Adds length and inflections (normal flips); edge curvature is a
-    tangent-difference estimate; splines add degree, knots and poles."""
+    even parameters 0..1. Adds length and inflections: parameters where a planar curve's
+    signed curvature changes sign, refined between samples (null for a 3D curve; two flips
+    between neighbouring samples need more samples). Edge curvature is a tangent-difference
+    estimate; splines add degree, knots and poles."""
     obj = select.one(tx, curve, "curve", "edge", "feature", field="/curve")
     if common.kind_of(tx, obj) == "feature":
         obj = _single_curve(tx, obj, curve)
     kind = "edge" if common.kind_of(tx, obj) == "edge" else "curve"
-    rows: list[CurveSample] = []
-    if kind == "edge":
-        with kcurve.evaluator(tx, obj) as e:
-            for i in range(samples):
-                if i % 100 == 0:
-                    tx.checkpoint(i, samples)
-                rows.append(_edge_sample(e, i / (samples - 1)))
-    else:
+
+    def sampled(at) -> tuple[list[CurveSample], list[float] | None]:
+        rows: list[CurveSample] = []
         for i in range(samples):
             if i % 100 == 0:
                 tx.checkpoint(i, samples)
-            rows.append(_sample(tx, obj, i / (samples - 1)))
+            rows.append(at(i / (samples - 1)))
+        return rows, _inflections(rows, at)
+
+    if kind == "edge":
+        with kcurve.evaluator(tx, obj) as e:
+            rows, bends = sampled(lambda t: _edge_sample(e, t))
+    else:
+        rows, bends = sampled(lambda t: _sample(tx, obj, t))
     data: CurveData = {"curve": tx.ref(obj, kind=kind)}
     with contextlib.suppress(NXError):  # a curve NX cannot measure keeps its samples
         data["length"] = measure.length(tx, obj)
     data["samples"] = rows
-    data["inflections"] = _inflections(rows)
+    data["inflections"] = bends
     if kind == "curve" and hasattr(obj, "Get3DPoles"):
         with native():
             data["spline"] = {
@@ -493,8 +555,8 @@ def nx_check_continuity(
     samples: Annotated[int, Range(ge=2, le=200), Doc("Surface: per edge; counts both")] = 20,
 ) -> ContinuityData:
     """Check G0/G1/G2 continuity of two edges or curves. Surface mode samples two sheet
-    boundary edges along their length; curve mode compares them at their nearest ends
-    (junction). G1/G2 are null when a sample cannot be evaluated or the two do not meet."""
+    boundary edges along their length; curve mode compares their nearest ends. G1/G2 are
+    null for a sample NX cannot evaluate; angle and curvature too when the two do not meet."""
     limits = _limits(tolerances)
     objs, kinds = [], []
     for ref, f in ((first, "/first"), (second, "/second")):
@@ -521,8 +583,10 @@ def nx_check_continuity(
     g1 = (g0 and angle <= limits["angle"]) if angle is not None and not apart else None
     g2 = (g1 and curvature <= limits["curvature"]) if curvature is not None and not apart else None
     if apart:
+        angle = curvature = None  # not at a junction: no continuity to report
         tx.warn("NX_NOTE", f"The {'edges' if mode == 'surface' else 'curves'} do not meet (gap "
-                f"{gap:.6g}, over {APART}x the position tolerance): g1 and g2 are null")  # fmt: skip
+                f"{gap:.6g}, over {APART}x the position tolerance): g1, g2, angle and "
+                "curvature are null")  # fmt: skip
     out: ContinuityData = {
         "mode": mode,
         "g0": g0,

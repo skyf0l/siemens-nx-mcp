@@ -204,10 +204,11 @@ def nx_run_batch(
     *,
     operations: Annotated[list[Step], Items(1, MAX_STEPS)],
 ) -> BatchData:
-    """Run 1-100 light calls (sketch, annotation, placement, rename) under one undo mark;
-    a failure undoes all. "$0.data.sketch" names step 0's result. Heavy features (extrude):
-    call alone, or preview then accept. A sketch takes at most 500 curves (NX then blocks on
-    a dialog): split larger profiles over several sketches."""
+    """Run 1-100 light calls under one undo mark; a failure undoes all. Batchable: sketch
+    tools (curves, constraints, dimensions, finish), drawing notes, dimensions, GD&T and
+    symbols, component placement, nx_set_name, nx_delete_objects. "$0.data.sketch" names step
+    0's result. Heavy features (extrude): call alone, or preview then accept. A sketch takes
+    at most 500 curves (NX then blocks on a dialog)."""
     with tx.checks():  # a refused step changes nothing
         _preflight(operations, services=tx.services)
     total = len(operations)

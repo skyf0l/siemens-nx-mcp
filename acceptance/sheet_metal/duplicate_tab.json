@@ -1,0 +1,258 @@
+{
+ "covers": {
+  "nx_get_sheet_metal": []
+ },
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_activate_application",
+   "setup": true,
+   "args": {
+    "application": "sheet_metal"
+   }
+  },
+  {
+   "call": "nx_set_sheet_metal_defaults",
+   "setup": true,
+   "args": {
+    "thickness": 2,
+    "bend_radius": 3,
+    "neutral_factor": 0.33
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "args": {
+    "placement": {
+     "principal": "xy"
+    }
+   },
+   "save": "s"
+  },
+  {
+   "call": "nx_create_sketch_curves",
+   "setup": true,
+   "args": {
+    "sketch": "$s.data.sketch.id",
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       100,
+       80
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "call": "nx_finish_sketch",
+   "setup": true,
+   "args": {
+    "sketch": "$s.data.sketch.id"
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "save": "tab",
+   "args": {
+    "operation": "tab",
+    "parameters": {
+     "section": "$s.data.sketch.id",
+     "thickness": 2
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.volume": {
+     "close": 16000,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "save": "dup",
+   "args": {
+    "operation": "tab",
+    "parameters": {
+     "section": "$s.data.sketch.id",
+     "thickness": 2
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.volume": {
+     "close": 16000,
+     "tol": 1e-06
+    },
+    "warnings.0.code": "NX_NOTE",
+    "warnings.0.message": {
+     "matches": "lies exactly on the sheet-metal body .*pass body"
+    }
+   }
+  },
+  {
+   "call": "nx_undo_operation",
+   "args": {
+    "part": "$part"
+   },
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "call": "nx_get_sheet_metal",
+   "save": "sm0",
+   "args": {},
+   "expect": {
+    "data.items": {
+     "count": 1
+    },
+    "data.items.0.sheet_metal": true
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "args": {
+    "owner": "$sm0.data.items.0.body.id",
+    "kind": "edge",
+    "near": [
+     50,
+     0,
+     0
+    ],
+    "limit": 1
+   },
+   "save": "e"
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "save": "fl",
+   "args": {
+    "operation": "flange",
+    "parameters": {
+     "edges": [
+      "$e.data.items.0.id"
+     ],
+     "length": 20
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.bend_count": 1
+   }
+  },
+  {
+   "call": "nx_measure_bounds",
+   "args": {
+    "bodies": [
+     "$sm0.data.items.0.body.id"
+    ],
+    "precision": "exact"
+   },
+   "expect": {
+    "data.max.2": {
+     "close": 20,
+     "tol": 1e-06
+    },
+    "data.min.2": {
+     "close": -2,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_get_sheet_metal",
+   "args": {
+    "body": "$sm0.data.items.0.body.id"
+   },
+   "expect": {
+    "data.items.0.thickness": {
+     "equals": 2.0
+    },
+    "data.items.0.bends.0.radius": {
+     "equals": 3.0
+    },
+    "data.items.0.bends.0.angle": {
+     "equals": 90.0
+    },
+    "data.items.0.bends.0.neutral_factor": {
+     "equals": 0.33
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "up",
+   "args": {
+    "owner": "$sm0.data.items.0.body.id",
+    "kind": "face",
+    "near": [
+     50,
+     40,
+     0
+    ],
+    "limit": 1,
+    "geometry_type": "plane"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "xe",
+   "args": {
+    "owner": "$sm0.data.items.0.body.id",
+    "kind": "edge",
+    "near": [
+     100,
+     40,
+     0
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_sheet_metal_feature",
+   "save": "fp",
+   "args": {
+    "operation": "flat_pattern",
+    "parameters": {
+     "face": "$up.data.items.0.id",
+     "edge": "$xe.data.items.0.id"
+    }
+   },
+   "expect": {
+    "mutation_outcome": "committed"
+   }
+  },
+  {
+   "call": "nx_get_sheet_metal",
+   "args": {},
+   "expect": {
+    "data.items": {
+     "count": 3
+    },
+    "data.items.1.flat_pattern": true,
+    "data.items.2.flat_pattern": true,
+    "data.items.1.flat_pattern_feature.id": "$fp.data.feature.id",
+    "data.items.2.flat_pattern_feature.id": "$fp.data.feature.id"
+   }
+  }
+ ]
+}

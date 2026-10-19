@@ -308,8 +308,9 @@ def nx_measure_section_inertia(
     if (plane is None) == (normal is None):
         fail(
             "NX_INVALID_ARGUMENT",
-            "Give the cut: one of plane or normal"
-            + ("" if plane is None else "; they are mutually exclusive"),
+            "Give the cut: plane or normal"
+            if plane is None
+            else "plane and normal are mutually exclusive: keep one",
             field="/plane" if plane is None else "/normal",
             hint="e.g. " + FORMS,
         )

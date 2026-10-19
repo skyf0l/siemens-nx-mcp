@@ -25,6 +25,7 @@ from nx_mcp.kit import builders, measure, readback, result, select
 
 class LabelData(common.FeatureData):
     faces: Annotated[list[result.Row], Doc("chamfer: the construction faces used (given or found)")]
+    labelled: Annotated[list[result.Row], Doc("The faces the label holds")]
 
 
 def _construction(tx, chamfer):
@@ -156,4 +157,8 @@ def nx_create_face_label(
     after = len(body.GetFaces())
     readback.expect(after == count, "faces", "The label changed the faces", before=count,
                     after=after)  # fmt: skip
-    return {**out, "faces": [tx.ref(f, kind="face") for f in sides]}
+    return {
+        **out,
+        "faces": [tx.ref(f, kind="face") for f in sides],
+        "labelled": [tx.ref(f, kind="face") for f in selected],
+    }

@@ -184,10 +184,11 @@ def nx_delete_objects(
     ],
 ) -> DeleteData:
     """Delete 1-100 objects (ids like f:12) of the work part in one step.
-    Kinds: feature, sketch, curve, component, explosion, traceline, annotation, dimension,
-    drawing_table, section_view, drawing_sheet, drawing_view, unused expression; a body goes
-    with its feature. Objects NX deleted with them are dependents. nx_undo_operation reverts
-    a delete only until another part changes; suppress a feature to keep it recoverable."""
+    Kinds: feature, sketch, curve, point, component, component_pattern, assembly_constraint,
+    reference_set, explosion, traceline, annotation, dimension, drawing_table, section_view,
+    drawing_sheet, drawing_view, unused expression; a body goes with its feature. Objects NX
+    deleted with them are dependents. nx_undo_operation reverts a delete only until another
+    part changes; suppress a feature to keep it recoverable."""
     deleters = hooks("deleter")
     groups: dict[str, list] = {}
     rows: dict[int, Row] = {}

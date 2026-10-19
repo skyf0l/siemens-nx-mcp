@@ -320,6 +320,42 @@
    }
   },
   {
+   "call": "nx_create_section_curves",
+   "intent": "Waterlines z 30, 35 above a 20 high block: no plane crosses it, refused before NX",
+   "args": {
+    "objects": [
+     "$blk.data.bodies.0.id"
+    ],
+    "method": "parallel",
+    "plane": {
+     "origin": [
+      0,
+      0,
+      30
+     ],
+     "normal": [
+      0,
+      0,
+      1
+     ]
+    },
+    "count": 2,
+    "spacing": 5
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/spacing",
+    "error.details.objects": {
+     "close": [
+      -30,
+      -10
+     ],
+     "tol": 0.001
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
    "call": "nx_check_model",
    "args": {},
    "expect": {

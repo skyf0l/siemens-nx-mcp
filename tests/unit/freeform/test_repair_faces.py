@@ -2,6 +2,7 @@
 
 import pytest
 
+from nx_mcp.domains.freeform import repair_faces
 from tests.kit import run
 from tests.kit.fake import FakeSection
 from tests.unit.freeform.fakes import (
@@ -70,7 +71,16 @@ def test_fill_hole_sews_a_g0_patch_into_the_sheet():
     assert ok.data["bodies"][0]["id"] == tube.ref and nx.live_builders == 0
 
 
-def test_fill_hole_g1_separate_sheet():
+def test_fill_hole_g1_on_a_sharp_rim_is_refused_before_nx():
+    nx, _tube, rim = tube_nx()
+    bad = run(nx, "nx_create_fill_hole", boundary=[e.ref for e in rim], continuity="g1")
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/continuity"
+    assert bad.error["details"]["corner"] == pytest.approx(90) and "g0" in bad.error["hint"]
+    assert bad.mutation_outcome == "not_started" and not nx.builders
+
+
+def test_fill_hole_g1_separate_sheet(monkeypatch):
+    monkeypatch.setattr(repair_faces, "SHARP", 91.0)  # the square fake rim stands for a smooth one
     nx, _tube, rim = tube_nx()
     ok = run(nx, "nx_create_fill_hole", boundary=[e.ref for e in rim], continuity="g1",
              sew=False)  # fmt: skip
@@ -137,12 +147,12 @@ def refit_nx(kind=BSURFACE, shift=0.0):
 
 
 def test_refit_face_within_tolerance():
-    nx, f = refit_nx()
+    nx, f = refit_nx(shift=0.005)
     ok = run(nx, "nx_create_refit_face", face=f.ref, tolerance=0.02)
     assert ok.ok, ok
     b = nx.last("RefitFaceBuilder")
     assert b.Face.Value is f and b.RefitControl.Tolerance == pytest.approx(0.02)
-    assert ok.data["deviation"] == pytest.approx(0) and ok.data["samples"] == 26
+    assert ok.data["deviation"] == pytest.approx(0.005) and ok.data["samples"] == 26
     assert nx.license_queries == [] and nx.live_builders == 0
 
 
@@ -164,13 +174,11 @@ def test_refit_face_refusals_before_nx(kind, args, field):
     assert not nx.builders
 
 
-def test_refit_face_reports_an_unchanged_face_and_a_changed_area():
+def test_refit_face_that_changes_nothing_rolls_back_and_a_changed_area_commits():
     nx, f = refit_nx()
-    ok = run(nx, "nx_create_refit_face", face=f.ref, tolerance=0.5)
-    assert ok.ok, ok.error
-    assert ok.data["area_before"] == pytest.approx(1000.0) and ok.data["changed"] is False
-    assert [w["code"] for w in ok.warnings] == ["NX_NOTE"]
-    assert "before" not in ok.data and "after" not in ok.data
+    same = run(nx, "nx_create_refit_face", face=f.ref, tolerance=0.5)
+    assert same.error["code"] == "NX_UNSUPPORTED_GEOMETRY" and same.error["field"] == "/face"
+    assert same.mutation_outcome == "rolled_back" and "default degrees" in same.error["hint"]
 
     def smoother(_b):
         f.area = 999.0
@@ -180,11 +188,11 @@ def test_refit_face_reports_an_unchanged_face_and_a_changed_area():
     simpler = run(nx, "nx_create_refit_face", face=f.ref, tolerance=0.5)
     assert simpler.ok, simpler.error
     assert simpler.data["area_before"] == pytest.approx(1000.0)
-    assert simpler.data["changed"] is True and not simpler.warnings
+    assert "changed" not in simpler.data and not simpler.warnings
 
 
 def test_refit_face_moved_within_tolerance_is_changed():
     nx, f = refit_nx(shift=0.005)
     ok = run(nx, "nx_create_refit_face", face=f.ref, tolerance=0.01)
     assert ok.ok, ok.error
-    assert ok.data["deviation"] == pytest.approx(0.005) and ok.data["changed"] is True
+    assert ok.data["deviation"] == pytest.approx(0.005)

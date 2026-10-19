@@ -1,0 +1,797 @@
+{
+ "covers": {
+  "nx_create_offset_emboss": [],
+  "nx_create_sweep_along_guide": [],
+  "nx_create_thread": [],
+  "nx_edit_edges": [
+   "move"
+  ],
+  "nx_edit_face_region": [
+   "pull"
+  ],
+  "nx_create_datum_point": [],
+  "nx_edit_face_relation": [
+   "coplanar"
+  ],
+  "nx_create_loft": [],
+  "nx_list_thread_sizes": [],
+  "nx_create_emboss_body": [],
+  "nx_create_face_copy": [
+   "copy"
+  ]
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "shline",
+   "args": {
+    "placement": "xz",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       0,
+       0
+      ],
+      "end": [
+       100,
+       0
+      ]
+     }
+    ],
+    "finish": true
+   }
+  },
+  {
+   "call": "nx_create_extrude",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "sketch": "$shline.data.sketch.id",
+    "end": 60,
+    "direction": "y"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "p",
+   "args": {
+    "placement": "xy",
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       20,
+       30
+      ],
+      "end": [
+       80,
+       30
+      ]
+     }
+    ],
+    "finish": true
+   }
+  },
+  {
+   "call": "nx_create_offset_emboss",
+   "intent": "Acceptance: walls sloping in past half the footprint are refused before NX",
+   "args": {
+    "sheet": "$sh.data.bodies.0.id",
+    "path": [
+     "$p.data.curves.0.id"
+    ],
+    "height": 3,
+    "left_width": 5,
+    "side_offset": 6
+   },
+   "expect": {
+    "error.field": "/side_offset",
+    "error.details.top_width": {
+     "close": -2,
+     "tol": 1e-09
+    },
+    "error.hint": {
+     "contains": "below 5"
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "sq",
+   "args": {
+    "placement": {
+     "principal": "yz",
+     "origin": [
+      0,
+      200,
+      0
+     ]
+    },
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       10,
+       10
+      ]
+     }
+    ],
+    "finish": true
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "gl",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    },
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       0,
+       200
+      ],
+      "end": [
+       100,
+       200
+      ]
+     }
+    ],
+    "finish": true
+   }
+  },
+  {
+   "call": "nx_create_sweep_along_guide",
+   "intent": "Acceptance: an inward wall offset of half the section's width is refused before NX",
+   "args": {
+    "section": "$sq.data.sketch.id",
+    "guide": "$gl.data.sketch.id",
+    "first_offset": 20,
+    "second_offset": -20
+   },
+   "expect": {
+    "error.field": "/second_offset",
+    "error.details.narrowest": {
+     "close": 10,
+     "tol": 1e-06
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_sweep_along_guide",
+   "intent": "Acceptance: offsets that keep the outline right side out still build",
+   "args": {
+    "section": "$sq.data.sketch.id",
+    "guide": "$gl.data.sketch.id",
+    "first_offset": 1,
+    "second_offset": -1
+   },
+   "expect": {
+    "data.volume": {
+     "close": 8000,
+     "tol": 0.01
+    }
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "shaft",
+   "args": {
+    "shape": "cylinder",
+    "origin": [
+     300,
+     0,
+     0
+    ],
+    "diameter": 12,
+    "height": 30
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "side",
+   "args": {
+    "owner": "$shaft.data.bodies.0.id",
+    "geometry_type": "cylinder",
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "tip",
+   "args": {
+    "owner": "$shaft.data.bodies.0.id",
+    "geometry_type": "plane",
+    "normal": [
+     0,
+     0,
+     1
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_thread",
+   "intent": "Acceptance: a custom thread larger than its shaft is refused before NX",
+   "args": {
+    "face": "$side.data.items.0.id",
+    "start_face": "$tip.data.items.0.id",
+    "length": 20,
+    "spec": {
+     "pitch": 1.75,
+     "major_diameter": 20,
+     "minor_diameter": 10.1
+    }
+   },
+   "expect": {
+    "error.field": "/spec/major_diameter",
+    "error.details.shaft": {
+     "close": 12,
+     "tol": 1e-06
+    },
+    "error.hint": {
+     "contains": "major_diameter 12"
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_thread",
+   "intent": "Acceptance: the result names the hand",
+   "args": {
+    "face": "$side.data.items.0.id",
+    "start_face": "$tip.data.items.0.id",
+    "length": 20,
+    "hand": "left",
+    "spec": {
+     "pitch": 1.75,
+     "major_diameter": 12,
+     "minor_diameter": 10.106
+    }
+   },
+   "expect": {
+    "data.hand": "left",
+    "data.starts": 1,
+    "data.major_diameter": {
+     "close": 12,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_list_thread_sizes",
+   "intent": "Acceptance: an unknown metric size suggests its numeric neighbours",
+   "args": {
+    "standard": "Metric Coarse",
+    "size": "M7.3"
+   },
+   "expect": {
+    "error.code": "NX_NOT_FOUND",
+    "error.details.close_matches.0": {
+     "matches": "^M[67] "
+    },
+    "error.details.close_matches.1": {
+     "matches": "^M8 "
+    }
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "origin": [
+     0,
+     400,
+     0
+    ],
+    "length": 40,
+    "width": 30,
+    "height": 20
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "e1",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "edge",
+    "order": "nearest",
+    "near": [
+     20,
+     430,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_edit_edges",
+   "intent": "Acceptance: a move far beyond the body's size is refused before NX",
+   "args": {
+    "edges": [
+     "$e1.data.items.0.id"
+    ],
+    "action": "move",
+    "distance": 10000,
+    "direction": "z"
+   },
+   "expect": {
+    "error.field": "/distance",
+    "error.details.times": 100,
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "xp",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     40,
+     415,
+     10
+    ],
+    "limit": 1,
+    "normal": [
+     1,
+     0,
+     0
+    ]
+   }
+  },
+  {
+   "call": "nx_edit_face_region",
+   "intent": "Acceptance: a pull along the face's own plane is refused before NX",
+   "args": {
+    "faces": [
+     "$xp.data.items.0.id"
+    ],
+    "action": "pull",
+    "distance": 10,
+    "direction": "z"
+   },
+   "expect": {
+    "error.field": "/direction",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_datum_point",
+   "intent": "Acceptance: a point outside NX's modeling box is refused before NX",
+   "args": {
+    "position": [
+     1e+30,
+     0,
+     0
+    ]
+   },
+   "expect": {
+    "error.field": "/position",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "b2",
+   "args": {
+    "origin": [
+     100,
+     400,
+     0
+    ],
+    "length": 20,
+    "width": 30,
+    "height": 20
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top1",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     20,
+     415,
+     20
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top2",
+   "args": {
+    "owner": "$b2.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     110,
+     415,
+     20
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_edit_face_relation",
+   "intent": "Acceptance: a relation the faces already meet is refused, not built as an empty feature",
+   "args": {
+    "face": "$top1.data.items.0.id",
+    "relation": "coplanar",
+    "to": "$top2.data.items.0.id"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.message": {
+     "contains": "already coplanar"
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "l0",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      600,
+      0
+     ]
+    },
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       -10,
+       -10
+      ],
+      "corner2": [
+       10,
+       10
+      ]
+     }
+    ],
+    "finish": true
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "l1",
+   "args": {
+    "placement": {
+     "principal": "xy",
+     "origin": [
+      0,
+      600,
+      40
+     ]
+    },
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       -10,
+       -10
+      ],
+      "corner2": [
+       10,
+       10
+      ]
+     }
+    ],
+    "finish": true
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "short",
+   "args": {
+    "placement": {
+     "principal": "xz",
+     "origin": [
+      0,
+      610,
+      0
+     ]
+    },
+    "curves": [
+     {
+      "type": "line",
+      "start": [
+       10,
+       0
+      ],
+      "end": [
+       10,
+       20
+      ]
+     }
+    ],
+    "finish": true
+   }
+  },
+  {
+   "call": "nx_create_loft",
+   "intent": "Acceptance: a guide that stops short of a section is refused before NX",
+   "args": {
+    "sections": [
+     "$l0.data.sketch.id",
+     "$l1.data.sketch.id"
+    ],
+    "guides": [
+     "$short.data.sketch.id"
+    ]
+   },
+   "expect": {
+    "error.field": "/guides/0",
+    "error.details.section": 1,
+    "error.details.gap": {
+     "close": 20,
+     "tol": 1e-06
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "pl",
+   "args": {
+    "placement": {
+     "principal": "xy"
+    },
+    "curves": [
+     {
+      "type": "polyline",
+      "points": [
+       [
+        300,
+        800
+       ],
+       [
+        400,
+        800
+       ],
+       [
+        400,
+        880
+       ]
+      ]
+     }
+    ],
+    "finish": true
+   }
+  },
+  {
+   "call": "nx_create_sketch",
+   "setup": true,
+   "save": "far",
+   "args": {
+    "placement": {
+     "principal": "yz",
+     "origin": [
+      300,
+      900,
+      0
+     ]
+    },
+    "curves": [
+     {
+      "type": "rectangle",
+      "corner1": [
+       0,
+       0
+      ],
+      "corner2": [
+       10,
+       10
+      ]
+     }
+    ],
+    "finish": true
+   }
+  },
+  {
+   "call": "nx_create_sweep_along_guide",
+   "intent": "Acceptance: a section 100 from its guide is refused before NX (NX built 3000 for 18000)",
+   "args": {
+    "section": "$far.data.sketch.id",
+    "guide": "$pl.data.sketch.id"
+   },
+   "expect": {
+    "error.field": "/section",
+    "error.details.section_gap": {
+     "close": 100,
+     "tol": 1e-06
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "tool",
+   "args": {
+    "shape": "cylinder",
+    "origin": [
+     20,
+     415,
+     15
+    ],
+    "diameter": 6,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_create_emboss_body",
+   "intent": "Acceptance: a sheet thickness on a solid target is refused, not ignored",
+   "args": {
+    "target": "$blk.data.bodies.0.id",
+    "tool_body": "$tool.data.bodies.0.id",
+    "thickness": 2
+   },
+   "expect": {
+    "error.field": "/thickness",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "bossy",
+   "args": {
+    "origin": [
+     0,
+     1000,
+     0
+    ],
+    "length": 60,
+    "width": 40,
+    "height": 20
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "args": {
+    "shape": "cylinder",
+    "origin": [
+     15,
+     1020,
+     20
+    ],
+    "diameter": 10,
+    "height": 8,
+    "combine": {
+     "operation": "unite",
+     "targets": [
+      "$bossy.data.bodies.0.id"
+     ]
+    }
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "bside",
+   "args": {
+    "owner": "$bossy.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "cylinder",
+    "order": "nearest",
+    "near": [
+     15,
+     1020,
+     24
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "bcap",
+   "args": {
+    "owner": "$bossy.data.bodies.0.id",
+    "kind": "face",
+    "geometry_type": "plane",
+    "order": "nearest",
+    "near": [
+     15,
+     1020,
+     28
+    ],
+    "limit": 1,
+    "normal": [
+     0,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "call": "nx_create_face_copy",
+   "intent": "Acceptance: a boss turned about its own axis would coincide with itself: refused",
+   "args": {
+    "faces": [
+     "$bside.data.items.0.id",
+     "$bcap.data.items.0.id"
+    ],
+    "mode": "copy",
+    "paste": false,
+    "transform": {
+     "rotation": {
+      "axis": "z",
+      "angle": 90,
+      "origin": [
+       15,
+       1020,
+       0
+      ]
+     }
+    }
+   },
+   "expect": {
+    "error.field": "/transform",
+    "error.message": {
+     "contains": "onto themselves"
+    },
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

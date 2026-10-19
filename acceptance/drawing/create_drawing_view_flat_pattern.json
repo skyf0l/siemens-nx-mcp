@@ -190,11 +190,17 @@
    "call": "nx_update_annotations",
    "args": {},
    "expect": {
-    "mutation_outcome": "committed",
+    "mutation_outcome": "not_applicable",
+    "warnings": {
+     "contains": {
+      "code": "NX_NO_EFFECT"
+     }
+    },
     "data.refreshed": {
      "count": 0
     }
-   }
+   },
+   "intent": "Acceptance: a refresh with every object up to date changes nothing and says so"
   },
   {
    "call": "nx_update_annotations",

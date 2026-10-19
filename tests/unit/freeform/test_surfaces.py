@@ -226,7 +226,8 @@ def test_mesh_miss_reports_the_worst_pair_and_a_tolerance():
     nx.refuse("ThroughCurveMeshBuilder", 670946, "Strings do not intersect within tolerance.")
     bad = run(nx, "nx_create_mesh_surface", primary=[x.ref for x in p],
               cross=[c[0].ref, high.ref])  # fmt: skip
-    assert bad.error["field"] == "/cross/1" and "5.5" in bad.error["hint"], bad.error
+    assert bad.error["field"] == "/cross/1" and "5 apart" in bad.error["hint"], bad.error
+    assert "rough sheet" in bad.error["hint"]
     assert bad.error["details"]["pairs"][0] == {"primary": 0, "cross": 1, "gap": 5.0}
     assert len(bad.error["details"]["pairs"]) == 2
 

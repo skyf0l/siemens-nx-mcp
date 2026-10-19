@@ -215,7 +215,7 @@ def _fits(tx, objs, refs, bodies, adjacent, limit) -> list[BoundaryFit]:
     variants="type",
     cost="heavy",
     previewable=True,
-    example={"boundary": ["e:4", "e:5", "e:6", "e:7"], "type": "trimmed", "continuity": "g1"},
+    example={"boundary": ["e:4", "e:5", "e:6", "e:7"], "type": "triangular", "continuity": "g1"},
 )
 def nx_create_n_sided_surface(
     tx: Tx,
@@ -436,8 +436,9 @@ def nx_create_ruled(
     tolerance: Annotated[Length, Doc("Position tolerance")] | None = None,
 ) -> RuledData:
     """Create a ruled sheet or solid of straight lines between two section strings.
-    Each section: a curve/edge ref or a chain of refs. Returns area, volume (solid) and
-    each section's gap to the result."""
+    Each section: a curve/edge ref or a chain of refs. The second starts at its end nearest
+    the first's start (untwisted); reverse_second pairs it the other way. Returns area,
+    volume (solid) and each section's gap to the result."""
     sections = [_refs(first), _refs(second)]
     _distinct(sections[0], "/first")
     _distinct(sections[1], "/second")
@@ -501,4 +502,10 @@ def nx_create_ruled(
         readback.expect(gap <= limit, f"{name}_section", "The ruled body misses a section",
                         gap=gap)  # fmt: skip
     gaps: SectionGaps = {"first": measured[0], "second": measured[1]}
+    pieces = max(len(objs[0]), len(objs[1]))
+    if not (walks[0][1] or second_closed) and out["faces"] > pieces:
+        # NX 2406: two lines with the second reversed gave a 2-face bowtie, ok otherwise.
+        tx.warn("NX_UPDATE_WARNING", f"The ruled sheet has {out['faces']} faces for sections "
+                f"of {pieces} curve(s): its rulings probably cross (a twisted bowtie); check "
+                "reverse_second")  # fmt: skip
     return {**out, "volume": volume, "alignment": alignment, "gaps": gaps}

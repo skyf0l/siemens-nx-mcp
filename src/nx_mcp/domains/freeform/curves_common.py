@@ -128,6 +128,24 @@ def chain_normal(tx, objs, field):
     return normal
 
 
+def box_corners(tx, objs) -> list[list[float]]:
+    """The 8 corners of the objects' (conservative) bounding box, part units."""
+    low, high = measure.bounds(tx, list(objs))
+    return [[(high if (mask >> i) & 1 else low)[i] for i in range(3)] for mask in range(8)]
+
+
+def box_span(corners, origin, normal) -> tuple[float, float]:
+    """``(low, high)`` signed distances of box ``corners`` from a plane along its normal."""
+    levels = [geom.dot(geom.sub(c, origin), normal) for c in corners]
+    return min(levels), max(levels)
+
+
+def misses(corners, origin, normal, limit) -> bool:
+    """Whether a plane passes clear of a box (every corner on one side, beyond ``limit``)."""
+    low, high = box_span(corners, origin, normal)
+    return low > limit or high < -limit
+
+
 def plane_gap_points(points, origin, normal) -> float:
     return max(abs(geom.dot(geom.sub(p, origin), normal)) for p in points)
 

@@ -59,6 +59,8 @@ class SidecarServices(Services):
         pass
 
 
-def run(spec, args: dict, services: SidecarServices, *, operation_id=None) -> dict:
-    """The envelope of one sidecar tool call (never raises for a tool failure)."""
-    return kernel.run(spec, args, kernel.Context(services, operation_id=operation_id))
+def run(spec, args: dict, services: SidecarServices, *, operation_id=None, caller=None) -> dict:
+    """The envelope of one sidecar tool call (never raises for a tool failure); ``caller``
+    ({"id", "shared"}, the MCP request's) becomes ``tx.caller`` as for NX calls."""
+    context = kernel.Context(services, operation_id=operation_id, caller=caller)
+    return kernel.run(spec, args, context)

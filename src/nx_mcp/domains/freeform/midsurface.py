@@ -6,16 +6,27 @@ NX 2406 lessons kept here (probed live on a 40 x 20 x 4 plate at z 0..4):
 - ``CreateMidSurfaceBuilder`` pairs faces itself: its ``FacePairing.InputSolidBodies``
   collector takes the solid (progressive pairing, the default); the plate gives one
   800 mm^2 face at z 2. The solid stays (not hidden).
-- ``CreateMidSurfaceByFacePairsBuilder``: ``BodySelection.Add(solid)``, the side one
-  and side two face collectors, then ``CreateFacePair()`` before the commit (the same
-  800 mm^2 sheet at z 2).
+- ``CreateMidSurfaceByFacePairsBuilder`` (progressive pairing, the default): the side one
+  and side two face collectors first, then ``BodySelection.Add(solid)`` and
+  ``CreateFacePair()`` (it returns [] yet is needed: without it the commit builds
+  nothing). NX may still pair faces of its own choice and ignore the given ones (a 30 mm
+  cube's z faces gave the x mid plane, whatever the order of sides and body, now and
+  then or every time) unless every other face of the body is in ``IgnoreFaceSelection``;
+  then the given pair is used. The manual pairing strategy crashes ``CreateFacePair``
+  (memory access violation). The sheet is the
+  FACEPAIR_DEF feature's body; the MIDSRF feature lists none.
 - ``CreateMidSurfaceByTwoSheetsBuilder``: ``FirstSheetBody``/``SecondSheetBody``
-  collectors; two parallel 20 x 20 sheets 30 apart give a 400 mm^2 sheet at 15.
+  collectors; two parallel 20 x 20 sheets 30 apart give a 400 mm^2 sheet at 15. Two
+  sheets at right angles give a "Bisector Surface", a patch of their bisector plane (a
+  flat sheet at z 0 and an upright one at y 40: the plane y + z = 40), partly off the
+  middle (warned); two sheets side by side in one plane give a sheet astray everywhere.
 - A native refusal is ``NX_BUILD_FAILED`` with ``nx_code``.
 
 Read back: points inside each mid face are measured to both sides (face pairs, two
 sheets) or to the nearest face of the solid (auto): ``half_thickness`` is their range
-and ``asymmetry`` the largest side-to-side difference.
+and ``asymmetry`` the largest side-to-side difference. With two sides, a sample whose
+side-to-side direction is far from the sheet normal, or that sits far off the middle,
+is astray; a sheet astray at half its samples or more is refused and rolled back.
 """
 
 from __future__ import annotations
@@ -35,6 +46,8 @@ LICENSE = "solid_modeling"
 ASYMMETRY = 0.01  # share of the local thickness the mid sheet may lean to one side
 THIN = 0.3  # thickness over mid sheet span above which a body is not thin
 UNEVEN = 0.5  # smallest over largest half thickness below which the thickness varies widely
+SKEW = 30.0  # degrees: side-to-side direction this far from the sheet normal is astray
+OFF_MIDDLE = 0.35  # share of the side-to-side distance a sample may sit off the middle
 
 
 class Range(TypedDict):
@@ -98,7 +111,23 @@ def _facing(tx, firsts, seconds, refs) -> None:
 
 
 def _nearest(tx, targets, point):
-    return min(curve.point_distance(tx, t, point)[0] for t in targets)
+    """``(distance, nearest point)`` from ``point`` to the nearest of ``targets``."""
+    return min((curve.point_distance(tx, t, point) for t in targets), key=lambda h: h[0])
+
+
+def _astray(point, normal, one, two, limit):
+    """``{at, angle, off_middle}`` when a mid sheet sample does not lie midway between its
+    nearest side points ``one`` and ``two`` across the sheet, else None."""
+    across = geom.sub(two, one)
+    size = geom.norm(across)
+    if size <= limit:
+        return None
+    angle = math.degrees(math.acos(min(1.0, abs(geom.dot(across, normal)) / size)))
+    off = geom.dist(point, geom.scale(geom.add(one, two), 0.5))
+    if angle <= SKEW and off <= OFF_MIDDLE * size + limit:
+        return None
+    return {"at": [round(v, 6) for v in point], "angle": round(angle, 3),
+            "off_middle": round(off, 6)}  # fmt: skip
 
 
 def _warn_thick(tx, bounds, half, method) -> None:
@@ -113,24 +142,53 @@ def _warn_thick(tx, bounds, half, method) -> None:
                 "suits plates, ribs and skins")  # fmt: skip
 
 
-def _measure(tx, bodies, sides):
-    """``(half range, asymmetry or None, samples)`` from interior points of the mid
-    faces to each side (one side: the nearest of its faces)."""
+def _measure(tx, bodies, sides, limit):
+    """``(half range, asymmetry or None, samples, astray samples)`` from interior points
+    of the mid faces to each side (one side: the nearest of its faces)."""
     lows: list[float] = []
     worst = None
     count = 0
+    astray: list[dict] = []
     for body in bodies:
         for face in body.GetFaces():
             tx.checkpoint()
-            for point, _normal in facts.interior_samples(tx, face):
-                gaps = [_nearest(tx, side, point) for side in sides]
+            for point, normal in facts.interior_samples(tx, face):
+                hits = [_nearest(tx, side, point) for side in sides]
+                gaps = [h[0] for h in hits]
                 lows.append(min(gaps))
                 count += 1
-                if len(gaps) == 2:
+                if len(hits) == 2:
                     lean = abs(gaps[0] - gaps[1])
                     worst = lean if worst is None else max(worst, lean)
+                    off = _astray(point, normal, hits[0][1], hits[1][1], limit)
+                    if off is not None:
+                        astray.append(off)
     readback.expect(count > 0, "samples", "No point of the mid sheet could be measured")
-    return {"min": min(lows), "max": max(lows)}, worst, count
+    return {"min": min(lows), "max": max(lows)}, worst, count, astray
+
+
+def _refuse_astray(tx, method, astray, count) -> None:
+    """``NX_WRONG_GEOMETRY`` (rolled back) when half the samples or more do not lie
+    midway between the given sides; a warning when only some do."""
+    if not astray:
+        return
+    worst = max(astray, key=lambda a: (a["angle"], a["off_middle"]))
+    sides = "faces" if method == "face_pairs" else "sheets"
+    if 2 * len(astray) < count:
+        tx.warn("NX_APPROXIMATED", f"{len(astray)} of {count} points of the mid sheet are "
+                f"not midway between the given {sides}, e.g. at {worst['at']}")  # fmt: skip
+        return
+    fail(
+        "NX_WRONG_GEOMETRY",
+        f"NX built a sheet that is not midway between the given {sides} ({len(astray)} of "
+        f"{count} points astray; at {worst['at']} the side-to-side direction is "
+        f"{worst['angle']:.0f} deg from its normal); rolled back",
+        field="/side_two" if method == "face_pairs" else "/sheets",
+        hint="Give faces opposite each other across a thin wall, or method auto"
+        if method == "face_pairs"
+        else "Give two sheets that face each other across a gap (roughly parallel, overlapping)",
+        details={**worst, "astray": len(astray), "samples": count},
+    )
 
 
 @tool(
@@ -176,9 +234,9 @@ def nx_create_midsurface(
 ) -> MidsurfaceData:
     """Create the mid sheet of a thin solid or between two sheets (plate, rib, hull skin
     for shell meshing). auto pairs the solid's faces; face_pairs uses the given opposite
-    faces. Reports half_thickness (mid sheet to the sides; auto: to the nearest face of the
-    solid, side faces included) and asymmetry (face_pairs and two_sheets); warns when the
-    body is not thin."""
+    faces. A sheet not midway between the given faces or sheets is rolled back. Reports
+    half_thickness (mid sheet to the sides; auto: to the nearest face, side faces included,
+    so a block's min is to a side) and asymmetry; warns when the body is not thin."""
     used = {"body": body, "side_one": side_one, "side_two": side_two, "sheets": sheets}
     wanted = {"auto": ("body",), "face_pairs": ("body", "side_one", "side_two"),
               "two_sheets": ("sheets",)}[method]  # fmt: skip
@@ -219,9 +277,16 @@ def nx_create_midsurface(
             licenses.attempt(tx, (LICENSE,)),
             builders.build(tx, part.Features.CreateMidSurfaceByFacePairsBuilder, None) as b,
         ):
-            b.BodySelection.Add(solid)
+            # The sides before the body, every other face of the body ignored: NX pairs
+            # faces its own way otherwise.
+            given = {int(f.Tag) for f in [*firsts, *seconds]}
+            every = solid.GetFaces() if solid is not None else ()  # face_pairs needs body
+            rest = [f for f in every if int(f.Tag) not in given]
+            if rest:
+                builders.fill(tx, b.IgnoreFaceSelection, rest, "Face")
             builders.fill(tx, b.SideOneSelection, firsts, "Face")
             builders.fill(tx, b.SideTwoSelection, seconds, "Face")
+            b.BodySelection.Add(solid)
             b.CreateFacePair()
             feature = b.commit()
         sides = [firsts, seconds]
@@ -246,8 +311,10 @@ def nx_create_midsurface(
     out = common.result_of(tx, feature, made)
     readback.expect(out["sheet"], "sheet", "NX built no mid sheet")
     kbodies.expect_sound(tx, made)
-    half, lean, count = _measure(tx, made, sides)
     limit = 10 * units.part_tolerance(tx)
+    half, lean, count, astray = _measure(tx, made, sides, limit)
+    if method != "auto":
+        _refuse_astray(tx, method, astray, count)
     if lean is not None and lean > limit + ASYMMETRY * 2 * half["max"]:
         tx.warn("NX_APPROXIMATED", f"The mid sheet leans {lean:.4g} towards one side: check "
                 "the face pairs (nx_measure_distance)")  # fmt: skip

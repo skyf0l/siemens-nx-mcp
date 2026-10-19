@@ -181,7 +181,7 @@ def run_dev_tool(services, method: str, handler, params: dict) -> dict:
         after = services.snapshot(part) if part is not None else {}
     except Exception:  # the snippet closed the part it started in
         services.epoch += 1
-        services.invalidate_parts(services.parts())
+        _recheck_refs(services, loaded)
         return _dev_result(services, result, operation_id)
     services.invalidate(before, after, True)
     if _engineer_edit(services, depth):  # a snippet the host took as the engineer's
@@ -194,6 +194,21 @@ def run_dev_tool(services, method: str, handler, params: dict) -> dict:
     services.epoch += 1
     services.record_history(mark, part, operation_id, method)
     return _dev_result(services, result, operation_id)
+
+
+def _recheck_refs(services, loaded: dict | None = None) -> None:
+    """After a development snippet that failed or closed its part: forget the parts it
+    closed (``loaded``: the parts before it) and keep every other ref whose object NX
+    still has (``Services.revalidate``); never drops the refs of every loaded part."""
+    if loaded is not None:
+        with contextlib.suppress(Exception):
+            now = services.loaded()
+            services.forget_parts([key for key in loaded if key not in now])
+    revalidate = getattr(services, "revalidate", None)
+    if revalidate is None:  # services that cannot tell which objects survived
+        services.invalidate_parts(services.parts())
+        return
+    revalidate()
 
 
 def _dev_state(services) -> tuple:
@@ -250,7 +265,7 @@ def _roll_back_dev(services, mark, shown) -> dict:
         ("undo", lambda: services.undo_to(mark)),
         ("delete mark", lambda: services.delete_mark(mark)),
         ("display and work part", lambda: services.show_parts(shown)),
-        ("references", lambda: services.invalidate_parts(services.parts())),
+        ("references", lambda: _recheck_refs(services)),
         ("update errors", services.clear_update_errors),
     ):
         if step == "delete mark" and errors:

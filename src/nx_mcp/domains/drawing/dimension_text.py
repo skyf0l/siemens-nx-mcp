@@ -12,6 +12,7 @@ NX 2406 findings encoded here:
 
 from __future__ import annotations
 
+import re
 from typing import Annotated, TypedDict
 
 from nx_mcp.core.types import Text, forbid_extra
@@ -52,6 +53,16 @@ def write_appended(d, wanted) -> None:
         d.SetAppendedText(native)
     finally:
         native.Dispose()
+
+
+# NX control markup in dimension text: limits are "<T60.10!59.90>" (upper ! lower).
+_LIMITS = re.compile(r"<T([^!<>]*)!([^<>]*)>")
+
+
+def plain(text: str) -> str:
+    """Dimension text without NX's control markup: limits ``<T60.10!59.90>`` read
+    ``60.10/59.90``."""
+    return _LIMITS.sub(lambda m: f"{m.group(1).strip()}/{m.group(2).strip()}", str(text))
 
 
 def _fixed(value, decimals, sign=False):

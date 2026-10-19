@@ -102,6 +102,7 @@ def test_parallel_turns_about_the_face_centre_and_perpendicular_through_a_point(
     assert ok.ok and abs(ok.data["angle"] - 90.0) < 1e-6, ok
     through = nx.last("PerpendicularBuilder").ThroughPoint.Coordinates
     assert (through.X, through.Y, through.Z) == (40.0, 20.0, 0.0)
+    nx.face_data[side.Tag] = ("plane", (40, 10, 5), (1, 0, 0))  # back as it was
     moves(nx, "PerpendicularBuilder", a, side, (40, 10, 5), (C10, S10, 0.0))  # misses the point
     off = relate(nx, side, "perpendicular", d.face((0, 1, 0)), through=[40, 20, 3])
     assert off.error["details"]["check"] == "through" and off.mutation_outcome == "rolled_back"
@@ -186,6 +187,7 @@ def test_offset_sets_the_gap_on_one_body_and_reads_it_back():
     builder = nx.last("MakeOffsetBuilder")
     assert builder.MotionFace.Value is side and builder.StationaryFace.Value is back
     assert builder.OffsetValue.RightHandSide == "25.0"
+    nx.face_data[side.Tag] = ("plane", (40, 10, 5), (1, 0, 0))  # back as it was
     moves(nx, "MakeOffsetBuilder", a, side, (24, 10, 5), (1, 0, 0))  # one short
     short = relate(nx, side, "offset", back, distance=25)
     assert short.error["details"]["check"] == "gap" and short.mutation_outcome == "rolled_back"

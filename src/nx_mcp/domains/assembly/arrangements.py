@@ -279,6 +279,7 @@ def nx_create_arrangement(
             fail("NX_INVALID_ARGUMENT", "The assembly has no arrangement to copy",
                  field="/copy_from")  # fmt: skip
         _clash(assembly, name, "/name")
+    was_active = assembly.ActiveArrangement
     with native(default="NX_BUILD_FAILED"):
         made = assembly.Arrangements.Create(base, str(name))
     readback.expect(made is not None, "arrangement", "NX created no arrangement")
@@ -286,6 +287,8 @@ def nx_create_arrangement(
                     actual=str(made.Name))  # fmt: skip
     if activate:
         _activate(tx, made)
+    tx.note_restore({"action": "create", "after": str(made.Name),
+                     "active": str(was_active.Name) if activate and was_active else None})  # fmt: skip
     return {
         "arrangement": _row(tx, made),
         "previous_name": None,
@@ -305,7 +308,7 @@ def nx_create_arrangement(
     },
     keywords=(
         "activate arrangement",
-        "switch arrangement",
+        "switch saved positions",
         "rename arrangement",
         "delete arrangement",
         "default arrangement",
@@ -371,12 +374,18 @@ def nx_edit_arrangement(
             tx.note_restore({"action": "set_default", "before": str(default_before.Name),
                              "after": previous})  # fmt: skip
     else:
+        states = _states(tx, target)
         with native(default="NX_BUILD_FAILED"):
             target.Delete(False)
         model.update(tx)
         readback.expect(all(_key(a.Name) != _key(previous) for a in _all(assembly)), "deleted",
                         "NX kept the arrangement")  # fmt: skip
+        if default_before is not None:
+            readback.expect(display.same(_default(tx), default_before), "default",
+                            "Deleting the arrangement changed the default one")  # fmt: skip
         row = {"name": previous, "active": False, "default": False}
+        if states is not None:
+            tx.note_restore({"action": "delete", "before": previous, "states": states})
     return {
         "arrangement": row,
         "previous_name": previous if action == "rename" else None,
@@ -499,9 +508,9 @@ def _suppress(tx, component, arrangement, on: bool) -> None:
     example={},
 )
 def nx_list_arrangements(tx: Tx) -> ArrangementList:
-    """List the work assembly's arrangements: active, default and the components suppressed
-    in each. Also lists its direct components with their poses in the active one and varied
-    (positioned per arrangement; activate another arrangement to read its poses)."""
+    """List the work assembly's arrangements by name: active, default and the components
+    suppressed in each. Also lists its direct components with their poses in the active one
+    and varied (positioned per arrangement; activate another arrangement to read its poses)."""
     assembly = _assembly(tx)
     kids = _children(tx)
     items: list[ArrangementState] = []
@@ -520,12 +529,84 @@ def _changed_since(what: str) -> None:
          "operations first or set it back yourself")  # fmt: skip
 
 
+def _states(tx, arrangement) -> list | None:
+    """Per direct component, its suppression in ``arrangement`` and, when positioned per
+    arrangement, its pose there (None above MAX_LISTED components)."""
+    kids = _children(tx)
+    if len(kids) > MAX_LISTED:
+        return None
+    out = [{"component": tx.ref(c, "component")["id"],
+            "suppressed": _suppressed_in(tx, c, arrangement), "varied": _varied(tx, c),
+            "pose": None} for c in kids]  # fmt: skip
+    if any(row["varied"] for row in out):
+        with _active(tx, arrangement):
+            for row, c in zip(out, kids, strict=True):
+                if row["varied"]:
+                    t, r = structure.pose(c)
+                    row["pose"] = [t, r]
+    return out
+
+
+def _recreate(tx, name, states, *, apply: bool) -> str:
+    """Recreate an arrangement nx_edit_arrangement deleted, with each component's
+    suppression and per-arrangement pose (the compensating undo)."""
+    assembly = _assembly(tx)
+    if any(_key(a.Name) == _key(name) for a in _all(assembly)):
+        _changed_since(f"An arrangement named {name}")
+    rows = [(common.component(tx, s["component"], "/component"), s) for s in states]
+    if not apply:
+        return f"arrangement {name} recreated"
+    with native(default="NX_BUILD_FAILED"):
+        made = assembly.Arrangements.Create(assembly.ActiveArrangement, str(name))
+    readback.expect(made is not None, "arrangement", "NX created no arrangement")
+    for c, state in rows:
+        pose = state.get("pose")
+        if pose is not None:
+            if _suppressed_in(tx, c, made):
+                _suppress(tx, c, made, False)
+            with _active(tx, made):
+                _move_in(tx, c, made, (pose[0], pose[1]))
+        if _suppressed_in(tx, c, made) != state["suppressed"]:
+            _suppress(tx, c, made, state["suppressed"])
+    model.update(tx)
+    return f"arrangement {name} recreated with its {len(rows)} component states"
+
+
+@restorer("nx_create_arrangement")
+def _restore_created(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Delete an arrangement nx_create_arrangement made, activating the one active before
+    when it activated it: refused when it changed since (renamed, active or the default)."""
+    assembly = _assembly(tx)
+    name, was_active = data["after"], data.get("active")
+    found = [a for a in _all(assembly) if _key(a.Name) == _key(name)]
+    if not found:
+        _changed_since(f"Arrangement {name}")
+    made = found[0]
+    if display.same(_default(tx), made):
+        _changed_since(f"The default arrangement (now {name})")
+    shown = display.same(assembly.ActiveArrangement, made)
+    if shown and was_active is None:
+        _changed_since(f"The active arrangement (now {name})")
+    if apply:
+        if shown:
+            _activate(tx, _find(assembly, was_active, "/arrangement"))
+        with native(default="NX_BUILD_FAILED"):
+            made.Delete(False)
+        model.update(tx)
+        readback.expect(all(_key(a.Name) != _key(name) for a in _all(assembly)), "deleted",
+                        "NX kept the arrangement")  # fmt: skip
+    return f"arrangement {name} deleted"
+
+
 @restorer("nx_edit_arrangement")
 def _restore_arrangement(tx: Tx, data: dict, *, apply: bool) -> str:
-    """Set back what nx_edit_arrangement's activate, rename or set_default changed (a
-    delete is not restorable): refused when the arrangement changed again since."""
+    """Set back what nx_edit_arrangement changed (activate, rename, set_default) or
+    recreate the arrangement it deleted: refused when it changed again since."""
     assembly = _assembly(tx)
-    action, before, after = data["action"], data["before"], data["after"]
+    action, before = data["action"], data["before"]
+    if action == "delete":
+        return _recreate(tx, before, data["states"], apply=apply)
+    after = data["after"]
     if action == "rename":
         found = [a for a in _all(assembly) if _key(a.Name) == _key(after)]
         if not found:

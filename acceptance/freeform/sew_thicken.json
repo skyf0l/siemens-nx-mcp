@@ -754,8 +754,7 @@
      "$q11.data.bodies.0.id",
      "$q20.data.bodies.0.id",
      "$q21.data.bodies.0.id"
-    ],
-    "solid": true
+    ]
    },
    "expect": {
     "data.solid": true,
@@ -779,7 +778,8 @@
      ],
      "tol": 0.0001
     }
-   }
+   },
+   "intent": "Six sheets enclosing a cube, solid omitted: sewn into a solid of volume 1000"
   },
   {
    "call": "nx_create_spline",
@@ -1764,7 +1764,7 @@
   },
   {
    "call": "nx_create_sew",
-   "intent": "Six sheets enclosing a cube sewn without solid: a closed sheet, no free edge, and a note to sew with solid",
+   "intent": "Six sheets enclosing a cube sewn with solid false: a closed sheet, no free edge, and a note on how to get a solid",
    "args": {
     "target": "$zq00.data.bodies.0.id",
     "tools": [
@@ -1773,14 +1773,18 @@
      "$zq11.data.bodies.0.id",
      "$zq20.data.bodies.0.id",
      "$zq21.data.bodies.0.id"
-    ]
+    ],
+    "solid": false
    },
    "expect": {
     "mutation_outcome": "committed",
     "data.solid": false,
     "data.closed": true,
     "data.free_edges": 0,
-    "warnings.0.code": "NX_NOTE"
+    "warnings.0.code": "NX_NOTE",
+    "warnings.0.message": {
+     "contains": "nx_undo_operation"
+    }
    }
   },
   {

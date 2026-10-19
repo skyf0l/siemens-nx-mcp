@@ -40,7 +40,16 @@ class Workspace:
         self.root = Path(root).resolve()
 
     def resolve(self, path: str) -> Path:
-        """Resolve an NX-host absolute or workspace-relative path, never a client path."""
+        """Resolve an NX-host absolute or workspace-relative path, never a client path.
+
+        A ``..`` segment is refused even when the path would stay inside the workspace
+        (``smoke/a/../../x.txt`` is ``x.txt`` at the root): a path names its folder
+        directly, so a tool never writes somewhere other than the folder it shows."""
+        if any(part == ".." for part in str(path).replace("\\", "/").split("/")):
+            raise WorkspaceViolation(
+                "'..' segments are not accepted: give the path from the workspace root "
+                "(e.g. 'smoke/name/file.txt')"
+            )
         requested = Path(path)
         windows = PureWindowsPath(path)
         # On POSIX a Windows drive would otherwise become an ordinary directory.

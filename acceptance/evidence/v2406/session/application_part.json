@@ -1,15 +1,15 @@
 {
   "format": 2,
   "scenario": "acceptance/session/application_part.json",
-  "scenario_sha256": "c630d3ac15c443a5c8f5ec55ab4b33b31ce3adcc6e2a3e8a9af23fb8e7b5840d",
+  "scenario_sha256": "d9b0b0c69c8bade78ca5f78535c92b442d30075b51f4ad6eadb4864413411756",
   "domain": "session",
   "covers": {},
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {},
-  "recorded": "2026-10-15T10:29:38Z",
+  "recorded": "2026-10-19T12:16:41Z",
   "passed": true,
-  "checks": 24,
+  "checks": 25,
   "failed_checks": 0,
   "steps": [
     {
@@ -38,14 +38,14 @@
       "call": "nx_activate_application",
       "setup": false,
       "passed": true,
-      "checks": 6
+      "checks": 5
     },
     {
       "index": 5,
       "call": "nx_activate_application",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 6
     },
     {
       "index": 6,

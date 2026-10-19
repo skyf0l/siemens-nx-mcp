@@ -116,3 +116,16 @@ def test_a_replace_waits_while_windows_holds_the_earlier_file(tmp_path, monkeypa
     (tmp_path / "new").write_text("c")
     with pytest.raises(PermissionError):
         tx_module.replace_file(tmp_path / "new", tmp_path / "old")
+
+
+def test_every_published_file_runs_the_written_hooks(tmp_path, monkeypatch):
+    from nx_mcp.core import tx as tx_module
+
+    seen: list = []
+    monkeypatch.setattr(tx_module, "WRITTEN_HOOKS", [lambda tx, path: seen.append(path.name)])
+    nx = fake_nx(root=tmp_path)
+    tx = Tx(services(nx), SPEC, operation_id="op_written1")
+    out = tx.files.stage(tmp_path / "out" / "a.txt")
+    out.write_text("x")
+    tx.files.publish()
+    assert seen == ["a.txt"] and (tmp_path / "out" / "a.txt").read_text() == "x"

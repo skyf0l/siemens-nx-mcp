@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/extract_geometry.json",
-  "scenario_sha256": "a23e9cd0ffac1765f580f08e7a58d3ad2466543d2ff190e9154f7a76a3463f40",
+  "scenario_sha256": "8f9d9249b00410afd6f142ad07339af0074567ba579064c80186a548cee75253",
   "domain": "assembly",
   "covers": {
     "nx_create_extract": [
@@ -13,11 +13,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_extract": "00f8c6f62ff0f143d37067a4f29d3f460bc8e5f7ff66a3b99c66b93009f045de"
+    "nx_create_extract": "bb4e5e78d2bce712ef159ab16169115d2d77edff2de76b194e9e7ea17edb5d45"
   },
-  "recorded": "2026-10-16T13:13:37Z",
+  "recorded": "2026-10-19T10:50:59Z",
   "passed": true,
-  "checks": 47,
+  "checks": 48,
   "failed_checks": 0,
   "steps": [
     {
@@ -81,7 +81,7 @@
       "call": "nx_create_extract",
       "setup": false,
       "passed": true,
-      "checks": 7
+      "checks": 8
     },
     {
       "index": 10,

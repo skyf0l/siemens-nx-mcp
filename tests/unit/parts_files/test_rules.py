@@ -6,7 +6,7 @@ from types import SimpleNamespace as NS
 
 import pytest
 
-from nx_mcp.core import evidence
+from nx_mcp.core import catalogue, evidence
 from nx_mcp.domains.parts_files import rules
 from tests.kit import NXException
 from tests.kit.objects import Object
@@ -235,6 +235,9 @@ def test_reads_a_child_instance_and_named_rules(nx, kf):
     assert data["rules"][0]["value"] == 120.0 and data["rules"][0]["error"] is None
     assert "No such rule" in data["rules"][1]["error"]
     assert "missing" in data["rules"][1]["error"]
+    assert data["rules"][1]["error"].count("No such rule") == 1  # NX's message once
+    assert data["not_found"] == ["missing"]
+    assert any("missing" in w["message"] and "not_found" in w["message"] for w in out.warnings)
 
 
 def test_get_refuses_bad_chains_and_unknown_instances(nx, kf):
@@ -284,7 +287,7 @@ def test_changing_one_parameter_of_a_child_keeps_the_others(nx, kf):
     assert kf.children["holder"][1] == {"length": "15", "width": "9"}
     assert out.data["kept_parameters"] == ["length"]
     rows = {r["name"]: r for r in out.data["rules"]}
-    assert rows["length"]["formula"] == "15" and rows["Width"]["value"] == 9.0
+    assert rows["length"]["formula"] == "15" and rows["width"]["value"] == 9.0  # NX's spelling
     assert "onCreate" not in rows and "volume" not in rows  # base and computed rules
     reset = kfset(nx, kind="child", name="holder", class_name="plate", replace=True,
                   parameters=[{"name": "width", "value": 7}])  # fmt: skip
@@ -427,3 +430,49 @@ def test_update_regenerates(nx, kf):
     assert out.ok, out
     assert kf.regenerated == 1 and kf.updates == 1
     assert out.data["rules"] == 3 and [r["name"] for r in out.data["failed"]] == ["bad"]
+
+
+def test_a_child_instance_row_has_no_formula_of_its_own(nx, kf):
+    kfset(nx, kind="child", name="size", class_name="ug_expression",
+          parameters=[{"name": "value", "value": 25}])  # fmt: skip
+    rows = {r["name"]: r for r in get(nx).data["rules"]}
+    assert rows["size"]["type"] == "instance" and rows["size"]["formula"] is None
+
+
+def test_parameter_names_read_back_as_the_class_spells_them(nx, kf):
+    out = kfset(nx, kind="child", name="size", class_name="ug_expression",
+                parameters=[{"name": "VALUE", "value": 25}])  # fmt: skip
+    assert out.ok and out.data["rules"][0]["name"] == "Value", out
+
+
+def test_a_reference_without_its_closing_colon_is_named_in_the_hint(nx, kf):
+    kfset(nx, kind="child", name="size", class_name="ug_expression",
+          parameters=[{"name": "Value", "value": 25}])  # fmt: skip
+    out = kfset(nx, kind="dynamic", name="dbl", formula="size:Value * 2")
+    assert out.error["code"] == "NX_INVALID_FORMULA" and out.error["field"] == "/formula", out
+    assert out.error["hint"].startswith("Close the reference with ':' (size:Value:)")
+
+
+UNDO = NS(spec=catalogue.load()["nx_undo_operation"])
+
+
+def test_compensation_creates_a_deleted_rule_again(nx, kf):
+    assert kfset(nx, kind="dynamic", name="twice", formula="p0: * 2").ok
+    assert kfset(nx, kind="child", name="holder", class_name="plate",
+                 parameters=[{"name": "width", "value": 55}]).ok  # fmt: skip
+    for name in ("twice", "holder"):
+        gone = call(nx, rules.nx_delete_kf_rule, name=name)
+        assert gone.ok, gone
+        undo = call(nx, UNDO, operation=gone.operation_id, mode="compensate")
+        assert undo.ok and undo.data["compensated"], undo
+    assert kf.dynamic["twice"] == ("Number", "p0: * 2")
+    assert kf.children["holder"] == ("plate", {"length": "100", "width": "55"})
+
+
+def test_compensation_of_a_delete_refuses_a_rule_made_again_since(nx, kf):
+    assert kfset(nx, kind="dynamic", name="twice", formula="p0: * 2").ok
+    gone = call(nx, rules.nx_delete_kf_rule, name="twice")
+    assert gone.ok and kfset(nx, kind="dynamic", name="twice", formula="7").ok
+    undo = call(nx, UNDO, operation=gone.operation_id, mode="compensate")
+    assert undo.error["code"] == "NX_DEPENDENCY_ORDER", undo
+    assert kf.dynamic["twice"] == ("Number", "7")

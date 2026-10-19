@@ -8,6 +8,7 @@
   {"call": "nx_create_primitive", "setup": true, "save": "v2", "args": {"shape": "block", "length": 40, "width": 40, "height": 40}},
   {"call": "nx_create_primitive", "setup": true, "save": "same", "args": {"shape": "block", "length": 40, "width": 40, "height": 40}},
   {"call": "nx_create_primitive", "setup": true, "save": "tall", "args": {"shape": "block", "length": 40, "width": 40, "height": 50}},
+  {"call": "nx_create_primitive", "setup": true, "save": "beside", "args": {"shape": "block", "length": 10, "width": 10, "height": 30, "origin": [60, 0, 0]}},
   {"call": "nx_find_geometry", "setup": true, "save": "top2", "args": {"owner": "$v2.data.bodies.0.id", "kind": "face", "geometry_type": "plane", "normal": "+z", "limit": 1}},
   {"call": "nx_create_hole", "setup": true, "args": {"face": "$top2.data.items.0.id", "positions": [[20, 20]], "depth": "through_all", "diameter": 10, "target": "$v2.data.bodies.0.id"}},
   {"call": "nx_analyze_body_changes", "intent": "Release 2 adds a through hole: top and bottom change, the wall is new",
@@ -32,6 +33,10 @@
               "data.volume.difference": {"close": 16000, "tol": 1e-6}}},
   {"call": "nx_analyze_body_changes", "args": {"control": "$v1.data.bodies.0.id", "sample": "$tall.data.bodies.0.id", "tolerance": 11},
    "expect": {"data.counts.matching": 6}},
+  {"call": "nx_analyze_body_changes", "intent": "A separate block on the same bottom and front planes: no face pairs with it",
+   "args": {"control": "$v1.data.bodies.0.id", "sample": "$beside.data.bodies.0.id"},
+   "expect": {"data.counts": {"equals": {"matching": 0, "changed": 0, "added": 6, "removed": 6}},
+              "warnings.0.message": {"matches": "No face of the two bodies matches"}}},
   {"call": "nx_analyze_body_changes", "args": {"control": "$v1.data.bodies.0.id", "sample": "$v1.data.bodies.0.id"},
    "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/sample"}},
   {"call": "nx_check_model", "args": {}, "expect": {"data.errors": 0}}

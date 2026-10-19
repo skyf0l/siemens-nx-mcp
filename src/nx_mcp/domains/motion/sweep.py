@@ -18,7 +18,9 @@ A sweep drives one degree of freedom through ``steps`` equal steps from ``start`
 
 Per step it reports tracked points carried by a component (a lid edge, a tiller end),
 signed rotation angles of components about an axis (relative to the pose before the
-sweep) and the minimum distance of each clearance pair (0: touching or overlapping).
+sweep; right hand about the track axis, so a constraint driven from 0 to 60 degrees may
+read 0 to -60 about an axis pointing the other way) and the minimum distance of each
+clearance pair (0: touching or overlapping; NX's minimum distance gives no depth).
 For each pair the first step below ``min_clearance`` (contact when 0) is reported and
 the limit value is bisected between that step and the clear one before.
 
@@ -181,7 +183,9 @@ def _value(tx, raw, dim, field) -> float:
         value = float(convert_quantity(raw, dim, to))
     except ValueError as error:
         what = "an angle" if dim == "angle" else "a length"
-        fail("NX_INVALID_ARGUMENT", f"{what}: {error}", field=field,
+        why = "" if "formula" in str(error) else f" ({error})"
+        fail("NX_INVALID_ARGUMENT", f"{raw!r} is not {what}: give a number or a value with "
+             f"its unit; expression names are not taken here{why}", field=field,
              hint="A number (degrees or part units), or '90 deg' / '10 mm'")  # fmt: skip
     if not math.isfinite(value) or abs(value) > VALUE_MAX:
         fail("NX_INVALID_ARGUMENT", f"must be within +-{VALUE_MAX:g}", field=field)
@@ -232,7 +236,11 @@ def nx_run_motion_sweep(
     min_clearance: Annotated[Length, Range(ge=0), Doc("Required gap; 0: contact")] = 0,
 ) -> SweepData:
     """Sweep a hinge, slider or driven assembly constraint through its range of motion.
-    Per step: tracked points, angles, pair gaps; first contact and limit. Put back after."""
+    Per step: tracked points, angles, pair gaps; first contact and limit. Components move
+    for the sweep only and are put back. Angles are signed, right hand about the track axis
+    from the start pose (a driven angle constraint's value is unsigned: flip the axis to
+    flip the sign). A gap of 0 is touching or overlapping (no depth): nx_check_interference
+    at that pose tells them apart."""
     if not 1 <= steps <= MAX_STEPS:
         fail("NX_INVALID_ARGUMENT", f"steps is 1 to {MAX_STEPS}", field="/steps")
     needed = ("constraint",) if joint == "constraint" else ("moving", "axis")

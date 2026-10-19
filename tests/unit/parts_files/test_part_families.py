@@ -117,6 +117,16 @@ def fam(nx, root):
     nx.cgm_at_save = []
     template = nx.new_part("t.prt")
     template.Expressions = Collection()
+
+    def system_expression(formula, unit):  # NX evaluates in the template, the work part
+        work, nx.part = nx.part, template
+        try:
+            return nx._system_expression(formula, unit)
+        finally:
+            nx.part = work
+
+    template.Expressions.CreateSystemExpressionWithUnits = system_expression
+    template.Expressions.Delete = template.Expressions.remove
     for name, value in (("length", 40.0), ("width", 20.0), ("p2", 10.0)):
         e = Expression(name, str(int(value)))
         e.Value = value
@@ -244,19 +254,22 @@ def test_get_part_family_of_template_and_member(nx, root, fam):
     assert none.ok and none.data["role"] == "none" and none.data["members"] == []
     assert create(nx, directory="fam").ok
     got = call(nx, families.nx_get_part_family, part="t")
-    assert got.data["role"] == "template" and got.data["template"] == "T"
+    assert got.data["role"] == "template" and got.data["template"] == "t.prt"  # its path
     assert got.data["columns"] == ["length", "width"] and got.data["directory"] == "fam"
     assert got.data["members"][0] == {"name": "plate_a", "values": {"length": "50",
                                       "width": "12.5"}, "path": "fam/plate_a.prt",
                                       "exists": True}  # fmt: skip
+    assert got.data["up_to_date"] is True  # table saved, every member file present
     (root / "fam" / "plate_b.prt").unlink()
-    assert call(nx, families.nx_get_part_family, part="t").data["members"][1]["exists"] is False
+    gone = call(nx, families.nx_get_part_family, part="t").data
+    assert gone["members"][1]["exists"] is False and gone["up_to_date"] is False
     member, status = nx.session.Parts.OpenBase(str(root / "fam" / "plate_a.prt"))
-    member.GetFamilyInstance = lambda: NS(Family=NS(TemplateName="T"))
+    member.GetFamilyInstance = lambda: NS(Family=NS(TemplateName="T"))  # NX: upper case
     nx.session.Parts.Work = member
     got = call(nx, families.nx_get_part_family, part="plate_a")
-    assert got.data["role"] == "member" and got.data["template"] == "T", got
-    assert got.data["up_to_date"] is True
+    assert got.data["role"] == "member" and got.data["template"] == "t.prt", got
+    assert got.data["up_to_date"] is True and got.data["columns"] == ["length", "width"]
+    assert got.data["values"] == {"length": 50.0, "width": 12.5}  # its own, evaluated
 
 
 def test_refuses_before_nx(nx, root, fam):
@@ -355,3 +368,21 @@ def test_member_values_are_verified(nx, root, fam, monkeypatch):
     bad = create(nx, directory="fam")
     assert bad.error["code"] == "NX_VERIFICATION_FAILED", bad
     assert "template_note" in bad.error["details"]
+
+
+def test_a_formula_nx_refuses_is_refused_before_the_family_table_exists(nx, root, fam):
+    """NX accepts any text as a member value and refuses it only while writing the
+    members, leaving a phantom member and a modified template: every formula is evaluated
+    first, in the column's units, and nothing of the family is made."""
+    count = len(fam.Expressions)
+    for value, code in (("abc+", None), ("length*", "NX_INVALID_FORMULA")):
+        bad = create(nx, directory="fam", members=[{"name": "m1", "values": [1, value]}])
+        assert bad.error["field"] == "/members/0/values/1", bad
+        assert bad.error["code"] in ({code} if code else {"NX_INVALID_FORMULA",
+                                                           "NX_INVALID_ARGUMENT"})  # fmt: skip
+        assert bad.mutation_outcome == "not_started" and value in bad.error["message"]
+    assert not nx.managers and fam.family is None and not fam.IsModified
+    assert len(fam.Expressions) == count  # the temporary expressions are gone
+    assert not (root / "fam" / "m1.prt").exists()
+    ok = create(nx, directory="fam", members=[{"name": "m1", "values": [1, "length/4"]}])
+    assert ok.ok and fam.family.rows[0].values["width"] == "length/4", ok

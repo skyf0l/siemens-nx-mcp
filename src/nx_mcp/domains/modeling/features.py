@@ -171,7 +171,8 @@ def nx_create_extrude(
     ):
         fail(
             "NX_INVALID_ARGUMENT",
-            "end must lie beyond start (both are distances along the extrude direction)",
+            f"end must lie beyond start (both are distances along the extrude direction): "
+            f"end is {float(end_limit['value']):.6g}, start {float(start_limit['value']):.6g}",
             field=value_field,
             hint="Use a larger end, or a negative start to extrude behind the sketch",
         )

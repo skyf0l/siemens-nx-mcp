@@ -205,9 +205,9 @@ def nx_export_profile(
     layer: Layer = "0",
     layers: Annotated[list[LayerOverride], Items(1, 1000), Doc(LAYERS_DOC)] | None = None,
 ) -> ProfileData:
-    """Export a sketch or planar face as a 1:1 DXF R12 of lines, arcs and circles
-    (nx_import_model reads it back). Other curves are refused unless tolerance writes them
-    as lines. Drawings: nx_export_drawing; flat patterns: nx_export_flat_pattern."""
+    """Export a sketch or planar face as a 1:1 DXF R12 of lines, arcs and circles of the
+    source's part (no part key). Other curves are refused unless tolerance writes them as
+    lines. Drawings: nx_export_drawing; flat patterns: nx_export_flat_pattern."""
     if not re.match(LAYER_PATTERN, layer):
         fail("NX_INVALID_ARGUMENT", "Layer names use 1-64 of A-Z a-z 0-9 _ . -", field="/layer")
     if frame is not None:
@@ -279,6 +279,7 @@ def nx_export_profile(
     temp = tx.files.stage(target, replace=overwrite)
     temp.write_bytes(raw)
     tx.files.publish()
+    files.note_written(tx, target)
     return {
         "path": files.relative(target, tx.workspace.root),
         "size": len(raw),

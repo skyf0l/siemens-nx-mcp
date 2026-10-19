@@ -190,3 +190,25 @@ def test_inherited_update_error_is_dropped_with_the_new_sketch_deactivated(rig):
     rig.session.ActiveSketch.OwningPart = NS(Tag=4242)  # a part not displayed: NX 2406
     count = len(calls)  # faults activating a sketch there (kit.sketch): no re-activation
     assert services.feature_errors(rig.part, {}, mark=None) and len(calls) == count
+
+
+def test_a_failed_development_snippet_keeps_the_refs_of_objects_nx_still_has(rig):
+    from nx_mcp.core.errors import NXError
+
+    body = rig.nx.Body("B1")
+    rig.part.Bodies.append(body)
+    listed = rig.run("nx_list_objects", {"kind": "body"})["data"]["items"][0]
+    part_ref = listed["part"]
+
+    def snippet():
+        raise RuntimeError("the snippet failed")
+
+    rig.e.dev_tools["nx_test_fail"] = snippet
+    with pytest.raises(NXError) as error:
+        rig.run("nx_test_fail", {})
+    assert error.value.details["mutation_outcome"] == "rolled_back"
+    refs = rig.e.references
+    assert refs.resolve(listed["id"], ("body",)) is body  # never every part's refs dropped
+    assert refs.resolve(part_ref, ("part",)) is rig.part
+    again = rig.run("nx_list_objects", {"kind": "body"})["data"]["items"][0]
+    assert again["id"] == listed["id"] and again["part"] == part_ref

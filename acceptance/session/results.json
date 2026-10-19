@@ -589,6 +589,7 @@
    "intent": "Acceptance: preview deleting this scenario's stored result",
    "expect": {
     "data.applied": false,
+    "data.policy": null,
     "data.selected_count": 1,
     "data.missing": [
      "result_00000000000000000000000000000000"

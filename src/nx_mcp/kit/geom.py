@@ -188,6 +188,52 @@ def rows(m):
     return [[m.Xx, m.Yx, m.Zx], [m.Xy, m.Yy, m.Zy], [m.Xz, m.Yz, m.Zz]]
 
 
+# Parasolid models inside a box 1000 m wide centred on the origin: coordinates beyond
+# +-500 m (5e5 mm) cannot hold geometry.
+SIZE_BOX_MM = 5e5
+# A length more than this many times the size of the geometry it acts on is a typo or a
+# unit slip (5000 for 5 on a 40 mm block), not a design intent.
+PLAUSIBLE_TIMES = 100.0
+
+
+def extent(low, high) -> float:
+    """The diagonal of a box [low, high]: the size implausible lengths are measured by."""
+    return dist(low, high)
+
+
+def check_plausible(value, size, field, what, *, times=PLAUSIBLE_TIMES, hint=None) -> None:
+    """Refuse a length (``value``) more than ``times`` the ``size`` of the geometry it acts
+    on (:func:`extent` of its box): ``invalid_argument`` on ``field``, naming both. A zero
+    or unknown size checks nothing."""
+    size = float(size or 0.0)
+    if size <= 0 or not math.isfinite(size):
+        return
+    if abs(float(value)) > times * size:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"{what} {float(value):.6g} is {abs(float(value)) / size:.0f} times the size of the "
+            f"geometry it acts on ({size:.6g} across): check the value and its units",
+            field=field,
+            hint=hint or f"Use a value within {times:g} times that size",
+            details={"value": float(value), "size": size, "times": times},
+        )
+
+
+def check_in_box(point, limit, field, what) -> None:
+    """Refuse a point with a coordinate beyond ``limit`` (part units of
+    :data:`SIZE_BOX_MM`): NX cannot model there."""
+    far = max(abs(float(v)) for v in point)
+    if far > limit:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"{what} {[float(v) for v in point]} lies outside NX's modeling box "
+            f"(coordinates up to {limit:g})",
+            field=field,
+            hint="Check the coordinates and their units",
+            details={"limit": limit},
+        )
+
+
 def rotation(m, field="rotation"):
     """A right-handed orthonormal row-major 3x3 rotation as float rows (1e-8 tolerance)."""
     from nx_mcp.kit.args import vec3

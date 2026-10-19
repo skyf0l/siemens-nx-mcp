@@ -187,3 +187,18 @@ def test_swept_volume_maps_nx_refusals_to_hints(code, word):
     (t,), (target,) = refs(nx, tool), refs(nx, block)
     bad = call(nx, "nx_create_swept_volume", {"tool": t, "path": [path.ref], "targets": [target]})
     assert bad.error["nx_code"] == code and word in bad.error["hint"], bad.error
+
+
+@pytest.mark.parametrize(
+    ("features", "faces"),
+    [(["BLOCK"], True), (["EXTRUDE"], False)],
+)
+def test_swept_volume_refuses_a_tool_nx_cannot_sweep_before_nx(features, faces):
+    nx, tool, block, path = scene()
+    tool.GetFeatures = lambda: [NS(FeatureType=k) for k in features]
+    if not faces:
+        tool.GetFaces = lambda: []  # a box extrude: no cylindrical face
+    (t,), (target,) = refs(nx, tool), refs(nx, block)
+    bad = call(nx, "nx_create_swept_volume", {"tool": t, "path": [path.ref], "targets": [target]})
+    assert bad.error["code"] == "NX_WRONG_GEOMETRY" and bad.error["field"] == "/tool", bad
+    assert bad.mutation_outcome == "not_started" and not nx.builders

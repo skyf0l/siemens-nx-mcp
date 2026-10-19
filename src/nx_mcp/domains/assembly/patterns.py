@@ -9,6 +9,10 @@ NX 2406 findings encoded here:
   example when the second direction is switched off: the object ``Commit`` returns
   is read back, and ``replaced`` says the old reference is stale.
 - Every instance pose is read back against the layout (seed pose plus the step).
+- NX names every instance of an associative pattern like its seed (one name, one path
+  for all of them); instances may be renamed, but an edit adds new ones under the seed's
+  name again: instances that carry the seed's name are renamed ``<SEED>_2``, ``_3``...
+  after a create or an edit. NX refuses to pattern a mirrored (reflected) component.
 """
 
 from __future__ import annotations
@@ -16,7 +20,7 @@ from __future__ import annotations
 import contextlib
 from typing import Annotated, TypedDict
 
-from nx_mcp.core.catalogue import tool
+from nx_mcp.core.catalogue import restorer, tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
@@ -188,6 +192,20 @@ def _total(info) -> int:
     return int(info.get("count", 0)) * int(info.get("count2") or 1)
 
 
+def _name_instances(tx, comps) -> None:
+    """Give the instances (``comps[1:]``) that carry the seed's name free names."""
+    seed = comps[0]
+    key = str(seed.Name).casefold()
+    same = [c for c in comps[1:] if str(c.Name).casefold() == key]
+    if not same:
+        return
+    taken = common.sibling_names(tx.part, skip=same)
+    for i, c in enumerate(comps[1:], start=2):
+        if str(c.Name).casefold() == key and c in same:
+            result.rename(tx, c, common.free_name(f"{seed.Name}_{i}", taken))
+            taken[str(c.Name).casefold()] = c
+
+
 def _component_rows(tx, comps) -> list:
     names = structure.paths(tx.part)
     return [common.component_row(tx, c, names.get(int(c.Tag))) for c in comps]
@@ -299,17 +317,32 @@ def _copies(tx, seed, poses):
     part = tx.part
     path = seed.Prototype.FullPath
     reference_set = str(getattr(seed, "ReferenceSet", "") or "Entire Part")
+    taken = common.sibling_names(part)
     out = [seed]
     for i, (t, r) in enumerate(poses[1:], start=2):
         tx.checkpoint(done=i - 1, total=len(poses) - 1)
+        name = common.free_name(f"{seed.Name}_{i}", taken)
+        taken[name.casefold()] = seed
         with native(default="NX_BUILD_FAILED"):
             c, status = part.ComponentAssembly.AddComponent(
-                path, reference_set, f"{seed.Name}_{i}", tx.nx.Point3d(*t),
-                builders.matrix(tx, r), -1,
+                path, reference_set, name, tx.nx.Point3d(*t), builders.matrix(tx, r), -1,
             )  # fmt: skip
         if status is not None and hasattr(status, "Dispose"):
             status.Dispose()
         out.append(c)
+    return out
+
+
+def _patterns_of(tx, component) -> list:
+    """Refs of the component patterns ``component`` is a member of."""
+    collection = getattr(tx.part.ComponentAssembly, "ComponentPatterns", None)
+    out = []
+    try:
+        for pattern in collection.GetAllComponentPatterns() if collection is not None else []:
+            if any(int(c.Tag) == int(component.Tag) for c in members(pattern)):
+                out.append(str(tx.ref(pattern, "component_pattern").get("id")))
+    except Exception:  # a pattern NX cannot list: no warning
+        return []
     return out
 
 
@@ -343,11 +376,18 @@ def nx_create_component_pattern(
     lay = _layout(tx, layout)
     with tx.checks():
         seed = common.component(tx, component, "/component", unsuppressed=True)
+        if kpose.reflected(structure.pose(seed)[1]):
+            fail("NX_UNSUPPORTED_OPTION", f"{component} is mirrored (its pose reflects): NX "
+                 "cannot pattern a reflected transform", field="/component",
+                 hint="Pattern its unmirrored source, then mirror the instances with "
+                 "nx_create_component_mirror")  # fmt: skip
+    already = _patterns_of(tx, seed)
     wanted = expected(structure.pose(seed), lay)
     if associative:
         pattern = _native(tx, seed, lay)
         info = describe(tx, pattern)
         comps = members(pattern)
+        _name_instances(tx, comps)
         readback.expect(info["associative"], "associative", "NX made the pattern non-associative")
         readback.expect(_total(info) == len(wanted), "count", actual=_total(info))
     else:
@@ -357,6 +397,9 @@ def nx_create_component_pattern(
             if key in lay:
                 info[key] = lay[key]
     match([structure.pose(c) for c in comps], wanted)
+    if already:
+        tx.warn("NX_NOTE", f"{component} is already in pattern {', '.join(already)}: this "
+                "pattern adds instances beside that one's")  # fmt: skip
     return {**_public(info), "components": _component_rows(tx, comps)}
 
 
@@ -386,8 +429,9 @@ def nx_edit_component_pattern(
     angle: Pitch | None = None,
 ) -> PatternData:
     """Change the count, spacing or angle of an associative single-seed component pattern.
-    A lower count deletes the surplus components and their constraints. NX may recreate the
-    pattern: then replaced is true and the old reference is stale."""
+    count2 and spacing2 edit two-direction patterns only. A lower count deletes the surplus
+    components and their constraints. NX may recreate the pattern: then replaced is true
+    and the old reference is stale."""
     given = {"count": count, "spacing": spacing, "count2": count2, "spacing2": spacing2,
              "angle": angle}  # fmt: skip
     if all(v is None for v in given.values()):
@@ -395,7 +439,6 @@ def nx_edit_component_pattern(
     for name, length in (("spacing", spacing), ("spacing2", spacing2)):
         if length is not None and float(length) <= 0:  # the kernel converted it to part units
             fail("NX_INVALID_ARGUMENT", f"{name} must be positive", field="/" + name)
-    kinds = _enum(tx)
     with tx.checks():
         obj = select.resolve(tx, pattern, "component_pattern", field="/pattern")
         before = describe(tx, obj)
@@ -428,36 +471,20 @@ def nx_edit_component_pattern(
         if total > MAX_INSTANCES:
             fail("NX_TOO_MANY_OBJECTS", f"At most {MAX_INSTANCES} instances")
     seed = seeds[0]
-    with builders.build(tx, tx.part.ComponentAssembly.CreateComponentPatternBuilder, obj) as b:
-        service = b.PatternService
-        if service.PatternType == kinds.Linear:
-            d = service.RectangularDefinition
-            if count is not None:
-                d.XSpacing.NCopies.RightHandSide = str(count)
-            if spacing is not None:
-                d.XSpacing.PitchDistance.RightHandSide = repr(float(spacing))
-            if count2 is not None:
-                d.YSpacing.NCopies.RightHandSide = str(count2)
-                d.UseYDirectionToggle = count2 > 1
-            if spacing2 is not None:
-                d.YSpacing.PitchDistance.RightHandSide = repr(float(spacing2))
-        else:
-            d = service.CircularDefinition
-            if count is not None:
-                d.AngularSpacing.NCopies.RightHandSide = str(count)
-            if angle is not None:
-                d.AngularSpacing.PitchAngle.RightHandSide = repr(float(angle))
-        committed = b.Commit()
-    replaced = committed is not None and int(committed.Tag) != int(obj.Tag)
-    if committed is not None:
-        obj = committed
-    model.update(tx)
+    obj, replaced = _set_layout(tx, obj, given)
     info = describe(tx, obj)
     readback.expect(_total(info) == total, "count", actual=_total(info), wanted=total)
     for name, value in given.items():
         if value is not None and not (name == "count2" and value == 1):
             readback.expect_close(info.get(name, float("nan")), value, name)
+    edited = [name for name, value in given.items() if value is not None]
+    tx.note_restore({
+        "pattern": str(tx.ref(obj, "component_pattern").get("id")),
+        "before": {name: before.get(name) for name in edited},
+        "after": {name: info.get(name) for name in edited},
+    })  # fmt: skip
     comps = members(obj)
+    _name_instances(tx, comps)
     if info["layout"] == "linear" and "_direction" in info:
         lay = {"kind": "linear", "count": info["count"], "spacing": info["spacing"],
                "direction": info["_direction"]}  # fmt: skip
@@ -470,3 +497,60 @@ def nx_edit_component_pattern(
     if replaced:
         tx.warn("NX_UPDATE_WARNING", "NX recreated the pattern; use the returned pattern reference")
     return {**_public(info), "replaced": replaced, "components": _component_rows(tx, comps)}
+
+
+def _set_layout(tx, obj, given) -> tuple:
+    """Set the given counts and steps (None: kept) on a native pattern; returns the
+    pattern NX committed and whether it is a new object (the old one replaced)."""
+    kinds = _enum(tx)
+    count, spacing, count2 = given.get("count"), given.get("spacing"), given.get("count2")
+    spacing2, angle = given.get("spacing2"), given.get("angle")
+    with builders.build(tx, tx.part.ComponentAssembly.CreateComponentPatternBuilder, obj) as b:
+        service = b.PatternService
+        if service.PatternType == kinds.Linear:
+            d = service.RectangularDefinition
+            if count is not None:
+                d.XSpacing.NCopies.RightHandSide = str(int(count))
+            if spacing is not None:
+                d.XSpacing.PitchDistance.RightHandSide = repr(float(spacing))
+            if count2 is not None:
+                d.YSpacing.NCopies.RightHandSide = str(int(count2))
+                d.UseYDirectionToggle = count2 > 1
+            if spacing2 is not None:
+                d.YSpacing.PitchDistance.RightHandSide = repr(float(spacing2))
+        else:
+            d = service.CircularDefinition
+            if count is not None:
+                d.AngularSpacing.NCopies.RightHandSide = str(int(count))
+            if angle is not None:
+                d.AngularSpacing.PitchAngle.RightHandSide = repr(float(angle))
+        committed = b.Commit()
+    replaced = committed is not None and int(committed.Tag) != int(obj.Tag)
+    model.update(tx)
+    return (committed if committed is not None else obj), replaced
+
+
+def _differs(got, value) -> bool:
+    return got is None or abs(float(got) - float(value)) > 1e-9 * max(1.0, abs(float(value)))
+
+
+@restorer("nx_edit_component_pattern")
+def _restore_pattern(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Give a pattern nx_edit_component_pattern changed its previous counts and steps back
+    (the compensating undo): refused when they changed since."""
+    ref, before, after = data["pattern"], data["before"], data["after"]
+    obj = select.resolve(tx, ref, "component_pattern", field="/pattern")
+    now = describe(tx, obj)
+    for name, value in after.items():
+        if value is not None and _differs(now.get(name), value):
+            fail("NX_DEPENDENCY_ORDER", f"The {name} of {ref} changed since: it is "
+                 f"{now.get(name)}, the operation set {value}",
+                 details={"pattern": ref, name: now.get(name)})  # fmt: skip
+    wanted = {k: v for k, v in before.items() if v is not None}
+    if apply and wanted:
+        obj, _replaced = _set_layout(tx, obj, wanted)
+        got = describe(tx, obj)
+        for name, value in wanted.items():
+            readback.expect_close(got.get(name, float("nan")), value, f"previous_{name}")
+    told = ", ".join(f"{k} {common.tidy(v)}" for k, v in sorted(wanted.items()))
+    return f"{ref} back to {told}"

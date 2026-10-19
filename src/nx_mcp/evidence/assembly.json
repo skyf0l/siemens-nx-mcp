@@ -1,12 +1,12 @@
 {
   "nx_create_arrangement": {
     "v2406": {
-      "checks": 24,
+      "checks": 40,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:12:30Z",
+      "recorded": "2026-10-19T10:48:57Z",
       "scenario": "acceptance/assembly/assembly_cut.json",
-      "scenario_sha256": "3275da17e5c3225c12e7f2395ea914b7cb86fa94c4d56e149acd8aa8d235854f",
-      "source_sha256": "a3b8343fe69fcd6cf7f37f175f98caa53e8bcfdbd980d683a21e49f336187a32",
+      "scenario_sha256": "c77fafdbcc6e8bddc2870832eed951967ed636ae66e5d94a65a84c72b478c557",
+      "source_sha256": "995ff0db913d270487248f6bfca632a16c87d116b20fdce53d022600cfd8a772",
       "variants": []
     }
   },
@@ -14,10 +14,10 @@
     "v2406": {
       "checks": 82,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-15T10:57:49Z",
+      "recorded": "2026-10-19T10:50:08Z",
       "scenario": "acceptance/assembly/constraints.json",
       "scenario_sha256": "e668d6c588b0a6e388e972c43c5c17b033a66affa23a321b4d5eec33dd515b27",
-      "source_sha256": "f14bcdb3c20629d367673601cff404a372b566155da3f96a59f0c4e4dc9b9f7d",
+      "source_sha256": "152dab266a68fbdae980e58360026dbcfe01826264e393c66dbbe1ef8ac99328",
       "variants": [
         "align",
         "align_lock",
@@ -37,23 +37,23 @@
   },
   "nx_create_assembly_cut": {
     "v2406": {
-      "checks": 24,
+      "checks": 40,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:12:30Z",
+      "recorded": "2026-10-19T10:48:57Z",
       "scenario": "acceptance/assembly/assembly_cut.json",
-      "scenario_sha256": "3275da17e5c3225c12e7f2395ea914b7cb86fa94c4d56e149acd8aa8d235854f",
-      "source_sha256": "5f593fa28304d6b343507a83f11c2c9979d4159b43de5995fcbbf1cdfd80e98e",
+      "scenario_sha256": "c77fafdbcc6e8bddc2870832eed951967ed636ae66e5d94a65a84c72b478c557",
+      "source_sha256": "563c3d52fec95eb197db31cd866fc11bb7d97993075bde06890e180c1435554f",
       "variants": []
     }
   },
   "nx_create_clearance_set": {
     "v2406": {
-      "checks": 66,
+      "checks": 93,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:12:41Z",
+      "recorded": "2026-10-19T10:49:17Z",
       "scenario": "acceptance/assembly/clearance_sets.json",
-      "scenario_sha256": "27326ad2f4ce0316d726f32997437f97efcae58e33e48ddf27404bd529ac9cc9",
-      "source_sha256": "f1eba884f534311afc5464a8873773a655260fe0f367675f6f8e16ea2b284805",
+      "scenario_sha256": "1d1a6c02c3a9e8c90a37c6cb0e4cb5f7bd431024c85858cedc1afa3ab345c9d2",
+      "source_sha256": "2ba244322b0b89ed675d45eaf6dae6846f9278779b28369af8644369611b6ab7",
       "variants": []
     }
   },
@@ -61,10 +61,10 @@
     "v2406": {
       "checks": 42,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-15T10:58:43Z",
+      "recorded": "2026-10-19T11:45:45Z",
       "scenario": "acceptance/assembly/new_component.json",
-      "scenario_sha256": "7086e7bac523305d51c595618d04d214cac2322354f8dc6036debcba7ea9a0fe",
-      "source_sha256": "4f96e0b1a7d772e785977e9defdf11fb178ff2e8b84bd33b365428a2de430ce7",
+      "scenario_sha256": "17bed92fed33e1a81d81c0752dc570a11d11796c6361eb7733dd133c56edab4d",
+      "source_sha256": "cb2c29339726a40325c11ee10b8712b747ea58fdd156d107381ed1761ddba088",
       "variants": [
         "from_file",
         "new_in_context"
@@ -73,67 +73,67 @@
   },
   "nx_create_component_group": {
     "v2406": {
-      "checks": 88,
+      "checks": 99,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:14:24Z",
+      "recorded": "2026-10-19T10:52:45Z",
       "scenario": "acceptance/assembly/weight_management.json",
-      "scenario_sha256": "f4cec7d94e1bd15ca1ad511fad3fe948c74e9d9c4f4fedb0670579ce1dee5f2e",
-      "source_sha256": "3af1676171739847d5bd94ded0ac3209e0c4ac4bfad449c4a19b8be205edfac9",
+      "scenario_sha256": "ea904bf928e34a356614c44d8c8e29bdee06c498c3bb4b92c2a52c82d2ccb11a",
+      "source_sha256": "fc49b412e144d26f297352bec27153f381adffa3fcbbf94a5f7e9beb9ef285f9",
       "variants": []
     }
   },
   "nx_create_component_mirror": {
     "v2406": {
-      "checks": 68,
+      "checks": 83,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:13:17Z",
+      "recorded": "2026-10-19T10:50:16Z",
       "scenario": "acceptance/assembly/deformable.json",
-      "scenario_sha256": "c4657da85c2f48fa528488d5a76976908f50a35e66f70d5704cfdbb781e4425f",
+      "scenario_sha256": "6a40ae8df598ff60f97c083eabaafc55cdee8ac61a530f62d8b25d033307cc55",
       "source_sha256": "93ac3f3e1212f4a3a4348930e968fcd974f201e78dfd1ae9abffa5fba578f760",
       "variants": []
     }
   },
   "nx_create_component_pattern": {
     "v2406": {
-      "checks": 88,
+      "checks": 109,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-15T10:58:47Z",
+      "recorded": "2026-10-19T10:51:51Z",
       "scenario": "acceptance/assembly/patterns.json",
-      "scenario_sha256": "60ccfe7f6f6b106bdeee8efd127c81ea227a7f137a82379e3026049c593d1c92",
-      "source_sha256": "0a2eaaa013f1d34eb86f4ff4e2aa386965cd421b8c94ecc3148d7bbed5074482",
+      "scenario_sha256": "86717e53109c4bc9970938fb56f3c5acfe52dde34cf3a961349c49e19d392f0a",
+      "source_sha256": "3d56259a904d9231da5883eb3c093d4a3984edec3e022e0410d464ca89e7d178",
       "variants": []
     }
   },
   "nx_create_deformable_definition": {
     "v2406": {
-      "checks": 68,
+      "checks": 83,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:13:17Z",
+      "recorded": "2026-10-19T10:50:16Z",
       "scenario": "acceptance/assembly/deformable.json",
-      "scenario_sha256": "c4657da85c2f48fa528488d5a76976908f50a35e66f70d5704cfdbb781e4425f",
-      "source_sha256": "15aeaf44c6abddd6d417f422a0b600ce962ab0a105d2e5fa6d0350bb43344a41",
+      "scenario_sha256": "6a40ae8df598ff60f97c083eabaafc55cdee8ac61a530f62d8b25d033307cc55",
+      "source_sha256": "2b12a187fd3b53e6d6d0232e85768842976dec5ae277dd552e2b5d9e70a901c0",
       "variants": []
     }
   },
   "nx_create_explosion": {
     "v2406": {
-      "checks": 161,
+      "checks": 184,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:13:34Z",
+      "recorded": "2026-10-19T11:45:39Z",
       "scenario": "acceptance/assembly/explosions.json",
-      "scenario_sha256": "ce870cdcdfac4750a8922c1f54d4e80fa98ea857ef12e60a65930cad7f90cd78",
-      "source_sha256": "7799b99613f2461ef09c44ed2c84ab1d11aee980955db26d34bfa920c7cc20fe",
+      "scenario_sha256": "3ede233a9af27222111d9d7a77d4269839499e4f6f13f85547614629fb06830c",
+      "source_sha256": "7b3ffe27d6ad4ed71923db3617d9818bd8dff45c654ba82de50d1f1d893d2f76",
       "variants": []
     }
   },
   "nx_create_explosion_trace": {
     "v2406": {
-      "checks": 161,
+      "checks": 184,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:13:34Z",
+      "recorded": "2026-10-19T11:45:39Z",
       "scenario": "acceptance/assembly/explosions.json",
-      "scenario_sha256": "ce870cdcdfac4750a8922c1f54d4e80fa98ea857ef12e60a65930cad7f90cd78",
-      "source_sha256": "e7e0b3fbffd657b4601f0d8c879bc09d6de23982277b21f384b606f9ef1e9f6f",
+      "scenario_sha256": "3ede233a9af27222111d9d7a77d4269839499e4f6f13f85547614629fb06830c",
+      "source_sha256": "625e504fc84abb0535d86088590a84f519bd43ab57adfe3de8a8cb2257ad3b79",
       "variants": []
     }
   },
@@ -141,10 +141,10 @@
     "v2406": {
       "checks": 79,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:14:19Z",
+      "recorded": "2026-10-19T10:52:37Z",
       "scenario": "acceptance/assembly/wave_links.json",
       "scenario_sha256": "c78fe69aadec950757d24dd53a892c1400cd3fa3c1d189ed700e4c559fbffadd",
-      "source_sha256": "00f8c6f62ff0f143d37067a4f29d3f460bc8e5f7ff66a3b99c66b93009f045de",
+      "source_sha256": "bb4e5e78d2bce712ef159ab16169115d2d77edff2de76b194e9e7ea17edb5d45",
       "variants": [
         "body",
         "face",
@@ -165,23 +165,23 @@
   },
   "nx_create_reference_set": {
     "v2406": {
-      "checks": 146,
+      "checks": 163,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-15T10:57:28Z",
+      "recorded": "2026-10-19T10:49:39Z",
       "scenario": "acceptance/assembly/components.json",
-      "scenario_sha256": "286e932367e38acd8e63f9d206570f171e56963ce40a08fe18f96ec357c5e8f6",
+      "scenario_sha256": "f6b1df6789684d2b458352a166103cf1bc7a9f094dbbef2c5a8b4103153aa29b",
       "source_sha256": "9859472abc2e59ff6da221e5ae68d0d29967b243d48ab6ffea7d80914ab8dfbf",
       "variants": []
     }
   },
   "nx_create_simplified_assembly": {
     "v2406": {
-      "checks": 20,
+      "checks": 27,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:14:05Z",
+      "recorded": "2026-10-19T10:52:06Z",
       "scenario": "acceptance/assembly/simplify.json",
-      "scenario_sha256": "177d8554692188b8a8305bdbea1c69f59067f7c5b47eb08e08a8b22422999e99",
-      "source_sha256": "238726baa77b7662f4101df0a95c57dd041cbbe703c336235e40cfa63bd0dd41",
+      "scenario_sha256": "5bf4ab262f865ca507cb1418991a61bde3ac9f3952e0a85d7ac3c0646a7b2f63",
+      "source_sha256": "d8d4614d78465c8a24d51d7ed0cc172bab09d0c8ecc95052fded44ac892797aa",
       "variants": []
     }
   },
@@ -189,10 +189,10 @@
     "v2406": {
       "checks": 79,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:14:19Z",
+      "recorded": "2026-10-19T10:52:37Z",
       "scenario": "acceptance/assembly/wave_links.json",
       "scenario_sha256": "c78fe69aadec950757d24dd53a892c1400cd3fa3c1d189ed700e4c559fbffadd",
-      "source_sha256": "00f8c6f62ff0f143d37067a4f29d3f460bc8e5f7ff66a3b99c66b93009f045de",
+      "source_sha256": "bb4e5e78d2bce712ef159ab16169115d2d77edff2de76b194e9e7ea17edb5d45",
       "variants": [
         "body",
         "curve",
@@ -204,23 +204,23 @@
   },
   "nx_delete_clearance_set": {
     "v2406": {
-      "checks": 66,
+      "checks": 93,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:12:41Z",
+      "recorded": "2026-10-19T10:49:17Z",
       "scenario": "acceptance/assembly/clearance_sets.json",
-      "scenario_sha256": "27326ad2f4ce0316d726f32997437f97efcae58e33e48ddf27404bd529ac9cc9",
-      "source_sha256": "f1eba884f534311afc5464a8873773a655260fe0f367675f6f8e16ea2b284805",
+      "scenario_sha256": "1d1a6c02c3a9e8c90a37c6cb0e4cb5f7bd431024c85858cedc1afa3ab345c9d2",
+      "source_sha256": "2ba244322b0b89ed675d45eaf6dae6846f9278779b28369af8644369611b6ab7",
       "variants": []
     }
   },
   "nx_edit_arrangement": {
     "v2406": {
-      "checks": 24,
+      "checks": 40,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:12:30Z",
+      "recorded": "2026-10-19T10:48:57Z",
       "scenario": "acceptance/assembly/assembly_cut.json",
-      "scenario_sha256": "3275da17e5c3225c12e7f2395ea914b7cb86fa94c4d56e149acd8aa8d235854f",
-      "source_sha256": "a3b8343fe69fcd6cf7f37f175f98caa53e8bcfdbd980d683a21e49f336187a32",
+      "scenario_sha256": "c77fafdbcc6e8bddc2870832eed951967ed636ae66e5d94a65a84c72b478c557",
+      "source_sha256": "995ff0db913d270487248f6bfca632a16c87d116b20fdce53d022600cfd8a772",
       "variants": [
         "activate",
         "delete",
@@ -233,10 +233,10 @@
     "v2406": {
       "checks": 82,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-15T10:57:49Z",
+      "recorded": "2026-10-19T10:50:08Z",
       "scenario": "acceptance/assembly/constraints.json",
       "scenario_sha256": "e668d6c588b0a6e388e972c43c5c17b033a66affa23a321b4d5eec33dd515b27",
-      "source_sha256": "f14bcdb3c20629d367673601cff404a372b566155da3f96a59f0c4e4dc9b9f7d",
+      "source_sha256": "152dab266a68fbdae980e58360026dbcfe01826264e393c66dbbe1ef8ac99328",
       "variants": []
     }
   },
@@ -244,175 +244,175 @@
     "v2406": {
       "checks": 42,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-15T10:58:43Z",
+      "recorded": "2026-10-19T11:45:45Z",
       "scenario": "acceptance/assembly/new_component.json",
-      "scenario_sha256": "7086e7bac523305d51c595618d04d214cac2322354f8dc6036debcba7ea9a0fe",
-      "source_sha256": "4f96e0b1a7d772e785977e9defdf11fb178ff2e8b84bd33b365428a2de430ce7",
+      "scenario_sha256": "17bed92fed33e1a81d81c0752dc570a11d11796c6361eb7733dd133c56edab4d",
+      "source_sha256": "cb2c29339726a40325c11ee10b8712b747ea58fdd156d107381ed1761ddba088",
       "variants": []
     }
   },
   "nx_edit_component_group": {
     "v2406": {
-      "checks": 88,
+      "checks": 99,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:14:24Z",
+      "recorded": "2026-10-19T10:52:45Z",
       "scenario": "acceptance/assembly/weight_management.json",
-      "scenario_sha256": "f4cec7d94e1bd15ca1ad511fad3fe948c74e9d9c4f4fedb0670579ce1dee5f2e",
-      "source_sha256": "3af1676171739847d5bd94ded0ac3209e0c4ac4bfad449c4a19b8be205edfac9",
+      "scenario_sha256": "ea904bf928e34a356614c44d8c8e29bdee06c498c3bb4b92c2a52c82d2ccb11a",
+      "source_sha256": "fc49b412e144d26f297352bec27153f381adffa3fcbbf94a5f7e9beb9ef285f9",
       "variants": []
     }
   },
   "nx_edit_component_pattern": {
     "v2406": {
-      "checks": 88,
+      "checks": 109,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-15T10:58:47Z",
+      "recorded": "2026-10-19T10:51:51Z",
       "scenario": "acceptance/assembly/patterns.json",
-      "scenario_sha256": "60ccfe7f6f6b106bdeee8efd127c81ea227a7f137a82379e3026049c593d1c92",
-      "source_sha256": "0a2eaaa013f1d34eb86f4ff4e2aa386965cd421b8c94ecc3148d7bbed5074482",
+      "scenario_sha256": "86717e53109c4bc9970938fb56f3c5acfe52dde34cf3a961349c49e19d392f0a",
+      "source_sha256": "3d56259a904d9231da5883eb3c093d4a3984edec3e022e0410d464ca89e7d178",
       "variants": []
     }
   },
   "nx_edit_explosion": {
     "v2406": {
-      "checks": 161,
+      "checks": 184,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:13:34Z",
+      "recorded": "2026-10-19T11:45:39Z",
       "scenario": "acceptance/assembly/explosions.json",
-      "scenario_sha256": "ce870cdcdfac4750a8922c1f54d4e80fa98ea857ef12e60a65930cad7f90cd78",
-      "source_sha256": "7799b99613f2461ef09c44ed2c84ab1d11aee980955db26d34bfa920c7cc20fe",
+      "scenario_sha256": "3ede233a9af27222111d9d7a77d4269839499e4f6f13f85547614629fb06830c",
+      "source_sha256": "7b3ffe27d6ad4ed71923db3617d9818bd8dff45c654ba82de50d1f1d893d2f76",
       "variants": []
     }
   },
   "nx_edit_explosion_trace": {
     "v2406": {
-      "checks": 161,
+      "checks": 184,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:13:34Z",
+      "recorded": "2026-10-19T11:45:39Z",
       "scenario": "acceptance/assembly/explosions.json",
-      "scenario_sha256": "ce870cdcdfac4750a8922c1f54d4e80fa98ea857ef12e60a65930cad7f90cd78",
-      "source_sha256": "e7e0b3fbffd657b4601f0d8c879bc09d6de23982277b21f384b606f9ef1e9f6f",
+      "scenario_sha256": "3ede233a9af27222111d9d7a77d4269839499e4f6f13f85547614629fb06830c",
+      "source_sha256": "625e504fc84abb0535d86088590a84f519bd43ab57adfe3de8a8cb2257ad3b79",
       "variants": []
     }
   },
   "nx_export_explosion_animation": {
     "v2406": {
-      "checks": 161,
+      "checks": 184,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:13:34Z",
+      "recorded": "2026-10-19T11:45:39Z",
       "scenario": "acceptance/assembly/explosions.json",
-      "scenario_sha256": "ce870cdcdfac4750a8922c1f54d4e80fa98ea857ef12e60a65930cad7f90cd78",
+      "scenario_sha256": "3ede233a9af27222111d9d7a77d4269839499e4f6f13f85547614629fb06830c",
       "source_sha256": "397931100db15971fe24c329167b19911583682a115cb94e034bf7263e8f19b6",
       "variants": []
     }
   },
   "nx_get_explosion": {
     "v2406": {
-      "checks": 161,
+      "checks": 184,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:13:34Z",
+      "recorded": "2026-10-19T11:45:39Z",
       "scenario": "acceptance/assembly/explosions.json",
-      "scenario_sha256": "ce870cdcdfac4750a8922c1f54d4e80fa98ea857ef12e60a65930cad7f90cd78",
-      "source_sha256": "7799b99613f2461ef09c44ed2c84ab1d11aee980955db26d34bfa920c7cc20fe",
+      "scenario_sha256": "3ede233a9af27222111d9d7a77d4269839499e4f6f13f85547614629fb06830c",
+      "source_sha256": "7b3ffe27d6ad4ed71923db3617d9818bd8dff45c654ba82de50d1f1d893d2f76",
       "variants": []
     }
   },
   "nx_list_arrangements": {
     "v2406": {
-      "checks": 61,
+      "checks": 80,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-15T10:56:55Z",
+      "recorded": "2026-10-19T10:48:51Z",
       "scenario": "acceptance/assembly/arrangements.json",
-      "scenario_sha256": "f7a721cab43fa77f7df21ac498991498f923b81a20282b331cd6f20c5b414d51",
-      "source_sha256": "a3b8343fe69fcd6cf7f37f175f98caa53e8bcfdbd980d683a21e49f336187a32",
+      "scenario_sha256": "cbcf4eebee260b46a1a0e14cb2d202e4c20f14b784a2fb1986ab1e4dc7bb2cab",
+      "source_sha256": "995ff0db913d270487248f6bfca632a16c87d116b20fdce53d022600cfd8a772",
       "variants": []
     }
   },
   "nx_list_clearance_sets": {
     "v2406": {
-      "checks": 66,
+      "checks": 93,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:12:41Z",
+      "recorded": "2026-10-19T10:49:17Z",
       "scenario": "acceptance/assembly/clearance_sets.json",
-      "scenario_sha256": "27326ad2f4ce0316d726f32997437f97efcae58e33e48ddf27404bd529ac9cc9",
-      "source_sha256": "f1eba884f534311afc5464a8873773a655260fe0f367675f6f8e16ea2b284805",
+      "scenario_sha256": "1d1a6c02c3a9e8c90a37c6cb0e4cb5f7bd431024c85858cedc1afa3ab345c9d2",
+      "source_sha256": "2ba244322b0b89ed675d45eaf6dae6846f9278779b28369af8644369611b6ab7",
       "variants": []
     }
   },
   "nx_list_component_groups": {
     "v2406": {
-      "checks": 88,
+      "checks": 99,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:14:24Z",
+      "recorded": "2026-10-19T10:52:45Z",
       "scenario": "acceptance/assembly/weight_management.json",
-      "scenario_sha256": "f4cec7d94e1bd15ca1ad511fad3fe948c74e9d9c4f4fedb0670579ce1dee5f2e",
-      "source_sha256": "3af1676171739847d5bd94ded0ac3209e0c4ac4bfad449c4a19b8be205edfac9",
+      "scenario_sha256": "ea904bf928e34a356614c44d8c8e29bdee06c498c3bb4b92c2a52c82d2ccb11a",
+      "source_sha256": "fc49b412e144d26f297352bec27153f381adffa3fcbbf94a5f7e9beb9ef285f9",
       "variants": []
     }
   },
   "nx_list_components": {
     "v2406": {
-      "checks": 146,
+      "checks": 163,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-15T10:57:28Z",
+      "recorded": "2026-10-19T10:49:39Z",
       "scenario": "acceptance/assembly/components.json",
-      "scenario_sha256": "286e932367e38acd8e63f9d206570f171e56963ce40a08fe18f96ec357c5e8f6",
-      "source_sha256": "4f96e0b1a7d772e785977e9defdf11fb178ff2e8b84bd33b365428a2de430ce7",
+      "scenario_sha256": "f6b1df6789684d2b458352a166103cf1bc7a9f094dbbef2c5a8b4103153aa29b",
+      "source_sha256": "cb2c29339726a40325c11ee10b8712b747ea58fdd156d107381ed1761ddba088",
       "variants": []
     }
   },
   "nx_run_clearance_set": {
     "v2406": {
-      "checks": 66,
+      "checks": 93,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:12:41Z",
+      "recorded": "2026-10-19T10:49:17Z",
       "scenario": "acceptance/assembly/clearance_sets.json",
-      "scenario_sha256": "27326ad2f4ce0316d726f32997437f97efcae58e33e48ddf27404bd529ac9cc9",
-      "source_sha256": "f1eba884f534311afc5464a8873773a655260fe0f367675f6f8e16ea2b284805",
+      "scenario_sha256": "1d1a6c02c3a9e8c90a37c6cb0e4cb5f7bd431024c85858cedc1afa3ab345c9d2",
+      "source_sha256": "2ba244322b0b89ed675d45eaf6dae6846f9278779b28369af8644369611b6ab7",
       "variants": []
     }
   },
   "nx_set_arrangement_component": {
     "v2406": {
-      "checks": 24,
+      "checks": 40,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:12:30Z",
+      "recorded": "2026-10-19T10:48:57Z",
       "scenario": "acceptance/assembly/assembly_cut.json",
-      "scenario_sha256": "3275da17e5c3225c12e7f2395ea914b7cb86fa94c4d56e149acd8aa8d235854f",
-      "source_sha256": "a3b8343fe69fcd6cf7f37f175f98caa53e8bcfdbd980d683a21e49f336187a32",
+      "scenario_sha256": "c77fafdbcc6e8bddc2870832eed951967ed636ae66e5d94a65a84c72b478c557",
+      "source_sha256": "995ff0db913d270487248f6bfca632a16c87d116b20fdce53d022600cfd8a772",
       "variants": []
     }
   },
   "nx_set_component_deformation": {
     "v2406": {
-      "checks": 68,
+      "checks": 83,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:13:17Z",
+      "recorded": "2026-10-19T10:50:16Z",
       "scenario": "acceptance/assembly/deformable.json",
-      "scenario_sha256": "c4657da85c2f48fa528488d5a76976908f50a35e66f70d5704cfdbb781e4425f",
-      "source_sha256": "15aeaf44c6abddd6d417f422a0b600ce962ab0a105d2e5fa6d0350bb43344a41",
+      "scenario_sha256": "6a40ae8df598ff60f97c083eabaafc55cdee8ac61a530f62d8b25d033307cc55",
+      "source_sha256": "2b12a187fd3b53e6d6d0232e85768842976dec5ae277dd552e2b5d9e70a901c0",
       "variants": []
     }
   },
   "nx_set_component_mass": {
     "v2406": {
-      "checks": 88,
+      "checks": 99,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:14:24Z",
+      "recorded": "2026-10-19T10:52:45Z",
       "scenario": "acceptance/assembly/weight_management.json",
-      "scenario_sha256": "f4cec7d94e1bd15ca1ad511fad3fe948c74e9d9c4f4fedb0670579ce1dee5f2e",
-      "source_sha256": "3af1676171739847d5bd94ded0ac3209e0c4ac4bfad449c4a19b8be205edfac9",
+      "scenario_sha256": "ea904bf928e34a356614c44d8c8e29bdee06c498c3bb4b92c2a52c82d2ccb11a",
+      "source_sha256": "fc49b412e144d26f297352bec27153f381adffa3fcbbf94a5f7e9beb9ef285f9",
       "variants": []
     }
   },
   "nx_set_component_pose": {
     "v2406": {
-      "checks": 58,
+      "checks": 69,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-15T10:57:43Z",
+      "recorded": "2026-10-19T10:50:00Z",
       "scenario": "acceptance/assembly/constraint_values.json",
-      "scenario_sha256": "bd384e3a837525f9ca193e538442ca93810ce3f08d439cff9b8241f0c81a7cee",
-      "source_sha256": "4f96e0b1a7d772e785977e9defdf11fb178ff2e8b84bd33b365428a2de430ce7",
+      "scenario_sha256": "c96e2dce4ccdb573413fca0d701a82cf6dd3d5976934282b039580bf504c7618",
+      "source_sha256": "cb2c29339726a40325c11ee10b8712b747ea58fdd156d107381ed1761ddba088",
       "variants": [
         "absolute",
         "relative"
@@ -421,12 +421,12 @@
   },
   "nx_set_explosion_display": {
     "v2406": {
-      "checks": 161,
+      "checks": 184,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:13:34Z",
+      "recorded": "2026-10-19T11:45:39Z",
       "scenario": "acceptance/assembly/explosions.json",
-      "scenario_sha256": "ce870cdcdfac4750a8922c1f54d4e80fa98ea857ef12e60a65930cad7f90cd78",
-      "source_sha256": "7799b99613f2461ef09c44ed2c84ab1d11aee980955db26d34bfa920c7cc20fe",
+      "scenario_sha256": "3ede233a9af27222111d9d7a77d4269839499e4f6f13f85547614629fb06830c",
+      "source_sha256": "7b3ffe27d6ad4ed71923db3617d9818bd8dff45c654ba82de50d1f1d893d2f76",
       "variants": []
     }
   },
@@ -434,10 +434,10 @@
     "v2406": {
       "checks": 29,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-15T10:59:03Z",
+      "recorded": "2026-10-19T10:52:25Z",
       "scenario": "acceptance/assembly/update_assembly.json",
       "scenario_sha256": "a46db9d08f176b582bda6a5f11c682dd65aa4c19ad56d48d5aee0c4d334fdfd0",
-      "source_sha256": "a4e8991ac6a46d7ad61f15e77574484348e2b0262a6e4646a34b2fecfd6b032b",
+      "source_sha256": "38720c700e262936ca315f1fb199f69ff813a47e696b720a54a15c22f590a9b4",
       "variants": []
     }
   }

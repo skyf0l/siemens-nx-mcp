@@ -179,3 +179,32 @@ def expect_on_plane(point, origin, normal, check, tol=None):
             tolerance=limit,
         )
     return distance
+
+
+# Boxes and volumes within this relative band (of the box's size) count as the same.
+COINCIDENT_REL = 1e-6
+
+
+def same_box(a, b, rel=COINCIDENT_REL) -> bool:
+    """Whether two boxes ``[low, high]`` agree within ``rel`` of their size."""
+    (alo, ahi), (blo, bhi) = a, b
+    limit = rel * max(1.0, geom.dist(alo, ahi), geom.dist(blo, bhi))
+    return all(
+        abs(float(p) - float(q)) <= limit for p, q in zip([*alo, *ahi], [*blo, *bhi], strict=True)
+    )
+
+
+def coincident(box, volume, others, rel=COINCIDENT_REL) -> list:
+    """Keys of ``others`` (``(key, box, volume)``) with the same box and volume as ``box``
+    and ``volume`` (a sheet: its area): a repeated feature that built a body where one
+    already lies. ``volume`` None compares the boxes only."""
+    out = []
+    for key, other_box, other_volume in others:
+        if not same_box(box, other_box, rel):
+            continue
+        if volume is not None and other_volume is not None:
+            band = rel * max(1.0, abs(float(volume)), abs(float(other_volume)))
+            if abs(float(volume) - float(other_volume)) > band * 10:
+                continue
+        out.append(key)
+    return out

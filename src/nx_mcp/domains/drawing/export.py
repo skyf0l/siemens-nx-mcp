@@ -115,7 +115,8 @@ def nx_export_drawing(
 ) -> ExportData:
     """Export drawing sheets of the work part to a new PDF or CGM file (all or the given
     sheets) or a DXF/DWG file (one sheet). format follows the path's extension. Unsaved
-    changes are included; the part is not saved."""
+    changes are included; the part is not saved. Out-of-date views are updated first
+    (updated_views); other views are exported as they are."""
     suffix = str(path).rsplit(".", 1)[-1].lower()
     kind = format or suffix
     if suffix != kind:

@@ -1,0 +1,244 @@
+{
+ "covers": {
+  "nx_edit_drawing_view": [],
+  "nx_get_drawing_view": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "back",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     35,
+     50,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "front",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     40,
+     0,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "right",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     80,
+     20,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h1",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     25,
+     25,
+     20
+    ],
+    "limit": 1,
+    "radius": 8
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "right",
+   "args": {
+    "type": "projected",
+    "parent": "$top.data.view.id",
+    "direction": "right",
+    "position": [
+     230,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_get_drawing_view",
+   "args": {
+    "view": "$right.data.view.id"
+   },
+   "expect": {
+    "data.style.visible_font": "original",
+    "data.type": "projected"
+   },
+   "intent": "Acceptance: a projected view's visible lines read original (each edge in its own font), not invisible"
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "save": "mv",
+   "args": {
+    "view": "$top.data.view.id",
+    "position": [
+     100,
+     200
+    ]
+   },
+   "expect": {
+    "data.position": {
+     "close": [
+      100,
+      200
+     ],
+     "tol": 1e-06
+    },
+    "data.moved": {
+     "count": 1
+    },
+    "data.moved.0.id": "$right.data.view.id",
+    "changes.modified": {
+     "count": 2
+    }
+   },
+   "intent": "Acceptance: the parent moves along its right view's free axis and drags it, keeping the gap"
+  },
+  {
+   "call": "nx_get_drawing_view",
+   "args": {
+    "view": "$right.data.view.id"
+   },
+   "expect": {
+    "data.position": {
+     "close": [
+      210,
+      200
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "args": {
+    "view": "$top.data.view.id",
+    "position": [
+     400,
+     200
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/position",
+    "error.details.view.id": "$right.data.view.id",
+    "mutation_outcome": "not_started"
+   },
+   "intent": "Acceptance: a move that would push the projected view off the sheet is refused before NX"
+  },
+  {
+   "call": "nx_edit_drawing_view",
+   "args": {
+    "view": "$top.data.view.id",
+    "scale": 20
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/scale",
+    "error.message": {
+     "matches": "projected view"
+    },
+    "mutation_outcome": "not_started"
+   },
+   "intent": "Acceptance: a rescale that would push the projected view off the sheet names it instead of NX 1405072"
+  },
+  {
+   "call": "nx_undo_operation",
+   "args": {
+    "operation": "$mv.operation_id",
+    "mode": "compensate"
+   },
+   "expect": {
+    "data.compensated": true
+   }
+  },
+  {
+   "call": "nx_get_drawing_view",
+   "args": {
+    "view": "$top.data.view.id"
+   },
+   "expect": {
+    "data.position": {
+     "close": [
+      120,
+      200
+     ],
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_get_drawing_view",
+   "args": {
+    "view": "$right.data.view.id"
+   },
+   "expect": {
+    "data.position": {
+     "close": [
+      230,
+      200
+     ],
+     "tol": 0.001
+    }
+   }
+  }
+ ]
+}

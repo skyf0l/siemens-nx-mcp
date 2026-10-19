@@ -502,8 +502,8 @@ def nx_create_wave_link(
 ) -> LinkData:
     """WAVE link bodies, faces, curves, datums or sketches of one component into another's part.
     From the displayed assembly, target names the receiving component (else the work part, a
-    component part, gets it). Faces: one edge-connected set. Sources: occurrences, part
-    objects or (body) components."""
+    component part, gets it); the link feature lands in that part, in its coordinates. Faces:
+    one edge-connected set. Sources: occurrences, part objects or (body) components."""
     if at_timestamp and not associative:
         fail("NX_INVALID_ARGUMENT", "at_timestamp needs an associative link", field="/at_timestamp")
     with tx.checks():
@@ -759,6 +759,8 @@ def nx_create_extract(
         out["volume"] = _same_value(
             measure.volume(tx, bodies), measure.volume(tx, values), "volume", "volume"
         )
+        tx.warn("NX_NOTE", "The extracted body lies on its source (a coincident copy): "
+                "geometry queries now find both; hide or move one")  # fmt: skip
     elif kind == "face":
         out["area"] = _same_value(measure.area(tx, faces), measure.area(tx, values), "area", "area")
     else:

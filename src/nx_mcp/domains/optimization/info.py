@@ -8,9 +8,9 @@ from nx_mcp.core.catalogue import tool
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import FeatureRef
 from nx_mcp.domains.optimization import common, environment
-from nx_mcp.kit import measure, result
+from nx_mcp.kit import result
 
-SOLVED_BELOW = 0.999  # result volume / design volume of a solved study
+SOLVED_BELOW = common.SOLVED_BELOW  # result volume / design volume of a solved study
 
 
 class LoadCase(TypedDict):
@@ -21,7 +21,7 @@ class LoadCase(TypedDict):
 
 class StudyInfo(TypedDict):
     study: result.Row
-    name: str
+    name: str | None
     design_space: result.Row | None
     material: str | None
     design_mass: float | None
@@ -65,16 +65,13 @@ def describe(tx, feature) -> StudyInfo:
     material = getattr(design, "Material", None) if design is not None else None
     # NX 2406 gives the feature its own result body at once (a copy of the design space
     # body is empty until solved); a solved body is lighter than the design space.
-    bodies = common.result_bodies(feature, study)
-    fraction = None
-    if bodies and design is not None:
-        fraction = measure.volume(tx, bodies) / measure.volume(tx, [design.Body])
+    fraction, bodies = common.solved_fraction(tx, feature, study)
     solved = fraction is not None and 0.0 < fraction < SOLVED_BELOW
     design_mass = None if design is None else common.mass_of(design)
     target = common.target_mass(feature)
     return {
         "study": tx.ref(feature, kind="feature"),
-        "name": str(getattr(study, "Name", "") or ""),
+        "name": str(getattr(study, "Name", "") or "") or None,
         "design_space": None if design is None else tx.ref(design.Body, kind="body"),
         "material": None if material is None else str(material.Name),
         "design_mass": design_mass,

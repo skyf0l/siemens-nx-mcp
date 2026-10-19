@@ -703,7 +703,7 @@ parameter of that name, and validates them (`NX_INVALID_ARGUMENT`, field `/part`
 `/expires_at`). Every tool that acts on a loaded part and can be called without refs
 (`schema.takes_part_key`: runs in NX, a `refs`/`assembly`/`sheet`/`display` target or a
 resolver, no required ref parameter) lists `part` in its schemas (`schema.PART_KEY`:
-"Target part's file name when 2+ are loaded"): the core tools of the `agent` listing,
+"Target part file when 2+ are loaded"): the core tools of the `agent` listing,
 every such tool in `nx_get_tool_schemas` and in the `full` listing. Agents trust a strict
 schema (`additionalProperties: false`) over the instruction sentence, and with `part`
 left out of the schemas they did not pass it. `expires_at` is never listed. The server does not validate input against
@@ -1296,15 +1296,15 @@ caps in the test, never the table:
 
 | Item (characters of compact JSON) | Cap | Measured |
 |---|---|---|
-| `agent` profile listing (4 gateways + 14 core tools; paid every turn) | 15,880 + 15 per domain = 16,060 (12 domains) | 16,041 (about 4.2K tokens) |
+| `agent` profile listing (4 gateways + 14 core tools; paid every turn) | 15,880 + 15 per domain = 16,060 (12 domains) | 16,035 (about 4.2K tokens) |
 | `agent` server instructions (once per session) | 1,600 | 1,485 |
-| Full listing (name + description + input schema, call keys included) | mean 1,265 per listed tool | mean 1,176.7 over 273 tools (321,245, about 84.5K tokens) |
-| Tool definition (name + description + input schema, no call keys) | each 1,600; 3,000 for unions | max 1,598 (181 plain tools), 2,999 (88 unions) |
-| Tool definition drift (75th percentile per kind) | plain 1,050, union 1,860 | plain 1,045, union 1,786.8 |
-| `nx_find_tools` page (26 realistic queries) | row 170; rest of the page 400; 90th percentile page 1,640 | row max 163, rest max 360, 90th percentile 1,464.5 (max 1,783) |
+| Full listing (name + description + input schema, call keys included) | mean 1,265 per listed tool | mean 1,214 over 276 tools (335,070, about 88.2K tokens) |
+| Tool definition (name + description + input schema, no call keys) | each 1,600; 3,000 for unions | max 1,598 (184 plain tools), 2,999 (88 unions) |
+| Tool definition drift (75th percentile per kind) | plain 1,050, union 1,860 | plain 1,045, union 1,826.5 |
+| `nx_find_tools` page (26 realistic queries) | row 170; rest of the page 400; 90th percentile page 1,640 | row max 163, rest max 360, 90th percentile 1,463.5 (max 1,783) |
 | `nx_find_tools` domain overview (empty query, one row per domain) | row 140; rest 375; no total | row max 125, rest 308 (1,533 in all) |
-| `nx_get_tool_schemas` entry, over the tool's definition | each 250; mean 85 | max 217, mean 55.7 |
-| Typical modeling task (overview, 3 searches, 4 schemas in one fetch) | 13,650 | 12,761 (about 3.4K tokens) |
+| `nx_get_tool_schemas` entry, over the tool's definition | each 250; mean 85 | max 246, mean 56.7 |
+| Typical modeling task (overview, 3 searches, 4 schemas in one fetch) | 13,650 | 13,108 (about 3.4K tokens) |
 
 <!-- END budget table -->
 

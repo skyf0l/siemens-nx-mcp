@@ -19,9 +19,9 @@ from __future__ import annotations
 import contextlib
 import math
 import re
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Literal, TypedDict, cast
 
-from nx_mcp.core.catalogue import hooks, tool
+from nx_mcp.core.catalogue import hooks, restorer, tool
 from nx_mcp.core.errors import fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
@@ -35,6 +35,7 @@ from nx_mcp.core.types import (
     SheetPoint,
     Text,
 )
+from nx_mcp.domains.drawing import hatch as hatches
 from nx_mcp.domains.drawing.common import (
     SheetArg,
     ViewArg,
@@ -47,6 +48,7 @@ from nx_mcp.domains.drawing.common import (
     distance_to_line,
     geometry,
     leader_row,
+    on_sheet_point,
     report_bounds,
     set_origin,
     sheet_of,
@@ -54,6 +56,7 @@ from nx_mcp.domains.drawing.common import (
     update,
     verify_origin,
 )
+from nx_mcp.domains.drawing.hatch import HatchEdit
 from nx_mcp.kit import args, builders, curve, drawing, facts, geom, readback, result, select
 
 MAX_LINES = 50
@@ -162,6 +165,7 @@ def nx_create_note(
         fail("NX_INVALID_ARGUMENT", "leader_to and view go together", field="/view")
     with tx.checks():
         target, shown = _target_sheet(tx, sheet, view)
+        on_sheet_point(target, origin, "/origin")
         obj = geometry(tx, leader_to, ("edge", "face"), "/leader_to") if leader_to else None
     A = tx.nx.Annotations
     part = tx.part
@@ -612,8 +616,9 @@ def _automatic(tx, view_ref):
         update(tx)
         created = [c for c in collection if int(c.Tag) not in before]
         if not created:
-            tx.warn("NX_NO_EFFECT", "NX found no hole without a center mark in this view: "
-                    "holes need to be seen along their axis")  # fmt: skip
+            tx.warn("NX_NO_EFFECT", "NX found no hole without a center mark in this view: its "
+                    "holes seen along their axis are marked already (a new base view marks "
+                    "them itself), others are not seen along their axis")  # fmt: skip
         return {
             "annotations": [tx.ref(c, "annotation") for c in created],
             "sheet": tx.ref(sheet, "drawing_sheet"),
@@ -671,6 +676,7 @@ def nx_create_drawing_symbol(
         roughness_ra = roughness(roughness_ra)
     with tx.checks():
         shown, sheet = drawing.view(tx, view)
+        on_sheet_point(sheet, origin, "/origin")
         obj = geometry(tx, object, ("edge", "face"), "/object")
     if symbol == "weld":
         return _weld(tx, shown, sheet, obj, origin, {"type": weld, "size": size, "side": side})
@@ -802,12 +808,21 @@ def _is_note(tx, obj):
     return type(obj).__name__ == "Note" or int(obj.Tag) in {int(n.Tag) for n in tx.part.Notes}
 
 
+def _takes_text(tx, obj):
+    """A note or a leader note (NX keeps a note made with a leader as a ``Label``): both
+    are edited with the drafting-note builder."""
+    if _is_note(tx, obj) or type(obj).__name__ == "Label":
+        return True
+    return int(obj.Tag) in {int(n.Tag) for n in getattr(tx.part, "Labels", None) or []}
+
+
 class EditData(TypedDict, total=False):
     annotation: result.Row
     name: str
     position: list[float]
     frame: str
     text: list[str]
+    hatch: dict
     bounds: list[float]
 
 
@@ -816,7 +831,14 @@ class EditData(TypedDict, total=False):
     effect="model",
     label="Edit annotation",
     summary=lambda a, say: f"Edit {say('annotation')}",
-    keywords=("move annotation", "rename annotation", "edit note text", "move note", "balloon"),
+    keywords=(
+        "move annotation",
+        "edit note text",
+        "leader note text",
+        "edit hatch",
+        "hatch spacing",
+        "balloon",
+    ),  # fmt: skip
     requires=("work_part", "no_active_sketch"),
     cost="light",
     batchable=True,
@@ -830,11 +852,16 @@ def nx_edit_annotation(
     position: SheetPoint | Point3 | None = None,
     name: Name | None = None,
     text: NoteText | None = None,
+    hatch: HatchEdit | None = None,
 ) -> EditData:
-    """Move or rename an annotation, dimension or table, or replace a note's text. position:
-    sheet [x, y], or [x, y, z] for PMI; a move NX ignores (associative marks) is refused."""
-    if position is None and name is None and text is None:
-        fail("NX_INVALID_ARGUMENT", "Give position, name or text")
+    """Move or rename an annotation, dimension or table; replace note or leader-note text; edit
+    a hatch. hatch takes nx_create_hatch fields. position: sheet [x, y], or [x, y, z] for PMI;
+    a move NX ignores (associative marks) is refused. Undo restores."""
+    hatch = cast(
+        "HatchEdit | None", {k: v for k, v in (hatch or {}).items() if v is not None} or None
+    )
+    if position is None and name is None and text is None and hatch is None:
+        fail("NX_INVALID_ARGUMENT", "Give position, name, text or hatch")
     lines = note_lines(text) if text is not None else None
     with tx.checks():
         obj = select.resolve(
@@ -846,12 +873,15 @@ def nx_edit_annotation(
             field="/annotation",
             work_part=True,
         )
-        if lines is not None and not _is_note(tx, obj):
+        if lines is not None and not _takes_text(tx, obj):
             dimension = type(obj).__name__.endswith("Dimension")
-            fail("NX_UNSUPPORTED_OPTION", "Only notes take new text", field="/text",
+            fail("NX_UNSUPPORTED_OPTION", "Only notes and leader notes take new text",
+                 field="/text",
                  hint="Add text before or after a dimension's value (REF, 2X) with "
                  "nx_edit_dimension appended" if dimension else
                  "Recreate the annotation with its create tool")  # fmt: skip
+        if hatch is not None:
+            hatches.check_edit(tx, obj, hatch)
         sheet = drawing.sheet_of_annotation(tx, obj)
         anchor = drawing.anchor_of(tx, obj)
         if position is not None:
@@ -861,47 +891,147 @@ def nx_edit_annotation(
                 fail("NX_INVALID_ARGUMENT",
                      "Use [x, y] for a sheet annotation, [x, y, z] for PMI",
                      field="/position")  # fmt: skip
-    out: EditData = {}
-    if lines is not None:
-        factory = tx.part.Annotations.CreateDraftingNoteBuilder
-        with builders.build(tx, factory, obj) as b:
-            b.Text.TextBlock.SetText(lines)
-            commit(b, "note")
-        update(tx)
-        stored = [str(line) for line in obj.GetText()]
-        readback.expect(stored == lines, "text", "NX stored other note text", text=stored)
-        out["text"] = stored
-    if name is not None:
-        out["name"] = result.rename(tx, obj, name)
-    if position is not None:
-        if sheet is not None:
-            sh = drawing.Sheet(tx, sheet)
-            anchor.AnnotationOrigin = sh.point(position)
-        else:
-            anchor.AnnotationOrigin = tx.nx.Point3d(*map(float, position))
-        update(tx)
-        if sheet is not None:
-            actual = sh.to_sheet(anchor.AnnotationOrigin)
-            out["frame"] = "sheet"
-        else:
-            actual = geom.xyz(anchor.AnnotationOrigin)
-            out["frame"] = "work_part_absolute"
-        tol = 1e-6 * max(1.0, *map(abs, position))
-        if any(abs(a - float(b)) > tol for a, b in zip(actual, position, strict=True)):
-            # Associative annotations (center marks, centerlines) stay on their geometry.
-            fail(
-                "NX_UNSUPPORTED_OPTION",
-                "NX keeps this annotation where its associated geometry places it",
-                field="/position",
-                details={"requested": list(position), "actual": actual},
-            )
-        out["position"] = actual
-    else:
-        update(tx)
-    out["annotation"] = tx.ref(obj, annotation_kind(tx, obj))
-    if sheet is not None and (position is not None or lines is not None):
-        report_bounds(tx, out, obj, drawing.Sheet(tx, sheet), annotation_kind(tx, obj))
+            if sheet is not None:
+                drawing.check_on_sheet(sheet, position, "/position")
+        kind = annotation_kind(tx, obj)
+        edit = Edit(obj, sheet, anchor)
+        before = edit.state(tx, position, name, lines, hatch)
+    out = edit.apply(tx, position, name, lines, hatch)
+    if name is not None and out["name"] != name:
+        tx.warn("NX_NOTE", f"NX stores the name as {out['name']!r}")
+    out["annotation"] = tx.modified(obj, kind)
+    if sheet is not None and (position is not None or lines is not None or hatch is not None):
+        report_bounds(tx, out, obj, drawing.Sheet(tx, sheet), kind)
+    after = edit.state(tx, position, name, lines, hatch)
+    tx.note_restore({"annotation": annotation, "kind": kind, "before": before, "after": after})
     return out
+
+
+class Edit:
+    """One annotation's editable values: read (:meth:`state`) and set (:meth:`apply`)."""
+
+    def __init__(self, obj, sheet, anchor):
+        self.obj, self.sheet, self.anchor = obj, sheet, anchor
+
+    def state(self, tx, position=None, name=None, lines=None, hatch=None):
+        """The values an edit of these fields sets, as they read now (plain JSON: an undo's
+        before-values)."""
+        obj, sheet = self.obj, self.sheet
+        state: dict = {}
+        if position is not None:
+            point = self.anchor.AnnotationOrigin
+            state["position"] = (
+                drawing.Sheet(tx, sheet).to_sheet(point) if sheet is not None else geom.xyz(point)
+            )
+        if name is not None:
+            state["name"] = str(getattr(obj, "Name", "") or "")
+        if lines is not None:
+            state["text"] = [str(line) for line in obj.GetText()]
+        if hatch is not None:
+            current = hatches.describe(tx, obj)
+            state["hatch"] = {k: current.get(k) for k in hatch}
+        return state
+
+    def apply(self, tx, position=None, name=None, lines=None, hatch=None):
+        """Set the given values and read each back; returns the result fields."""
+        obj, sheet, anchor = self.obj, self.sheet, self.anchor
+        out: dict = {}
+        if lines is not None:
+            factory = tx.part.Annotations.CreateDraftingNoteBuilder
+            with builders.build(tx, factory, obj) as b:
+                b.Text.TextBlock.SetText(list(lines))
+                commit(b, "note")
+            update(tx)
+            stored = [str(line) for line in obj.GetText()]
+            readback.expect(stored == list(lines), "text", "NX stored other note text",
+                            text=stored)  # fmt: skip
+            out["text"] = stored
+        if hatch is not None:
+            out["hatch"] = hatches.edit(tx, obj, hatch)
+        if name is not None:
+            out["name"] = _set_name(tx, obj, name)
+        if position is not None:
+            if sheet is not None:
+                sh = drawing.Sheet(tx, sheet)
+                anchor.AnnotationOrigin = sh.point(position)
+            else:
+                anchor.AnnotationOrigin = tx.nx.Point3d(*map(float, position))
+            update(tx)
+            if sheet is not None:
+                actual = sh.to_sheet(anchor.AnnotationOrigin)
+                out["frame"] = "sheet"
+            else:
+                actual = geom.xyz(anchor.AnnotationOrigin)
+                out["frame"] = "work_part_absolute"
+            tol = 1e-6 * max(1.0, *map(abs, position))
+            if any(abs(a - float(b)) > tol for a, b in zip(actual, position, strict=True)):
+                # Associative annotations (center marks, centerlines) stay on their geometry.
+                fail(
+                    "NX_UNSUPPORTED_OPTION",
+                    "NX keeps this annotation where its associated geometry places it",
+                    field="/position",
+                    details={"requested": list(position), "actual": actual},
+                )
+            out["position"] = actual
+        elif lines is None and hatch is None:
+            update(tx)
+        return out
+
+
+def _set_name(tx, obj, name):
+    """Name ``obj``; an empty name removes it (NX 2406 ignores ``SetName('')``)."""
+    if name:
+        return result.rename(tx, obj, name)
+    tx.uf.Obj.DeleteName(obj.Tag)
+    return str(getattr(obj, "Name", "") or "")
+
+
+def same_values(now, want):
+    """Whether edited values read ``now`` match ``want`` (numbers to 1e-6 relative, names
+    in any case, nested dicts key by key)."""
+    for key, value in want.items():
+        got = now.get(key)
+        if key == "name":
+            ok = str(got or "").casefold() == str(value or "").casefold()
+        elif isinstance(value, dict):
+            ok = isinstance(got, dict) and same_values(got, value)
+        elif isinstance(value, (int, float)) and not isinstance(value, bool):
+            ok = isinstance(got, (int, float)) and geom.close(got, value)
+        elif isinstance(value, list) and value and all(isinstance(v, (int, float)) for v in value):
+            ok = (
+                isinstance(got, list)
+                and len(got) == len(value)
+                and all(geom.close(a, b) for a, b in zip(got, value, strict=True))
+            )
+        else:
+            ok = got == value
+        if not ok:
+            return False
+    return True
+
+
+@restorer("nx_edit_annotation")
+def _restore_edit(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Set back what an ``nx_edit_annotation`` changed (position, name, text, hatch):
+    refused when the annotation changed again since."""
+    ref, before, after = data["annotation"], data["before"], data["after"]
+    obj = select.resolve(tx, ref, data.get("kind") or "annotation", field="/annotation")
+    edit = Edit(obj, drawing.sheet_of_annotation(tx, obj), drawing.anchor_of(tx, obj))
+
+    def fields(values):
+        return {"position": values.get("position"), "name": values.get("name"),
+                "lines": values.get("text"), "hatch": values.get("hatch")}  # fmt: skip
+
+    now = edit.state(tx, **fields(after))
+    if not same_values(now, after):
+        fail("NX_DEPENDENCY_ORDER", f"{ref} was edited again since: it reads {now}, the "
+             f"operation left {after}", details={"annotation": ref, "now": now})  # fmt: skip
+    if apply:
+        edit.apply(tx, **fields(before))
+        back = edit.state(tx, **fields(before))
+        readback.expect(same_values(back, before), "restore",
+                        f"{ref} reads {back}, not {before}", now=back)  # fmt: skip
+    return f"the {', '.join(sorted(before))} of {ref} set back"
 
 
 class RefreshData(TypedDict, total=False):
@@ -968,7 +1098,7 @@ def nx_update_annotations(
                 done.add(row.get("id"))
     out: RefreshData = {"refreshed": [r for r in refreshed if live is None or r.get("id") in given]}
     skipped = [
-        {"id": ref, "reason": _why_skipped(tx, obj)}
+        {"id": ref, "reason": _why_skipped(tx, ref, obj)}
         for ref, obj in zip(objects or [], live or [], strict=True)
         if ref not in done
     ]
@@ -977,6 +1107,8 @@ def nx_update_annotations(
         out["note"] = NOT_MANAGED
     elif not refreshed:
         out["note"] = "Nothing needed a refresh. " + NOT_MANAGED
+    if not refreshed and not tx.changed:
+        tx.warn("NX_NO_EFFECT", "Nothing needed a refresh: every drawing object was up to date")
     return out
 
 
@@ -1005,15 +1137,30 @@ def _dimension_views(tx, objects):
     return views
 
 
-def _why_skipped(tx, obj):
-    try:
-        kind = tx.kind_of(obj)
-    except Exception:  # an object without a reference kind
-        kind = None
+SKIP_REASONS = {
+    "dimension": "dimension: follows its view; its value is unchanged",
+    "drawing_view": "view: up to date with the model",
+    "drawing_table": "table: up to date (title blocks, revision tables and tabular notes hold "
+    "typed text; parts lists, bend and hole tables follow the model)",
+    "drawing_sheet": "sheet: nothing to refresh itself; name its views or tables, or omit "
+    "objects to refresh all",
+}
+
+
+def _why_skipped(tx, ref, obj):
+    """Why a given object was not refreshed, by the kind of its reference (a drafting
+    object NX infers no kind for is classified as dimension, table or annotation)."""
+    entry = getattr(tx.services.references, "entry", None)
+    known = entry(ref) if entry is not None else None
+    kind = getattr(known, "kind", None)
     if kind not in DRAWING_KINDS:
-        return "not a drawing object"
-    return {
-        "dimension": "value unchanged",
-        "drawing_view": "up to date",
-        "annotation": "follows the model on its own",
-    }.get(kind, "nothing to refresh")
+        try:
+            kind = annotation_kind(tx, obj) if hasattr(obj, "AnnotationOrigin") else tx.kind_of(obj)
+        except Exception:  # an object without a reference kind
+            kind = kind or None
+    if kind == "annotation":
+        name = {"Note": "note", "Label": "leader note"}.get(type(obj).__name__, "annotation")
+        return f"{name}: follows the model on its own"
+    if kind in SKIP_REASONS:
+        return SKIP_REASONS[kind]
+    return f"not a drawing object ({kind or type(obj).__name__}): nothing to refresh"

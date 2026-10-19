@@ -293,12 +293,16 @@ class FakeServices(Services):
             self.registry.invalidate_part(self.part_key(part))
 
     def retire_undone(self, parts):
-        """Handles whose object the undo removed; ``retag`` objects come back under a
-        new tag (an NX build that renumbers on undo)."""
+        """Handles of ``parts`` (like the host: only theirs) whose object the undo removed;
+        ``retag`` objects come back under a new tag (an NX build that renumbers on undo)."""
+        parts = list(parts)
+        keys = {self.part_key(p) for p in parts}
         live = {id(o) for p in parts for o in p.objects} | {id(p) for p in parts}
         retired = set()
         for key, entry in list(self.registry._objects.items()):
             obj = entry.value
+            if entry.reference.part_id not in keys:
+                continue
             if id(obj) not in live or getattr(obj, "retagged", False):
                 self.registry._objects.pop(key)
                 self.registry._stale_ids.add(key)

@@ -162,3 +162,14 @@ def test_first_takes_the_first_member_this_build_has():
     member = "NXOpen.GeometricAnalysis.AnalysisObjectsEx.CreateNew|CreateOld"
     assert error.details["member"] == member
     assert "nothing changed" in error.message
+
+
+def test_a_commit_marks_the_call_as_having_built():
+    nx = fake_nx()
+    nx.tx.built = False
+    with builders.build(nx.tx, nx.part.Features.CreateShellBuilder, None) as b:
+        b.Tolerance = 0.001
+    assert nx.tx.built is False  # configured and destroyed: NX made nothing
+    with builders.build(nx.tx, nx.part.Features.CreateShellBuilder, None) as b:
+        b.commit()
+    assert nx.tx.built is True

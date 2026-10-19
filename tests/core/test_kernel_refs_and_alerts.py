@@ -390,7 +390,14 @@ def test_a_present_but_invalid_field_is_not_also_reported_required():
     with pytest.raises(NXError) as named:
         validate(spec.params, {"kind": "blind"}, variant="kind", required_by=needs,
                  tool="nx_create_cut")  # fmt: skip
-    assert named.value.hint == "nx_get_tool_schemas nx_create_cut#blind lists the fields"
+    assert named.value.hint == (
+        "Add depth: kind 'blind' needs it "
+        "(nx_get_tool_schemas nx_create_cut#blind shows only that variant's fields)"
+    )
+    with pytest.raises(NXError) as hidden:  # a variant this build does not offer: no pointer
+        validate(spec.params, {"kind": "blind"}, variant="kind", required_by=needs,
+                 tool="nx_create_cut", shown={"kind": ("through",)})  # fmt: skip
+    assert hidden.value.hint == "Add depth: kind 'blind' needs it"
 
 
 def test_a_sheet_named_by_its_name_gives_the_sheet_units(svc):

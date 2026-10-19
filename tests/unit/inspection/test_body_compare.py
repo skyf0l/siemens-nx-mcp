@@ -97,6 +97,17 @@ def test_tolerance_absorbs_small_moves(monkeypatch):
     assert strict["counts"]["matching"] == 1
 
 
+def test_separate_faces_on_one_plane_are_not_paired(monkeypatch):
+    """A block and a block beside it share their bottom plane: the bottoms do not overlap,
+    so they are removed and added, not one changed face."""
+    nx = compare_nx(monkeypatch)
+    a, b = nx.block(40, 20, 10), nx.block(10, 10, 30, origin=(60, 0, 0))
+    d = run(nx, "nx_analyze_body_changes", control=a.ref, sample=b.ref)
+    assert d.ok, d
+    assert d.data["counts"] == {"matching": 0, "changed": 0, "added": 6, "removed": 6}
+    assert any("No face" in w["message"] for w in d.warnings)
+
+
 def test_surface_identity_rules():
     plane = {"type": 22, "point": [0, 0, 5], "dir": [0, 0, 1], "box": [0] * 6,
              "radius": 0.0, "rad_data": 0.0}  # fmt: skip

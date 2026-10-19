@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/freeform/swept_volume.json",
-  "scenario_sha256": "806d11f4ccdfd2c9d43e8355cd8873dbb0b471ffefdfb49be06bbef6f9e34346",
+  "scenario_sha256": "e1ee16e9eb527673376cbed15dedf751895754a21f3ffe4b1456269999d4f601",
   "domain": "freeform",
   "covers": {
     "nx_create_swept_volume": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_swept_volume": "088f335fb4b64aa66ea86003139e60f451b25c76a49f93a3a84fdc00be491f9e"
+    "nx_create_swept_volume": "8e964ec14841c0229b75007344d737e56e78fa738c0b99fdac4f77ad3a7cf614"
   },
-  "recorded": "2026-10-16T13:15:50Z",
+  "recorded": "2026-10-19T10:48:29Z",
   "passed": true,
-  "checks": 31,
+  "checks": 32,
   "failed_checks": 0,
   "steps": [
     {
@@ -98,7 +98,7 @@
       "call": "nx_create_swept_volume",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 13,

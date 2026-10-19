@@ -93,27 +93,55 @@ def _rib_cause(tx, sk, target, orientation, side, flip, thickness):
             )
         return None
     behind, ahead = hi <= tol, lo >= -tol
-    away = f" and lies {gap:.6g} from it" if gap > tol else ""
-    if behind and not flip:
-        return (
-            "wrong_side",
-            f"The body lies behind the sketch plane{away}, but a rib grows along the normal",
-            "Set flip true to grow the rib against the sketch normal, toward the body",
-        )
-    if ahead and flip:
-        return (
-            "wrong_side",
-            f"The body lies in front of the sketch plane{away}, but flip grows the rib away "
-            "from it",
-            "Omit flip: the rib grows along the sketch normal, toward the body",
-        )
-    if (behind or ahead) and gap > tol:
+    if (behind or ahead) and gap > tol:  # no flip bridges a gap: say so first
         return (
             "plane_off_body",
             f"The sketch plane lies {gap:.6g} from the body",
-            "Put the sketch on the body (a rim or a face plane, or a plane cutting it)",
+            RIB_ON_BODY_HINT,
+        )
+    if not (behind or ahead):
+        return None
+    toward = -1.0 if behind else 1.0  # the side of the plane the body lies on
+    if _solid_beyond(tx, sk, target, toward, tol):  # either way: no room or no body
+        return (
+            "on_material",
+            "The curves lie on the body's material: a perpendicular rib grows from the "
+            "sketch plane into open space between walls of the body",
+            RIB_ON_BODY_HINT,
+        )
+    if (behind and not flip) or (ahead and flip):
+        if behind:
+            return (
+                "wrong_side",
+                "The body lies behind the sketch plane, but a rib grows along the normal",
+                "Set flip true to grow the rib against the sketch normal, toward the body",
+            )
+        return (
+            "wrong_side",
+            "The body lies in front of the sketch plane, but flip grows the rib away from it",
+            "Omit flip: the rib grows along the sketch normal, toward the body",
         )
     return None
+
+
+RIB_ON_BODY_HINT = (
+    "Sketch on a plane at the body's rim with the curves spanning open space whose ends meet "
+    "walls (e.g. across a cup's opening; flip grows it down into the cup). A flat plate has no "
+    "walls to cap the rib: extrude the rib's outline with combine unite instead"
+)
+
+
+def _solid_beyond(tx, sk, target, toward, tol) -> bool:
+    """Whether material lies just past the sketch plane on the body's side under the middle
+    of the first curve (a rib sketched on a plate's top face): False when unknown."""
+    try:
+        f = ksketch.frame(sk)
+        c = common.sketch_curves(sk)[0]
+        mid = curve.point_at(tx, c, 0.5)
+        q = geom.add(mid, geom.scale(geom.unit(f["normal"]), toward * 10 * tol))
+        return int(tx.uf.Modeling.AskPointContainment(q, target.Tag)) == common.INSIDE
+    except Exception:  # noqa: BLE001 - a curve UF cannot evaluate: no claim
+        return False
 
 
 def _rib_failed(tx, error, sk, target, orientation, side, flip, thickness) -> None:
@@ -183,12 +211,12 @@ def nx_create_rib(
         bool, Doc("Perpendicular rib: grow against the sketch normal (NX grows along it)")
     ] = False,
 ) -> RibData:
-    """Add a rib (wall, web or gusset) from open sketch curves to a solid body. parallel: the
-    sketch plane cuts through the body (an L-bracket's mid-plane) and a line from wall to wall
-    closes a region with it, filled to the thickness across the plane. perpendicular: curves
-    on a plane at the body (a cup's rim) grow along the sketch normal to meet it; flip when
-    the body lies against the normal (below a rim sketch facing up). volume is the body's
-    (the rib body's if not combined); added is the rib's."""
+    """Add a rib (wall, web or gusset) from open sketch curves to a solid. parallel: the
+    sketch plane cuts the body (an L-bracket's mid-plane), a line runs wall to wall.
+    perpendicular: a line across a cup's opening, sketched on its rim plane (normal up),
+    grows down to the floor with flip true; draft tapers its walls. The curve ends must meet
+    walls: a flat plate needs an extrude instead. volume: the body's (the rib's if not
+    combined); added: the rib's."""
     args.finite(thickness, "/thickness", positive=True)
     if draft is not None:
         if orientation != "perpendicular":
@@ -586,7 +614,7 @@ def _boxes_meet(tx, a, b, gap) -> bool:
 
 @tool(
     effect="model",
-    label="Emboss body",
+    label="Emboss around a tool body",
     summary="Emboss {target} around {tool_body}",
     keywords=("emboss body", "form around", "wrap tool", "imprint body", "clearance pocket"),
     requires=("work_part", "no_active_sketch"),
@@ -626,7 +654,14 @@ def nx_create_emboss_body(
                 hint="Move the tool so it overlaps the target (nx_create_transform), or pick "
                 "the body it crosses",
             )
-    solid = bool(getattr(goal, "IsSolidBody", True))
+        solid = bool(getattr(goal, "IsSolidBody", True))
+        if solid and thickness is not None:
+            fail(
+                "NX_INVALID_ARGUMENT",
+                "thickness applies to sheet targets only; NX ignores it for a solid target",
+                field="/thickness",
+                hint="Drop thickness: a solid target loses the tool's overlap grown by clearance",
+            )
     before = measure.volume(tx, goal) if solid else 0.0
     faces_before = [] if solid else list(goal.GetFaces())
     area_before = measure.area(tx, faces_before) if faces_before else 0.0
@@ -650,6 +685,12 @@ def nx_create_emboss_body(
     out: EmbossBodyData = {**common.result_of(tx, feature, bodies or [goal]), "sheet": not solid}
     if solid:
         common.changed(before, out["volume"], "differs")
+        if reverse:
+            tx.warn(
+                "NX_NOTE",
+                f"reverse on a solid target flips the side NX keeps material on: the volume "
+                f"went {before:.6g} -> {out['volume']:.6g}; omit reverse to cut the overlap",
+            )
         return out
     sheets = bodies or [goal]
     area = measure.area(tx, [f for x in sheets for f in x.GetFaces()])

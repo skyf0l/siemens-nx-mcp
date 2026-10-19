@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/motion/hatch_hinge.json",
-  "scenario_sha256": "bebe08a4785dbac8e6f3cb92419c13feff1ba7b3f8bf0af2f8fb4eaddbd2c88b",
+  "scenario_sha256": "1be7fe48cc719a37c34d59d492b8ceed527232208ef7f592fd6a921049636bc0",
   "domain": "motion",
   "covers": {
     "nx_run_motion_sweep": [
@@ -12,11 +12,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_run_motion_sweep": "b89d65271eece45c6b7b9d281e90cdd9f6d108bb95d948465420d705a9a5290e"
+    "nx_run_motion_sweep": "9c52a1b3d1fa364fb89cf32b99af060d17efdf872d7dfd9b3a2099aa6bfcbd9e"
   },
-  "recorded": "2026-10-15T11:03:13Z",
+  "recorded": "2026-10-19T10:52:57Z",
   "passed": true,
-  "checks": 54,
+  "checks": 59,
   "failed_checks": 0,
   "steps": [
     {
@@ -171,10 +171,17 @@
       "call": "nx_run_motion_sweep",
       "setup": false,
       "passed": true,
-      "checks": 4
+      "checks": 5
     },
     {
       "index": 23,
+      "call": "nx_run_motion_sweep",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 24,
       "call": "nx_run_motion_sweep",
       "setup": false,
       "passed": true,

@@ -75,42 +75,20 @@
   },
   {
    "call": "nx_create_refit_face",
-   "intent": "A twisted ruled B-surface refit within 0.01: same shape and area 1016.88",
+   "intent": "A twisted ruled B-surface already fits NX's default degrees and patches: the refit changes nothing, so it is refused and rolled back",
    "args": {
     "face": "$hf.data.items.0.id",
     "tolerance": 0.01
    },
    "expect": {
-    "mutation_outcome": "committed",
-    "data.faces": 1,
-    "data.area": {
-     "close": 1016.8822,
-     "tol": 0.05
+    "ok": false,
+    "error.code": "NX_UNSUPPORTED_GEOMETRY",
+    "error.field": "/face",
+    "error.details.deviation": {
+     "close": 0,
+     "tol": 1e-05
     },
-    "data.deviation": {
-     "close": 0.005,
-     "tol": 0.0051
-    },
-    "data.bounds.min": {
-     "close": [
-      0,
-      0,
-      -5
-     ],
-     "tol": 0.02
-    },
-    "data.bounds.max": {
-     "close": [
-      50,
-      20,
-      5
-     ],
-     "tol": 0.02
-    },
-    "data.area_before": {
-     "close": 1016.8822,
-     "tol": 0.05
-    }
+    "mutation_outcome": "rolled_back"
    }
   },
   {

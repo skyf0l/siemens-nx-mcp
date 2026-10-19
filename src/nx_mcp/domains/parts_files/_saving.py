@@ -15,15 +15,19 @@ import contextlib
 from pathlib import Path
 from typing import TypedDict
 
+from nx_mcp.core import busy
 from nx_mcp.core import marks as undo_marks
 from nx_mcp.core.errors import classify, fail
 from nx_mcp.kit import analysis_objects, files, parts, result
+
+OTHERS_LISTED = 5  # other modified parts named in a save's audit (the count has them all)
 
 
 class _Audit(TypedDict):
     saved_files: list[str]
     changed_files: list[str]
     other_modified_parts: list[result.Row]
+    other_modified_count: int
     verified_parts: int
 
 
@@ -80,7 +84,8 @@ def verify(
             for t, row in after.items()
             if t not in before or row["file"] != before[t]["file"]
         ],
-        "other_modified_parts": list(others or []),
+        "other_modified_parts": list(others or [])[:OTHERS_LISTED],
+        "other_modified_count": len(others or []),
         "verified_parts": len(before),
     }
     if not saved or unexpected or new_parts:
@@ -117,11 +122,14 @@ def verified_save(tx, part) -> SaveAudit:
         except Exception as error:
             fail("NX_SAVE_FAILED", f"Could not fingerprint the loaded parts before saving: {error}")
     tag = int(part.Tag)
-    others = [
-        tx.ref(p, "part")
+    modified = [
+        p
         for p in tx.session.Parts
         if int(p.Tag) != tag and before.get(int(p.Tag), {}).get("modified")
     ]
+    # The caller's own parts first: another agent's or the engineer's are only counted.
+    modified.sort(key=lambda p: _foreign(tx, p))
+    others = [tx.ref(p, "part") for p in modified]
     native_errors: list = []
     updated: list = []
     save_error = None
@@ -164,6 +172,15 @@ def verified_save(tx, part) -> SaveAudit:
     return audit
 
 
+def _foreign(tx, part) -> bool:
+    try:
+        return busy.engineer(tx.services, part) or bool(
+            busy.other_agent(tx.services, part, tx.caller)
+        )
+    except Exception:
+        return True
+
+
 def note_updated(tx, updated) -> None:
     """The note for drawing views ``parts.saving`` updated before a save."""
     tx.warn(
@@ -188,6 +205,23 @@ def _tab_back(tx, target):
             parts.activate(tx, part)
             return part
     return None
+
+
+def _keep_display(tx, display, work, target) -> None:
+    """After closing a part that was not displayed: the part displayed before (the
+    engineer's or another agent's tab) stays the active tab with its work part, also when
+    NX or the save moved the display meanwhile. Never raises."""
+    with contextlib.suppress(Exception):
+        session_parts = tx.session.Parts
+        if not any(parts.same_part(p, display) for p in session_parts):
+            return  # NX unloaded it with the close
+        work = work if work is not None and not parts.same_part(work, target) else None
+        if work is not None and not any(parts.same_part(p, work) for p in session_parts):
+            work = None
+        if not parts.same_part(session_parts.Display, display) or (
+            work is not None and not parts.same_part(session_parts.Work, work)
+        ):
+            parts.give_back(tx, display, work)
 
 
 def _path(services, part) -> str:
@@ -227,6 +261,7 @@ def close_part(tx, target, *, save: bool, retain: bool = True, barrier: bool = T
     keep_marks = getattr(target, "CloseRetainUndoMarks", None) if retain else None
     shown = None
     active = parts.same_part(tx.session.Parts.Display, target)
+    kept_display, kept_work = tx.session.Parts.Display, tx.session.Parts.Work
     if not active:
         parts.keep_sheet_metal(tx)
     whole = tx.nx.BasePart.CloseWholeTree.FalseValue
@@ -246,6 +281,8 @@ def close_part(tx, target, *, save: bool, retain: bool = True, barrier: bool = T
     closed = [row for tag, (row, _key, _path) in before.items() if tag not in remaining]
     if active:
         shown = _tab_back(tx, target)
+    elif kept_display is not None:
+        _keep_display(tx, kept_display, kept_work, target)
     if keep_marks is not None and barrier:
         paths = [path for tag, (_row, _key, path) in before.items() if tag not in remaining]
         method = getattr(getattr(tx, "spec", None), "name", None) or "nx_close_part"

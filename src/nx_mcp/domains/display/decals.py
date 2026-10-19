@@ -47,7 +47,7 @@ from nx_mcp.core.types import (
     Text,
 )
 from nx_mcp.domains.display.visual import is_decal, part_materials
-from nx_mcp.kit import builders, display, expr, facts, files, geom, readback, select
+from nx_mcp.kit import builders, curve, display, expr, facts, files, geom, readback, select
 from nx_mcp.kit.result import Row
 
 PROJECTIONS = {"planar": "Planar", "cylindrical": "Cylindrical", "spherical": "Spherical"}
@@ -86,10 +86,15 @@ def _value(expression) -> float:
 
 
 def _surface(tx, face, center):
-    """``(point on the face nearest center, unit outward normal there)``."""
+    """``(point of the trimmed face nearest center, unit outward normal there)``.
+
+    UF minimum distance measures to the trimmed face; ``AskFaceParm`` alone projects onto
+    the underlying surface, so a center on a plane's extension far outside the face would
+    stay where it is."""
     modeling = tx.uf.Modeling
+    _gap, near = curve.point_distance(tx, face, center)
     with native(default="NX_ERROR"):
-        uv, on = modeling.AskFaceParm(face.Tag, [float(v) for v in center])
+        uv, on = modeling.AskFaceParm(face.Tag, near)
         props = modeling.AskFaceProps(face.Tag, uv)
     return [float(v) for v in on], geom.unit([float(v) for v in props[5]], "normal")
 
@@ -222,10 +227,10 @@ def nx_create_decal(
     projection: Literal["planar", "cylindrical", "spherical"] = "planar",
 ) -> DecalData:
     """Place a workspace image (.png/.jpg/.bmp) on a face as a decal: logo, hull name, label.
-    center: snapped onto the face (default: inside it). height omitted keeps the image's
-    aspect. up: image top (default +Z, or +Y on faces facing +-Z), turned rotation degrees
-    CCW about the normal. Shown in the Studio style with true shading off
-    (nx_capture_view style=studio). Remove: nx_delete_decal."""
+    center: moved to the nearest point of the face (default: inside it); projected = how
+    far. height omitted keeps the image's aspect. up: image top (default +Z, or +Y on faces
+    facing +-Z), turned rotation degrees CCW about the normal. Shown in the Studio style
+    with true shading off (nx_capture_view style=studio). Remove: nx_delete_decal."""
     w = float(width)
     h = None if height is None else float(height)
     if w <= 0 or (h is not None and h <= 0):
@@ -253,30 +258,10 @@ def nx_create_decal(
         point, normal = _surface(tx, target, start)
         rows = frame(normal, up, rotation)
         snapped = geom.dist(start, point)
-    before = {int(m.Tag) for m, _ in part_materials(tx)}
-    sticker = tx.nx.Display.DecalStickerBuilder
     was_modified = bool(tx.part.IsModified)
-    with _sticker(tx, tx.nx.TaggedObject.Null) as b:
-        b.FaceOrBody.Add(target)
-        b.ImageName = str(Path(image))
-        if name is not None:
-            b.DecalName = name
-        chosen = str(b.DecalName)
-        b.ProjectionType = getattr(sticker.ProjectionTypes, PROJECTIONS[projection])
-        b.AnchorType = sticker.AnchorTypes.MiddleCenter
-        b.Origin = builders.point(tx, point)
-        b.SetManipulatorData(tx.nx.Point3d(*point), builders.matrix(tx, geom.transpose(rows)))
-        b.ScalingMethodType = sticker.ScalingMethodTypes.UserDefined
-        b.LockAspectRatio = h is None
-        b.Width.RightHandSide = expr.rhs(width)  # a formula: the decal keeps its value
-        if height is not None:
-            b.Height.RightHandSide = expr.rhs(height)
-        b.UpdateDecalStickerOnImageDimensionChange()
-        b.commit()
-    decal = next(
-        (m for m, n in part_materials(tx) if int(m.Tag) not in before and n == chosen), None
-    ) or _find(tx, chosen)
-    readback.expect(decal is not None, "decal", name=chosen)
+    high = None if height is None else expr.rhs(height)
+    decal, chosen = _place(tx, target, image, point, rows, name=name, projection=projection,
+                           width=expr.rhs(width), height=high)  # fmt: skip
     row = _read(tx, decal)
     readback.expect_close(row["width"], w, "width")
     if h is not None:
@@ -295,13 +280,45 @@ def nx_create_decal(
         tx.warn(
             "NX_NOTE",
             f"center lies {snapped:.6g} from the face: the decal sits at the nearest face point "
-            f"{[round(v, 6) for v in point]} (projected)",
+            f"{[round(v, 6) for v in point]} (projected); near the face's edge part of the "
+            "image can hang off it",
         )
+    tx.modified(target, "face")  # the face now carries the decal
     return {
         "decal": row,
         "projected": round(snapped, 9),
         "marks_part_modified": not was_modified and bool(tx.part.IsModified),
     }
+
+
+def _place(tx, target, image, point, rows, *, name, projection, width, height):
+    """Commit a new decal sticker of ``image`` on face ``target`` centred at ``point`` with
+    frame ``rows``; ``width``/``height`` are expression texts (height None keeps the
+    image's aspect). Returns ``(decal, its name)``."""
+    before = {int(m.Tag) for m, _ in part_materials(tx)}
+    sticker = tx.nx.Display.DecalStickerBuilder
+    with _sticker(tx, tx.nx.TaggedObject.Null) as b:
+        b.FaceOrBody.Add(target)
+        b.ImageName = str(Path(image))
+        if name is not None:
+            b.DecalName = name
+        chosen = str(b.DecalName)
+        b.ProjectionType = getattr(sticker.ProjectionTypes, PROJECTIONS[projection])
+        b.AnchorType = sticker.AnchorTypes.MiddleCenter
+        b.Origin = builders.point(tx, point)
+        b.SetManipulatorData(tx.nx.Point3d(*point), builders.matrix(tx, geom.transpose(rows)))
+        b.ScalingMethodType = sticker.ScalingMethodTypes.UserDefined
+        b.LockAspectRatio = height is None
+        b.Width.RightHandSide = width  # a formula: the decal keeps its value
+        if height is not None:
+            b.Height.RightHandSide = height
+        b.UpdateDecalStickerOnImageDimensionChange()
+        b.commit()
+    decal = next(
+        (m for m, n in part_materials(tx) if int(m.Tag) not in before and n == chosen), None
+    ) or _find(tx, chosen)
+    readback.expect(decal is not None, "decal", name=chosen)
+    return decal, chosen
 
 
 @tool(
@@ -320,7 +337,8 @@ def nx_delete_decal(
     names: Annotated[list[DecalName], Items(1, 50)],
 ) -> DeletedDecals:
     """Delete decals of the work part by name, any case (nx_list_visual_materials lists them
-    in in_part with kind=decal). The image goes with them."""
+    in data.in_part, kind 'decal'). The image goes with them; undo places them again while
+    their image file is still there."""
     with tx.checks():
         found: dict[int, tuple] = {}  # a name given twice deletes its decal once
         for i, text in enumerate(names):
@@ -331,11 +349,12 @@ def nx_delete_decal(
                     "NX_NOT_FOUND",
                     f"The work part has no decal named {text!r}",
                     field=f"/names/{i}",
-                    hint="nx_list_visual_materials lists the part's decals (kind decal)",
+                    hint="nx_list_visual_materials lists the part's decals in data.in_part",
                     details={"close": _similar(text, known)},
                 )
             if int(decal.Tag) not in found:
                 found[int(decal.Tag)] = (decal, _name_of(tx, decal))
+        kept = [dict(_read(tx, decal)) for decal, _name in found.values()]
     collection = tx.part.VisualMaterialCollection
     for decal, _name in found.values():
         with native(default="NX_ERROR"):
@@ -343,6 +362,7 @@ def nx_delete_decal(
     deleted = [name for _decal, name in found.values()]
     for name in deleted:
         readback.expect(_find(tx, name) is None, "deleted", name=name)
+    tx.note_restore({"decals": kept})
     return {"deleted": deleted, "count": len(deleted)}
 
 
@@ -369,3 +389,36 @@ def _restore_decal(tx, data: dict, *, apply: bool) -> str:
             tx.part.VisualMaterialCollection.DeleteMaterial(decal)
         readback.expect(_find(tx, name) is None, "deleted", name=name)
     return f"decal {name} deleted (the operation placed it)"
+
+
+@restorer("nx_delete_decal")
+def _restore_deleted(tx, data: dict, *, apply: bool) -> str:
+    """Place the decals an ``nx_delete_decal`` removed again, from their read-back (image,
+    face, frame, size); refused when a decal of that name exists since or the image file
+    or the face is gone."""
+    root = Path(tx.workspace.root)
+    plans = []
+    for row in data["decals"]:
+        name = str(row["name"])
+        if _find(tx, name) is not None:
+            fail("NX_DEPENDENCY_ORDER", f"A decal named {name} exists again",
+                 details={"name": name})  # fmt: skip
+        image = Path(str(row["image"]))
+        image = image if image.is_absolute() else root / image
+        if image_kind(image) is None:
+            fail("NX_UNSUPPORTED_OPTION", f"The image of decal {name} ({row['image']}) is no "
+                 "longer readable, so the decal cannot be placed again",
+                 hint="Upload the image and place it with nx_create_decal")  # fmt: skip
+        face = select.resolve(tx, str(row["face"].get("id")), "face", field="/names")
+        rows = [list(row["width_direction"]), list(row["up"]), list(row["normal"])]
+        plans.append((name, image, face, row, rows))
+    if apply:
+        for name, image, face, row, rows in plans:
+            decal, _chosen = _place(tx, face, image, list(row["center"]), rows, name=name,
+                                    projection=str(row["projection"]),
+                                    width=repr(float(row["width"])),
+                                    height=repr(float(row["height"])))  # fmt: skip
+            back = _read(tx, decal)
+            readback.expect_close(back["width"], float(row["width"]), "width")
+            readback.expect_close(back["center"], list(row["center"]), "center")
+    return f"decals {', '.join(p[0] for p in plans)} placed again"

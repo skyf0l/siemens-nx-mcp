@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/interference.json",
-  "scenario_sha256": "01060a78cf3bf72ab32142c408341ce21b79bf0b9a348dad1717cd0ce59d2602",
+  "scenario_sha256": "c9645c13aeacf028c051b0a9f9048c0910ac1ff3c28d83b4f711e804fd9b49f4",
   "domain": "inspection",
   "covers": {
     "nx_check_interference": [],
@@ -10,12 +10,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_check_interference": "f160b4756e4156b3c1ce32cc8576ea86e908507a0d7421a33aba8ebc9d6045f5",
-    "nx_export_inspection_report": "f160b4756e4156b3c1ce32cc8576ea86e908507a0d7421a33aba8ebc9d6045f5"
+    "nx_check_interference": "0659c8346d80cc2a0909ae1f4ebbff74183b47db1150a549bf5f43008a560f53",
+    "nx_export_inspection_report": "0659c8346d80cc2a0909ae1f4ebbff74183b47db1150a549bf5f43008a560f53"
   },
-  "recorded": "2026-10-15T13:30:12Z",
+  "recorded": "2026-10-19T10:54:41Z",
   "passed": true,
-  "checks": 59,
+  "checks": 66,
   "failed_checks": 0,
   "steps": [
     {
@@ -163,7 +163,7 @@
       "call": "nx_export_inspection_report",
       "setup": false,
       "passed": true,
-      "checks": 7
+      "checks": 11
     },
     {
       "index": 22,
@@ -177,7 +177,7 @@
       "call": "nx_export_inspection_report",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 24,
@@ -191,7 +191,7 @@
       "call": "nx_export_inspection_report",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 2
     },
     {
       "index": 26,
@@ -202,6 +202,13 @@
     },
     {
       "index": 27,
+      "call": "nx_export_inspection_report",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 28,
       "call": "nx_list_objects",
       "setup": false,
       "passed": true,

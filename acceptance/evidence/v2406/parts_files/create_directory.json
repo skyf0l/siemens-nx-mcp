@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/create_directory.json",
-  "scenario_sha256": "76dd8d78b4517b0aca423f2f36a401c820bca3c443471bc7c25da02faa11cf9c",
+  "scenario_sha256": "a22237e793eb5068a0d6f8830b3129f274f2ff35d5da30a22e5d1d10a459ed4a",
   "domain": "parts_files",
   "covers": {
     "nx_create_directory": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_directory": "f59880e6d1bfd9515e0d30179b306d43f98069eb0ea74ed6357545cfd64fcef4"
+    "nx_create_directory": "90bea504968454cefe240c2404f783197b5cb9e2f17968f06409195f3dfcb75b"
   },
-  "recorded": "2026-10-15T10:39:40Z",
+  "recorded": "2026-10-19T10:31:27Z",
   "passed": true,
-  "checks": 18,
+  "checks": 22,
   "failed_checks": 0,
   "steps": [
     {
@@ -49,7 +49,7 @@
       "call": "nx_create_directory",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 4
     },
     {
       "index": 6,
@@ -74,6 +74,13 @@
     },
     {
       "index": 9,
+      "call": "nx_create_directory",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 10,
       "call": "nx_list_files",
       "setup": false,
       "passed": true,

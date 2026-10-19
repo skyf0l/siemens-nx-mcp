@@ -343,7 +343,7 @@ def nx_list_materials(
     found = [(name, category) for *_, name, category in sorted(ranked)]
     if words and not found:
         lookup = {name_key(n): n for n in names}
-        close = difflib.get_close_matches(key, list(lookup), 5, 0.5)
+        close = difflib.get_close_matches(key, list(lookup), 5, CLOSE_NAME)
         tx.warn(
             "NX_NOTE",
             f"No library material matches {query!r}"
@@ -733,6 +733,11 @@ def _reuse(tx, chosen, targets):
     return items
 
 
+# A spelling at least this close (difflib ratio) is offered as a close name: 'stell' and
+# 'alumnum' are, 'unobtainium' (0.5 to Titanium_Alloy) is not.
+CLOSE_NAME = 0.6
+
+
 def library_match(names: list[str], text: str) -> tuple[str | None, list[str]]:
     """``(name, candidates)``: the library name ``text`` means, ignoring case, spaces,
     punctuation and British spelling (``"aluminium 6061"`` -> ``Aluminum_6061``); else
@@ -749,7 +754,7 @@ def library_match(names: list[str], text: str) -> tuple[str | None, list[str]]:
         key=lambda n: -number_hits(n, words),
     )
     lookup = {name_key(n): n for n in names}
-    close = [lookup[k] for k in difflib.get_close_matches(key, list(lookup), 5, 0.4)]
+    close = [lookup[k] for k in difflib.get_close_matches(key, list(lookup), 5, CLOSE_NAME)]
     return None, list(dict.fromkeys(same + holding[:8] + close))[:8]
 
 
@@ -836,7 +841,7 @@ def nx_set_material(
     material: LibraryName | MaterialSpec,
 ) -> MaterialData:
     """Assign a library or custom density material to solid bodies, default all; reads it back.
-    'Steel' = {library: 'Steel'} (names from nx_list_materials). {custom: {name, density}} of an
+    'Steel' = {library: 'Steel'} (names from nx_list_materials, in any case and spelling). {custom: {name, density}} of an
     existing custom name sets its density (every body using it); a bare name reuses it."""
     form, text, field = _form(material)
     density = None

@@ -1,0 +1,360 @@
+{
+ "covers": {
+  "nx_edit_feature": [],
+  "nx_set_expression": [],
+  "nx_set_feature_order": [],
+  "nx_set_current_feature": [],
+  "nx_set_feature_suppression": []
+ },
+ "fixture": null,
+ "part": "new",
+ "steps": [
+  {
+   "call": "nx_create_part",
+   "setup": true,
+   "args": {
+    "path": "$part",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "blk",
+   "args": {
+    "shape": "block",
+    "origin": [
+     0,
+     0,
+     0
+    ],
+    "length": 40,
+    "width": 30,
+    "height": 20
+   }
+  },
+  {
+   "call": "nx_edit_feature",
+   "args": {
+    "feature": "$blk.data.feature.id",
+    "parameters": [
+     {
+      "name": "width",
+      "value": "1e400"
+     }
+    ]
+   },
+   "intent": "Acceptance: a number too large for a double is refused before NX (NX kept the text with the old value)",
+   "expect": {
+    "error.code": "NX_INVALID_FORMULA",
+    "error.field": "/parameters/0/value",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_edit_feature",
+   "args": {
+    "feature": "$blk.data.feature.id",
+    "parameters": [
+     {
+      "name": "width",
+      "value": -5
+     }
+    ]
+   },
+   "intent": "Acceptance: a length NX refuses at the update names the parameter",
+   "expect": {
+    "error.code": "NX_UPDATE_FAILED",
+    "error.field": "/parameters/0/value",
+    "error.hint": {
+     "contains": "above zero"
+    },
+    "mutation_outcome": "rolled_back"
+   }
+  },
+  {
+   "call": "nx_edit_feature",
+   "args": {
+    "feature": "$blk.data.feature.id",
+    "parameters": [
+     {
+      "name": "width",
+      "value": 40
+     }
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.parameters": {
+     "contains": {
+      "formula": "40.0",
+      "value": 40.0
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$blk.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 32000,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_undo_operation",
+   "args": {
+    "mode": "compensate"
+   },
+   "intent": "Acceptance: the edit is undone by setting the old formula back",
+   "expect": {
+    "data.compensated": true,
+    "data.restored": {
+     "count": 1
+    },
+    "data.restored.0": {
+     "contains": "back to 30"
+    }
+   }
+  },
+  {
+   "call": "nx_measure_mass",
+   "args": {
+    "bodies": [
+     "$blk.data.bodies.0.id"
+    ]
+   },
+   "expect": {
+    "data.volume": {
+     "close": 24000,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "fu_base",
+    "formula": "15",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "setup": true,
+   "args": {
+    "name": "fu_twice",
+    "formula": "fu_base*2",
+    "units": "mm"
+   }
+  },
+  {
+   "call": "nx_set_expression",
+   "args": {
+    "name": "fu_twice",
+    "formula": "12"
+   },
+   "intent": "Acceptance: replacing a formula that followed another expression says so",
+   "expect": {
+    "data.value": {
+     "close": 12,
+     "tol": 1e-09
+    },
+    "warnings": {
+     "contains": {
+      "code": "NX_NOTE"
+     }
+    },
+    "warnings.0.message": {
+     "contains": "no longer follows fu_base"
+    }
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "setup": true,
+   "save": "cs",
+   "args": {
+    "kind": "feature",
+    "type": "datum_csys"
+   }
+  },
+  {
+   "call": "nx_set_feature_order",
+   "args": {
+    "feature": "$blk.data.feature.id",
+    "before": "$cs.data.items.0.id"
+   },
+   "intent": "Acceptance: the base datum CSYS stays the first feature",
+   "expect": {
+    "error.code": "NX_DEPENDENCY_ORDER",
+    "error.field": "/before",
+    "error.details.base.id": "$cs.data.items.0.id",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_primitive",
+   "setup": true,
+   "save": "cyl",
+   "args": {
+    "shape": "cylinder",
+    "origin": [
+     100,
+     0,
+     0
+    ],
+    "diameter": 10,
+    "height": 10
+   }
+  },
+  {
+   "call": "nx_set_feature_order",
+   "args": {
+    "feature": "$cyl.data.feature.id",
+    "before": "$blk.data.feature.id"
+   },
+   "expect": {
+    "data.moved": true,
+    "data.feature.index": 1
+   }
+  },
+  {
+   "call": "nx_get_feature",
+   "args": {
+    "feature": "$cyl.data.feature.id"
+   },
+   "expect": {
+    "data.timestamp": 1
+   }
+  },
+  {
+   "call": "nx_undo_operation",
+   "args": {
+    "mode": "compensate"
+   },
+   "intent": "Acceptance: the move is undone by moving the feature back",
+   "expect": {
+    "data.compensated": true,
+    "data.restored.0": {
+     "contains": "moved back"
+    }
+   }
+  },
+  {
+   "call": "nx_get_feature",
+   "args": {
+    "feature": "$cyl.data.feature.id"
+   },
+   "expect": {
+    "data.timestamp": 2
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "edge",
+   "args": {
+    "owner": "$blk.data.bodies.0.id",
+    "kind": "edge",
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_create_blend",
+   "setup": true,
+   "save": "fil",
+   "args": {
+    "edges": [
+     "$edge.data.items.0.id"
+    ],
+    "radius": 2
+   }
+  },
+  {
+   "call": "nx_set_current_feature",
+   "args": {
+    "feature": "$cyl.data.feature.id"
+   },
+   "expect": {
+    "data.inactive": {
+     "count": 1
+    },
+    "data.inactive.0.id": "$fil.data.feature.id"
+   }
+  },
+  {
+   "call": "nx_undo_operation",
+   "args": {
+    "mode": "compensate"
+   },
+   "intent": "Acceptance: rolling the timeline back is undone by rolling it to its end again",
+   "expect": {
+    "data.compensated": true,
+    "data.restored.0": "timeline rolled to its end"
+   }
+  },
+  {
+   "call": "nx_get_feature",
+   "args": {
+    "feature": "$fil.data.feature.id"
+   },
+   "expect": {
+    "data.active": true,
+    "data.suppressed": false
+   }
+  },
+  {
+   "call": "nx_set_feature_suppression",
+   "args": {
+    "features": [
+     "$fil.data.feature.id"
+    ],
+    "suppressed": true
+   },
+   "expect": {
+    "data.changed": {
+     "count": 1
+    },
+    "data.changed.0.suppressed": true
+   }
+  },
+  {
+   "call": "nx_undo_operation",
+   "args": {
+    "mode": "compensate"
+   },
+   "intent": "Acceptance: a suppression is undone by setting the suppression state back",
+   "expect": {
+    "data.compensated": true,
+    "data.restored.0": {
+     "contains": "1 unsuppressed"
+    }
+   }
+  },
+  {
+   "call": "nx_get_feature",
+   "args": {
+    "feature": "$fil.data.feature.id"
+   },
+   "expect": {
+    "data.suppressed": false,
+    "data.active": true
+   }
+  },
+  {
+   "call": "nx_check_model",
+   "args": {},
+   "expect": {
+    "data.healthy": true
+   }
+  }
+ ]
+}

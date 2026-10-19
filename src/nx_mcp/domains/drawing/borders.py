@@ -194,10 +194,11 @@ def nx_set_sheet_borders(
     border_width: Annotated[SheetLength, Doc("Gap between outer and inner frame")] | None = None,
 ) -> BordersData:
     """Add or replace a sheet's border frame, zone markings and margins. Omitted values keep
-    NX's defaults (new) or the current ones (replaced). Read back: the outer and inner frame
-    and the zone labels NX drew; NX rounds the zone count to an even number, so zones are
-    about zone_size. zone_origin: the corner where labels 1 and A start. Views or annotations
-    left outside the inner frame are warned. Title blocks: nx_create_drawing_table."""
+    NX's defaults (new) or the current ones (replaced). Reads back the frames and zone labels
+    NX drew; NX rounds the zone count to an even number, so zones are about zone_size.
+    zone_origin: corner where labels 1 and A start (default top_left). borders and zones
+    false still leave NX's corner and trim marks. Content outside the inner frame is warned.
+    Title blocks: nx_create_drawing_table."""
     with tx.checks():
         target = sheet_of(tx, sheet, "/sheet") if sheet is not None else open_or_only_sheet(tx)
         length, height = drawing.size(target)

@@ -68,6 +68,46 @@ def denoise(value, scale: float = 1.0, digits: int = DIGITS):
     return value
 
 
+def _numbers(value) -> list[float] | None:
+    """Every number of a list (or a list of lists: a matrix), None when it holds anything
+    else or is empty."""
+    if not isinstance(value, (list, tuple)) or not value:
+        return None
+    out: list[float] = []
+    for item in value:
+        if isinstance(item, (list, tuple)):
+            inner = _numbers(item)
+            if inner is None:
+                return None
+            out += inner
+        elif isinstance(item, (int, float)) and not isinstance(item, bool):
+            out.append(float(item))
+        else:
+            return None
+    return out
+
+
+def tidy(value, digits: int = DIGITS):
+    """A result without float noise, for any result shape (the sidecar applies it to
+    every answer): floats rounded to ``digits`` significant digits (``2.9999999999999996``
+    -> 3.0, ``89.99999999999997`` -> 90.0), and in a list of numbers (a point, a vector, a
+    matrix) a component below ``10**-digits`` of the list's largest is 0.0 (``6.1e-17``
+    beside 1.0). A lone small number keeps its value: without neighbours there is no scale
+    to call it noise. Dicts and lists are cleaned item by item; other values pass."""
+    if isinstance(value, float):
+        return float(f"{value:.{digits}g}") if math.isfinite(value) else value
+    if isinstance(value, dict):
+        return {k: tidy(v, digits) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        numbers = _numbers(value)
+        if numbers is not None:
+            finite = [abs(n) for n in numbers if math.isfinite(n)]
+            scale = max(finite) if finite else 0.0
+            return denoise(value, scale, digits) if scale else [tidy(v, digits) for v in value]
+        return [tidy(v, digits) for v in value]
+    return value
+
+
 def rename(tx, obj, name):
     """Name an NX object; returns the name as NX normalised it (e.g. upper case)."""
     obj.SetName(str(name))

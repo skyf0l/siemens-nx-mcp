@@ -5,20 +5,30 @@ and ``nx_get_result``/``nx_delete_results``. Every deleted or pruned snapshot le
 tombstone (``deleted.json`` in its folder: id -> when and why), so ``nx_get_result`` can
 tell an expired result from one that never existed.
 
-Several agents share a workspace, each through its own sidecar process: the snapshots a
-process stored or received (:func:`claim`) are its caller's own (:func:`claimed`), and
+Several agents share a workspace, each through its own sidecar process, and several agents
+may share one sidecar (one MCP connection): the snapshots a process stored or received
+(:func:`claim`) are tagged with the caller that made the request (the sidecar's caller id,
+:data:`OWNER`), and :func:`claimed` gives the current caller's own, so
 ``nx_delete_results`` prunes only those unless told otherwise (``maintain(only=...)``).
+Callers the sidecar cannot tell apart (one id) share their snapshots; a snapshot claimed
+without any caller id counts as every caller's.
 """
 
+import contextvars
 import json
 import os
 import re
+import sys
 import time
 from pathlib import Path
 from threading import RLock
 
 LOCK = RLock()
-_CLAIMED: set = set()  # result ids this process stored or received: its caller's own
+# Result id -> the caller id that stored or received it (None: no caller id known).
+_CLAIMED: dict = {}
+# The caller of the request being served; unset, the sidecar's own caller variable is read.
+OWNER: contextvars.ContextVar = contextvars.ContextVar("nx_snapshot_owner", default=None)
+CURRENT = object()  # :func:`claimed`'s default: the current caller
 PATTERN = re.compile(r"result_[a-f0-9]{32}\.json")
 TOMBSTONES = "deleted.json"
 MAX_TOMBSTONES = 5000  # the oldest are forgotten first
@@ -34,16 +44,36 @@ def settings():
     return values
 
 
-def claim(result_id) -> None:
-    """Record ``result_id`` as a snapshot of this process's caller (its own)."""
-    with LOCK:
-        _CLAIMED.add(str(result_id))
+def current_owner() -> str | None:
+    """The caller id of the request being served (:data:`OWNER`, else the sidecar's
+    ``caller`` of the request), None outside a request or without one."""
+    owner = OWNER.get()
+    if owner is None:
+        proxy = sys.modules.get("nx_mcp.sidecar.proxy")
+        caller = getattr(proxy, "CALLER", None)
+        if caller is not None:
+            try:
+                owner = caller.get()
+            except LookupError:
+                owner = None
+    return str(owner) if owner else None
 
 
-def claimed() -> set:
-    """The result ids this process stored or received (a copy)."""
+def claim(result_id, owner=CURRENT) -> None:
+    """Record ``result_id`` as a snapshot of ``owner`` (default: the current caller)."""
+    who = current_owner() if owner is CURRENT else owner
     with LOCK:
-        return set(_CLAIMED)
+        _CLAIMED[str(result_id)] = who
+
+
+def claimed(owner=CURRENT) -> set:
+    """The result ids this process stored or received for ``owner`` (default: the current
+    caller; None: every caller's), snapshots without a caller id included (a copy)."""
+    who = current_owner() if owner is CURRENT else owner
+    with LOCK:
+        if who is None:
+            return set(_CLAIMED)
+        return {k for k, v in _CLAIMED.items() if v is None or v == who}
 
 
 def maintain(root, *, apply=False, max_age_seconds=None, max_bytes=None, protect=None,

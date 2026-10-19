@@ -378,3 +378,46 @@ def test_lists_no_sets_on_a_part_without_components():
     ok = run(nx, "nx_list_clearance_sets", part="asm")
     assert ok.ok and ok.data == {"items": []}, ok
     assert "no components yet" in ok.warnings[0]["message"]
+
+
+def test_a_rerun_skips_pairs_of_a_suppressed_component_instead_of_clearing_them(nx):
+    run(nx, "nx_create_clearance_set", part="asm", name="ER", clearance=10, overlap=False)
+    nx.c.IsSuppressed = True  # NX checks no pair with C any more
+    del nx.clashes[frozenset((int(nx.a.Tag), int(nx.c.Tag)))]
+    ok = run(nx, "nx_run_clearance_set", part="asm", name="ER", overlap=False)
+    assert ok.ok, ok
+    assert ok.data["cleared"] == []
+    (skipped,) = ok.data["skipped_suppressed"]
+    assert [o["name"] for o in skipped["objects"]] == ["A", "C"]
+    assert skipped["previous_type"] == "soft"
+    assert any("skipped_suppressed" in w["message"] for w in ok.warnings)
+
+
+def test_compensation_deletes_a_created_clearance_set(nx):
+    run(nx, "nx_create_clearance_set", part="asm", name="ER", run=False)
+    made = run(nx, "nx_create_clearance_set", part="asm", name="AFT", run=False)
+    assert made.ok, made
+    undo = run(nx, "nx_undo_operation", part="asm", mode="compensate")
+    assert undo.ok and undo.data["compensated"], undo
+    assert [s.JournalIdentifier for s in nx.sets] == ["ER"]
+
+
+def test_compensation_creates_a_deleted_clearance_set_again(nx, monkeypatch):
+    def included(self, a, b):  # NX: (included, reason, text); exceptions only here
+        hit = any({int(a.Tag), int(b.Tag)} == {int(x.Tag), int(y.Tag)} for x, y in self.exceptions)
+        return (not hit, None, "")
+
+    monkeypatch.setattr(ClearanceBuilder, "GetIsPairIncluded", included, raising=False)
+    run(nx, "nx_create_clearance_set", part="asm", name="ER", run=False)
+    made = run(nx, "nx_create_clearance_set", part="asm", name="AFT", objects=[nx.a.ref],
+               against=[nx.b.ref, nx.c.ref], exclude=[[nx.a.ref, nx.c.ref]], clearance=4,
+               run=False)  # fmt: skip
+    assert made.ok, made
+    gone = run(nx, "nx_delete_clearance_set", part="asm", name="aft")
+    assert gone.ok and [s.JournalIdentifier for s in nx.sets] == ["ER"], gone
+    undo = run(nx, "nx_undo_operation", part="asm", mode="compensate")
+    assert undo.ok and undo.data["compensated"], undo
+    aft = next(s for s in nx.sets if s.JournalIdentifier == "AFT")
+    settings = aft.settings
+    assert settings["one"] == [nx.a] and settings["two"] == [nx.b, nx.c]
+    assert settings["exceptions"] == [(nx.a, nx.c)] and settings["zone"].value == 4

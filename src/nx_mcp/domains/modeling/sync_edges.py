@@ -12,6 +12,7 @@ shrinks it); which face is NX's own choice, ``ReverseOffsetSide`` takes the othe
 
 from __future__ import annotations
 
+import math
 from typing import Annotated, Literal
 
 from nx_mcp.core.catalogue import tool
@@ -32,7 +33,9 @@ TOO_FAR_HINT = (
 
 class EditEdgesData(common.FeatureData):
     volume_change: Annotated[float, Doc("Volume after minus before")]
-    moved: Annotated[list[float], Doc("How far each straight edge moved, across its line")]
+    moved: Annotated[
+        list[float], Doc("How far each straight edge moved across its line; < 0: shrank the face")
+    ]
 
 
 def _middles(tx, edges) -> dict:
@@ -146,6 +149,7 @@ def nx_edit_edges(
     with tx.checks():  # lookups and refusals: nothing changed yet (not_started)
         selected = select.edges(tx, edges, "/edges")
         body = common.one_body(selected, "/edges")
+        sync_common.plausible(tx, distance, body)
         a = {"distance": distance, "vector": None}
         if direction is not None:
             a["vector"] = select.direction(tx, direction, "/direction")
@@ -189,5 +193,5 @@ def nx_edit_edges(
     return {
         **out,
         "volume_change": out["volume"] - before,
-        "moved": [geom.norm(d) for _, d in shifts],
+        "moved": [math.copysign(geom.norm(d), float(distance)) for _, d in shifts],
     }

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/weight_management.json",
-  "scenario_sha256": "f4cec7d94e1bd15ca1ad511fad3fe948c74e9d9c4f4fedb0670579ce1dee5f2e",
+  "scenario_sha256": "ea904bf928e34a356614c44d8c8e29bdee06c498c3bb4b92c2a52c82d2ccb11a",
   "domain": "assembly",
   "covers": {
     "nx_set_component_mass": [],
@@ -12,14 +12,14 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_set_component_mass": "3af1676171739847d5bd94ded0ac3209e0c4ac4bfad449c4a19b8be205edfac9",
-    "nx_create_component_group": "3af1676171739847d5bd94ded0ac3209e0c4ac4bfad449c4a19b8be205edfac9",
-    "nx_list_component_groups": "3af1676171739847d5bd94ded0ac3209e0c4ac4bfad449c4a19b8be205edfac9",
-    "nx_edit_component_group": "3af1676171739847d5bd94ded0ac3209e0c4ac4bfad449c4a19b8be205edfac9"
+    "nx_set_component_mass": "fc49b412e144d26f297352bec27153f381adffa3fcbbf94a5f7e9beb9ef285f9",
+    "nx_create_component_group": "fc49b412e144d26f297352bec27153f381adffa3fcbbf94a5f7e9beb9ef285f9",
+    "nx_list_component_groups": "fc49b412e144d26f297352bec27153f381adffa3fcbbf94a5f7e9beb9ef285f9",
+    "nx_edit_component_group": "fc49b412e144d26f297352bec27153f381adffa3fcbbf94a5f7e9beb9ef285f9"
   },
-  "recorded": "2026-10-16T13:14:24Z",
+  "recorded": "2026-10-19T10:52:45Z",
   "passed": true,
-  "checks": 88,
+  "checks": 99,
   "failed_checks": 0,
   "steps": [
     {
@@ -336,6 +336,41 @@
       "setup": false,
       "passed": true,
       "checks": 3
+    },
+    {
+      "index": 46,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 47,
+      "call": "nx_list_component_groups",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 48,
+      "call": "nx_set_component_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 49,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 50,
+      "call": "nx_set_component_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 2
     }
   ]
 }

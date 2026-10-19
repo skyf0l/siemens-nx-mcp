@@ -56,6 +56,18 @@ def test_restore_puts_camera_section_and_colours_back(saved):
     section = nx.part.DynamicSections[0]
     assert section.origin == [0, 0, 0.5] and section.normal == [0, 0, 1]
     assert view.DisplaySectioningToggle and view.ActiveDynamicSection is section
+    assert ok.data["section"]["id"] == nx.ref_of(section, "section_view") and not ok.warnings
+
+
+def test_restore_names_a_section_it_had_to_create_again(saved):
+    nx, _body, path, _ = saved
+    ref = nx.ref_of(nx.part.DynamicSections[0], "section_view")
+    assert run(nx, "nx_delete_objects", objects=[ref]).ok
+    ok = run(nx, "nx_restore_display", presentation=str(path))
+    assert ok.ok, ok.error
+    made = nx.part.DynamicSections[0]
+    assert ok.data["section"]["id"] == nx.ref_of(made, "section_view")
+    assert "was created as" in ok.warnings[0]["message"]
 
 
 def _live_camera(nx, monkeypatch):

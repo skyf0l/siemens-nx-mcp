@@ -13,7 +13,17 @@
     "path": "$fixture"
    }
   },
-  {"call": "engineer", "args": {"code": "from nx_mcp.kit import parts as kp\nservices.host._remember_model()  # the development tool's own undo mark is no engineer edit\np = [x for x in session.Parts if str(x.Leaf).lower().startswith('display_capture_view') and str(x.FullPath).lower().startswith(r'$run'.lower())][0]\nkp.show(NXOpen, session.Parts, p)\nresult = p.Leaf"}, "intent": "Acceptance: the engineer looks at the scenario's part (a tab click, no edit): it is the displayed part whatever NX showed before (engineer tab guard)", "expect": {"ok": true, "data.noticed": false}},
+  {
+   "call": "engineer",
+   "args": {
+    "code": "from nx_mcp.kit import parts as kp\nservices.host._remember_model()  # the development tool's own undo mark is no engineer edit\np = [x for x in session.Parts if str(x.Leaf).lower().startswith('display_capture_view') and str(x.FullPath).lower().startswith(r'$run'.lower())][0]\nkp.show(NXOpen, session.Parts, p)\nresult = p.Leaf"
+   },
+   "intent": "Acceptance: the engineer looks at the scenario's part (a tab click, no edit): it is the displayed part whatever NX showed before (engineer tab guard)",
+   "expect": {
+    "ok": true,
+    "data.noticed": false
+   }
+  },
   {
    "call": "nx_set_camera",
    "setup": true,
@@ -59,7 +69,8 @@
     "warnings.0.code": "NX_NOTE",
     "warnings.0.message": {
      "matches": "^NX exports the graphics window at its own [0-9]+x[0-9]+, so Studio rendered the view at 800x500"
-    }
+    },
+    "data.style": "shaded_with_edges"
    }
   },
   {
@@ -132,14 +143,18 @@
    },
    "expect": {
     "data.quality": "viewport",
-    "data.resolution": {
-     "count": 2
-    },
-    "warnings.0.code": "NX_APPROXIMATED",
+    "data.style": "wireframe",
+    "data.resolution": [
+     900,
+     600
+    ],
+    "data.image.width": 900,
+    "warnings.0.code": "NX_NOTE",
     "warnings.0.message": {
-     "contains": "a wireframe view is captured"
+     "contains": "scaled down to fit 900x600"
     }
-   }
+   },
+   "intent": "Acceptance: a wireframe view is scaled down into the requested size"
   },
   {
    "call": "nx_get_camera",
@@ -369,14 +384,16 @@
    "expect": {
     "data.sheet.name": "SHT1",
     "data.quality": "viewport",
-    "data.resolution": {
-     "count": 2
-    },
-    "warnings.0.code": "NX_APPROXIMATED",
+    "data.resolution": [
+     840,
+     594
+    ],
+    "warnings.0.code": "NX_NOTE",
     "warnings.0.message": {
-     "contains": "a drawing sheet is captured at the window size"
+     "contains": "scaled down to fit 840x594"
     }
-   }
+   },
+   "intent": "Acceptance: a drawing sheet is scaled down into the requested size"
   },
   {
    "call": "nx_get_camera",

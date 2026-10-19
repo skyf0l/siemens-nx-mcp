@@ -102,6 +102,17 @@ def _check_path(tx, sheet, curves) -> None:
         except Exception:  # noqa: BLE001 - no distance: NX judges the path
             continue
         if max(gaps) > tol:
+            done = _embossed(tx, sheet)
+            if done is not None:
+                fail(
+                    "NX_WRONG_GEOMETRY",
+                    f"path[{i}] lies up to {max(gaps):.6g} off the sheet: the sheet already "
+                    f"carries an emboss ({done}) that moved its faces off this path",
+                    field=f"/path/{i}",
+                    hint="An emboss consumes the sheet under its path: undo the earlier emboss "
+                    "to redo it, or pass a path lying on the sheet's unembossed area",
+                    details={"distance": max(gaps), "emboss": done},
+                )
             fail(
                 "NX_WRONG_GEOMETRY",
                 f"path[{i}] lies up to {max(gaps):.6g} off the sheet; the path must lie on it",
@@ -112,13 +123,23 @@ def _check_path(tx, sheet, curves) -> None:
             )
 
 
+def _embossed(tx, sheet) -> str | None:
+    """The ref of the sheet's last emboss feature, or None."""
+    try:
+        features = list(sheet.GetFeatures())
+        found = [f for f in features if "EMBOSS" in str(getattr(f, "FeatureType", "")).upper()]
+        return tx.ref(found[-1], kind="feature")["id"] if found else None
+    except Exception:  # noqa: BLE001 - no feature listing: no emboss named
+        return None
+
+
 class EmbossData(common.FeatureData):
     added: float  # volume change of the body: positive for a pad, negative for a pocket
 
 
 @tool(
     effect="model",
-    label="Emboss section",
+    label="Emboss sketch on faces (pad/pocket)",
     summary="Emboss {sketch} {side} {height}",
     keywords=("emboss", "pad", "pocket", "raised pad", "boss on face", "recess"),
     requires=("work_part", "no_active_sketch"),
@@ -216,6 +237,17 @@ def nx_create_offset_emboss(
     args.finite(right, "/right_width", positive=True)
     if float(side_offset) < 0:
         fail("NX_INVALID_ARGUMENT", "side_offset must be 0 or more", field="/side_offset")
+    top = float(left_width) + float(right) - 2 * float(side_offset)
+    if top <= 0:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"side_offset {float(side_offset):.6g} leaves the strip no top: the walls slope in "
+            f"by it on both sides of a {float(left_width) + float(right):.6g} wide footprint",
+            field="/side_offset",
+            hint=f"Use side_offset below {(float(left_width) + float(right)) / 2:.6g} (half the "
+            "footprint width), or widen left_width/right_width",
+            details={"footprint": float(left_width) + float(right), "top_width": top},
+        )
     args.distinct("/path", path, "path references")
     with tx.checks():
         body = select.one(tx, sheet, "body", field="/sheet")

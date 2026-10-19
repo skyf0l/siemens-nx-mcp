@@ -90,6 +90,25 @@ def _too_far(tx, resolved) -> None:
                                                 "radius": radius})  # fmt: skip
 
 
+def _adjacent_sets(tx, resolved) -> None:
+    """Refuse faces of two sets with different distances that share an edge: NX trims
+    or extends the two offsets against each other, so neither lies at its distance near
+    the edge (the read-back then fails)."""
+    owner: dict[int, tuple[int, int]] = {}
+    for i, (found, value) in enumerate(resolved):
+        for j, face in enumerate(found):
+            for edge in getattr(face, "GetEdges", list)():
+                seen = owner.setdefault(int(edge.Tag), (i, j))
+                if seen[0] == i or geom.close(float(resolved[seen[0]][1]), float(value), 1e-9):
+                    continue
+                fail("NX_INVALID_ARGUMENT", f"Face {j} of set {i} shares an edge with face "
+                     f"{seen[1]} of set {seen[0]} at a different distance: NX trims the two "
+                     "offsets against each other", field=f"/sets/{i}/faces/{j}",
+                     hint="Offset neighbouring faces by the same distance, or in separate "
+                     "calls", details={"face": tx.ref(face, kind="face"),
+                                       "other_set": seen[0]})  # fmt: skip
+
+
 def _sets(faces, distance, sets):
     """``[(face refs, distance, field)]`` from faces + distance or from sets."""
     if sets is not None:
@@ -176,11 +195,11 @@ def nx_create_offset_surface(
     sets: Annotated[list[OffsetSet], Items(1, 20), Doc("Face sets, each its own distance")]
     | None = None,
     tolerance: Annotated[Length, Doc("Offset tolerance")] | None = None,
-    partial: Annotated[bool, Doc("Leave out faces NX cannot offset (listed in skipped)")] = False,
+    partial: Annotated[bool, Doc("Skip faces NX cannot offset (listed in skipped)")] = False,
 ) -> OffsetData:
-    """Offset sheet or solid faces into new sheets at a signed distance along the normals.
-    sets give face groups their own distance. Checked at sampled points: sets[].gap and
-    measured_min/max."""
+    """Offset sheet or solid faces to new sheets at a signed distance along the normals.
+    sets give face groups their own distance (adjacent faces at different distances:
+    separate calls). Sampled checks: sets[].gap, measured_min/max."""
     groups = _sets(faces, distance, sets)
     with tx.checks():
         tol = common.given_tolerance(tx, tolerance)
@@ -192,6 +211,8 @@ def nx_create_offset_surface(
             fail("NX_INVALID_ARGUMENT", "A face is listed twice", field="/sets")
         if not partial:
             _too_far(tx, resolved)
+        if len(resolved) > 1:
+            _adjacent_sets(tx, resolved)
     part = tx.part
     before = {int(x.Tag) for x in part.Bodies}
     with (

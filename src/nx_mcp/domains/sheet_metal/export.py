@@ -65,8 +65,11 @@ Include = Literal[
 
 
 class DxfOptions(TypedDict, total=False):
-    revision: Literal["r12", "r13", "r14", "r2000", "r2004", "r2005", "r2007", "r2010", "r2013",
-                      "r2018"]  # fmt: skip
+    revision: Annotated[
+        Literal["r12", "r13", "r14", "r2000", "r2004", "r2005", "r2007", "r2010", "r2013",
+                "r2018"],
+        Doc("Default r2018 (a ~90 KB header); r12 writes the smallest file"),
+    ]  # fmt: skip
     mold: Annotated[Literal["inner", "outer", "both"], Doc("Also write mold lines")]
 
 
@@ -117,7 +120,9 @@ def _valid_dxf(data: bytes) -> bool:
 def nx_export_flat_pattern(
     tx: Tx,
     *,
-    flat_pattern: Annotated[str, RefTo("feature", doc="Ref f:N: Flat Pattern")],
+    flat_pattern: Annotated[
+        str, RefTo("feature", doc="Ref f:N: Flat Pattern (NX may renumber its name; the ref holds)")
+    ],
     path: Annotated[str, PathTo("replace", ".dxf", ".geo")],
     format: Annotated[Literal["dxf", "geo"], Doc("Default: path suffix")]  # noqa: A002
     | None = None,

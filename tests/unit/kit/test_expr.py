@@ -138,3 +138,32 @@ def test_tube_diameter_aliases_match_only_a_tube():
     err = _code(expr.alias, other, "outer_diameter")
     assert err.code == "NX_NOT_FOUND" and err.details["expressions"][0]["name"] == "p5"
     assert {"outer_diameter", "inner_diameter", "distance"} <= set(expr.alias_names())
+
+
+def test_helper_expressions_are_named_after_the_feature_and_parameter():
+    assert expr.helper_name(NS(JournalIdentifier="OFFSET_SURFACE(3)"), "distance") == (
+        "offset_surface3_distance"
+    )
+    assert expr.helper_name("Bridge(12)", "tangent magnitude 1") == "bridge12_tangent_magnitude1"
+    assert expr.helper_name("3D", "law") == "x3d_law"
+    nx = fake_nx()
+    nx.expression("offset1_distance", "1")
+    first, second, mine = (nx.expression(n, "2") for n in ("p7", "p8_x", "wall"))
+    assert expr.label(nx.tx, first, "offset1_distance") == "offset1_distance_2"
+    assert expr.label(nx.tx, second, "offset1_distance") == "offset1_distance_3"
+    assert expr.label(nx.tx, mine, "offset1_distance") == "wall"  # named by someone: kept
+    assert expr.label(nx.tx, nx.expression("p9", "3"), "bad name") == "p9"
+
+
+def test_an_unknown_expression_name_suggests_the_closest_names():
+    from tests.kit.kernel import services
+
+    nx = fake_nx()
+    svc = services(nx)
+    expr.create(nx.tx, "Sheet_Metal_Thickness", "2", "mm")
+    expr.create(nx.tx, "width", "40", "mm")
+    error = _code(expr.evaluate, svc, "Sheet_Metal_Thicknes", "length", "mm", field="/t")
+    assert error.hint.startswith("Did you mean Sheet_Metal_Thickness?"), error.hint
+    assert error.details["closest"] == ["Sheet_Metal_Thickness"]
+    plain = _code(expr.evaluate, svc, "zzz", "length", "mm")
+    assert "Did you mean" not in plain.hint

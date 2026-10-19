@@ -7,6 +7,8 @@ measures how far a curve set lies from the bodies a feature built.
 
 from __future__ import annotations
 
+import math
+
 from nx_mcp.core.errors import fail
 from nx_mcp.kit import curve, geom
 
@@ -58,6 +60,27 @@ def loops_of(tx, objs, tol, field="/boundary"):
             here = ends[k][1 - s]
         loops.append(loop)
     return loops
+
+
+def sharpest_corner(tx, objs, tol):
+    """``(degrees, point)``: the largest tangent kink where two of the curves meet end to
+    end (0 for a smooth loop or a single closed curve)."""
+    frames = []
+    for obj in objs:
+        with curve.evaluator(tx, obj) as e:
+            frames.append([e.at(0.0), e.at(1.0)])
+    worst = (0.0, None)
+    for i in range(len(frames)):
+        for j in range(i + 1, len(frames)):
+            for p, t in frames[i]:
+                for q, u in frames[j]:
+                    if geom.dist(p, q) > tol:
+                        continue
+                    cosine = abs(geom.dot(geom.unit(t), geom.unit(u)))
+                    angle = math.degrees(math.acos(min(1.0, cosine)))
+                    if angle > worst[0]:
+                        worst = (angle, p)
+    return worst
 
 
 def plane_fit(points):

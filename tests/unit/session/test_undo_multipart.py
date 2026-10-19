@@ -152,8 +152,10 @@ def test_an_interleaved_create_only_operation_is_undone_by_deletion():
     deleted = {r["kind"] for r in undo.changes["deleted"]}
     assert deleted == {"feature", "body"} and undo.changes["references"] == "listed"
     assert made.data["feature"]["id"] in undo.changes["stale_refs"]
-    assert any("deleted what it created" in w["message"] for w in undo.warnings)
-    message = undo.warnings[0]["message"]  # why, without naming other parts' work
+    message = undo.warnings[0]["message"]  # plain: what it did, why, no other part named
+    assert undo.warnings[0]["code"] == "NX_NOTE"
+    assert message.startswith("Undone by deleting what it created (1 body, 1 feature); ")
+    assert "other parts and later work are untouched" in message
     assert "1 later operation of other parts" in message and "b.prt" not in message
     # The undo by deletion stays in the history and is never undone itself.
     assert history(nx) == [("op_b_block_1", False), ("op_a_undo_1", True)]
@@ -171,10 +173,10 @@ def test_a_second_undo_never_brings_the_deleted_objects_back():
     # B's own undo would revert A's undo by deletion with NX's undo: B deletes instead.
     b_undo = run(nx, "nx_undo_operation", part="b")
     assert b_undo.ok and b_undo.data["compensated"] and counts(a, b) == [(0, 0), (0, 0)]
-    assert "undos by deletion" in b_undo.warnings[0]["message"]
+    assert "1 later operation of other parts" in b_undo.warnings[0]["message"]
 
 
-def test_an_interleaved_operation_that_is_not_create_only_is_refused_naming_the_other_part():
+def test_an_interleaved_operation_that_is_not_create_only_is_refused_counting_the_others():
     nx, a, b = two()
     old = Feature("OLD")
     old.OwningPart, old.IsOccurrence, old.Suppressed = a, False, False
@@ -185,12 +187,11 @@ def test_an_interleaved_operation_that_is_not_create_only_is_refused_naming_the_
     refused = run(nx, "nx_undo_operation", part="a")
     assert refused.error["code"] == "NX_CROSS_PART" and refused.mutation_outcome == "not_started"
     error = refused.error
-    assert "op_b_block_1 (nx_create_test_block in b.prt)" in error["message"]
-    assert "did more than create objects (deleted" in error["message"]
-    assert error["details"]["operation_id"] == "op_b_block_1"
-    assert error["details"]["in_the_way"] == [
-        {"operation_id": "op_b_block_1", "tool": "nx_create_test_block", "part": "b.prt"}
-    ]
+    assert "1 later operation in 1 other part" in error["message"]
+    assert "op_b_block_1" not in error["message"] and "b.prt" not in error["message"]
+    assert "changed objects it did not create (deleted" in error["message"]
+    assert "operation_id" not in error["details"]
+    assert error["details"]["in_the_way"] == {"operations": 1, "parts": 1, "loads_or_closes": 0}
     assert counts(a, b) == [(0, 0), (1, 1)] and len(history(nx)) == 2
 
 

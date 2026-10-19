@@ -54,6 +54,7 @@ TEMPLATE_NOTE = (
 # '<number> <unit>': converted to the expression's own units before NX sees it.
 UNIT_VALUE = re.compile(r"^\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)\s*([A-Za-z]+)\s*$")
 UNIT_DIMENSION = {"mm": "length", "in": "length", "deg": "angle", "rad": "angle"}
+FORMULA_UNITS = (*UNIT_DIMENSION, "unitless")  # columns whose formulas NX checks first
 SAVED_NOTE = (
     "The template part was saved with the family table and the member files were written; "
     "check them with nx_get_part_family"
@@ -91,19 +92,23 @@ class FamilyData(TypedDict):
 
 class FamilyRow(TypedDict):
     name: str
-    values: dict
+    values: Annotated[dict, Doc("Column values as the table holds them (formulas as given)")]
     path: str | None
     exists: bool | None
 
 
-class FamilyInfo(TypedDict):
+class FamilyInfo(TypedDict, total=False):
     role: Annotated[str, Doc("template, member or none")]
     part: result.Row
-    template: str | None
+    template: Annotated[str | None, Doc("The template's workspace path (its name if not loaded)")]
     directory: str | None
     columns: list[str]
     members: list[FamilyRow]
-    up_to_date: bool | None
+    up_to_date: Annotated[
+        bool | None,
+        Doc("member: current with its template; template: table saved, every member file there"),
+    ]
+    values: Annotated[dict, Doc("member: its own column values, evaluated")]
 
 
 # --- argument checks (no NX) -------------------------------------------------------
@@ -192,6 +197,30 @@ def _with_units(rows, expressions, known) -> list[tuple[str, list[str]]]:
             values.append(_number_text(round(number, 12)))
         out.append((name, values))
     return out
+
+
+def _check_formulas(tx, rows, expressions, known) -> None:
+    """NX evaluates every value that is not a plain number in a temporary expression of its
+    column's units, under a scratch mark that is always undone: a formula NX refuses
+    (syntax, unknown name, wrong dimension) is refused with its field before the family
+    table exists (a member value NX refuses later leaves a phantom member)."""
+    pending = []
+    for i, (_name, texts) in enumerate(rows):
+        for k, (column, text) in enumerate(zip(expressions, texts, strict=True)):
+            exp = known[column]
+            if _plain_value(text) is not None or getattr(exp, "Type", "Number") not in (
+                "Number",
+                "Integer",
+            ):
+                continue
+            if kit_expr.units(exp) in FORMULA_UNITS:
+                pending.append((f"/members/{i}/values/{k}", kit_expr.units(exp), text))
+    if not pending:
+        return
+    with tx.scratch():
+        for field, have, text in pending:
+            dimension = UNIT_DIMENSION.get(have, "scalar")
+            tx.services.evaluate_formula(text, dimension, have, field=field, scratch=True)
 
 
 def _member_paths(tx, directory: Path, names) -> list[Path]:
@@ -312,11 +341,11 @@ def nx_create_part_family(
     ]
     | None = None,
 ) -> FamilyData:
-    """Create a native part family on the saved work part and write its member parts. Each
-    member is a new .prt (name.prt in directory) holding the template with the given
-    expression values; existing files are never overwritten. The template part is saved
-    afterwards (it stores the family table). Refused when the part already has a family or
-    is a member; list it with nx_get_part_family."""
+    """Create a native part family on the work part and write its member parts. Each member
+    is a new .prt (name.prt in directory) holding the template with the given expression
+    values; existing files are never overwritten. The template is then saved (it stores the
+    family table). Refused when the part has a family or is a member (nx_get_part_family
+    lists it); a drawing table of the members: nx_create_part_family_table."""
     rows = _check_arguments(expressions, members)
     with tx.checks():
         part = tx.part
@@ -353,6 +382,7 @@ def nx_create_part_family(
                     hint="List them with nx_list_objects kind=expression",
                 )
         rows = _with_units(rows, expressions, known)
+        _check_formulas(tx, rows, expressions, known)
     folder.mkdir(parents=True, exist_ok=True)
     created: list[Path] = []
     manager = None
@@ -446,6 +476,7 @@ def nx_create_part_family(
                 wanted = _plain_value(text)
                 if wanted is not None:
                     readback.expect_close(values[column], wanted, f"member {name} {column}")
+            files.note_written(tx, path)
             out.append({
                 "name": name,
                 "path": files.relative(path, tx.workspace.root),
@@ -530,13 +561,46 @@ def nx_get_part_family(tx: Tx) -> FamilyInfo:
         "columns": [], "members": [], "up_to_date": None,
     }  # fmt: skip
     if _uf_flag(tx, "IsFamilyTemplate", part):
-        name, folder, columns, rows = _template_info(tx, part)
-        info["role"], info["template"], info["directory"] = "template", name, folder
+        _name, folder, columns, rows = _template_info(tx, part)
+        info["role"], info["template"], info["directory"] = "template", _shown(tx, Path(
+            parts.file_of(part))), folder  # fmt: skip
         info["columns"], info["members"] = columns, rows
+        info["up_to_date"] = not bool(getattr(part, "IsModified", False)) and all(
+            r["exists"] for r in rows
+        )
     elif _uf_flag(tx, "IsFamilyInstance", part):
         info["role"] = "member"
+        name = None
         with contextlib.suppress(Exception):  # "Family is not loaded": template not loaded
             family = part.GetFamilyInstance().Family
-            info["template"] = str(family.TemplateName) if family is not None else None
+            name = str(family.TemplateName) if family is not None else None
+        template = _loaded_named(tx, name) if name else None
+        info["template"] = _shown(tx, Path(parts.file_of(template))) if template else name
         info["up_to_date"] = _current(tx, part)
+        if template is not None:
+            with contextlib.suppress(NXError):
+                _n, folder, columns, _rows = _template_info(tx, template)
+                info["directory"], info["columns"] = folder, columns
+                info["values"] = _own_values(part, columns)
     return info
+
+
+def _loaded_named(tx, name: str):
+    """The loaded part whose name is ``name`` in any case (NX gives family template names
+    in upper case), else None."""
+    key = name.casefold()
+    found = [p for p in tx.session.Parts if Path(parts.file_of(p)).stem.casefold() == key]
+    return found[0] if len(found) == 1 else None
+
+
+def _own_values(part, columns) -> dict:
+    """A member's own values of the family columns (its expressions, evaluated)."""
+    found = {str(e.Name): e for e in part.Expressions}
+    out: dict = {}
+    for column in columns:
+        exp = found.get(column)
+        value = None
+        with contextlib.suppress(Exception):
+            value = float(exp.Value) if exp is not None else None
+        out[column] = value
+    return out

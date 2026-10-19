@@ -151,7 +151,8 @@ def test_type_change_needs_delete_in_the_same_call(anx):
     call(anx, tools.nx_set_attributes, values=[{"name": "QTY", "type": "integer", "value": 1}])
     clash = call(anx, tools.nx_set_attributes,
                  values=[{"name": "QTY", "type": "string", "value": "one"}])  # fmt: skip
-    assert clash.error["code"] == "NX_ALREADY_EXISTS" and clash.mutation_outcome == "not_started"
+    assert clash.error["code"] == "NX_INVALID_ARGUMENT" and clash.mutation_outcome == "not_started"
+    assert "as an integer attribute, not a string" in clash.error["message"]
     ok = call(anx, tools.nx_set_attributes, delete=["QTY"],
               values=[{"name": "QTY", "type": "string", "value": "one"}])  # fmt: skip
     assert ok.ok and _attrs(ok)["QTY"]["value"] == "one"
@@ -285,7 +286,9 @@ def test_an_omitted_type_keeps_the_existing_type(anx):
     assert (got["WEIGHT"]["type"], got["WEIGHT"]["value"]) == ("number", 2.0)
     assert got["DUE"]["value"] == "2027-02-01T00:00:00" and got["REV"]["value"] == "2"
     clash = call(anx, tools.nx_set_attributes, attributes={"QTY": "four"})
-    assert clash.error["code"] == "NX_ALREADY_EXISTS" and clash.error["field"] == "/attributes/QTY"
+    assert (
+        clash.error["code"] == "NX_INVALID_ARGUMENT" and clash.error["field"] == "/attributes/QTY"
+    )
     assert "delete" in clash.error["hint"] and clash.mutation_outcome == "not_started"
     assert anx.part._attrs["qty"].IntegerValue == 4
 

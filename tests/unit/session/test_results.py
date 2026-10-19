@@ -162,6 +162,7 @@ def test_delete_exact_ids(tmp_path):
     missing = "result_" + "f" * 32
     preview = side(tmp_path, rs.nx_delete_results, result_ids=[a, missing])
     assert preview.data["selected_count"] == 1 and preview.data["missing"] == [missing]
+    assert preview.data["policy"] is None  # exact ids: no age or size limit applies
     assert side(tmp_path, rs.nx_get_result, result_id=a).ok
     done = side(tmp_path, rs.nx_delete_results, result_ids=[a], dry_run=False)
     assert done.ok and done.data["applied"] and done.data["snapshot_count"] == 1

@@ -167,6 +167,8 @@ def test_kit_codes_are_in_the_error_table():
         for node in ast.walk(tree):
             if isinstance(node, ast.Constant) and isinstance(node.value, str):
                 text = node.value
-                if text.startswith("NX_") and text.isupper() and " " not in text:
+                # A code never ends in "_" (that is a name prefix such as "NX_MCP_").
+                code = not text.endswith("_")
+                if code and text.startswith("NX_") and text.isupper() and " " not in text:
                     stable = text in CODES or text in WARNING_CODES
                     assert stable, f"{path.name}: {text} is not a stable code"

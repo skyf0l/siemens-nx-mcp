@@ -375,3 +375,34 @@ def test_compensation_sets_an_arrangement_rename_activation_and_default_back(nx)
         undo = run(nx, "nx_undo_operation", part="asm", mode="compensate")
         assert undo.ok and undo.data["compensated"], (args, undo)
         assert check(), args
+
+
+def test_compensation_deletes_a_created_arrangement_and_reactivates_the_previous_one(nx):
+    plain = run(nx, "nx_create_arrangement", part="asm", name="OPEN")
+    shown = run(nx, "nx_create_arrangement", part="asm", name="WIDE", activate=True)
+    assert plain.ok and shown.ok and nx.arr.active.Name == "WIDE"
+    undo = run(nx, "nx_undo_operation", part="asm", mode="compensate")
+    assert undo.ok and undo.data["compensated"], undo
+    assert sorted(a.Name for a in nx.arr.arrangements) == ["Arrangement 1", "OPEN"]
+    assert nx.arr.active.Name == "Arrangement 1"
+    run(nx, "nx_edit_arrangement", part="asm", arrangement="OPEN", action="activate")
+    refused = run(nx, "nx_undo_operation", part="asm", operation=plain.operation_id,
+                  mode="compensate")  # fmt: skip
+    assert refused.error["code"] == "NX_DEPENDENCY_ORDER", refused
+
+
+def test_compensation_recreates_a_deleted_arrangement_with_its_states(nx):
+    run(nx, "nx_create_arrangement", part="asm", name="OPEN")
+    run(nx, "nx_set_arrangement_component", part="asm", arrangement="OPEN",
+        component=nx.lid.ref, pose={"translation": [0, 0, 150]})  # fmt: skip
+    run(nx, "nx_set_arrangement_component", part="asm", arrangement="OPEN",
+        component=nx.base.ref, suppressed=True)  # fmt: skip
+    gone = run(nx, "nx_edit_arrangement", part="asm", arrangement="OPEN", action="delete")
+    assert gone.ok and sorted(a.Name for a in nx.arr.arrangements) == ["Arrangement 1"], gone
+    undo = run(nx, "nx_undo_operation", part="asm", mode="compensate")
+    assert undo.ok and undo.data["compensated"], undo
+    assert "OPEN recreated" in undo.data["restored"][0]
+    opened = next(a for a in nx.arr.arrangements if a.Name == "OPEN")
+    assert _pose_in(nx, nx.lid, "OPEN") == pytest.approx([0, 0, 150])
+    assert nx.arr.suppressed(nx.base, opened) and nx.arr.active.Name == "Arrangement 1"
+    assert nx.lid.t == pytest.approx([0, 0, 100])

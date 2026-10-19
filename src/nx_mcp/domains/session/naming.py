@@ -115,8 +115,9 @@ def _forget_anchor(tx: Tx, ref: str) -> None:
     example={"object": "f:12", "name": "Boss"},
 )
 def nx_set_name(tx: Tx, *, object: Ref, name: NewName) -> SetNameData:  # noqa: A002
-    """Rename an object of the work part (feature, body, sketch, component, expression) by
-    its ref. Returns the name NX stored, often upper-cased; all references stay valid. An
+    """Rename an object of the work part (feature, body, face, edge, sketch, component,
+    expression) by its ref. Returns the name NX stored: features and expressions keep their
+    case, NX upper-cases most others (bodies, faces). All references stay valid. An
     expression name is a unique identifier. A part is renamed by saving it as a new file
     (nx_save_part path)."""
     with tx.checks():

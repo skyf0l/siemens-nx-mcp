@@ -81,6 +81,14 @@
               "data.components.0.mirrored.translation": {"close": [-100, 0, 0], "tol": 1e-6},
               "warnings.0.message": {"matches": "is deformed"}}},
   {"call": "nx_list_objects", "args": {"part": "dfm_strut", "kind": "expression", "name_contains": "extension"},
-   "expect": {"data.items.0.name": "extension", "data.items.0.details.value": {"close": 100, "tol": 1e-9}}}
+   "expect": {"data.items.0.name": "extension", "data.items.0.details.value": {"close": 100, "tol": 1e-9}}},
+  {"call": "nx_set_component_deformation", "save": "d90", "args": {"part": "$part", "component": "$A.data.component.id", "values": [{"expression": "extension", "value": 90}]}, "expect": {"mutation_outcome": "committed", "data.created": false, "data.values.0.value": {"close": 90, "tol": 1e-09}, "data.bounds.high": {"close": [15, 15, 290], "tol": 1e-06}}},
+  {"call": "nx_undo_operation", "args": {"part": "$part", "mode": "compensate"}, "intent": "Acceptance: set the deformation back by compensation", "expect": {"ok": true, "data.compensated": true, "data.restored.0": {"matches": "extension = 120"}}},
+  {"call": "nx_measure_bounds", "args": {"part": "$part", "bodies": ["$defA.data.bodies.0.id", "$defA.data.bodies.1.id"]}, "expect": {"data.size": {"close": [30, 30, 320], "tol": 1e-06}}},
+  {"call": "nx_create_deformable_definition", "intent": "Arguments are checked first", "args": {"part": "dfm_strut", "expressions": [{"expression": "nope"}]}, "expect": {"error.code": "NX_NOT_FOUND", "error.field": "/expressions/0/expression", "mutation_outcome": "not_started"}},
+  {"call": "nx_create_part", "setup": true, "args": {"path": "$run/dfm_unused.prt", "units": "mm"}},
+  {"call": "nx_set_expression", "setup": true, "args": {"part": "dfm_unused", "name": "e", "formula": "10", "units": "mm"}},
+  {"call": "nx_create_primitive", "setup": true, "args": {"part": "dfm_unused", "length": 20, "width": 20, "height": 20}},
+  {"call": "nx_create_deformable_definition", "intent": "No feature uses e", "args": {"part": "dfm_unused", "expressions": [{"expression": "e"}]}, "expect": {"error.code": "NX_INVALID_ARGUMENT", "error.field": "/expressions/0/expression", "error.message": {"matches": "No feature of dfm_unused.prt uses e"}, "mutation_outcome": "not_started"}}
  ]
 }

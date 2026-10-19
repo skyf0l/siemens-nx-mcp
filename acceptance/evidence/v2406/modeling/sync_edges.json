@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/modeling/sync_edges.json",
-  "scenario_sha256": "63339213d58a86e0bcb90389fbeb9c4a1b334ee2406bacb3fd81132686aed9c8",
+  "scenario_sha256": "39dbbe8f5da04ed21cbbbd8df1b7a78031dfb66506e5d9700bc1ec94848c7d26",
   "domain": "modeling",
   "covers": {
     "nx_edit_edges": [
@@ -12,9 +12,9 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_edit_edges": "46944c41f13113a679bebd20d490aa0aa76928546850abbc11fb409a8f3a6a86"
+    "nx_edit_edges": "15b3f48b974e59ae2645d88a623b5f67f407a628b07810222f8c28e1e8a4db94"
   },
-  "recorded": "2026-10-16T12:54:45Z",
+  "recorded": "2026-10-19T11:31:40Z",
   "passed": true,
   "checks": 14,
   "failed_checks": 0,

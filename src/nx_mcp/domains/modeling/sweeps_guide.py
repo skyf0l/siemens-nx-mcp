@@ -27,7 +27,7 @@ from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Combine, Doc, Items, Length, Range, RefTo, SketchRef
 from nx_mcp.domains.modeling import common, features
-from nx_mcp.kit import args, builders, expr, licenses, measure, select, units
+from nx_mcp.kit import args, builders, curve, expr, licenses, measure, select, units
 from nx_mcp.kit import bodies as kbodies
 from nx_mcp.kit import sketch as ksketch
 
@@ -46,6 +46,77 @@ OPEN_HINT = (
 
 class GuideSweepData(common.FeatureData):
     guide_length: float  # total length of the guide curves
+
+
+def _section_box(tx, sk):
+    """``(profile points in part coordinates, [width, height] in the sketch plane, closed)``
+    of the section's profile, or None when UF cannot sample it."""
+    try:
+        profile = features._profile(tx, sk)
+        if not profile:
+            return None
+        loops = features._chains(tx, profile)
+    except Exception:  # noqa: BLE001 - curves UF cannot sample: NX judges the section
+        return None
+    f = ksketch.frame(sk)
+    points = [p for _c, ps in profile for p in ps]
+    local = [ksketch.to_local(f, p) for p in points]
+    size = [max(q[k] for q in local) - min(q[k] for q in local) for k in (0, 1)]
+    closed = bool(loops["closed"]) and not loops["open"] and not loops["branched"]
+    return points, size, closed
+
+
+def _check_offsets(box, first, second) -> None:
+    """Refuse a wall offset that turns a closed section's outline inside out: an inward
+    (negative) offset of half its narrowest width or more (NX builds a nonsense body:
+    -20 on a 10 x 10 square gave a 40 x 40 one)."""
+    if box is None or not box[2]:
+        return
+    narrow = min(box[1])
+    if narrow <= 0:
+        return
+    for name, value in (("first_offset", first), ("second_offset", second)):
+        if float(value) < 0 and -float(value) >= narrow / 2:
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"{name} {float(value):.6g} turns the section inside out: it is "
+                f"{narrow:.6g} across at its narrowest, so an inward (negative) offset must "
+                f"stay under {narrow / 2:.6g}",
+                field=f"/{name}",
+                hint="Offsets measure from the outline: positive out, negative in (1 and -1: "
+                "a wall 2 thick centred on it)",
+                details={"narrowest": narrow},
+            )
+
+
+# A section whose nearest point lies farther than this many section sizes from the guide is
+# not at the guide: NX then fails (a self-overlapping body) or, worse, commits a body far
+# off the request (live: a 10 x 10 square 100 off a 180 long guide gave 3000, not 18000).
+FAR_SECTIONS = 1.0
+
+
+def _refuse_far(tx, box, curves) -> None:
+    """Refuse, before NX, a section far from its guide (farther from every guide curve
+    than its own size)."""
+    if box is None:
+        return
+    try:
+        points = box[0][:: max(1, len(box[0]) // 64)]
+        gap = min(curve.point_distance(tx, c, p)[0] for c in curves for p in points)
+    except Exception:  # noqa: BLE001 - no distance: NX judges the placement
+        return
+    size = max(max(box[1]), units.part_tolerance(tx))
+    if gap <= FAR_SECTIONS * size:
+        return
+    fail(
+        "NX_WRONG_GEOMETRY",
+        f"The section lies {gap:.6g} from the guide, more than its own size ({size:.6g}): a "
+        "section sits at its guide, usually at the start",
+        field="/section",
+        hint="Sketch the section on a plane through the guide's start point, normal to the "
+        "guide there, around that point",
+        details={"section_gap": gap},
+    )
 
 
 def _guide(tx, refs):
@@ -93,7 +164,9 @@ def nx_create_sweep_along_guide(
         Annotated[list[GuideRef], Items(1, 100)] | GuideRef,
         Doc("One sketch, or connected curves/edges; corners allowed"),
     ],
-    first_offset: Annotated[Length, Doc("Wall offset of the section outline; 0: solid")] = 0.0,
+    first_offset: Annotated[
+        Length, Doc("Wall offset from the section outline (+ out, - in); 0: solid")
+    ] = 0.0,
     second_offset: Annotated[Length, Doc("Other wall side; the wall lies between offsets")] = 0.0,
     combine: Combine | None = None,
 ) -> GuideSweepData:
@@ -123,6 +196,10 @@ def nx_create_sweep_along_guide(
             fail("NX_INVALID_ARGUMENT", "section and guide must differ", field="/guide")
         if not wall:
             features.refuse_open(tx, sk, "/section", OPEN_HINT)
+        box = _section_box(tx, sk)
+        if wall:
+            _check_offsets(box, first_offset, second_offset)
+        _refuse_far(tx, box, curves)
     length = measure.length(tx, curves)
     targets = common.combine_targets(tx, combine)
     before = common.target_state(tx, targets)

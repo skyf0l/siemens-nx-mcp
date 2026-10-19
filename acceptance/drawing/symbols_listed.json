@@ -1,0 +1,205 @@
+{
+ "covers": {
+  "nx_create_sheet_symbol": [
+   "intersection",
+   "edge_condition",
+   "custom"
+  ]
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "back",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     35,
+     50,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "front",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     40,
+     0,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "right",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     80,
+     20,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h1",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     25,
+     25,
+     20
+    ],
+    "limit": 1,
+    "radius": 8
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_create_sheet_symbol",
+   "save": "ix",
+   "args": {
+    "symbol": "intersection",
+    "view": "$top.data.view.id",
+    "objects": [
+     "$back.data.items.0.id",
+     "$right.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "changes.created": {
+     "count_kind": {
+      "annotation": 1
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_create_sheet_symbol",
+   "save": "ec",
+   "args": {
+    "symbol": "edge_condition",
+    "view": "$top.data.view.id",
+    "objects": [
+     "$back.data.items.0.id"
+    ],
+    "origin": [
+     150,
+     270
+    ]
+   },
+   "expect": {
+    "changes.created": {
+     "count_kind": {
+      "annotation": 1
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_create_sheet_symbol",
+   "save": "cu",
+   "args": {
+    "symbol": "custom",
+    "name": "balloon_note",
+    "origin": [
+     350,
+     60
+    ]
+   },
+   "expect": {
+    "changes.created": {
+     "count_kind": {
+      "annotation": 1
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "args": {
+    "kind": "annotation"
+   },
+   "expect": {
+    "data.items": {
+     "contains": {
+      "id": "$ix.data.annotation.id"
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "args": {
+    "kind": "annotation"
+   },
+   "expect": {
+    "data.items": {
+     "contains": {
+      "id": "$ec.data.annotation.id"
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "args": {
+    "kind": "annotation"
+   },
+   "expect": {
+    "data.items": {
+     "contains": {
+      "id": "$cu.data.annotation.id"
+     }
+    }
+   }
+  }
+ ]
+}

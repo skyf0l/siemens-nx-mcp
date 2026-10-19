@@ -20,7 +20,7 @@ class Builder:
     """A GeometricAnalysis builder: records settings, commits one analysis object."""
 
     def __init__(self, nx, kind, made, results=(True, True, False, False)):
-        self.kind, self.made, self.results = kind, made, list(results)
+        self.nx, self.kind, self.made, self.results = nx, kind, made, list(results)
         self.MultiFace = self.Faces = Selection()
         self.SelectedCurves = NS(ReplaceRules=lambda rules, _f: setattr(self, "rules", rules))
         self.CombOptions = NS(Density=50)
@@ -38,6 +38,10 @@ class Builder:
         obj.Tag = 90000 + len(self.made)
         self.committed.append(obj)
         self.made.append(self)
+        if self.kind == "continuity":  # NX 2406: its distance and angle thresholds
+            n = len(self.nx.part.Expressions)
+            for k, formula in enumerate(("0.001", str(self.G1Tolerance))):
+                self.nx.expression(f"p{n + k + 500}", formula)
         return None if self.kind == "comb" else obj
 
     def GetCommittedObjects(self):  # noqa: N802
@@ -55,8 +59,20 @@ def enums(*names):
 
 
 def with_analysis(nx, results=(True, True, False, False), displayed=True):
+    """Analysis builders on ``nx``; ``UpdateManager`` deletes analysis objects (UF
+    ``AskStatus`` then reads them as gone)."""
     made: list = []
     nx.session.Parts.Display = nx.part if displayed else None
+    dead: set = set()
+    nx.uf.Obj = NS(AskStatus=lambda tag: 2 if int(tag) in dead else analysis_objects.UF_OBJ_ALIVE)
+    delete = nx.session.UpdateManager.AddToDeleteList
+
+    def add_to_delete_list(objects):
+        dead.update(int(o.Tag) for o in objects if hasattr(o, "kind"))
+        delete([o for o in objects if not hasattr(o, "kind")])
+
+    nx.session.UpdateManager.AddToDeleteList = add_to_delete_list
+    nx.session.UpdateManager.ClearErrorList = lambda: None
 
     def factory(kind):
         return lambda _obj: Builder(nx, kind, made, results)
@@ -181,8 +197,11 @@ def test_reflection_analysis_is_kept_and_named():
     assert (b.Type, b.LineImageType, b.LineNumber, b.LineOrientation) == (
         "LineImages", "BlackLines", "ThirtyTwo", "Both"
     )  # fmt: skip
-    assert b.committed[0].Name == "NX_MCP_REFLECTION" and b.destroyed
+    assert b.committed[0].Name == "NX_MCP_REFLECTION_1" and b.destroyed
     assert ok.data["type"] == "reflection" and ok.data["faces"] == 2
+    assert ok.data["name"] == "NX_MCP_REFLECTION_1" and ok.data["analyses"] == 1
+    again = run(nx, "nx_create_surface_analysis", type="reflection", faces=[first.ref])
+    assert again.data["name"] == "NX_MCP_REFLECTION_2" and again.data["analyses"] == 2
 
 
 def test_comb_continuity_and_radius_analyses():
@@ -214,7 +233,7 @@ def test_slope_reports_sampled_angles_from_the_direction():
     (b,) = made
     assert b.kind == "slope" and b.started and b.destroyed and list(b.Faces) == [top, side]
     assert b.Vector.kind == "direction" and b.DisplayMode == "Fringe"
-    assert b.committed[0].Name == "NX_MCP_SLOPE"
+    assert b.committed[0].Name == "NX_MCP_SLOPE_1"
     v = ok.data["values"]
     assert (v["min"], v["max"], v["mean"], v["samples"]) == (0.0, 90.0, 45.0, 8)
     tilted = run(nx, "nx_create_surface_analysis", type="slope", faces=[top.ref],
@@ -297,3 +316,72 @@ def test_display_arguments_are_refused_before_nx(args, field):
     bad = run(nx, "nx_create_surface_analysis", **args)
     assert bad.error["field"] == field, bad
     assert made == [] and bad.mutation_outcome in ("not_applicable", "not_started")
+
+
+def test_values_only_slope_makes_nothing_and_says_so():
+    nx = inspection_nx()
+    top = nx.block(10, 10, 10).face((0, 0, 1))
+    made = with_analysis(nx, displayed=False)
+    ok = run(nx, "nx_create_surface_analysis", type="slope", faces=[top.ref], display=False)
+    assert ok.ok and ok.mutation_outcome == "not_applicable" and made == [], ok
+    assert ok.data["name"] == "" and ok.data["values"]["max"] == pytest.approx(0)
+    assert any(w["code"] == "NX_NO_EFFECT" for w in ok.warnings)
+
+
+def test_delete_removes_analyses_by_name_with_their_threshold_expressions():
+    nx = inspection_nx()
+    first, second, _e, _f = shared_pair(nx.block(10, 10, 10))
+    made = with_analysis(nx)
+    before = [e.Name for e in nx.part.Expressions]
+    cont = run(nx, "nx_create_surface_analysis", type="continuity", faces=[first.ref, second.ref])
+    refl = run(nx, "nx_create_surface_analysis", type="reflection", faces=[first.ref])
+    assert (
+        cont.data["name"] == "NX_MCP_CONTINUITY_1" and len(nx.part.Expressions) == len(before) + 2
+    )
+    missing = run(nx, "nx_delete_surface_analysis", names=["NX_MCP_RADIUS_1"])
+    assert missing.error["code"] == "NX_NOT_FOUND" and missing.error["field"] == "/names/0"
+    assert missing.error["details"]["names"] == ["NX_MCP_CONTINUITY_1", "NX_MCP_REFLECTION_1"]
+    gone = run(
+        nx, "nx_delete_surface_analysis", names=["nx_mcp_continuity_1", "NX_MCP_CONTINUITY_1"]
+    )
+    assert gone.ok and gone.mutation_outcome == "committed", gone
+    assert gone.data["deleted"] == ["NX_MCP_CONTINUITY_1"] and gone.data["objects"] == 1
+    assert len(gone.data["expressions"]) == 2
+    assert [e.Name for e in nx.part.Expressions] == before
+    assert analysis_objects.names(nx_tx(nx), nx.part) == [refl.data["name"]]
+    everything = run(nx, "nx_delete_surface_analysis")
+    assert everything.data["deleted"] == ["NX_MCP_REFLECTION_1"], everything
+    assert analysis_objects.names(nx_tx(nx), nx.part) == []
+    nothing = run(nx, "nx_delete_surface_analysis")
+    assert nothing.ok and nothing.mutation_outcome == "not_applicable" and len(made) == 2
+
+
+def test_compensation_deletes_the_analysis_and_its_expressions():
+    nx = inspection_nx()
+    first, second, _e, _f = shared_pair(nx.block(10, 10, 10))
+    with_analysis(nx)
+    before = [e.Name for e in nx.part.Expressions]
+    made = run(nx, "nx_create_surface_analysis", type="continuity", faces=[first.ref, second.ref])
+    assert made.ok, made
+    undo = run(nx, "nx_undo_operation", mode="compensate")
+    assert undo.ok and undo.data["compensated"], undo
+    assert undo.data["restored"] == [
+        "surface analysis NX_MCP_CONTINUITY_1 deleted (the operation made it)"
+    ]
+    assert analysis_objects.names(nx_tx(nx), nx.part) == []
+    assert [e.Name for e in nx.part.Expressions] == before
+
+
+def test_compensation_is_refused_once_the_analysis_is_gone():
+    nx = inspection_nx()
+    top = nx.block(10, 10, 10).face((0, 0, 1))
+    with_analysis(nx)
+    made = run(nx, "nx_create_surface_analysis", type="radius", faces=[top.ref])
+    run(nx, "nx_delete_surface_analysis", names=[made.data["name"]])
+    undo = run(nx, "nx_undo_operation", operation=made.operation_id, mode="compensate")
+    assert not undo.ok and "no longer exists" in undo.error["message"], undo
+
+
+def nx_tx(nx):
+    """The ``tx`` view kit.analysis_objects reads (session, part, uf)."""
+    return NS(session=nx.session, part=nx.part, uf=nx.uf, nx=nx.nx)

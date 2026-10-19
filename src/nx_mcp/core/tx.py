@@ -31,6 +31,7 @@ DEFAULT_BUDGET_SECONDS = 300.0
 # ``Tx.scale_budget``: seconds added per input object, and the scaled budget's ceiling.
 BUDGET_PER_ITEM_SECONDS = 0.2
 SCALED_BUDGET_CAP_SECONDS = 300.0
+_NOT_SET: Any = object()  # ``Tx.snapshot_part`` before the kernel sets it
 
 NOT_GRANTED_HINT = (
     "The part is the engineer's: ask them in chat to tick 'Allow agent to change {name}' "
@@ -251,6 +252,10 @@ class Services:
         return None
 
 
+# ``fn(tx, path)`` hooks run for every file ``Files.publish`` published (core imports no
+# kit module: ``kit.files`` appends its ``note_written`` when it is imported).
+WRITTEN_HOOKS: list = []
+
 REPLACE_TRIES = 20  # backoff 0.05 s doubling to 0.5 s, about 6 s in all: Windows refuses a
 # replace while a scanner holds a file that was just written or read
 
@@ -373,7 +378,17 @@ class Files:
             self._staged = staged[len(out) + 1 :]  # the rest stay staged until discard()
             raise
         self.cleanup()
+        self._note(out)
         return out
+
+    def _note(self, paths: list[Path]) -> None:
+        """Run every :data:`WRITTEN_HOOKS` hook for each published file (the kit records it
+        as written by this call: ``nx_delete_file`` deletes only files an agent wrote).
+        Never raises."""
+        for hook in list(WRITTEN_HOOKS):
+            for path in paths:
+                with contextlib.suppress(Exception):
+                    hook(self._tx, path)
 
     def discard(self) -> bool:
         """Remove unpublished staged files and the staging folder; True when nothing
@@ -485,6 +500,9 @@ class Tx:
         self.started = time.monotonic()
         self.budget_extra = 0.0  # seconds added by scale_budget (root only)
         self.touched = False
+        # A builder committed in NX (``kit.builders``): a refusal after it is rolled back,
+        # not "not started", even when the part has the same objects again.
+        self.built = False
         self.frame = "work_part_absolute"
         self.units = {"length": None, "angle": "deg"}  # + "sheet_length" (gate 9)
         self.sheet: Any = None  # the target NX drawing sheet of a sheet tool (gate 9), or None
@@ -494,10 +512,15 @@ class Tx:
         self.outcome: str | None = None  # "previewed" after tx.preview()
         self.references: str | None = None  # "part_invalidated": overrides changes
         self.changed: list[Row] = []  # rows for changes.modified (``tx.modified``)
+        self.made: list[Row] = []  # rows for changes.created (``tx.created``)
         self.stale_refs: list[str] = []  # refs an undo made stale (``tx.after_undo``)
         # part_key -> (part, snapshot before the change): parts besides the work part the
         # call changes (``tx.touch_part``).
         self.extra_parts: dict[str, tuple[Any, dict]] = {}
+        # The part the kernel snapshotted before the handler (the work part then, None when
+        # there was none); until the kernel sets it, the current work part stands for it
+        # in ``touch_part``.
+        self.snapshot_part: Any = _NOT_SET
         self.files = Files(self)
         self.display = Display(self)
         self.children: list[dict] = []
@@ -521,7 +544,9 @@ class Tx:
         # children inherit the parent's.
         self.caller: dict | None = parent.caller if parent is not None else None
 
-    def note_restore(self, data: dict) -> None:
+    def note_restore(
+        self, data: dict, *, brings_back: bool = False, after_delete: bool = False
+    ) -> None:
         """Keep the before-values of what this call changes, so an undo can set them back
         when NX's undo cannot reach the call (other parts' work came after it).
 
@@ -537,6 +562,16 @@ class Tx:
 
             tx.note_restore({"object": ref, "before": old, "after": new})
 
+        An undo sets values back only for a call that deleted nothing besides what a
+        feature's state takes away (its bodies, datums, curves and points: suppression);
+        ``brings_back`` says the restorer also brings back the other objects the call
+        deleted (it re-creates them; their old refs stay stale). A creation the snapshots
+        do not see (an arrangement, a group, a decal) is undone the same way: report it
+        with :meth:`created` and note what the restorer needs to remove it. A creating
+        call that also changed state its objects' deletion does not revert (bodies a mirror
+        or an untrim hid) notes ``after_delete``: the undo deletes what it created through
+        the deleters, then applies its restorer (checked before the deletion).
+
         A top-level call keeps ``data`` in its undo-history entry
         (``history_note["restore"]``); a child of ``nx_run_batch`` or an accepted
         ``nx_finish_preview`` adds it to its parent's entry (``child_restores``: step
@@ -544,6 +579,10 @@ class Tx:
         if self.parent is None:
             note = dict(self.history_note or {})
             note["restore"] = data
+            if brings_back:
+                note["restore_brings_back"] = True
+            if after_delete:
+                note["restore_after_delete"] = True
             self.history_note = note
             return
         if self.parent.parent is not None:
@@ -555,9 +594,12 @@ class Tx:
             part = self._services.part_key(work) if work is not None else None
         note = dict(root.history_note or {})
         steps = list(note.get("child_restores") or [])
-        steps.append(
-            {"index": len(root.children), "tool": self.spec.name, "restore": data, "part": part}
-        )
+        step = {"index": len(root.children), "tool": self.spec.name, "restore": data, "part": part}
+        if brings_back:
+            step["brings_back"] = True
+        if after_delete:
+            step["after_delete"] = True
+        steps.append(step)
         note["child_restores"] = steps
         root.history_note = note
 
@@ -632,11 +674,13 @@ class Tx:
         a component edited in context). Call it before the change: the kernel snapshots
         the part now and, after the handler, lists what was created or deleted in it in
         ``changes`` and fails the call on its new features that do not update (gate 11),
-        as for the work part. The work part itself and repeated calls are ignored."""
+        as for the work part. The part the kernel snapshots itself (the work part when the
+        call started) and repeated calls are ignored; a part the call created and made the
+        work part (an import into a new part) is declared right after its creation."""
         services = self._services
         key = services.part_key(part)
-        work = services.work_part()
-        if key in self.extra_parts or (work is not None and services.part_key(work) == key):
+        watched = services.work_part() if self.snapshot_part is _NOT_SET else self.snapshot_part
+        if key in self.extra_parts or (watched is not None and services.part_key(watched) == key):
             return
         self.extra_parts[key] = (part, services.snapshot(part))
         root = self
@@ -673,6 +717,18 @@ class Tx:
         row = cast("Row", obj) if isinstance(obj, dict) else self.ref(obj, kind)
         if all(r.get("id") != row.get("id") for r in self.changed):
             self.changed.append(row)
+        return row
+
+    def created(self, obj, kind: str | None = None) -> Row:
+        """Report ``obj`` (an NX object or a result row ``{id, kind, name}``) in
+        ``changes.created``: an object the call made that the part snapshots do not list
+        (an arrangement, a component group, a decal, a display analysis). The kernel adds
+        the objects the snapshots see itself. An undo by deletion removes a created object
+        of a kind with a ``@deleter`` hook that the snapshots list; any other one needs the
+        tool's ``@restorer`` and :meth:`note_restore`, else the undo is refused."""
+        row = cast("Row", obj) if isinstance(obj, dict) else self.ref(obj, kind)
+        if all(r.get("id") != row.get("id") for r in self.made):
+            self.made.append(row)
         return row
 
     def after_undo(self) -> str:
@@ -829,13 +885,13 @@ class Tx:
                 after = services.snapshot(part) if part is not None else {}
             except Exception as error:
                 rollback_error = error
-            if rollback_error is not None:
-                with contextlib.suppress(Exception):
-                    services.invalidate_parts(services.parts())
-            elif set(after) != set(before) or self.children:
+            if rollback_error is not None or set(after) != set(before) or self.children:
                 from nx_mcp.core import kernel
 
-                kernel.rebind_after_undo(services)
+                with contextlib.suppress(Exception):  # the preview's parts only
+                    kernel.rebind_after_undo(
+                        services, parts=kernel.call_parts(services, self, part)
+                    )
             if failed is not None:
                 self.outcome = "rolled_back" if rollback_error is None else "partial"
                 if (

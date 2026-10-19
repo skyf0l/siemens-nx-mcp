@@ -265,13 +265,33 @@ def _extent(rows):
     return [min(xs), min(ys), max(xs), max(ys)]
 
 
-def _warn_outside(tx, sheet, bounds):
+def _prim_points(prim):
+    """Points whose box is a planned primitive's extent: a line's ends; an arc's ends and
+    the quadrant points it passes."""
+    if prim[0] == "line":
+        return [prim[1], prim[2]]
+    _, center, radius, start, end = prim
+    angles = [start, end, *(a for a in range(0, 721, 90) if start < a < end)]
+    return [_polar(center, radius, a) for a in angles]
+
+
+def _check_on_sheet(sheet, plans):
+    """The sheet-bounds gate: refuse a curve that reaches past the sheet, before NX."""
     length, height = drawing.size(sheet)
-    if not drawing.inside(bounds, sheet):
-        tx.warn(
-            "NX_VIEW_OVERLAP",
-            f"The curves reach past the {length:g} x {height:g} sheet (bounds {bounds})",
-        )
+    tol = drawing.SHEET_TOL * max(length, height)
+    for i, prims in enumerate(plans):
+        points = [p for prim in prims for p in _prim_points(prim)]
+        box = [min(p[0] for p in points), min(p[1] for p in points),
+               max(p[0] for p in points), max(p[1] for p in points)]  # fmt: skip
+        if box[0] < -tol or box[1] < -tol or box[2] > length + tol or box[3] > height + tol:
+            fail(
+                "NX_INVALID_ARGUMENT",
+                f"Curve {i} reaches past the {length:g} x {height:g} sheet (extent "
+                f"{[round(v, 6) for v in box]})",
+                field=f"/curves/{i}",
+                hint="Keep every point from [0, 0] to the sheet size, in sheet units",
+                details={"sheet_size": [length, height], "extent": box},
+            )
 
 
 @tool(
@@ -307,10 +327,11 @@ def nx_create_sheet_sketch(
     sheet coordinates (sheet units, origin at the sheet's lower-left corner). Fields: line start,
     end; polyline points, closed; arc center, radius, start_angle, end_angle (degrees CCW);
     circle center, radius; rectangle corner1, corner2. Closed loops (rectangle, closed
-    polyline, circle) bound regions nx_create_hatch can fill."""
+    polyline, circle) bound regions nx_create_hatch can fill. Curves past the sheet: refused."""
     plans = [plan(item, f"/curves/{i}") for i, item in enumerate(curves)]
     with tx.checks():
         target = sheet_of(tx, sheet, "/sheet") if sheet is not None else open_or_only_sheet(tx)
+        _check_on_sheet(target, plans)
     part, nx = tx.part, tx.nx
     with (
         licenses.attempt(tx, ("drafting", "solid_modeling")),
@@ -341,7 +362,6 @@ def nx_create_sheet_sketch(
                 _check(prim, row, f"curves/{i}/{k}", tol)
                 rows.append(row)
         bounds = _extent(rows)
-        _warn_outside(tx, target, bounds)
         return {
             "sketch": tx.ref(sk, "sketch"),
             "sheet": tx.ref(target, "drawing_sheet"),

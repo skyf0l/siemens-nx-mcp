@@ -46,3 +46,14 @@ def test_a_feature_without_bodies_is_named_in_the_error():
     with pytest.raises(NXError) as empty_pattern:
         bodies.of(nx.tx, Pattern([]))
     assert "Pattern Feature(3)" in empty_pattern.value.message
+
+
+def test_facet_bodies_are_the_standalone_ones():
+    from types import SimpleNamespace as NS
+
+    mesh = NS(Tag=7, AssociatedBody=None)  # an imported STL
+    display = NS(Tag=8, AssociatedBody=NS(Tag=3))  # a solid's display facets
+    unbound = NS(Tag=9, AssociatedBody=NS(Tag=0))
+    part = NS(FacetedBodies=[mesh, display, unbound])
+    assert bodies.facet_bodies(part) == [mesh, unbound]
+    assert bodies.facet_bodies(NS()) == []

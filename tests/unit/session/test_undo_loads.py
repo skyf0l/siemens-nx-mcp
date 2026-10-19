@@ -90,8 +90,8 @@ def test_a_shown_new_part_keeps_the_marks_and_its_load_ends_no_other_parts_histo
     assert len(nx.session.Parts) == 2 and work in nx.session.Parts  # b stays loaded
     crossed = run(nx, "nx_undo_operation", part="work")  # a delete behind b's load
     assert crossed.error["code"] == "NX_CROSS_PART", crossed
-    assert crossed.error["details"]["in_the_way"][0]["barrier"] == "load"
-    assert "b.prt loaded by" in crossed.error["message"] and len(nx.session.Parts) == 2
+    assert crossed.error["details"]["in_the_way"]["loads_or_closes"] == 1
+    assert "1 part load or close" in crossed.error["message"] and len(nx.session.Parts) == 2
 
 
 def test_undo_in_a_part_still_works_after_other_parts_load_and_display_switches(nx, tmp_path):
@@ -115,7 +115,7 @@ def test_undo_in_a_part_still_works_after_other_parts_load_and_display_switches(
     assert ok.ok and ok.data["undone"] == ["op_delete_a2", "op_delete_a3"], ok
     assert names(nx) == ["A(2)"] and ok.data["undo_depth"] == 0  # A(3) came after the mark
     more = run(nx, "nx_undo_operation", part="work")  # a delete behind the loads
-    assert more.error["code"] == "NX_CROSS_PART" and "c.prt" in more.error["message"]
+    assert more.error["code"] == "NX_CROSS_PART" and "c.prt" not in more.error["message"]
     assert len(nx.session.Parts) == 3  # a, b and c: nothing was unloaded
     row = checkpoints(nx)["a only"]  # per part: the loads of b and c do not end it
     assert row["available"] is True and row["operations_after"] == 0, row
@@ -143,8 +143,8 @@ def test_steps_past_a_load_say_where_the_history_ends(nx):
     delete(nx, "A(2)", "op_delete_a2")
     too_far = run(nx, "nx_undo_operation", part="work", steps=2)
     assert too_far.error["code"] == "NX_CROSS_PART", too_far  # the load is in the way
-    assert too_far.error["details"]["in_the_way"][0]["part"] == "b.prt"
-    assert "b.prt loaded by" in too_far.error["message"]
+    assert too_far.error["details"]["in_the_way"]["loads_or_closes"] == 1
+    assert "b.prt" not in too_far.error["message"]  # counted, never named
     assert run(nx, "nx_list_checkpoints", part="work").data["undo_depth"] == 1
     beyond = run(nx, "nx_undo_operation", part="work", steps=3)
     assert beyond.error["code"] == "NX_INVALID_ARGUMENT"

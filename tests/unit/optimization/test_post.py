@@ -5,6 +5,7 @@ from types import SimpleNamespace as NS
 import pytest
 
 from nx_mcp.domains.optimization import picture, post
+from nx_mcp.kit import capture
 from tests.kit import run
 from tests.kit.kernel import services
 from tests.unit.optimization.fakes import png, topo_nx, window_pixel
@@ -47,15 +48,18 @@ def test_stress_contour_reads_the_plotted_range_in_mpa():
         ("displacement", 0.0, 0.12, "mm"),
         ("displacement_z", -0.108, 1e-4, "mm"),
         ("principal_stress", -102.0, 93.5, "MPa"),
-        ("safety_factor", 250.0 / 85.0, 1e6, None),
+        ("safety_factor", 250.0 / 85.0, None, "ratio"),  # NX's 1e6 cap: unbounded
     ],
 )
 def test_other_results(result, low, high, unit):
     nx = topo_nx()
     ok = contour(nx, solved(nx), result=result, style="smooth")
     assert ok.ok, ok
-    assert ok.data["min"] == pytest.approx(low) and ok.data["max"] == pytest.approx(high)
+    assert ok.data["min"] == pytest.approx(low)
+    assert ok.data["max"] == (None if high is None else pytest.approx(high))
     assert ok.data["unit"] == unit
+    capped = [w for w in ok.warnings if "unbounded" in w["message"]]
+    assert len(capped) == (result == "safety_factor")
     DS = nx.nx.DesignSimulation
     style = nx.last("ViewContourBuilder").ContourDisplayStyle
     assert style is DS.ViewContourBuilder.ContourDisplayStyleOption.Smooth
@@ -195,5 +199,5 @@ def test_contour_share_decodes_every_png_filter(tmp_path, filters):
     file.write_bytes(png(40, 30, window_pixel(nx, True, False), filters))
     assert picture.contour_share(file) == 0.0  # the legend's colour bar is left out
     assert with_body == pytest.approx(0.0533, abs=0.01)
-    width, height, _bpp, rows = picture.png_rows(file)
+    width, height, _bpp, rows = capture.read_png(file)
     assert (width, height, len(rows[0])) == (40, 30, 120)

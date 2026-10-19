@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/arrangements.json",
-  "scenario_sha256": "f7a721cab43fa77f7df21ac498991498f923b81a20282b331cd6f20c5b414d51",
+  "scenario_sha256": "cbcf4eebee260b46a1a0e14cb2d202e4c20f14b784a2fb1986ab1e4dc7bb2cab",
   "domain": "assembly",
   "covers": {
     "nx_create_arrangement": [],
@@ -17,14 +17,14 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_arrangement": "a3b8343fe69fcd6cf7f37f175f98caa53e8bcfdbd980d683a21e49f336187a32",
-    "nx_edit_arrangement": "a3b8343fe69fcd6cf7f37f175f98caa53e8bcfdbd980d683a21e49f336187a32",
-    "nx_set_arrangement_component": "a3b8343fe69fcd6cf7f37f175f98caa53e8bcfdbd980d683a21e49f336187a32",
-    "nx_list_arrangements": "a3b8343fe69fcd6cf7f37f175f98caa53e8bcfdbd980d683a21e49f336187a32"
+    "nx_create_arrangement": "995ff0db913d270487248f6bfca632a16c87d116b20fdce53d022600cfd8a772",
+    "nx_edit_arrangement": "995ff0db913d270487248f6bfca632a16c87d116b20fdce53d022600cfd8a772",
+    "nx_set_arrangement_component": "995ff0db913d270487248f6bfca632a16c87d116b20fdce53d022600cfd8a772",
+    "nx_list_arrangements": "995ff0db913d270487248f6bfca632a16c87d116b20fdce53d022600cfd8a772"
   },
-  "recorded": "2026-10-15T10:56:55Z",
+  "recorded": "2026-10-19T10:48:51Z",
   "passed": true,
-  "checks": 61,
+  "checks": 80,
   "failed_checks": 0,
   "steps": [
     {
@@ -205,6 +205,48 @@
     {
       "index": 26,
       "call": "nx_edit_arrangement",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 27,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 28,
+      "call": "nx_list_arrangements",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 29,
+      "call": "nx_edit_arrangement",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 30,
+      "call": "nx_create_arrangement",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 31,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 32,
+      "call": "nx_list_arrangements",
       "setup": false,
       "passed": true,
       "checks": 3

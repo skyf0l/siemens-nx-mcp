@@ -29,7 +29,7 @@ MATERIAL_HINT = "Find library names with nx_list_materials {query: 'steel'}"
 
 class StudyData(TypedDict):
     study: result.Row
-    name: str
+    name: str | None
     design_space: result.Row
     material: str | None
     design_mass: float
@@ -121,10 +121,13 @@ def nx_create_topology_study(
     tx: Tx,
     *,
     design_space: BodyRef,
-    mass_fraction: Annotated[Fraction, Range(gt=0, lt=1), Doc("Target of design mass; 0.4")],
+    mass_fraction: Annotated[
+        Fraction, Range(gt=0, lt=1), Doc("Target share of the design mass: 0.4 or '40%'")
+    ],
     material: Annotated[str, Text(80), Doc("Library name; default the body's")] | None = None,
     quality: Annotated[int, Range(ge=1, le=9), Doc("1 fine..9 coarse; NX 5")] | None = None,
-    name: Name | None = None,
+    name: Annotated[Name, Doc("Study name (the feature keeps NX's TOPOLOGY_OPTIMIZATION name)")]
+    | None = None,
 ) -> StudyData:
     """Create a topology optimization study (max stiffness at a mass fraction) on a solid.
     Lighter brackets and mounts: add supports, loads and regions with
@@ -179,7 +182,7 @@ def nx_create_topology_study(
     material_of = getattr(designs[0], "Material", None) or chosen
     return {
         "study": tx.ref(feature, kind="feature"),
-        "name": str(getattr(study, "Name", "") or ""),
+        "name": str(getattr(study, "Name", "") or "") or None,
         "design_space": tx.ref(body, kind="body"),
         "material": None if material_of is None else str(material_of.Name),
         "design_mass": design_mass,

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/attributes.json",
-  "scenario_sha256": "d218a549384ac0d821b8183661876b95b3b7027c68300ed6773a43f413b0480c",
+  "scenario_sha256": "821814fc8bf49767b4883757d489b33fc02d72de5caa0ef15651f30c60f217a4",
   "domain": "parts_files",
   "covers": {
     "nx_get_attributes": [],
@@ -10,12 +10,12 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_get_attributes": "3b292a17ac3d00688058b384e731d1940cc981b59ace99b0e330c04799d244ea",
-    "nx_set_attributes": "3b292a17ac3d00688058b384e731d1940cc981b59ace99b0e330c04799d244ea"
+    "nx_get_attributes": "742b912ac60f4857adc773f40d84d1e68802858ea8927d4a5931ff9c4a345d10",
+    "nx_set_attributes": "742b912ac60f4857adc773f40d84d1e68802858ea8927d4a5931ff9c4a345d10"
   },
-  "recorded": "2026-10-15T10:39:29Z",
+  "recorded": "2026-10-19T10:31:06Z",
   "passed": true,
-  "checks": 181,
+  "checks": 182,
   "failed_checks": 0,
   "steps": [
     {
@@ -142,7 +142,7 @@
       "call": "nx_set_attributes",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 19,

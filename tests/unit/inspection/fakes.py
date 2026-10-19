@@ -204,6 +204,8 @@ def inspection_nx(units="mm"):
 
     def evaluate_curve(tag, t, _derivs):
         c = objects[tag]
+        if getattr(c, "shape", None) is not None:  # point, first and second derivative
+            return list(c.shape(t))
         r = c.radius
         a = t * 2 * math.pi
         if r is None:  # a line along x of length 10
@@ -489,10 +491,11 @@ def assembly(nx, *placements):
     return made
 
 
-def curve(nx, radius=None):
-    """A sketch line (radius None, length 10 along x) or a circle of ``radius``."""
+def curve(nx, radius=None, shape=None):
+    """A sketch line (radius None, length 10 along x), a circle of ``radius``, or a curve
+    whose ``shape(t)`` gives point, first and second derivative (9 numbers)."""
     c = Object("CURVE")
-    c.radius = radius
+    c.radius, c.shape = radius, shape
     c.OwningPart, c.IsOccurrence = nx.part, False
     c.ref = nx.ref_of(c, "curve")
     nx.remember(c)

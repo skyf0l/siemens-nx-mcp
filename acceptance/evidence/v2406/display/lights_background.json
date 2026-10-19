@@ -13,13 +13,13 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_list_lights": "e4a0c86b7a6b556c7051b0be4ca504e9f2be43a5c6ced681ef9e5c296cc69690",
-    "nx_set_light": "e4a0c86b7a6b556c7051b0be4ca504e9f2be43a5c6ced681ef9e5c296cc69690",
-    "nx_set_lighting_preset": "e4a0c86b7a6b556c7051b0be4ca504e9f2be43a5c6ced681ef9e5c296cc69690",
-    "nx_set_true_shading": "ca598fe8b6b3ee93fe47272df2a98fb1b948cde5487074ec9b7de4f420a7beee",
-    "nx_get_true_shading": "ca598fe8b6b3ee93fe47272df2a98fb1b948cde5487074ec9b7de4f420a7beee"
+    "nx_list_lights": "e4d1fd71524675dd7b3e7b8681da3696d6da6861bedcd71e989c29bdfa30beee",
+    "nx_set_light": "e4d1fd71524675dd7b3e7b8681da3696d6da6861bedcd71e989c29bdfa30beee",
+    "nx_set_lighting_preset": "e4d1fd71524675dd7b3e7b8681da3696d6da6861bedcd71e989c29bdfa30beee",
+    "nx_set_true_shading": "dc23a62533461c0e87408edff8334ba8800371641c694dfd639e6c2d5811751c",
+    "nx_get_true_shading": "dc23a62533461c0e87408edff8334ba8800371641c694dfd639e6c2d5811751c"
   },
-  "recorded": "2026-10-15T10:51:07Z",
+  "recorded": "2026-10-19T12:08:47Z",
   "passed": true,
   "checks": 39,
   "failed_checks": 0,

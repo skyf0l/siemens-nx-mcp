@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/surface_quality_values.json",
-  "scenario_sha256": "b08d60240027385960ad836ba732d71b6abd70c9fc14ebeab5a1681c37966ec0",
+  "scenario_sha256": "678f5a0390d9a12f6041fedb05052288615165afe4a2103aef935d37b142d13a",
   "domain": "inspection",
   "covers": {
     "nx_create_surface_analysis": [
@@ -12,11 +12,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_surface_analysis": "67a9ed886ea9eb646b70b1e322a2c32d17f921340d4abe5e803d9101a091fc4b"
+    "nx_create_surface_analysis": "a313a47f0e76cd00c43f845d56b4768bcb71dfceab97658a67fc70279a76761a"
   },
-  "recorded": "2026-10-16T13:03:23Z",
+  "recorded": "2026-10-19T11:25:20Z",
   "passed": true,
-  "checks": 26,
+  "checks": 27,
   "failed_checks": 0,
   "steps": [
     {
@@ -87,7 +87,7 @@
       "call": "nx_create_surface_analysis",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 11,

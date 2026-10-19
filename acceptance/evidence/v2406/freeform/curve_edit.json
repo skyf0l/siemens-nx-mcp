@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/freeform/curve_edit.json",
-  "scenario_sha256": "eac63ee9a9798304ce389e52cc3481661278fcf92d9d4e471506751fe9122e4c",
+  "scenario_sha256": "f7e85861408b11920f5899121fb7d44fb8412ff420311a2581ba068385879c8e",
   "domain": "freeform",
   "covers": {
     "nx_create_bridge_curve": [],
@@ -15,14 +15,14 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_bridge_curve": "e282ed3d71edd3b70ad03c444486aed48be3d16028e534aa3e0b2fbb211880bc",
-    "nx_create_joined_curve": "e282ed3d71edd3b70ad03c444486aed48be3d16028e534aa3e0b2fbb211880bc",
-    "nx_create_mirror_curve": "e282ed3d71edd3b70ad03c444486aed48be3d16028e534aa3e0b2fbb211880bc",
-    "nx_create_trim_curve": "e282ed3d71edd3b70ad03c444486aed48be3d16028e534aa3e0b2fbb211880bc"
+    "nx_create_bridge_curve": "a6a050b27f31ed50cb5ca6753a4037acecd56f07662b3072ef7242ab4b77ea0f",
+    "nx_create_joined_curve": "a6a050b27f31ed50cb5ca6753a4037acecd56f07662b3072ef7242ab4b77ea0f",
+    "nx_create_mirror_curve": "a6a050b27f31ed50cb5ca6753a4037acecd56f07662b3072ef7242ab4b77ea0f",
+    "nx_create_trim_curve": "a6a050b27f31ed50cb5ca6753a4037acecd56f07662b3072ef7242ab4b77ea0f"
   },
-  "recorded": "2026-10-16T13:14:40Z",
+  "recorded": "2026-10-19T10:46:37Z",
   "passed": true,
-  "checks": 85,
+  "checks": 91,
   "failed_checks": 0,
   "steps": [
     {
@@ -93,14 +93,14 @@
       "call": "nx_create_joined_curve",
       "setup": false,
       "passed": true,
-      "checks": 5
+      "checks": 6
     },
     {
       "index": 11,
       "call": "nx_create_joined_curve",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 12,
@@ -234,6 +234,13 @@
       "setup": false,
       "passed": true,
       "checks": 3
+    },
+    {
+      "index": 31,
+      "call": "nx_create_bridge_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 4
     }
   ]
 }

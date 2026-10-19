@@ -1,6 +1,7 @@
 {
  "covers": {
-  "nx_set_highlight": []
+  "nx_set_highlight": [],
+  "nx_get_appearance": []
  },
  "fixture": "fixtures/drawing_block_mm.prt",
  "part": null,
@@ -55,7 +56,22 @@
    },
    "expect": {
     "data.count": 1,
-    "data.highlighted.0.kind": "face"
+    "data.highlighted.0.kind": "face",
+    "data.visible": true
+   }
+  },
+  {
+   "call": "nx_get_appearance",
+   "args": {
+    "objects": [
+     "$faces.data.items.1.id",
+     "$faces.data.items.0.id"
+    ]
+   },
+   "intent": "Acceptance: the agent's highlight reads back through nx_get_appearance",
+   "expect": {
+    "data.objects.0.highlighted": true,
+    "data.count": 2
    }
   },
   {

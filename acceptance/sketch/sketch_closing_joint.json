@@ -1,0 +1,41 @@
+{
+  "covers": {"nx_create_sketch": ["principal"], "nx_create_sketch_curves": ["polyline"],
+             "nx_create_sketch_constraints": ["point_on_curve"], "nx_create_sketch_dimensions": ["diameter", "radius"]},
+  "fixture": null,
+  "part": "new",
+  "steps": [
+    {"call": "nx_create_part", "setup": true, "args": {"path": "$part", "units": "mm"}},
+    {"call": "nx_create_sketch", "save": "sk", "args": {"placement": {"principal": "xy"}, "curves": [
+      {"type": "polyline", "points": [[0, 0], [40, 0], [40, 20], [0, 20], [0, 0]]}]},
+     "expect": {"data.curves": {"count": 4}, "data.loops.0.closed": true}},
+    {"call": "nx_get_sketch", "args": {"sketch": "$sk.data.sketch.id"},
+     "expect": {"data.constraints": {"count": 4}, "data.status.dof": 8,
+                "data.curves.0.constraints": 2, "data.curves.3.constraints": 2}},
+    {"call": "nx_create_sketch_curves", "save": "ln", "args": {"sketch": "$sk.data.sketch.id", "curves": [
+      {"type": "line", "start": [80, -40], "end": [80, -30]},
+      {"type": "line", "start": [60, -20], "end": [100, -20]},
+      {"type": "circle", "center": [0, 60], "radius": 5},
+      {"type": "circle", "center": [40, 60], "radius": 5}]}},
+    {"call": "nx_edit_sketch_curves", "args": {"sketch": "$sk.data.sketch.id", "edits": [
+      {"type": "extend", "curve": "$ln.data.curves.0.curve.id", "boundaries": ["$ln.data.curves.1.curve.id"]}]},
+     "expect": {"data.edits.0.curves.0.end": {"close": [80, -20], "tol": 1e-6}}},
+    {"call": "nx_create_sketch_constraints", "save": "pc", "args": {"sketch": "$sk.data.sketch.id", "constraints": [
+      {"type": "point_on_curve", "points": [{"curve": "$ln.data.curves.0.curve.id", "point": "end"}],
+       "curves": ["$ln.data.curves.1.curve.id"]}]},
+     "expect": {"data.constraints.0.residual": {"close": 0, "tol": 1e-9},
+                "data.constraints.0.at.0": {"close": [80, -20], "tol": 1e-6}}},
+    {"call": "nx_get_sketch", "args": {"sketch": "$sk.data.sketch.id", "include": ["constraints"]},
+     "expect": {"data.constraints": {"contains": {"type": "point_on_curve",
+                "geometry": [{"curve": "$ln.data.curves.0.curve.id", "point": "end"},
+                             {"curve": "$ln.data.curves.1.curve.id", "point": "curve"}]}}}},
+    {"call": "nx_create_sketch_dimensions", "args": {"sketch": "$sk.data.sketch.id", "dimensions": [
+      {"kind": "diameter", "first": "$ln.data.curves.2.curve.id", "value": 20, "name": "hole_d"},
+      {"kind": "radius", "first": "$ln.data.curves.3.curve.id", "value": "hole_d*1.5"}]},
+     "expect": {"data.dimensions.0.measured": {"close": 20, "tol": 1e-6}, "data.dimensions.1.measured": {"close": 30, "tol": 1e-6},
+                "data.dimensions.1.expression.formula": {"contains": "hole_d"}}},
+    {"call": "nx_create_sketch_dimensions", "args": {"sketch": "$sk.data.sketch.id", "dimensions": [
+      {"kind": "radius", "first": "$ln.data.curves.0.curve.id", "value": -5}]},
+     "expect": {"error.code": "NX_WRONG_GEOMETRY", "mutation_outcome": "not_started"}},
+    {"call": "nx_finish_sketch", "setup": true, "args": {}}
+  ]
+}

@@ -84,6 +84,7 @@ MAX_CANDIDATES = 20000
 # and the exact distance only on the nearest few, by box bound.
 PER_CANDIDATE_SECONDS = 0.002
 DEFAULT_TOLERANCE = 0.001
+TIE = 0.001  # rank gap of the best two that makes a selector ambiguous (nx_resolve_reference)
 AXES = "xyz"
 DRAWING_KINDS = ("drawing_view", "drawing_sheet")
 _HANDLE_ANCHOR = re.compile(r"^@(?P<part>.+?):(?P<kind>body|face|edge|curve)=(?P<handle>.+)$")
@@ -622,8 +623,12 @@ def nx_find_geometry(
         tolerance=tolerance,
         role=role,
         parallel=parallel,
-        need=offset + limit,
+        need=max(offset + limit, 2),  # the best two tell a tie
     )
+    if len(ranked) > 1 and abs(ranked[0][0] - ranked[1][0]) <= TIE:
+        tx.warn("NX_NOTE", f"The best two candidates tie on order {order} (rank "
+                f"{ranked[0][0]:.6g}): nx_resolve_reference refuses this selector; add near or "
+                "owner so one ranks first")  # fmt: skip
     selected, page = result.page(ranked, offset, limit)
     items = [
         cast(GeometryRow, {**tx.ref(obj, kind=kind), **facts})  # a row plus _describe's facts
@@ -885,7 +890,7 @@ def _hole_source(tx, group, cache) -> dict:
     label="Find holes",
     summary=lambda a, say: "Find holes in " + (say("owner") if a.get("owner") else "the part"),
     keywords=(
-        "recognize holes",
+        "list holes",
         "bores",
         "hole recognition",
         "cylindrical holes",
@@ -907,9 +912,10 @@ def nx_find_holes(
     limit: PageLimit = 20,
 ) -> HolesData:
     """Find holes (bores grouped by axis): diameters and steps entry first, form, length, through
-    and ends. feature and thread name the features that made them (bores give the drilled
-    size). offset/limit page the holes (page.total counts holes); items lists the bore faces
-    of the holes on the page."""
+    and ends. length runs along the axis, drill tip excluded. feature and thread name the
+    features that made them; a threaded hole is form simple at its tap-drill size plus
+    thread. offset/limit page the holes (page.total counts holes); items lists the bore
+    faces of the holes on the page."""
     common.note_exploded(tx)
     if diameter is not None and float(diameter) <= 0:
         fail("NX_INVALID_ARGUMENT", "diameter must be > 0", field="/diameter")
@@ -1017,7 +1023,8 @@ def nx_create_anchor(
 ) -> AnchorData:
     """Make a persistent anchor for a body, face, edge or curve (a feature or sketch: its row
     anchor). It survives edits that keep the entity, save and reopen; resolve it with
-    nx_resolve_reference."""
+    nx_resolve_reference. Body rows also carry a feature-name anchor ('@p.prt:BLOCK(1)#0'):
+    both resolve; this handle form ('body=...') does not depend on feature names."""
     obj = select.one(tx, object, *ANCHOR_KINDS, field="/object")
     kind = common.kind_of(tx, obj)
     if kind in ("feature", "sketch"):
@@ -1208,7 +1215,7 @@ def nx_resolve_reference(
     *,
     selector: SelectorText | SelectorObject | None = None,
     anchor: AnchorText | None = None,
-    tie_tolerance: Annotated[float, Range(gt=0), Doc("Rank gap that counts as a tie")] = 0.001,
+    tie_tolerance: Annotated[float, Range(gt=0), Doc("Rank gap that counts as a tie")] = TIE,
 ) -> ResolveData:
     """Turn a selector from nx_find_geometry (passed unchanged) or an anchor into a current
     reference. A selector re-runs its rule and fails on a tie. anchor also takes a ref such

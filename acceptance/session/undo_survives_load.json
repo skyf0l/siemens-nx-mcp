@@ -60,7 +60,7 @@
   {"call": "nx_undo_operation", "args": {"part": "$part"},
    "intent": "Acceptance: NX's undo ends at the loads (undoing across them would unload B and C): the default undo compensates the block instead",
    "expect": {"mutation_outcome": "committed", "data.compensated": true, "data.undone": ["$a1.operation_id"],
-              "warnings": {"contains": {"code": "NX_UPDATE_WARNING"}},
+              "warnings": {"contains": {"code": "NX_NOTE"}},
               "changes.deleted": {"count_kind": {"feature": 1, "body": 1}}}},
   {"call": "nx_restore_checkpoint", "args": {"checkpoint_id": "$u.data.checkpoint_id"},
    "intent": "Acceptance: the undo by deletion of A's first block went back past the checkpoint",

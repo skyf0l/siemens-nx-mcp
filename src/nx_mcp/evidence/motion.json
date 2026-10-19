@@ -3,10 +3,10 @@
     "v2406": {
       "checks": 38,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-15T11:03:21Z",
+      "recorded": "2026-10-19T10:53:10Z",
       "scenario": "acceptance/motion/steering_linkage.json",
       "scenario_sha256": "ac63941c25a9ea6831d5f905cd8ecc2be25c1a8954879f9ee0cbc0ae5bf772d3",
-      "source_sha256": "b89d65271eece45c6b7b9d281e90cdd9f6d108bb95d948465420d705a9a5290e",
+      "source_sha256": "9c52a1b3d1fa364fb89cf32b99af060d17efdf872d7dfd9b3a2099aa6bfcbd9e",
       "variants": [
         "constraint",
         "revolute",

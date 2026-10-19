@@ -78,7 +78,8 @@ def nx_get_sheet_metal(
 ) -> SheetMetalData:
     """Read the sheet-metal facts of the work part's bodies, or of one body. Rows give the
     actual thickness, each bend's face, state (bent/flat), inner radius, angle and K.
-    flat_pattern rows are NX's hidden flat copies: build on their formed_body."""
+    flat_pattern rows are NX's hidden flat copies, two per Flat Pattern feature (the
+    flattened copy and an extract of it, same flat_pattern_feature): build on formed_body."""
     bodies = [select.one(tx, body, "body", field="/body")] if body else list(tx.part.Bodies)
     selected, page = result.page(bodies, offset, limit)
     items: list[BodyRow] = []

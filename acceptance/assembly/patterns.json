@@ -21,7 +21,7 @@
   {"call": "nx_create_component_pattern", "save": "lin", "args": {"component": "$A.data.component.id", "layout": {"linear": {"direction": [0, 0, 1], "count": 3, "spacing": 20, "direction2": [0, -1, 0], "count2": 2, "spacing2": 40}}},
    "expect": {"mutation_outcome": "committed", "data.associative": true, "data.layout": "linear", "data.count": 3,
               "data.spacing": {"close": 20, "tol": 1e-9}, "data.count2": 2, "data.spacing2": {"close": 40, "tol": 1e-9},
-              "data.components": {"count": 6}, "data.components.0.name": "A",
+              "data.components": {"count": 6}, "data.components.0.name": "A", "data.components.1.name": "A_2", "data.components.5.name": "A_6",
               "data.components.0.translation": {"close": [0, 0, 0], "tol": 1e-9}, "data.pattern.kind": "component_pattern"}},
   {"call": "nx_list_components", "args": {"part": "$part", "name_contains": "A"},
    "expect": {"page.total": 6}},
@@ -75,6 +75,13 @@
   {"call": "nx_create_component_pattern", "args": {"component": "$S.data.component.id", "layout": {"linear": {"direction": [1, 0, 0], "count": 2, "spacing": 5}}},
    "expect": {"error.field": "/component", "mutation_outcome": "not_started"}},
   {"call": "nx_create_component_pattern", "args": {"component": "$circ.data.pattern.id", "layout": {"linear": {"direction": [1, 0, 0], "count": 2, "spacing": 5}}},
-   "expect": {"error.category": "wrong_kind", "mutation_outcome": "not_started"}}
+   "expect": {"error.category": "wrong_kind", "mutation_outcome": "not_started"}},
+  {"call": "nx_edit_component_pattern", "save": "ce", "args": {"pattern": "$circ.data.pattern.id", "count": 5}, "expect": {"mutation_outcome": "committed", "data.count": 5, "data.components": {"count": 5}}},
+  {"call": "nx_undo_operation", "args": {"part": "$part", "mode": "compensate"}, "intent": "Acceptance: set the pattern count back by compensation", "expect": {"ok": true, "data.compensated": true, "data.restored.0": {"matches": "count 4"}}},
+  {"call": "nx_edit_component_pattern", "args": {"pattern": "$circ.data.pattern.id", "angle": 60}, "expect": {"mutation_outcome": "committed", "data.count": 4, "data.components": {"count": 4}}},
+  {"call": "nx_create_component_mirror", "setup": true, "save": "BM", "args": {"part": "$part", "components": ["$B.data.component.id"], "plane": "yz"}},
+  {"call": "nx_create_component_pattern", "intent": "A mirrored seed", "args": {"component": "$BM.data.components.0.mirrored.id", "associative": false, "layout": {"circular": {"axis": "z", "count": 4, "angle": 90}}}, "expect": {"error.code": "NX_UNSUPPORTED_OPTION", "error.field": "/component", "mutation_outcome": "not_started"}},
+  {"call": "nx_create_component_pattern", "args": {"component": "$BM.data.components.0.mirrored.id", "layout": {"linear": {"direction": [0, 1, 0], "count": 2, "spacing": 300}}}, "expect": {"error.code": "NX_UNSUPPORTED_OPTION", "error.field": "/component", "mutation_outcome": "not_started"}},
+  {"call": "nx_create_component_pattern", "intent": "A seed already in a pattern", "args": {"component": "$B.data.component.id", "layout": {"linear": {"direction": [0, 0, 1], "count": 2, "spacing": 400}}}, "expect": {"mutation_outcome": "committed", "data.components": {"count": 2}, "data.components.1.translation": {"close": [60, 0, 400], "tol": 1e-06}, "warnings": {"contains": {"code": "NX_NOTE"}}}}
  ]
 }

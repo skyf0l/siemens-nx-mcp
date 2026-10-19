@@ -27,7 +27,7 @@ import math
 import typing
 from typing import Annotated, Literal, TypedDict, cast
 
-from nx_mcp.core.catalogue import tool
+from nx_mcp.core.catalogue import restorer, tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.target import file_name
 from nx_mcp.core.tx import Tx
@@ -41,6 +41,7 @@ MAX_OBJECTS = 500
 MAX_EXCLUDED = 100
 MAX_LISTED = 200  # interference pairs per result
 MAX_OVERLAPS = 25  # hard pairs whose overlap solid is measured
+MAX_ASKED = 2000  # pairs asked for exclusion before a delete (an undo recreates the set)
 _NAME_TEXT = next(m for m in typing.get_args(Name)[1:] if isinstance(m, Text))
 SetName = Annotated[str, Doc("Clearance set name (any case); nx_list_clearance_sets"), _NAME_TEXT]
 ObjectRef = Annotated[str, RefTo("component", "body", doc="Component 'o:N' or body ref")]
@@ -111,6 +112,8 @@ class ClearedPair(TypedDict):
 
 class RunData(ClearanceData, total=False):
     cleared: list[ClearedPair]  # pairs of the previous run that no longer interfere
+    # pairs of the previous run NX skipped: a component of the pair is suppressed now
+    skipped_suppressed: list[ClearedPair]
 
 
 class ClearanceSetList(TypedDict):
@@ -300,9 +303,19 @@ def _previous(tx, cs) -> dict | None:
     return {_key(f, s): (f, s, _type(tx, d)) for f, s, d in found}
 
 
-def _cleared(tx, previous, found, rows, names) -> list[ClearedPair]:
+def _hidden(obj) -> bool:
+    """Whether NX skips ``obj`` in a run: a suppressed component (or a parent of it), or a
+    body of one."""
+    if kbodies.is_component(obj):
+        return kbodies.suppressed(obj)
+    owner = getattr(obj, "OwningComponent", None)
+    return owner is not None and kbodies.suppressed(owner)
+
+
+def _cleared(tx, previous, found, rows, names) -> tuple[list[ClearedPair], list[ClearedPair]]:
     """Mark rows whose type changed since ``previous`` (``previous_type``) and return the
-    pairs of ``previous`` that this run no longer reports."""
+    pairs of ``previous`` that this run no longer reports: ``(cleared, skipped)``, skipped
+    when a component of the pair is suppressed now (NX did not check it)."""
     current = set()
     for (first, second, _data), row in zip(found, rows, strict=True):
         key = _key(first, second)
@@ -311,18 +324,20 @@ def _cleared(tx, previous, found, rows, names) -> list[ClearedPair]:
         if was is not None and was[2] != row["type"]:
             row["previous_type"] = was[2]
     out: list[ClearedPair] = []
+    skipped: list[ClearedPair] = []
     for key, (first, second, kind) in previous.items():
         if key in current:
             continue
         with contextlib.suppress(Exception):  # an object deleted since cannot interfere
             objects = [_object_row(tx, first, names), _object_row(tx, second, names)]
-            out.append({"objects": objects, "previous_type": kind})
-    return out
+            hidden = _hidden(first) or _hidden(second)
+            (skipped if hidden else out).append({"objects": objects, "previous_type": kind})
+    return out, skipped
 
 
 def _results(
     tx, cs, overlap: bool, previous: dict | None = None
-) -> tuple[RunSummary | None, list[Interference], bool, list[ClearedPair] | None]:
+) -> tuple[RunSummary | None, list[Interference], bool, tuple | None]:
     summary = _summary(tx, cs)
     if summary is None:
         return None, [], False, None
@@ -408,7 +423,110 @@ def _data(tx, cs, *, ran: bool, overlap: bool, previous: dict | None = None) -> 
         "truncated": truncated,
     }
     if cleared is not None:
-        out["cleared"] = cleared
+        out["cleared"], skipped = cleared
+        if skipped:
+            out["skipped_suppressed"] = skipped
+            tx.warn("NX_NOTE", f"{len(skipped)} pair(s) of the previous run involve a component "
+                    "suppressed now: NX did not check them (skipped_suppressed), they are not "
+                    "cleared")  # fmt: skip
+    return out
+
+
+def _build(tx, name, between, first, second, zone, pairs, method, ignore_same_part):
+    """Create a clearance set (collections None: every object; one collection when
+    ``second`` is None) and return it, read back by name."""
+    enum = _builder_enum(tx)
+    part = tx.part
+    with (
+        _license(tx),
+        builders.build(tx, part.AssemblyManager.CreateClearanceAnalysisBuilder, None) as b,
+    ):
+        with native(default="NX_BUILD_FAILED"):
+            b.ClearanceSetName = name
+            b.ClearanceBetween = getattr(enum.ClearanceBetweenEntity, BETWEEN[between])
+            two = second is not None
+            b.TotalCollectionCount = (
+                enum.NumberOfCollections.Two if two else enum.NumberOfCollections.One
+            )
+            if first is None:
+                b.CollectionOneRange = enum.CollectionRange.AllObjects
+            else:
+                b.CollectionOneRange = enum.CollectionRange.SelectedObjects
+                b.CollectionOneObjects.Add(first)
+            if second is not None:
+                b.CollectionTwoRange = enum.CollectionRange.SelectedObjects
+                b.CollectionTwoObjects.Add(second)
+            b.CalculationMethod = getattr(enum.CalculationMethodType, METHODS[method])
+            b.IsCalculatePenetrationDepth = True
+            b.IsIgnorePairsWithinSamePart = bool(ignore_same_part)
+            b.SetDefaultClearanceZone(b.CreateClearanceZoneExpression(expr.rhs(zone)))
+            for a, c in pairs:
+                b.AddException(True, a, c, "")
+        b.commit()
+    cs = next((s for s in _sets(tx) if _name(s).casefold() == name.casefold()), None)
+    readback.expect(cs is not None, "clearance_set", "NX created no clearance set")
+    return cs
+
+
+def _object_ref(tx, obj) -> str:
+    return str(tx.ref(obj, "component" if kbodies.is_component(obj) else "body")["id"])
+
+
+def _definition(tx, cs) -> dict | None:
+    """A clearance set's settings as plain values (refs, names, numbers) to create it
+    again, None when NX does not tell its excluded pairs."""
+    enum = _builder_enum(tx)
+    factory = tx.part.AssemblyManager.CreateClearanceAnalysisBuilder
+    try:
+        with builders.build(tx, factory, cs) as b, native():
+            between = result.enum_name(b.ClearanceBetween, enum.ClearanceBetweenEntity,
+                                       list(BETWEEN.values()))  # fmt: skip
+            two = b.TotalCollectionCount == enum.NumberOfCollections.Two
+            selected = b.CollectionOneRange == enum.CollectionRange.SelectedObjects
+            first = list(b.CollectionOneObjects.GetArray()) if selected else None
+            second = list(b.CollectionTwoObjects.GetArray()) if two else None
+            zone = b.GetDefaultClearanceZone()
+            method = result.enum_name(b.CalculationMethod, enum.CalculationMethodType,
+                                      list(METHODS.values()))  # fmt: skip
+            ignore = bool(b.IsIgnorePairsWithinSamePart)
+            excluded = _exceptions(tx, b, first, second, ignore)
+        if excluded is None:
+            return None
+        return {
+            "name": _name(cs),
+            "between": next(k for k, v in BETWEEN.items() if v == between),
+            "objects": [_object_ref(tx, o) for o in first] if first is not None else None,
+            "against": [_object_ref(tx, o) for o in second] if second is not None else None,
+            "clearance": float(expr.value(tx, zone) or 0.0) if zone is not None else 0.0,
+            "method": next(k for k, v in METHODS.items() if v == method),
+            "ignore_same_part": ignore,
+            "exclude": [[_object_ref(tx, a), _object_ref(tx, c)] for a, c in excluded],
+        }
+    except Exception:  # a setting NX does not read back: the delete is not undone
+        return None
+
+
+def _exceptions(tx, builder, first, second, ignore) -> list | None:
+    """The pairs a set excludes by the user's choice, asked pair by pair
+    (``GetIsPairIncluded``: ``(included, reason, text)``); None for a set over every object
+    or with more than MAX_ASKED pairs (they are not read back)."""
+    if first is None:
+        return None
+    if second is None:
+        pairs = [(a, c) for i, a in enumerate(first) for c in first[i + 1 :]]
+    else:
+        pairs = [(a, c) for a in first for c in second]
+    if len(pairs) > MAX_ASKED:
+        return None
+    reasons = getattr(tx.nx.Assemblies, "ClearanceAnalysisBuilderPairExcludedReason", None)
+    out = []
+    for a, c in pairs:
+        included, reason, _text = builder.GetIsPairIncluded(a, c)
+        if included:
+            continue
+        name = result.enum_name(reason, reasons) if reasons is not None else "unknown"
+        if name == "UserDefined" or (name.startswith("unknown") and not ignore):
+            out.append((a, c))
     return out
 
 
@@ -435,7 +553,7 @@ def _data(tx, cs, *, ran: bool, overlap: bool, previous: dict | None = None) -> 
 def nx_create_clearance_set(
     tx: Tx,
     *,
-    name: Annotated[str, Doc("Set name, unique in the assembly (any case)"), _NAME_TEXT],
+    name: Annotated[str, Doc("Set name, unique in the assembly (NX upper-cases it)"), _NAME_TEXT],
     between: Annotated[
         Literal["components", "bodies"], Doc("bodies: a component stands for its solids")
     ] = "components",
@@ -483,36 +601,8 @@ def nx_create_clearance_set(
                 fail("NX_INVALID_ARGUMENT", "An excluded pair names two bodies (or components)",
                      field=f"/exclude/{i}")  # fmt: skip
             pairs.append(pair)
-    enum = _builder_enum(tx)
-    part = tx.part
-    with (
-        _license(tx),
-        builders.build(tx, part.AssemblyManager.CreateClearanceAnalysisBuilder, None) as b,
-    ):
-        with native(default="NX_BUILD_FAILED"):
-            b.ClearanceSetName = name.strip()
-            b.ClearanceBetween = getattr(enum.ClearanceBetweenEntity, BETWEEN[between])
-            two = second is not None
-            b.TotalCollectionCount = (
-                enum.NumberOfCollections.Two if two else enum.NumberOfCollections.One
-            )
-            if first is None:
-                b.CollectionOneRange = enum.CollectionRange.AllObjects
-            else:
-                b.CollectionOneRange = enum.CollectionRange.SelectedObjects
-                b.CollectionOneObjects.Add(first)
-            if second is not None:
-                b.CollectionTwoRange = enum.CollectionRange.SelectedObjects
-                b.CollectionTwoObjects.Add(second)
-            b.CalculationMethod = getattr(enum.CalculationMethodType, METHODS[method])
-            b.IsCalculatePenetrationDepth = True
-            b.IsIgnorePairsWithinSamePart = bool(ignore_same_part)
-            b.SetDefaultClearanceZone(b.CreateClearanceZoneExpression(expr.rhs(zone)))
-            for a, c in pairs:
-                b.AddException(True, a, c, "")
-        b.commit()
-    cs = next((s for s in _sets(tx) if _name(s).casefold() == name.strip().casefold()), None)
-    readback.expect(cs is not None, "clearance_set", "NX created no clearance set")
+    cs = _build(tx, name.strip(), between, first, second, zone, pairs, method, ignore_same_part)
+    tx.note_restore({"created": _name(cs)})
     if run:
         _run(tx, cs)
     data = _data(tx, cs, ran=run, overlap=overlap)
@@ -549,7 +639,8 @@ def nx_run_clearance_set(
 ) -> RunData:
     """Run a stored clearance set again and return its interferences, e.g. after a move. new:
     not found with that type in the previous run (previous_type: the type then); cleared:
-    previous pairs gone now; summary.version counts runs."""
+    previous pairs gone now; skipped_suppressed: previous pairs not checked (a component
+    suppressed); summary.version counts runs."""
     with tx.checks():
         cs = _find(tx, name)
     previous = _previous(tx, cs)
@@ -597,9 +688,46 @@ def nx_delete_clearance_set(tx: Tx, *, name: SetName) -> DeletedSet:
     with tx.checks():
         cs = _find(tx, name)
     deleted = _name(cs)
+    definition = _definition(tx, cs)
     with _license(tx), native(default="NX_BUILD_FAILED"):
         cs.Delete()
     remaining = [_name(s) for s in _sets(tx)]
     readback.expect(deleted.casefold() not in {n.casefold() for n in remaining}, "deleted",
                     "NX kept the clearance set")  # fmt: skip
+    if definition is not None:
+        tx.note_restore({"definition": definition})
     return {"deleted": deleted, "remaining": remaining}
+
+
+def _found(tx, name):
+    return next((s for s in _sets(tx) if _name(s).casefold() == str(name).casefold()), None)
+
+
+@restorer("nx_create_clearance_set")
+def _restore_created(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Delete a clearance set nx_create_clearance_set made (the compensating undo)."""
+    name = data["created"]
+    cs = _found(tx, name)
+    if cs is None:
+        fail("NX_DEPENDENCY_ORDER", f"Clearance set {name} was deleted or renamed since")
+    if apply:
+        with _license(tx), native(default="NX_BUILD_FAILED"):
+            cs.Delete()
+        readback.expect(_found(tx, name) is None, "deleted", "NX kept the clearance set")
+    return f"clearance set {name} deleted"
+
+
+@restorer("nx_delete_clearance_set")
+def _restore_deleted(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Create a clearance set nx_delete_clearance_set deleted again with its settings (its
+    results come back with the next nx_run_clearance_set)."""
+    d = data["definition"]
+    if _found(tx, d["name"]) is not None:
+        fail("NX_DEPENDENCY_ORDER", f"A clearance set {d['name']} exists again since")
+    first = _members(tx, d["objects"], d["between"], "/objects") if d["objects"] else None
+    second = _members(tx, d["against"], d["between"], "/against") if d["against"] else None
+    pairs = [_members(tx, p, d["between"], f"/exclude/{i}") for i, p in enumerate(d["exclude"])]
+    if apply:
+        _build(tx, d["name"], d["between"], first, second, float(d["clearance"]), pairs,
+               d["method"], d["ignore_same_part"])  # fmt: skip
+    return f"clearance set {d['name']} created again (run it for results)"

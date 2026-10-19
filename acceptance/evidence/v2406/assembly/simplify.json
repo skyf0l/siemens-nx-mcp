@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/assembly/simplify.json",
-  "scenario_sha256": "177d8554692188b8a8305bdbea1c69f59067f7c5b47eb08e08a8b22422999e99",
+  "scenario_sha256": "5bf4ab262f865ca507cb1418991a61bde3ac9f3952e0a85d7ac3c0646a7b2f63",
   "domain": "assembly",
   "covers": {
     "nx_create_simplified_assembly": []
@@ -9,11 +9,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_create_simplified_assembly": "238726baa77b7662f4101df0a95c57dd041cbbe703c336235e40cfa63bd0dd41"
+    "nx_create_simplified_assembly": "d8d4614d78465c8a24d51d7ed0cc172bab09d0c8ecc95052fded44ac892797aa"
   },
-  "recorded": "2026-10-16T13:14:05Z",
+  "recorded": "2026-10-19T10:52:06Z",
   "passed": true,
-  "checks": 20,
+  "checks": 27,
   "failed_checks": 0,
   "steps": [
     {
@@ -155,6 +155,34 @@
       "setup": false,
       "passed": true,
       "checks": 1
+    },
+    {
+      "index": 21,
+      "call": "nx_create_simplified_assembly",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 22,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 23,
+      "call": "nx_activate_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 24,
+      "call": "nx_create_simplified_assembly",
+      "setup": false,
+      "passed": true,
+      "checks": 3
     }
   ]
 }

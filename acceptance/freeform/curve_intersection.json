@@ -181,6 +181,53 @@
    }
   },
   {
+   "call": "nx_create_intersection_curve",
+   "intent": "A plane z 500 misses the cylinder side: refused before NX with the span",
+   "args": {
+    "first": [
+     "$side.data.items.0.id"
+    ],
+    "plane": {
+     "origin": [
+      0,
+      0,
+      500
+     ],
+     "normal": [
+      0,
+      0,
+      1
+     ]
+    }
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/plane",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_intersection_curve",
+   "intent": "The block and the far cylinder do not meet: refused before NX with the gap",
+   "args": {
+    "first": [
+     "$blk.data.bodies.0.id"
+    ],
+    "second": [
+     "$side.data.items.0.id"
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/second",
+    "error.details.gap": {
+     "close": 80,
+     "tol": 1
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
    "call": "nx_check_model",
    "args": {},
    "expect": {

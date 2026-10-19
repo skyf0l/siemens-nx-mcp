@@ -64,6 +64,7 @@ def test_rows_totals_reference_and_inertia():
                              "inertia": "kg*mm^2"}  # fmt: skip
     codes = [w["message"] for w in ok.warnings]
     assert any("default density" in m for m in codes) and any("BATTERY" in m for m in codes)
+    assert total["default_density_rows"] == 2  # HULL and ENGINE have no material
 
 
 def test_items_override_components_and_add_assumed_masses():
@@ -118,6 +119,9 @@ def test_item_and_change_arguments_are_refused_before_measuring():
         bad = run(nx, "nx_measure_assembly_mass", **args)
         assert bad.error["category"] == "invalid_argument", (args, bad)
         assert bad.error["field"] == field, (args, bad.error)
+    negative = run(nx, "nx_measure_assembly_mass",
+                   items=[{"name": "X", "mass": -1, "center": [0, 0, 0]}])  # fmt: skip
+    assert negative.error["message"].startswith("/items/0/mass: ")
 
 
 def test_what_if_adds_moves_and_removes_without_changing_rows():
@@ -170,6 +174,11 @@ def test_grouping_by_part_top_component_attribute_named_and_nx_groups():
     assert set(groups) == {"propulsion", "structure", "(other)"}
     assert groups["propulsion"]["center_of_gravity"] == pytest.approx([55, 5, 10])
     assert _rows(named.data)["HULL"]["group"] == "structure"
+    assert not any("several groups" in w["message"] for w in named.warnings)
+    both = run(nx, "nx_measure_assembly_mass",
+               groups={"left": [_ref(nx, hull)], "everything": ["*"]})  # fmt: skip
+    assert _rows(both.data)["HULL"]["group"] == "left"
+    assert any("1 row(s) match several groups (e.g. HULL)" in w["message"] for w in both.warnings)
     nx.nx.NXObject = NS(AttributeType=NS(Any=0))
     for c in (hull, engine, battery):
         c.HasUserAttribute = lambda title, kind, index, c=c: c is engine and title == "SYSTEM"
@@ -247,6 +256,7 @@ def test_part_bodies_materials_sorting_and_truncation():
         row["body"]["id"] == big.ref and row["material"] == "STEEL" and row["source"] == "material"
     )
     assert ok.data["total"]["mass"] == pytest.approx(9 * nx.density)
+    assert ok.data["total"]["default_density_rows"] == 1  # the small block has no material
     assert small.ref
 
 

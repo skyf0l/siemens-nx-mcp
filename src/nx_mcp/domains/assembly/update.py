@@ -31,7 +31,7 @@ class ConstraintCounts(TypedDict):
 class UpdateData(TypedDict):
     constraint_counts: ConstraintCounts
     constraints: list[ConstraintData]  # not solved (suppressed), or all with all_constraints
-    moved: list[ComponentRow]  # direct components whose pose changed
+    moved: list[ComponentRow]  # direct components whose pose this call changed
     traces: list[result.Row]
     refreshed: list[result.Row]
     views: list[result.Row]
@@ -68,8 +68,9 @@ def nx_update_assembly(
     all_constraints: Annotated[bool, Doc("List every constraint, solved ones too")] = False,
 ) -> UpdateData:
     """Propagate prototype edits through the assembly and its documentation. Solves the
-    unsuppressed constraints (counted; unsolved ones listed), reports moved components,
-    refreshes traces, parts lists and views, lists retained dimensions."""
+    unsuppressed constraints (counted; unsolved ones listed), lists the components this
+    solve moved (an edit's own update may have moved them already), refreshes traces,
+    parts lists and views, lists retained dimensions."""
     part = tx.part
     before = constraints.poses(part)
     explosions = list(getattr(part.ComponentAssembly, "Explosions", None) or [])

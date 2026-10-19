@@ -22,6 +22,20 @@ def test_create_reads_back_the_plane_and_activates_it():
     assert section.Name == "CUT_A" and nx.work_view.ActiveDynamicSection is section
 
 
+def test_a_plane_that_misses_the_bodies_says_so():
+    nx = display_nx()
+    nx.block(40, 20, 10)
+    inside = run(nx, "nx_create_section_view", plane=PLANE)
+    assert inside.ok and not inside.warnings
+    ref = inside.data["section"]["id"]
+    far = run(nx, "nx_edit_section_view", section=ref, offset=1000)
+    assert far.ok and far.data["origin"] == [1010, 5, 0]
+    assert "misses the bodies' box" in far.warnings[0]["message"]
+    assert "cuts no body" in far.warnings[0]["message"]
+    behind = run(nx, "nx_edit_section_view", section=ref, plane={"origin": [-50, 0, 0]})
+    assert "hides every body" in behind.warnings[0]["message"]
+
+
 def test_a_second_active_section_is_refused_unchanged():
     nx = display_nx()
     first = run(nx, "nx_create_section_view", plane=PLANE)
@@ -96,7 +110,7 @@ def test_listed_with_their_plane_and_state():
     assert len(rows) == 1 and rows[0]["type"] == "one_plane"
     assert rows[0]["details"] == {
         "origin": [10, 5, 0], "normal": [1, 0, 0], "cap": True, "active": True,
-        "sectioning": True,
+        "sectioning": True, "enabled": True,
     }  # fmt: skip
 
 
@@ -241,7 +255,7 @@ def test_listed_in_a_background_part_through_its_section_view():
     assert len(rows) == 1 and rows[0][1] == "section_view"
     assert rows[0][2]["details"] == {
         "origin": [10, 5, 0], "normal": [1, 0, 0], "cap": True, "active": True,
-        "sectioning": None,
+        "sectioning": None, "enabled": None,
     }  # fmt: skip
 
 

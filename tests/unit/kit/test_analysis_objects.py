@@ -71,3 +71,53 @@ def test_delete_all_reports_update_errors():
     with pytest.raises(NXError) as error:
         ao.delete_all(tx, part)
     assert error.value.code == "NX_UPDATE_FAILED"
+
+
+def named_obj(tag, name):
+    return NS(Tag=tag, Name=name)
+
+
+def test_names_are_unique_per_part_and_found_in_any_case():
+    part = obj(30)
+    part.AnalysisManager = NS(AnalysisObjects=[named_obj(31, "NX_MCP_RADIUS_1")])
+    ao.remember(part, [named_obj(32, "NX_MCP_RADIUS_2"), named_obj(33, "ENGINEER_ZEBRA")])
+    tx = make_tx(part, part)
+    assert ao.names(tx, part) == ["NX_MCP_RADIUS_1", "NX_MCP_RADIUS_2"]
+    assert ao.unique_name(tx, part, "radius") == "NX_MCP_RADIUS_3"
+    assert ao.unique_name(tx, part, "slope") == "NX_MCP_SLOPE_1"
+    assert [o.Tag for o in ao.named(tx, part, "nx_mcp_radius_2")] == [32]
+    ao.delete_all(tx, part)
+
+
+def test_named_finds_unlisted_objects_of_the_work_part_through_uf():
+    part = obj(40)
+    hidden = named_obj(41, "NX_MCP_REFLECTION_1")
+    tx = make_tx(part, part)
+    tx.session.Parts.Work = part
+    tags = iter([41, 0])
+    tx.uf.Obj.CycleByName = lambda name, tag: next(tags) if name == hidden.Name else 0
+    tx.nx.TaggedObjectManager = NS(GetTaggedObject=lambda tag: hidden)
+    assert ao.named(tx, part, "nx_mcp_reflection_1") == [hidden]
+    tx.session.Parts.Work = obj(99)  # UF cycles the work part only
+    assert ao.named(tx, part, "NX_MCP_REFLECTION_1") == []
+
+
+def test_delete_takes_the_objects_and_their_unused_expressions():
+    part = obj(50)
+    used, free, other = (NS(Tag=t, Name=n) for t, n in ((51, "p7"), (52, "p8"), (53, "p9")))
+    used.GetReferencingExpressions = lambda: [other]
+    free.GetReferencingExpressions = list
+
+    class Expressions(list):
+        def Delete(self, exp):  # noqa: N802 - NXOpen name
+            self.remove(exp)
+
+    part.Expressions = Expressions([used, free, other])
+    made = named_obj(54, "NX_MCP_CONTINUITY_1")
+    ao.remember(part, [made], expressions=["p7", "p8"])
+    dead: set = set()
+    tx = make_tx(part, part, dead=dead)
+    tx.session.UpdateManager.AddToDeleteList = lambda objs: dead.update(o.Tag for o in objs)
+    assert ao.delete(tx, part, "nx_mcp_continuity_1") == (1, ["p8"])
+    assert [e.Name for e in part.Expressions] == ["p7", "p9"]  # p7 is still in use
+    assert ao.delete(tx, part, "NX_MCP_CONTINUITY_1") == (0, [])

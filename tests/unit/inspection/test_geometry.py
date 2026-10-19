@@ -33,6 +33,19 @@ def test_planar_faces_ranked_highest_with_normal_filter_and_selector():
     assert lowest.data["items"][0]["center"][2] == 0 and lowest.page["total"] == 6
 
 
+def test_a_tie_of_the_best_two_is_named_in_a_note():
+    nx = inspection_nx()
+    nx.block(10, 10, 10)
+    nx.block(10, 10, 10, origin=(20, 0, 0))
+    tie = run(nx, "nx_find_geometry", kind="face", geometry_type="plane", normal=[0, 0, 1],
+              limit=1)  # fmt: skip
+    assert tie.ok and len(tie.data["items"]) == 1, tie
+    assert any("tie on order highest" in w["message"] for w in tie.warnings), tie.warnings
+    one = run(nx, "nx_find_geometry", kind="face", geometry_type="plane", normal=[0, 0, 1],
+              near=[25, 5, 10], limit=1)  # fmt: skip
+    assert not any("tie" in w["message"] for w in one.warnings), one.warnings
+
+
 def test_nearest_edge_uses_native_distance_and_pages():
     nx = inspection_nx()
     body = nx.block(40, 20, 10)

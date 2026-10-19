@@ -12,8 +12,11 @@ NX 2406 findings encoded here:
   varying values for valid input.
 - A Flat Pattern commit fails ("Cannot create feature") while a drawing sheet is shown:
   the modeling display is shown for the commit and the sheet reopened afterwards.
-- The flange ``length`` is the inside length (``LengthReference = Inside``); its bend
-  takes the part's default radius and neutral factor unless given.
+- The flange ``length`` is the inside length (``LengthReference = Inside``): from the
+  virtual sharp where the inner faces of web and flange meet to the flange end (a 90
+  degree flange of length 20 on a web whose inner face is z = 0 ends at z = 20 whatever
+  the radius and thickness); its bend takes the part's default radius and neutral factor
+  unless given.
 - Resize Bend Angle takes the included angle (180 - bend angle) and by default keeps the
   developed length by changing the radius: the tool passes the bend angle like every
   other operation and keeps the radius fixed.
@@ -207,7 +210,11 @@ class Op:
     docs: Mapping[str, str] = MappingProxyType({})  # this operation's field descriptions
 
 
-FLANGE_DOCS = {"length": "Inside length", "angle": "Bend angle (default 90)"}
+FLANGE_DOCS = {
+    "length": "Inside length: flange end to the inner faces' virtual sharp (at 90 deg the web's "
+    "inner face plane)",
+    "angle": "Bend angle (default 90)",
+}
 THICKNESS_DOC = "Sheet thickness, e.g. '2 mm' (default: the part's)"
 OPERATIONS: dict[str, Op] = {
     "tab": Op(
@@ -1109,6 +1116,27 @@ def _candidates(tx, i, operation):
     return {int(b.Tag): _snapshot(tx, b) for b in bodies}
 
 
+def _coincident(tx, body, volume) -> None:
+    """A note when the new body lies exactly on an existing sheet-metal body (same volume
+    and bounds): a second tab on the same sketch makes an overlapping duplicate body."""
+    low, high = measure.bounds(tx, [body])
+    tol = 1e-6 * max(1.0, geom.norm(geom.sub(high, low)))
+    for other in tx.part.Bodies:
+        if int(other.Tag) == int(body.Tag) or not common.is_sheet_metal(tx, other):
+            continue
+        if common.is_flat_pattern(other):
+            continue
+        if not geom.close(measure.volume(tx, other), volume, 1e-6):
+            continue
+        o_low, o_high = measure.bounds(tx, [other])
+        if all(abs(a - b) <= tol for a, b in zip([*low, *high], [*o_low, *o_high], strict=True)):
+            new, old = tx.ref(body, "body")["id"], tx.ref(other, "body")["id"]
+            tx.warn("NX_NOTE", f"The new body {new} lies exactly on the sheet-metal body {old} "
+                    "(an overlapping duplicate, e.g. a second tab on the same sketch): undo "
+                    f"it, or pass body {old} for a secondary tab")  # fmt: skip
+            return
+
+
 def _volume_change(before, after, how):
     band = 1e-9 * max(1.0, abs(before), abs(after))
     ok = {
@@ -1351,6 +1379,8 @@ def nx_create_sheet_metal_feature(
         "bends": common.bends(tx, body),
     }
     _verify(tx, operation, i, before, body, after)
+    if operation in CREATES_BODY:
+        _coincident(tx, body, after["volume"])
     out = _result(tx, operation, feature, body, after, view)
     if operation == "flat_pattern":
         out["flat_extents"] = _flat_extents(tx, feature.GetCurves(), i)[:2]

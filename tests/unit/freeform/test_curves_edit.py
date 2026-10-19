@@ -249,3 +249,27 @@ def test_trim_takes_an_edge():
              planes=[{"origin": [30, 0, 0], "normal": [1, 0, 0]}], keep=[10, 0, 0])  # fmt: skip
     assert ok.ok and ok.data["length"] == pytest.approx(30), ok.error
     assert nx.last(TRIM).CurveToTrim.AddToSection.calls[0][0][0] == [("EdgeDumb", [rim])]
+
+
+def test_bridge_from_a_closed_curve_needs_g0_at_that_side():
+    nx = curves_nx()
+    ring = curve(nx, [0, 0, 0], [10, 0, 0], [10, 10, 0], [0, 10, 0], [0, 0, 0])
+    b = curve(nx, [100, 30, 0], [150, 30, 0])
+    bad = run(nx, "nx_create_bridge_curve", start={"curve": ring.ref, "end": "end"},
+              end={"curve": b.ref, "end": "start"})  # fmt: skip
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/start/curve"
+    assert "start_continuity G0" in bad.error["hint"] and not nx.builders
+    nx.on_commit(BRIDGE, lambda bld: made(nx, "BRIDGE_CURVE", [[[0, 0, 0], [100, 30, 0]]]))
+    ok = run(nx, "nx_create_bridge_curve", start={"curve": ring.ref, "end": "end"},
+             end={"curve": b.ref, "end": "start"}, start_continuity="G0",
+             end_continuity="G0")  # fmt: skip
+    assert ok.ok, ok.error
+
+
+def test_join_reports_the_deviation_of_an_approximation():
+    nx = curves_nx()
+    a = curve(nx, [0, 0, 0], [50, 0, 0])
+    c = curve(nx, [50, 0, 0], [50, 40, 0])
+    nx.on_commit(JOIN, lambda b: made(nx, "JOIN_CURVE", [[[0, 0, 0], [50, 0.5, 0], [50, 40, 0]]]))
+    ok = run(nx, "nx_create_joined_curve", curves=[a.ref, c.ref], output="cubic")
+    assert ok.ok and ok.data["deviation"] == pytest.approx(0.5, abs=0.01), ok.error

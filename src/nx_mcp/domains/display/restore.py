@@ -32,6 +32,7 @@ from nx_mcp.core.types import Doc, PathTo, Text
 from nx_mcp.domains.display.common import Camera, DisplayRow, camera_row, display_rows
 from nx_mcp.domains.display.sections import guarded
 from nx_mcp.kit import args, bodies, display, files, geom, parts, readback, select
+from nx_mcp.kit.result import Row
 
 FORMAT, VERSION = "nx-mcp-presentation", 2
 MAX_FILE = 8 * 1024 * 1024
@@ -45,6 +46,7 @@ class RestoreData(TypedDict, total=False):
     count: int
     camera: Camera
     sections: int
+    section: Row
     identical: bool
 
 
@@ -135,7 +137,8 @@ def nx_restore_display(
     """Undo a display change by restore_id ('last' or none: the newest), or apply an
     nx_save_presentation file. Newest first; a presentation fits its part or one of that
     file name. nx_set_camera, nx_set_visibility, nx_set_appearance and a presentation
-    return restore_ids; sections do not (nx_delete_objects)."""
+    return restore_ids; sections do not (nx_delete_objects; a presentation's is in section).
+    identical: the read-back matches what was restored."""
     if restore_id is not None and presentation is not None:
         fail("NX_INVALID_ARGUMENT", "Give restore_id or presentation, not both",
              field="/presentation")  # fmt: skip
@@ -272,6 +275,7 @@ def _restore_presentation(tx, path: Path, skip_missing: bool = False) -> Restore
         origin = args.vec3(cam.get("origin"), "/presentation")
     tx.display.keep([o for o, _ in pairs], appearance=True)
     tx.display.keep_camera()
+    made = current = None
     with guarded(tx, part, view):
         _apply(tx, pairs)
         section = data.get("section")
@@ -294,13 +298,19 @@ def _restore_presentation(tx, path: Path, skip_missing: bool = False) -> Restore
     if missing:
         tx.warn("NX_NOTE", f"{len(missing)} saved objects no longer exist and were skipped: "
                 + ", ".join(str(m.get("journal_id")) for m in missing[:10]))  # fmt: skip
-    return {
+    out: RestoreData = {
         "restored": files.relative(path, tx.workspace.root),
         "count": len(pairs),
         "camera": camera_row(got),
         "sections": len(display.sections(part)),
         "identical": True,
     }
+    if made is not None:
+        out["section"] = tx.ref(made, "section_view")
+        if current is None:
+            tx.warn("NX_NOTE", f"The part had no section: the presentation's was created as "
+                    f"{out['section']['id']} (remove it with nx_delete_objects)")  # fmt: skip
+    return out
 
 
 # ---- save ------------------------------------------------------------------------------------------

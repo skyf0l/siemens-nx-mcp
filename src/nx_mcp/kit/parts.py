@@ -155,12 +155,27 @@ def _part_row(tx, part):
         return None
 
 
+# Characters Windows refuses in a file name.
+BAD_NAME_CHARS = frozenset('<>:"|?*') | {chr(c) for c in range(32)}
+
+
 def check_new_name(tx, path, *, field: str | None = "/path", ignore=None) -> None:
     """Refuse a new part file whose basename a loaded part (other than ``ignore``) uses.
 
     NX names a loaded part by its file name, so the name is taken whoever loaded the
     part (another agent's part too): the error suggests a unique name
-    (``details.suggested_path``) and never offers the loaded part."""
+    (``details.suggested_path``) and never offers the loaded part. A name Windows cannot
+    hold (``<>:"|?*`` or a control character) is refused first: NX would fail late with
+    a vague "Invalid file name"."""
+    bad = sorted({c for c in Path(path).name if c in BAD_NAME_CHARS})
+    if bad:
+        fail(
+            "NX_INVALID_ARGUMENT",
+            f"The file name {Path(path).name!r} contains {' '.join(repr(c) for c in bad)}",
+            field=field,
+            hint="Use letters, digits, spaces, _ - and . in part file names",
+            details={"path": shown_path(tx, path), "characters": bad},
+        )
     stem = Path(path).stem.casefold()
     clash = next(
         (

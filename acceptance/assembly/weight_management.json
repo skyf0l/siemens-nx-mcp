@@ -691,6 +691,98 @@
     "data.items.0.name": "Propulsion",
     "data.items.0.count": 2
    }
+  },
+  {
+   "call": "nx_undo_operation",
+   "args": {
+    "part": "$part",
+    "mode": "compensate"
+   },
+   "intent": "Acceptance: recreate the deleted group by compensation",
+   "expect": {
+    "ok": true,
+    "data.compensated": true,
+    "data.restored.0": {
+     "matches": "Power recreated with its 1 members"
+    }
+   }
+  },
+  {
+   "call": "nx_list_component_groups",
+   "args": {
+    "part": "$part"
+   },
+   "expect": {
+    "data.items": {
+     "contains": {
+      "name": "Power",
+      "count": 1
+     }
+    }
+   }
+  },
+  {
+   "call": "nx_set_component_mass",
+   "save": "bm",
+   "args": {
+    "part": "$part",
+    "component": "$BATTERY.data.component.id",
+    "mass": 80,
+    "center": [
+     1600,
+     550,
+     480
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.mass": {
+     "close": 80,
+     "tol": 1e-06
+    }
+   }
+  },
+  {
+   "call": "nx_undo_operation",
+   "args": {
+    "part": "$part",
+    "mode": "compensate"
+   },
+   "intent": "Acceptance: set the asserted mass back by compensation",
+   "expect": {
+    "ok": true,
+    "data.compensated": true,
+    "data.restored.0": {
+     "matches": "back to 60 kg"
+    }
+   }
+  },
+  {
+   "call": "nx_set_component_mass",
+   "args": {
+    "part": "$part",
+    "component": "$BATTERY.data.component.id",
+    "mass": 61,
+    "center": [
+     1600,
+     550,
+     480
+    ]
+   },
+   "expect": {
+    "data.previous.mass": {
+     "close": 60,
+     "tol": 1e-06
+    },
+    "data.previous.center_of_gravity": {
+     "close": [
+      1600,
+      550,
+      480
+     ],
+     "tol": 1e-06
+    }
+   }
   }
  ]
 }

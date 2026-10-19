@@ -122,3 +122,24 @@ def test_refusals_and_an_empty_result(nx):
     empty = run(nx, "nx_create_simplified_assembly", part="asm", objects=[nx.a.ref])
     assert empty.error["category"] == "verification_failed", empty
     assert empty.mutation_outcome in ("rolled_back", "not_started")
+
+
+def test_a_min_body_size_above_every_body_is_refused_with_the_largest_diagonal(nx):
+    from types import SimpleNamespace as NS
+
+    boxes = {int(nx.a_body.Tag): [0, 0, 0, 100, 100, 100], int(nx.b_body.Tag): [90, 0, 0, 190, 100, 100],
+             int(nx.c_body.Tag): [-100, 0, 0, -90, 10, 10]}  # fmt: skip
+    nx.uf.ModlGeneral = NS(AskBoundingBox=lambda tag: boxes[int(tag)])
+    bad = run(nx, "nx_create_simplified_assembly", part="asm", min_body_size=1000)
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/min_body_size"
+    assert bad.error["details"]["largest_diagonal"] == pytest.approx(173.205, abs=1e-3), bad
+    assert bad.mutation_outcome == "not_started" and not nx.simplify_builders
+    ok = run(nx, "nx_create_simplified_assembly", part="asm", min_body_size=20)
+    assert ok.ok and ok.data["body_count"] == 1, ok
+
+
+def test_nx_dropping_every_body_is_an_argument_error(nx):
+    nx.simplified_volume = 0  # NX made nothing
+    bad = run(nx, "nx_create_simplified_assembly", part="asm", min_body_size=50)
+    assert bad.error["code"] == "NX_INVALID_ARGUMENT" and bad.error["field"] == "/min_body_size"
+    assert bad.mutation_outcome in ("rolled_back", "not_started"), bad

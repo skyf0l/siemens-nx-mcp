@@ -91,7 +91,7 @@
   {"call": "nx_undo_operation", "direct": true, "args": {"part": "fx_cover", "operation": "$rev.operation_id"},
    "intent": "Acceptance: the default undo compensates across another part's close, as across other parts' later work (the close once refused it)",
    "expect": {"mutation_outcome": "committed", "data.compensated": true, "data.restored.0": "REV of fx_cover.prt removed",
-              "warnings": {"contains": {"code": "NX_UPDATE_WARNING"}}}},
+              "warnings": {"contains": {"code": "NX_NOTE"}}}},
 
   {"call": "nx_create_primitive", "args": {"part": "fx_cover", "shape": "block", "length": 5, "width": 5, "height": 5, "origin": [50, 0, 0]},
    "expect": {"mutation_outcome": "committed"}},

@@ -142,7 +142,16 @@ def owned_by_work_part(tx, obj):
 def owned(tx, obj, field=None, what="geometry"):
     """``obj`` when it is owned by the work part, else ``wrong_owner``."""
     if not owned_by_work_part(tx, obj):
-        fail("NX_WRONG_OWNER", f"Select {what} owned by the work part", field=field)
+        here, where = "the work part", ""
+        try:  # name the target file and the object's owner (the agent may have passed part)
+            here = targets.file_name(tx.part)
+            if getattr(obj, "IsOccurrence", False):
+                where = " (an assembly occurrence; pass the object of its own part)"
+            elif getattr(obj, "OwningPart", None) is not None:
+                where = f" (it belongs to {targets.file_name(obj.OwningPart)})"
+        except Exception:
+            pass
+        fail("NX_WRONG_OWNER", f"Select {what} owned by {here}{where}", field=field)
     return obj
 
 

@@ -171,6 +171,25 @@ def test_a_shared_connection_refuses_discarding_recent_unsaved_work_naming_the_p
     assert close(nx, "a", SHARED, force=True).ok
 
 
+def test_a_shared_connection_shows_a_part_with_recent_unsaved_work_only_with_force(nx):
+    """display true would take the tab of a part another agent may be working in."""
+    create(nx, "mc/a.prt", SHARED)
+    create(nx, "mc/b.prt", SHARED, display=False)
+    block(nx, "b", SHARED)
+    shown = nx.session.Parts.Display
+    refused = call(nx, tools.nx_activate_part, part="b", caller=SHARED, display=True)
+    assert refused.error["code"] == "NX_PART_BUSY", refused
+    assert refused.mutation_outcome == "not_started" and nx.session.Parts.Display is shown
+    details = refused.error["details"]
+    assert details["reason"] == "recent_change" and details["action"] == "activate"
+    assert "force: true" in refused.error["hint"] and '"part": "b.prt"' in refused.error["hint"]
+    assert call(nx, tools.nx_activate_part, part="b", caller=SHARED).ok  # no tab to the front
+    forced = call(nx, tools.nx_activate_part, part="b", caller=SHARED, display=True, force=True)
+    assert forced.ok and forced.data["display"], forced
+    _part(nx, "a").IsModified = False  # nothing unsaved: shown without force
+    assert call(nx, tools.nx_activate_part, part="a", caller=SHARED, display=True).ok
+
+
 def test_a_solo_connection_or_no_identity_never_refuses_its_own_close(nx):
     for caller in (A, None):
         create(nx, "mc/a.prt", caller)
@@ -241,3 +260,25 @@ def test_the_caller_key_is_read_leniently_and_never_reaches_the_handler(nx):
         assert target.check_caller(bad) is None
     made = create(nx, "mc/a.prt", {"id": 7})  # malformed: no identity, not refused
     assert made.ok and busy.owner(services(nx), _part(nx, "a")) is None
+
+
+def test_closing_a_part_that_is_not_displayed_leaves_the_display_as_it_was(nx):
+    """Closing a background part never leaves another tab active, also when NX moved the
+    display while closing it: the engineer's tab (or another agent's) stays in front."""
+    create(nx, "mc/a.prt", A, display=True)
+    create(nx, "mc/b.prt", A, display=False)
+    eng = engineer_part(nx)
+    session_parts = nx.session.Parts
+    session_parts.Display = session_parts.Work = eng
+    b, a = _part(nx, "b"), _part(nx, "a")
+    real = b.CloseRetainUndoMarks
+
+    def moving(*args):
+        session_parts.Display = session_parts.Work = a  # NX shows another tab meanwhile
+        real(*args)
+
+    b.CloseRetainUndoMarks = moving
+    closed = close(nx, "b", A)
+    assert closed.ok and "displayed" not in closed.data, closed
+    assert session_parts.Display is eng and session_parts.Work is eng
+    assert b not in session_parts

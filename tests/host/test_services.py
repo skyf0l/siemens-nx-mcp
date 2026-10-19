@@ -457,3 +457,96 @@ def test_faces_and_edges_live_while_their_body_lists_them(tmp_path):
     retired = s.invalidate({}, {}, True)
     assert refs.stale(retired) == [lost] and refs.resolve(keep, ("face",)) is face
     assert reads == [5]  # the other body's faces were never read
+
+
+def test_an_undo_keeps_datum_csys_frame_and_point_refs(tmp_path):
+    """A datum CSYS frame lives in CoordinateSystems and a datum point in Points, not in
+    Datums: an undo (or rollback) check keeps their refs while their part has them."""
+    s, part, _faces, _edges = _block(tmp_path)
+    plane, frame, point = _Tagged(31, "PLANE"), _Tagged(32, "CSYS"), _Tagged(33, "POINT")
+    part.Datums, part.CoordinateSystems, part.Points = [plane], [frame], [point]
+    refs = s.references
+    rows = {
+        kind: refs.row(obj, kind, part=part)["id"]
+        for kind, obj in (("datum_plane", plane), ("datum_csys", frame), ("datum_point", point))
+    }
+    assert s.retire_undone(s.parts()) == set()
+    assert refs.resolve(rows["datum_csys"], ("datum_csys",)) is frame
+    assert refs.resolve(rows["datum_point"], ("datum_point",)) is point
+    part.CoordinateSystems = []  # the undo removed the datum CSYS
+    retired = s.retire_undone(s.parts())
+    assert refs.stale(retired) == [rows["datum_csys"]]
+    assert refs.resolve(rows["datum_plane"], ("datum_plane",)) is plane
+
+
+def test_analyses_are_snapshot_objects_and_an_undone_one_goes_stale(tmp_path, monkeypatch):
+    """Display surface analyses join the snapshot (changes list them); an undo that removed
+    one retires its ref although its wrapper may keep the tag (NX says what is alive)."""
+    from nx_mcp.kit import analysis_objects
+
+    s, part, _faces, _edges = _block(tmp_path)
+    live = [_Tagged(41, "NX_MCP_REFLECTION_1")]
+    monkeypatch.setattr(analysis_objects, "of_part", lambda tx, p: list(live) if p is part else [])
+    assert s._analyses(part) == live
+    ref = s.references.row(live[0], "analysis", part=part)["id"]
+    assert s.retire_undone(s.parts()) == set()
+    gone = live.pop()  # the undo removed it; the wrapper keeps tag 41
+    assert s.references.stale(s.retire_undone(s.parts())) == [ref] and gone.Tag == 41
+
+
+def test_facet_bodies_and_drawing_symbols_are_snapshot_objects(tmp_path):
+    """An imported mesh is a ``facet_body`` (changes list it, an undo that removed it
+    retires its ref); intersection, custom, edge-condition and target-point symbols are
+    annotations, so a call that makes one lists it in changes.created."""
+    from nx_mcp.host.services import part_annotations
+
+    s, part, _faces, _edges = _block(tmp_path)
+    mesh = NS(Tag=61, Name="FACETED BODY", AssociatedBody=None)
+    shown = NS(Tag=62, Name="", AssociatedBody=NS(Tag=5))  # a solid's display facets
+    part.FacetedBodies = [mesh, shown]
+    assert s._undo_tags(part, "facet_body") == {61}
+    ref = s.references.row(mesh, "facet_body", part=part)["id"]
+    assert ref.startswith("fb:") and s.retire_undone(s.parts()) == set()
+    part.FacetedBodies = [shown]  # the undo removed the mesh
+    assert s.references.stale(s.retire_undone(s.parts())) == [ref]
+    groups = {
+        name: [NS(Tag=70 + i)]
+        for i, name in enumerate(
+            ("IntersectionSymbols", "CustomSymbols", "EdgeConditionSymbol", "TargetPoints")
+        )
+    }
+    symbols = NS(Notes=[], Labels=[], Annotations=NS(**groups))
+    assert sorted(int(a.Tag) for a in part_annotations(symbols)) == [70, 71, 72, 73]
+
+
+def test_sketch_curves_and_constraints_have_a_reference_kind(tmp_path):
+    """NX's own classes name the kind: a sketch's lines and arcs are curves, its geometric
+    constraints and dimensions sketch constraints (an undo lists them without a kind)."""
+
+    class Curve:
+        pass
+
+    class Line(Curve):
+        pass
+
+    class Arc(Curve):
+        pass
+
+    class SketchConstraint:
+        pass
+
+    class SketchGeometricConstraint(SketchConstraint):
+        pass
+
+    class SketchHelpedDimensionalConstraint(SketchConstraint):
+        pass
+
+    nx = NS(**vars(NXOPEN), Curve=Curve, SketchConstraint=SketchConstraint)
+    s = NXServices(FakeSession(), nx, "test", Workspace(tmp_path / "ws"))
+    assert s.infer_kind(Line()) == "curve"
+    assert s.infer_kind(Arc()) == "curve"
+    assert s.infer_kind(SketchGeometricConstraint()) == "sketch_constraint"
+    assert s.infer_kind(SketchHelpedDimensionalConstraint()) == "sketch_constraint"
+    assert s.infer_kind(object(), default=None) is None
+    with pytest.raises(NXError, match="Cannot infer"):
+        s.infer_kind(object())

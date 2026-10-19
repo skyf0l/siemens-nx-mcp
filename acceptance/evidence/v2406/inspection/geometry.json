@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/geometry.json",
-  "scenario_sha256": "5b43b42d5eff6a8d38c5a923574efaeeab16b3a490cba591dba06cf0318d5327",
+  "scenario_sha256": "f4cdd860770ee83867fd9a6f3bc46929bfb195d5a924181f376539b65c11210f",
   "domain": "inspection",
   "covers": {
     "nx_find_geometry": [],
@@ -12,14 +12,14 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_find_geometry": "4862dcd88838568a8017dc7b34bdd7119e8104d308763bc82035a1087f0f5750",
-    "nx_find_holes": "4862dcd88838568a8017dc7b34bdd7119e8104d308763bc82035a1087f0f5750",
-    "nx_create_anchor": "4862dcd88838568a8017dc7b34bdd7119e8104d308763bc82035a1087f0f5750",
-    "nx_resolve_reference": "4862dcd88838568a8017dc7b34bdd7119e8104d308763bc82035a1087f0f5750"
+    "nx_find_geometry": "958adac1e84c626f8716e8926eac14407e13bb5f0c968de3e9f739bc921b09f6",
+    "nx_find_holes": "958adac1e84c626f8716e8926eac14407e13bb5f0c968de3e9f739bc921b09f6",
+    "nx_create_anchor": "958adac1e84c626f8716e8926eac14407e13bb5f0c968de3e9f739bc921b09f6",
+    "nx_resolve_reference": "958adac1e84c626f8716e8926eac14407e13bb5f0c968de3e9f739bc921b09f6"
   },
-  "recorded": "2026-10-15T12:19:37Z",
+  "recorded": "2026-10-19T10:54:13Z",
   "passed": true,
-  "checks": 62,
+  "checks": 63,
   "failed_checks": 0,
   "steps": [
     {
@@ -83,7 +83,7 @@
       "call": "nx_find_geometry",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 4
     },
     {
       "index": 10,

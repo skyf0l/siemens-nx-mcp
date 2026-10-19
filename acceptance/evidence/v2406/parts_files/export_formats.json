@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/parts_files/export_formats.json",
-  "scenario_sha256": "7bfc244e03ad5f24b86b9b344d3d4258311744739b90984ff41b7a45217f80bc",
+  "scenario_sha256": "150f155677248976af9a2922a2f8abf71648c0dd9a62c28e97c4edaac5d2697b",
   "domain": "parts_files",
   "covers": {
     "nx_export_model": [
@@ -14,11 +14,11 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_export_model": "1f20870242cea8faacb3ab5030088cca1b0403076e85b13e46dbc34fbdac269f"
+    "nx_export_model": "6a28ceb4dd202b7923fd8d39411b2b4e784fff6141cd251877845a52037f5a5b"
   },
-  "recorded": "2026-10-16T12:58:35Z",
+  "recorded": "2026-10-19T10:33:49Z",
   "passed": true,
-  "checks": 83,
+  "checks": 87,
   "failed_checks": 0,
   "steps": [
     {
@@ -40,14 +40,14 @@
       "call": "nx_export_model",
       "setup": false,
       "passed": true,
-      "checks": 8
+      "checks": 10
     },
     {
       "index": 4,
       "call": "nx_export_model",
       "setup": false,
       "passed": true,
-      "checks": 5
+      "checks": 7
     },
     {
       "index": 5,

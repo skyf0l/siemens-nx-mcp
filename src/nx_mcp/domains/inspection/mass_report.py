@@ -157,6 +157,7 @@ class GroupRow(TypedDict, total=False):
 
 class Totals(TypedDict, total=False):
     mass: float
+    default_density_rows: int  # rows weighed at NX's default density (no material): >0 = rough
     center_of_gravity: list[float] | None
     reference_cog: list[float]
     inertia: list[list[float]]
@@ -166,7 +167,7 @@ class Totals(TypedDict, total=False):
 
 class Change(TypedDict, total=False):
     name: str
-    mass: float
+    mass: float  # the mass this change adds (negative: removes); 0 for a move
     rows: int
     shift: list[float]
 
@@ -201,7 +202,7 @@ def _check_items(items) -> None:
     for i, item in enumerate(items):
         field = f"/items/{i}"
         if not 0 <= float(item["mass"]) <= 1e7:
-            fail("NX_INVALID_ARGUMENT", "mass is 0-1e7 kg", field=field + "/mass")
+            fail("NX_INVALID_ARGUMENT", f"{field}/mass: mass is 0 to 1e7 kg", field=field + "/mass")
         component = item.get("component")
         if component is None:
             if not item.get("name"):
@@ -233,7 +234,8 @@ def _check_changes(changes) -> None:
     for i, change in enumerate(changes):
         field = f"/what_if/{i}"
         if change.get("mass") is not None and not abs(float(change["mass"])) <= 1e7:
-            fail("NX_INVALID_ARGUMENT", "mass is -1e7 to 1e7 kg", field=field + "/mass")
+            fail("NX_INVALID_ARGUMENT", f"{field}/mass: mass is -1e7 to 1e7 kg",
+                 field=field + "/mass")  # fmt: skip
         target = [k for k in ("component", "item") if change.get(k) is not None]
         moves = [k for k in ("offset", "move_to", "remove") if change.get(k) not in (None, False)]
         if not target:
@@ -627,13 +629,22 @@ def _group_of(walk, record) -> str:
     if how == "component_group":
         tags = record["tags"]
         return next((name for name, members in walk.nx_groups if members & tags), OTHER)
+    return next(iter(_named_matches(walk, record, chain)), OTHER)
+
+
+def _named_matches(walk, record, chain=None) -> list[str]:
+    """The named groups (in the order given) a component row matches by ref or pattern;
+    the first one wins."""
+    if chain is None:
+        chain = [walk.members[t] for t in reversed(record["chain"])]
     tags = record["tags"]
     words = [str(getattr(n, "Name", "")).casefold() for n in chain]
     words += [_leaf(kparts.prototype_file(n)).casefold() for n in chain]
-    for name, members, patterns in walk.named:
-        if members & tags or any(fnmatch.fnmatchcase(w, p) for p in patterns for w in words):
-            return name
-    return OTHER
+    return [
+        name
+        for name, members, patterns in walk.named
+        if members & tags or any(fnmatch.fnmatchcase(w, p) for p in patterns for w in words)
+    ]
 
 
 def _summary(entries, ref) -> dict:
@@ -651,7 +662,8 @@ def _what_if(walk, changes, ref, baseline) -> WhatIfData:
     for i, change in enumerate(changes):
         field = f"/what_if/{i}"
         if change.get("mass") is not None and not abs(float(change["mass"])) <= 1e7:
-            fail("NX_INVALID_ARGUMENT", "mass is -1e7 to 1e7 kg", field=field + "/mass")
+            fail("NX_INVALID_ARGUMENT", f"{field}/mass: mass is -1e7 to 1e7 kg",
+                 field=field + "/mass")  # fmt: skip
         if change.get("component") is None and change.get("item") is None:
             entries.append(mp.entry(change["mass"], change["center"]))
             report.append({"name": change["name"], "mass": float(change["mass"]), "rows": 0})
@@ -776,6 +788,9 @@ def report(tx, a) -> dict:
     rows = [r["row"] for r in walk.records]
     out["rows"] = rows
     out["row_count"] = len(rows)
+    totals["default_density_rows"] = sum(
+        1 for r in rows if r.get("source") in ("no_material", "mixed")
+    )
     _notes(tx, walk, rows)
     return out
 
@@ -808,6 +823,14 @@ def _notes(tx, walk, rows) -> None:
                 f"{empty[0]}): give items [{{component, mass, center}}] for bought-in parts")  # fmt: skip
     if walk.sheets:
         tx.warn("NX_NOTE", f"{walk.sheets} sheet bodies have no mass and were left out")
+    if walk.a.get("group_by") == "named":
+        several = [
+            r["row"]["name"] for r in walk.records
+            if r["item"] is None and "component" in r["row"] and len(_named_matches(walk, r)) > 1
+        ]  # fmt: skip
+        if several:
+            tx.warn("NX_NOTE", f"{len(several)} row(s) match several groups (e.g. {several[0]}); "
+                    "each counts once, in the first group listed")  # fmt: skip
     if walk.a.get("group_by") == "component_group":
         overlap = sum(
             1 for r in walk.records
@@ -861,9 +884,10 @@ def nx_measure_assembly_mass(
     inertia: bool = False,
 ) -> MassReportData:
     """Report weight and centre of gravity per component and in total, for trim and stability.
-    Uses NX asserted masses; items add assumed ones. kg, part units. inertia: kg*unit^2
-    tensor about the total CoG in absolute axes, products negated (Ixy = -sum m*x*y);
-    reference_inertia about the reference, its axes."""
+    Uses NX asserted masses; items add assumed ones. kg, part units. total stays the model;
+    what_if is the changed state (changes[].mass: mass added, 0 for a move). inertia:
+    kg*unit^2 tensor about the total CoG in absolute axes, products negated (Ixy = -sum
+    m*x*y); reference_inertia about the reference, its axes."""
     a = _args(components=components, exclude=exclude, include_suppressed=include_suppressed,
               items=items, group_by=group_by, attribute=attribute, groups=groups,
               reference=reference, what_if=what_if, inertia=inertia)  # fmt: skip

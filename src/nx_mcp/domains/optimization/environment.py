@@ -21,12 +21,12 @@ from __future__ import annotations
 import math
 from typing import Annotated, Literal, TypedDict
 
-from nx_mcp.core.catalogue import tool
-from nx_mcp.core.errors import fail, native
+from nx_mcp.core.catalogue import restorer, tool
+from nx_mcp.core.errors import NXError, fail, native
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import BodyRef, Direction, Doc, FeatureRef, Items, Range
 from nx_mcp.domains.optimization import common
-from nx_mcp.kit import builders, readback, result, select
+from nx_mcp.kit import builders, geom, model, readback, result, select
 
 Kind = Literal["acceleration", "scenery", "connection"]
 G_REL = 1e-6
@@ -145,7 +145,7 @@ def _bodies(tx, kind, refs, design, scenery):
         "scenery body",
         "non-design body",
         "bonded connection",
-        "assembly load path",
+        "optimization load",
     ),
     requires=("work_part", "no_active_sketch"),
     variants="kind",
@@ -176,7 +176,7 @@ def nx_create_topology_environment(
     acceleration: inertia load on every body in every load case; replaces the last one.
     scenery: solids that carry load but are not optimized (own material, made before the
     study; supports and loads may sit on their faces). connection: bonds 2 touching study bodies (design space or
-    scenery)."""
+    scenery). Refused on a solved study (NX cannot update it): make a new study."""
     _check(kind, bodies, magnitude, direction)
     with tx.checks():
         feature = common.feature_of(tx, study)
@@ -184,6 +184,7 @@ def nx_create_topology_environment(
         designs = common.all_of(found, "GetAllDesignSpaces")
         if not designs:
             fail("NX_NOT_FOUND", "The study has no design space", field="/study")
+        common.refuse_solved(tx, feature, "change the environment of", found)
         scenery = common.scenery_bodies(found)
         picked = _bodies(tx, kind, bodies, designs[0].Body, scenery) if bodies else []
         if kind == "scenery":
@@ -193,6 +194,7 @@ def nx_create_topology_environment(
             vector = list(GRAVITY)
         common.require_license(tx)
         before = len(scenery), len(common.all_of(found, "GetAllConnections"))
+        earlier = acceleration_of(tx, found)
     cycle = "/bodies" if kind == "scenery" else None
     with common.task(tx, feature, cycle_field=cycle) as active:
         current = common.active_study(active)
@@ -217,6 +219,14 @@ def nx_create_topology_environment(
     want = (before[0] + len(picked) * (kind == "scenery"), before[1] + (kind == "connection"))
     readback.expect((len(scenery), connections) == want, "count",
                     scenery=len(scenery), connections=connections)  # fmt: skip
+    study_id = tx.ref(feature, kind="feature")["id"]
+    if kind == "acceleration":
+        tx.note_restore({"study": study_id, "kind": kind, "before": earlier, "after": got})
+    elif kind == "scenery":
+        tx.note_restore({"study": study_id, "kind": kind,
+                         "bodies": [tx.ref(b, kind="body")["id"] for b in picked]})  # fmt: skip
+    else:
+        tx.note_restore({"study": study_id, "kind": kind, "connections": connections})
     return {
         "study": tx.ref(feature, kind="feature"),
         "kind": kind,
@@ -224,3 +234,84 @@ def nx_create_topology_environment(
         "scenery": result.rows(tx, scenery, "body"),
         "connections": connections,
     }
+
+
+def _same(a: Acceleration | None, b: Acceleration | None) -> bool:
+    if a is None or b is None:
+        return a is None and b is None
+    return geom.close(a["g"], b["g"], G_REL) and all(
+        abs(x - y) <= 1e-6 for x, y in zip(a["direction"], b["direction"], strict=True)
+    )
+
+
+def _added(tx, study, data) -> list:
+    """The scenery bodies or the connection a call added, else ``NX_DEPENDENCY_ORDER``."""
+    if data["kind"] == "scenery":
+        try:
+            tags = {int(tx.resolve(ref).Tag) for ref in data["bodies"]}
+        except NXError as error:
+            fail("NX_DEPENDENCY_ORDER", f"A scenery body is gone since ({error.message})")
+        found = [s for s in common.all_of(study, "GetAllSceneryBodies") if int(s.Body.Tag) in tags]
+        if len(found) != len(tags):
+            fail("NX_DEPENDENCY_ORDER", "A scenery body the operation added left the study since")
+        return found
+    bonds = common.all_of(study, "GetAllConnections")
+    if len(bonds) != int(data["connections"]):
+        fail("NX_DEPENDENCY_ORDER", f"The study has {len(bonds)} connections, the operation "
+             f"left {data['connections']}: one was added or removed since")  # fmt: skip
+    return bonds[-1:]
+
+
+@restorer("nx_create_topology_environment")
+def _restore_environment(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Undo an ``nx_create_topology_environment`` by compensation: remove the scenery
+    bodies or the connection it added, or set the g-load back; refused when changed since."""
+    if data.get("kind", "acceleration") != "acceleration":
+        return _remove(tx, data, apply=apply)
+    return _restore_acceleration(tx, data, apply=apply)
+
+
+def _remove(tx, data, *, apply) -> str:
+    feature = common.feature_of(tx, data["study"])
+    _added(tx, common.active_study(feature), data)
+    common.refuse_solved(tx, feature, "change the environment of")
+    getter = "GetAllSceneryBodies" if data["kind"] == "scenery" else "GetAllConnections"
+    if apply:
+        common.require_license(tx)
+        with common.task(tx, feature) as active:
+            current = common.active_study(active)
+            before = len(common.all_of(current, getter))
+            items = _added(tx, current, data)
+            with native():
+                tx.session.UpdateManager.AddToDeleteList(list(items))
+            model.update(tx)
+            after = len(common.all_of(current, getter))
+        readback.expect(after == before - len(items), "count", f"NX kept the {data['kind']}",
+                        count=after)  # fmt: skip
+    what = (
+        f"{len(data['bodies'])} scenery body(ies)" if data["kind"] == "scenery" else "a connection"
+    )
+    return f"{what} removed from {data['study']}"
+
+
+def _restore_acceleration(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Set a study's g-load back to what it was before an ``acceleration`` call."""
+    feature = common.feature_of(tx, data["study"])
+    before, after = data["before"], data["after"]
+    now = acceleration_of(tx, common.active_study(feature))
+    common.refuse_solved(tx, feature, "change the environment of")
+    if not _same(now, after):
+        fail("NX_DEPENDENCY_ORDER", f"The acceleration of {data['study']} changed since: it is "
+             f"{now}, the operation set {after}", details={"acceleration": now})  # fmt: skip
+    if apply:
+        common.require_license(tx)
+        g = float(before["g"]) if before else 0.0
+        with common.task(tx, feature) as active:
+            current = common.active_study(active)
+            _accelerate(tx, current, g, list(before["direction"]) if before else list(GRAVITY))
+        got = acceleration_of(tx, common.active_study(feature))
+        readback.expect(_same(got, before), "acceleration",
+                        f"The acceleration reads {got}, not {before}")  # fmt: skip
+    if before is None:
+        return f"the acceleration of {data['study']} removed (it had none)"
+    return f"the acceleration of {data['study']} back to {before['g']:g} g"

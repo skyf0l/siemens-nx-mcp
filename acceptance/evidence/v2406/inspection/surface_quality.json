@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/surface_quality.json",
-  "scenario_sha256": "5fb9c36dae23ec4153f2da6db5483e3d52cd11ad343d4c7d3d4fc3da7e1a6f71",
+  "scenario_sha256": "a17098890bd0ca0e1fb93246656d7a2a5aa7961b1f539bacab4ca5b2945da157",
   "domain": "inspection",
   "covers": {
     "nx_check_face_continuity": [],
@@ -10,17 +10,19 @@
       "curvature_comb",
       "continuity",
       "radius"
-    ]
+    ],
+    "nx_delete_surface_analysis": []
   },
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_check_face_continuity": "67a9ed886ea9eb646b70b1e322a2c32d17f921340d4abe5e803d9101a091fc4b",
-    "nx_create_surface_analysis": "67a9ed886ea9eb646b70b1e322a2c32d17f921340d4abe5e803d9101a091fc4b"
+    "nx_check_face_continuity": "a313a47f0e76cd00c43f845d56b4768bcb71dfceab97658a67fc70279a76761a",
+    "nx_create_surface_analysis": "a313a47f0e76cd00c43f845d56b4768bcb71dfceab97658a67fc70279a76761a",
+    "nx_delete_surface_analysis": "a313a47f0e76cd00c43f845d56b4768bcb71dfceab97658a67fc70279a76761a"
   },
-  "recorded": "2026-10-16T13:03:20Z",
+  "recorded": "2026-10-19T10:55:49Z",
   "passed": true,
-  "checks": 40,
+  "checks": 61,
   "failed_checks": 0,
   "steps": [
     {
@@ -147,14 +149,14 @@
       "call": "nx_create_surface_analysis",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 19,
       "call": "nx_create_surface_analysis",
       "setup": false,
       "passed": true,
-      "checks": 2
+      "checks": 3
     },
     {
       "index": 20,
@@ -168,17 +170,73 @@
       "call": "nx_create_surface_analysis",
       "setup": false,
       "passed": true,
-      "checks": 1
+      "checks": 2
     },
     {
       "index": 22,
+      "call": "nx_delete_surface_analysis",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 23,
+      "call": "nx_get_model_summary",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 24,
+      "call": "nx_delete_surface_analysis",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 25,
       "call": "nx_create_surface_analysis",
       "setup": false,
       "passed": true,
       "checks": 2
     },
     {
-      "index": 23,
+      "index": 26,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 27,
+      "call": "nx_get_model_summary",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 28,
+      "call": "nx_delete_surface_analysis",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 29,
+      "call": "nx_delete_surface_analysis",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 30,
+      "call": "nx_create_surface_analysis",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 31,
       "call": "nx_check_model",
       "setup": false,
       "passed": true,

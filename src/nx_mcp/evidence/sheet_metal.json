@@ -3,10 +3,10 @@
     "v2406": {
       "checks": 11,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:17:35Z",
+      "recorded": "2026-10-19T11:06:40Z",
       "scenario": "acceptance/sheet_metal/three_bend_corner.json",
       "scenario_sha256": "fe0be90a3540b4c56acda34e47216997b5224d8ac99422567aefc59f10cd21ff",
-      "source_sha256": "5a12d8b234b8b4194fd0d688e86a3da6904baa4654667ca69556965d041160c9",
+      "source_sha256": "5bcc6534bc661ee7fcbf023cd40259cc879fc6e62dbfd213500cdcccb104b823",
       "variants": [
         "bead",
         "bend",
@@ -45,10 +45,10 @@
     "v2406": {
       "checks": 43,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:16:49Z",
+      "recorded": "2026-10-19T11:05:18Z",
       "scenario": "acceptance/sheet_metal/default_followers.json",
       "scenario_sha256": "8331124dc8721d3dc071663a98c38c3d255a3c454bdff3ee5a56eb54c7f767ac",
-      "source_sha256": "a4e655ff974b41425477e2a217d4b17bdcb4dc9f96eeecdd8ef4147337ae2f5b",
+      "source_sha256": "1e4908a6b8519d5893a8fede38a67c96a81bbea1f3ed46273f0a1cf98a0e7f3a",
       "variants": []
     }
   },
@@ -56,10 +56,10 @@
     "v2406": {
       "checks": 14,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:17:13Z",
+      "recorded": "2026-10-19T11:06:11Z",
       "scenario": "acceptance/sheet_metal/inch.json",
       "scenario_sha256": "068e2ea6b438fb6885532ecc0ab27981957cc46092d2ac9992e9301ff7816124",
-      "source_sha256": "d488204612e7c07f7eeaf354ebe78f2c01ef7abf14e72f43defe9f2f584f4594",
+      "source_sha256": "40ecad55fd6619c0fc0802f835521b76e22b7f7636f9723f96d6d637ce864aa9",
       "variants": []
     }
   },
@@ -67,10 +67,10 @@
     "v2406": {
       "checks": 43,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:16:49Z",
+      "recorded": "2026-10-19T11:05:18Z",
       "scenario": "acceptance/sheet_metal/default_followers.json",
       "scenario_sha256": "8331124dc8721d3dc071663a98c38c3d255a3c454bdff3ee5a56eb54c7f767ac",
-      "source_sha256": "a4e655ff974b41425477e2a217d4b17bdcb4dc9f96eeecdd8ef4147337ae2f5b",
+      "source_sha256": "1e4908a6b8519d5893a8fede38a67c96a81bbea1f3ed46273f0a1cf98a0e7f3a",
       "variants": []
     }
   },
@@ -78,10 +78,10 @@
     "v2406": {
       "checks": 14,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:17:13Z",
+      "recorded": "2026-10-19T11:06:11Z",
       "scenario": "acceptance/sheet_metal/inch.json",
       "scenario_sha256": "068e2ea6b438fb6885532ecc0ab27981957cc46092d2ac9992e9301ff7816124",
-      "source_sha256": "3454f129b2bc6b67a30e503008b92761eeaceb5c96944ae256c116d6957be74c",
+      "source_sha256": "5264c1fc98bed0eee71c44115494ef2bb2997bfced8713ee352c1bb7094d0e9f",
       "variants": []
     }
   },
@@ -89,10 +89,10 @@
     "v2406": {
       "checks": 25,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:16:59Z",
+      "recorded": "2026-10-19T11:05:43Z",
       "scenario": "acceptance/sheet_metal/flat_pattern_axes.json",
       "scenario_sha256": "eb69e2e8b0ed051ac2e879cd39be3e869928a3aae7e66aecde22a2e8bbd94b66",
-      "source_sha256": "2eea7d3fd0cee2ffe8184fa55b1cefaa01f5f86ee96f54eaa2a0dddf80d0afc9",
+      "source_sha256": "c51770958a272fb8e6af24a00d630b921e8709f53e9f369fb36bdda5961c1c99",
       "variants": []
     }
   },
@@ -100,10 +100,10 @@
     "v2406": {
       "checks": 14,
       "nx_build": "2406.9160",
-      "recorded": "2026-10-16T13:17:13Z",
+      "recorded": "2026-10-19T11:06:11Z",
       "scenario": "acceptance/sheet_metal/inch.json",
       "scenario_sha256": "068e2ea6b438fb6885532ecc0ab27981957cc46092d2ac9992e9301ff7816124",
-      "source_sha256": "2eea7d3fd0cee2ffe8184fa55b1cefaa01f5f86ee96f54eaa2a0dddf80d0afc9",
+      "source_sha256": "c51770958a272fb8e6af24a00d630b921e8709f53e9f369fb36bdda5961c1c99",
       "variants": []
     }
   }

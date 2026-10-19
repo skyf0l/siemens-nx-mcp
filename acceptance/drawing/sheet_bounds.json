@@ -1,0 +1,249 @@
+{
+ "covers": {
+  "nx_create_note": [],
+  "nx_create_drawing_dimension": [],
+  "nx_create_sheet_symbol": [],
+  "nx_create_drawing_table": [],
+  "nx_create_sheet_sketch": [],
+  "nx_edit_annotation": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "back",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     35,
+     50,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "front",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     40,
+     0,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "right",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "line",
+    "near": [
+     80,
+     20,
+     20
+    ],
+    "limit": 1
+   }
+  },
+  {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "h1",
+   "args": {
+    "kind": "edge",
+    "geometry_type": "circle",
+    "near": [
+     25,
+     25,
+     20
+    ],
+    "limit": 1,
+    "radius": 8
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "SHT1",
+    "size": "a3",
+    "projection": "first_angle"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "top",
+    "position": [
+     120,
+     200
+    ]
+   }
+  },
+  {
+   "call": "nx_create_note",
+   "args": {
+    "text": [
+     "FAR"
+    ],
+    "origin": [
+     5000,
+     5000
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/origin",
+    "error.details.sheet_size": {
+     "close": [
+      420,
+      297
+     ],
+     "tol": 1e-06
+    },
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "args": {
+    "view": "$top.data.view.id",
+    "kind": "horizontal",
+    "first": "$back.data.items.0.id",
+    "origin": [
+     9000,
+     -50
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/origin",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_sheet_symbol",
+   "args": {
+    "symbol": "id",
+    "text": "1",
+    "origin": [
+     9000,
+     -50
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/origin",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_drawing_table",
+   "args": {
+    "kind": "revision",
+    "sheet": "$sh.data.sheet.id",
+    "position": [
+     9000,
+     -5
+    ],
+    "rows": [
+     [
+      "A",
+      "First"
+     ]
+    ],
+    "widths": [
+     10,
+     40
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/position",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_sheet_sketch",
+   "args": {
+    "sheet": "$sh.data.sheet.id",
+    "curves": [
+     {
+      "type": "circle",
+      "center": [
+       900,
+       -50
+      ],
+      "radius": 5
+     }
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/curves/0",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_note",
+   "save": "near",
+   "args": {
+    "text": [
+     "EDGE NOTE"
+    ],
+    "origin": [
+     400,
+     20
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "warnings": {
+     "count": 1
+    },
+    "warnings.0.message": {
+     "matches": "past the edge"
+    }
+   },
+   "intent": "Acceptance: a note whose origin is on the sheet but whose text runs past the edge is committed with a warning"
+  },
+  {
+   "call": "nx_edit_annotation",
+   "args": {
+    "annotation": "$near.data.annotation.id",
+    "position": [
+     9000,
+     -50
+    ]
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/position",
+    "mutation_outcome": "not_started"
+   }
+  }
+ ]
+}

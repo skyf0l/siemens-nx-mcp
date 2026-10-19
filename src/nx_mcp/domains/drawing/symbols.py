@@ -294,6 +294,7 @@ def nx_create_sheet_symbol(
         args.distinct("/objects", objects, "objects")
     with tx.checks():
         target, shown = _sheet(tx, view, sheet)
+        drawing.check_on_sheet(target, origin, "/origin")
         picked = []
         for i, ref in enumerate(objects or []):
             kinds = ("edge",) if symbol in ("target_point", "intersection") else ("edge", "face")

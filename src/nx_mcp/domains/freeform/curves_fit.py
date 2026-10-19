@@ -30,7 +30,7 @@ from typing import Annotated, Literal, TypedDict
 from nx_mcp.core.catalogue import tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.tx import Tx
-from nx_mcp.core.types import Doc, Items, Length, PathTo, Point3, Range, RefTo
+from nx_mcp.core.types import Doc, Items, Length, PathTo, Point3, Range, RefTo, Vec3
 from nx_mcp.domains.freeform import curves_common as cc
 from nx_mcp.kit import args, builders, curve, files, geom, measure, readback, result, select, units
 
@@ -83,6 +83,8 @@ class FitShapeData(FitData, total=False):
     center: Point3  # circle, ellipse
     major_radius: float  # ellipse
     minor_radius: float  # ellipse
+    normal: Vec3  # circle, ellipse: unit normal of the curve's plane
+    major_axis: Vec3  # ellipse: unit direction of the major axis
     imported: int  # path: points created from the file
 
 
@@ -292,6 +294,21 @@ def _backwards(tx, fitted, coords) -> bool:
     )
 
 
+def _frame(fitted, rotation=0.0):
+    """``(axis, normal)`` of an arc or ellipse: its matrix X axis turned ``rotation``
+    radians toward Y, and Z (NX 2406: an ellipse's major axis is cos r X + sin r Y);
+    None when NX gives no matrix."""
+    try:
+        m = fitted.Matrix.Element
+        x, y = [m.Xx, m.Xy, m.Xz], [m.Yx, m.Yy, m.Yz]
+        normal = [float(m.Zx), float(m.Zy), float(m.Zz)]
+    except AttributeError:
+        return None
+    c, s = math.cos(rotation), math.sin(rotation)
+    axis = [float(c * a + s * b) for a, b in zip(x, y, strict=True)]
+    return cc.clean(axis), cc.clean(normal)
+
+
 def _shape_facts(tx, shape, fitted, degree, closed) -> dict:
     if shape == "spline":
         readback.expect(hasattr(fitted, "Get3DPoles"), "shape", "NX built no spline")
@@ -302,14 +319,18 @@ def _shape_facts(tx, shape, fitted, degree, closed) -> dict:
         return {"degree": got, "poles": len(fitted.Get3DPoles())}
     if shape == "circle":
         readback.expect(hasattr(fitted, "Radius"), "shape", "NX built no circle or arc")
-        return {"radius": float(fitted.Radius), "center": cc.clean(geom.xyz(fitted.CenterPoint))}
+        out = {"radius": float(fitted.Radius), "center": cc.clean(geom.xyz(fitted.CenterPoint))}
+        frame = _frame(fitted)
+        return out if frame is None else {**out, "normal": frame[1]}
     if shape == "ellipse":
         readback.expect(hasattr(fitted, "MajorRadius"), "shape", "NX built no ellipse")
-        return {
+        out = {
             "major_radius": float(fitted.MajorRadius),
             "minor_radius": float(fitted.MinorRadius),
             "center": cc.clean(geom.xyz(fitted.CenterPoint)),
         }
+        frame = _frame(fitted, float(getattr(fitted, "RotationAngle", 0.0)))
+        return out if frame is None else {**out, "major_axis": frame[0], "normal": frame[1]}
     readback.expect(
         not any(hasattr(fitted, n) for n in ("Radius", "MajorRadius", "Get3DPoles")),
         "shape",
@@ -358,10 +379,10 @@ def nx_create_fit_curve(
 ) -> FitShapeData:
     """Create an associative least-squares curve fitted through points. Give point refs, or
     a workspace x y z file whose points are created first (as nx_import_points). spline:
-    degree, and segments or a tolerance (default 0.01 mm); line; circle (radius, center);
-    ellipse. An open spline runs from the first point to the last. Returns max_deviation and
-    mean_deviation, the measured point-to-curve distances. For a curve exactly through few
-    points use nx_create_spline."""
+    degree, and segments or a tolerance (default 0.01 mm; missing it warns); line; circle
+    (radius, center, normal); ellipse (radii, center, major_axis, normal). An open spline
+    runs from the first point to the last. Returns max/mean_deviation (points to curve).
+    Exactly through few points: nx_create_spline."""
     source = args.exactly_one(points=points, path=path)
     rows = read_rows(path) if source == "path" else None
     count = len(rows) if rows is not None else len(points or [])
@@ -423,4 +444,23 @@ def nx_create_fit_curve(
     }
     if rows is not None:
         out["imported"] = len(targets)
+    _warn_loose(tx, shape, out["max_deviation"], segments, tolerance)
     return out
+
+
+def _warn_loose(tx, shape, worst, segments, tolerance) -> None:
+    """``NX_APPROXIMATED`` when a spline misses a point by more than its tolerance (with
+    fixed segments: the default 0.01 mm); line, circle and ellipse are best fits whose
+    deviation is the data's."""
+    if shape != "spline":
+        return
+    limit = units.part_tolerance(tx, DEFAULT_TOLERANCE_MM) if segments else float(tolerance)
+    if worst <= limit + units.part_tolerance(tx):
+        return
+    cure = (
+        f"add segments (now {segments}) or fit by tolerance"
+        if segments
+        else "NX could not meet the tolerance: check the points' order and spacing"
+    )
+    tx.warn("NX_APPROXIMATED", f"The fitted spline misses a point by {worst:.4g} (more than "
+            f"{limit:.4g}): {cure}")  # fmt: skip

@@ -183,6 +183,8 @@ KINDS = frozenset(
         "sketch_constraint",
         "section_view",
         "modeling_view",
+        "analysis",  # a display surface analysis object (nx_create_surface_analysis)
+        "facet_body",  # a faceted (mesh) body, e.g. an imported STL (NXOpen.Facet.FacetedBody)
     }
 )
 KIND_GROUPS = {"datum": frozenset({"datum_plane", "datum_axis", "datum_csys", "datum_point"})}
@@ -708,6 +710,12 @@ def quantity_formula(value, dim: str) -> str | None:
         return None
     text = value.strip()
     if _UNIT_LIKE.match(value) or text.casefold() in UNIT_WORDS or dim not in FORMULA_DIMS:
+        other = next(
+            (d for d, p in QUANTITY_PATTERNS.items() if d != dim and re.match(p, value)), None
+        )
+        if other is not None and other != "sheet_length" and _UNIT_LIKE.match(value):
+            noun = {"length": "a length", "angle": "an angle", "mass": "a mass"}[other]
+            raise ValueError(f"{_expected(dim)}; {text!r} is {noun}")
         raise ValueError(_expected(dim))
     problem = formula_problem(text)
     if problem is not None:
@@ -764,7 +772,11 @@ def convert_quantity(value, dim: str, to: str, evaluate=None, field: str | None 
     formula = quantity_formula(value, dim) if isinstance(value, str) else None
     if formula is not None:
         if evaluate is None:
-            raise ValueError("an NX expression formula needs NX to evaluate it")
+            example = _EXAMPLES.get(dim)
+            raise ValueError(
+                f"{formula!r} is not a number, and this field takes no NX expression names "
+                "or formulas: give a number" + (f" or a string like {example}" if example else "")
+            )
         number = float(evaluate(formula, dim, to, field=field))
         if dim == "count":
             if not number.is_integer():

@@ -135,9 +135,10 @@ def nx_check_drawing_changes(
     ],
 ) -> CompareData:
     """Compare the work part's drawing sheets with an earlier revision saved on disk. NX's
-    drawing compare reports counts of changed, added and deleted drafting objects (sheets,
-    views, dimensions, notes, symbols, tables) and report lines. Read only: no change
-    symbols or report are stored. Additions are objects only in the work part."""
+    drawing compare reports counts of changed, added and deleted drafting objects by type
+    (by_type: the types NX compared; tables added as title blocks may not be counted) and
+    its report lines, no per-object values. Read only: nothing is stored. Additions are
+    objects only in the work part."""
     with tx.checks():
         part = tx.part
         if parts.same_file(str(getattr(part, "FullPath", "") or ""), against):

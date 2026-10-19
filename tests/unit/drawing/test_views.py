@@ -173,10 +173,14 @@ def test_a_view_type_names_everything_it_still_needs_at_once():
         return [e["field"] for e in result.error["details"].get("errors", [result.error])]
 
     bad = run(nx, "nx_create_drawing_view", type="section", parent=parent.ref)
-    assert missing(bad) == ["/cut"]  # gate 1: the variant's own fields (required_by)
+    assert missing(bad) == ["/cut", "/arrow_direction", "/position"]  # gate 1 (required_by)
     edge = line_edge(nx, (0, 0, 20), (80, 0, 20))
     rest = run(nx, "nx_create_drawing_view", type="section", parent=parent.ref, cut=edge.ref)
-    assert rest.error["field"] == "/arrow_direction" and "position" in rest.error["message"]
+    assert missing(rest) == ["/arrow_direction", "/position"]
+    assert "Add arrow_direction, position" in rest.error["hint"]
+    orphan = run(nx, "nx_create_drawing_view", type="section", cut=edge.ref,
+                 arrow_direction=[0, 1], position=[300, 100])  # fmt: skip
+    assert orphan.error["field"] == "/parent", orphan  # the tool: fields past required_by
     stepped = run(nx, "nx_create_drawing_view", type="stepped_section", parent=parent.ref,
                   arrow_direction=[0, 1], position=[300, 100])  # fmt: skip
     assert missing(stepped) == ["/cuts"]
@@ -356,8 +360,8 @@ def test_each_view_type_schema_requires_its_own_fields():
 
     spec = catalogue.get("nx_create_drawing_view")
     needs = {
-        "section": {"cut"},  # parent, arrow_direction, position: refused by the tool
-        "half_section": {"cut"},
+        "section": {"cut", "arrow_direction", "position"},  # parent: refused by the tool
+        "half_section": {"cut", "arrow_direction", "position"},
         "revolved_section": {"cuts"},
         "detail": {"center"},
         "auxiliary": {"hinge"},

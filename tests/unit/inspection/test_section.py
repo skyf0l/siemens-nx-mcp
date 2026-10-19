@@ -171,3 +171,16 @@ def test_an_empty_cut_says_where_the_bodies_are():
     assert "the plane is at z = 99" in message and "z 0 to 10" in message, message
     general = run(nx, "nx_measure_section", origin=[0, 0, 50], normal=[0, 0, 1])
     assert "-50 to -40 from the plane" in general.warnings[0]["message"]
+
+
+def test_a_plane_on_a_planar_face_is_named_in_a_note():
+    nx = inspection_nx()
+    body = nx.block(40, 20, 10)
+    p = [(0.0, 0.0, 10.0), (40.0, 0.0, 10.0), (40.0, 20.0, 10.0), (0.0, 20.0, 10.0)]
+    nx.section_cuts[int(body.Tag)] = [("line", list(p[i]), list(p[(i + 1) % 4])) for i in range(4)]
+    top = run(nx, "nx_measure_section", plane="xy", offset=10)
+    assert top.ok and top.data["area"] == pytest.approx(800), top
+    notes = [w["message"] for w in top.warnings if "lies on planar face" in w["message"]]
+    assert len(notes) == 1 and body.face((0, 0, 1)).ref in notes[0]
+    inside = run(nx, "nx_measure_section", plane="xy", offset=5)
+    assert not any("lies on planar face" in w["message"] for w in inside.warnings)

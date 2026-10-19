@@ -26,7 +26,7 @@ import math
 import re
 from typing import Annotated, Literal, TypedDict
 
-from nx_mcp.core.catalogue import tool
+from nx_mcp.core.catalogue import restorer, tool
 from nx_mcp.core.errors import NXError, fail
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import (
@@ -48,6 +48,7 @@ from nx_mcp.domains.drawing.common import (
     edge_facts,
     geometry,
     kind_of_geometry,
+    on_sheet_point,
     report_bounds,
     true_shape,
     uf_types,
@@ -369,6 +370,10 @@ def nx_create_drawing_dimension(
                 fail("NX_INVALID_ARGUMENT", "Give the view as a ref (v:N) with margin: the "
                      "named view is on a sheet in other units", field="/view")  # fmt: skip
         view = shown
+    with tx.checks():
+        drawn, drawn_on = view_of(tx, view)
+        on_sheet_point(drawn_on, origin, "/origin")  # the sheet-bounds gate
+    drawing.freshen(tx, [drawn])  # a view that lags the model shows old edges
     if kind == "hole_callout":
         if (hole is None) == (first is None):
             both = hole is not None
@@ -768,7 +773,7 @@ def dimension_info(tx, d):
         fmt.Dispose()
         prefs.Dispose()
     with contextlib.suppress(Exception):  # the text NX shows (its decimal separator)
-        out["text"] = " ".join(str(t) for t in d.GetDimensionText()[0])
+        out["text"] = dimension_text.plain(" ".join(str(t) for t in d.GetDimensionText()[0]))
     with contextlib.suppress(Exception):  # a dimension without appended text support
         out["appended"] = dimension_text.read_appended(d)
     shown = dimension_text.display_text(out)
@@ -1071,9 +1076,9 @@ def nx_edit_dimension(
     appended: Annotated[dimension_text.Appended, Doc(dimension_text.APPENDED_DOC)] | None = None,
 ) -> DimensionInfo:
     """Change a dimension's format, tolerance or appended text (REF, 2X). Or rebind a
-    linear one (1-2 edges). upper/lower: signed numbers in part units, upper > lower;
-    symmetric: upper (+/-). Fit: ISO 286 hole and/or shaft class on a size shown in mm (to
-    500 mm, not an angle); NX computes the deviations (no upper/lower)."""
+    linear one (edges). upper/lower: signed, part units, upper > lower; symmetric: upper
+    (+/-); tolerance decimals default to the format's. Fit: ISO 286 hole and/or shaft class
+    on a size shown in mm (to 500 mm); NX computes the deviations."""
     if not format and not tolerance and not edges and not appended:
         fail("NX_INVALID_ARGUMENT", "Give format, tolerance, appended or edges")
     fit = bool(tolerance and tolerance.get("type") == "fit")
@@ -1095,6 +1100,9 @@ def nx_edit_dimension(
         d = select.resolve(tx, dimension, "dimension", field="/dimension", work_part=True)
         if tolerance and not fit:
             tolerance = _deviations(tx, d, tolerance)
+        tolerance = _tolerance_decimals(tx, d, format or {}, tolerance)
+        recorded = not fit and first is None and not _fitted(tx, d)
+        old = _restorable(tx, d) if recorded else None
         asked = format or {}
         if (
             asked.get("decimal_separator") == "comma"
@@ -1176,7 +1184,93 @@ def nx_edit_dimension(
                 readback.expect_close(out["tolerance"][key], tolerance[key], "tolerance", 1e-9)
         if fit:
             _check_fit(tx, out["tolerance"], tolerance, expected)
+    tx.modified(d, "dimension")
+    if old is not None:
+        tx.note_restore({"dimension": dimension, "before": old, "after": _restorable(tx, d)})
     return out
+
+
+DEVIATION_TYPES = ("bilateral", "symmetric", "limits")
+
+
+def decimals_of(value) -> int:
+    """The decimal places a number needs (up to 8): 0.05 -> 2, 0.1 -> 1, 2 -> 0."""
+    text = f"{abs(float(value)):.8f}".rstrip("0")
+    return len(text.split(".")[1]) if "." in text else 0
+
+
+def _tolerance_decimals(tx, d, fmt, tol):
+    """``tol`` with tolerance decimals defaulted when not given: the format's decimals
+    (the edit's or the dimension's), more when a deviation needs them, for a tolerance
+    that shows deviations and an edit of its deviations or of the format's decimals."""
+    tol = dict(tol or {})
+    if "decimals" in tol or not (tol or "decimals" in fmt):
+        return tol or None
+    held = _enum(d.ToleranceType, tx.nx.Annotations.ToleranceType, TOLERANCES)
+    kind = tol.get("type") or held
+    if kind not in DEVIATION_TYPES or not ({"upper", "lower", "type"} & set(tol) or
+                                           "decimals" in fmt):  # fmt: skip
+        return tol or None
+    upper, lower = _held(tx, d)
+    deviations = [tol.get("upper", upper), tol.get("lower", lower)]
+    nominal = int(fmt.get("decimals", int(d.NominalDecimalPlaces)))
+    tol["decimals"] = min(8, max(nominal, *(decimals_of(v) for v in deviations)))
+    return tol
+
+
+def _fitted(tx, d) -> bool:
+    return _enum(d.ToleranceType, tx.nx.Annotations.ToleranceType, TOLERANCES) == "fit"
+
+
+def _restorable(tx, d) -> dict:
+    """A dimension's format, tolerance and appended text (an undo's before-values)."""
+    info = dimension_info(tx, d)
+    tol = {k: info["tolerance"][k] for k in ("type", "upper", "lower", "decimals")
+           if k in info["tolerance"]}  # fmt: skip
+    appended = info.get("appended") or {}
+    return {
+        "format": dict(info["format"]),
+        "tolerance": tol,
+        "appended": {side: " ".join(appended.get(side, [])) for side in ("before", "after")},
+    }
+
+
+def _same_values(now, want) -> bool:
+    for group in ("format", "tolerance", "appended"):
+        a, b = now.get(group) or {}, want.get(group) or {}
+        for key, value in b.items():
+            got = a.get(key)
+            if isinstance(value, float) and isinstance(got, (int, float)):
+                if abs(got - value) > 1e-9 * max(1.0, abs(value)):
+                    return False
+            elif got != value:
+                return False
+    return True
+
+
+@restorer("nx_edit_dimension")
+def _restore_dimension(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Set back the format, tolerance and appended text an ``nx_edit_dimension`` changed
+    (edits that rebound edges or set a fit keep no before-values): refused when the
+    dimension changed since."""
+    ref, before, after = data["dimension"], data["before"], data["after"]
+    d = select.resolve(tx, ref, "dimension", field="/dimension", work_part=True)
+    now = _restorable(tx, d)
+    if not _same_values(now, after):
+        fail("NX_DEPENDENCY_ORDER", f"Dimension {ref} was edited since", details={
+             "dimension": ref, "now": now, "operation_left": after})  # fmt: skip
+    if apply:
+        origin = _origin(d)
+        _set_format(tx, d, before["format"])
+        _set_tolerance(tx, d, before["tolerance"])
+        dimension_text.write_appended(d, before["appended"])
+        if origin is not None:
+            _keep_origin(tx, d, origin)
+        d.RedisplayObject()
+        back = _restorable(tx, d)
+        readback.expect(_same_values(back, before), "restore",
+                        f"Dimension {ref} reads {back}, not {before}")  # fmt: skip
+    return f"the format, tolerance and appended text of dimension {ref} set back"
 
 
 def _check_fit(tx, got, wanted, expected):

@@ -78,21 +78,10 @@ def view_of(tx, value, field="/view"):
     return drawing.view(tx, value, field)
 
 
-def on_sheet_point(sheet, position, field="/position"):
-    """Refuse a sheet point off the sheet before NX (a view placed there fails after the
-    commit with "The view is not located on the drawing"); None passes."""
-    if position is None:
-        return
-    size = drawing.size(sheet)
-    if not all(0 <= float(position[i]) <= size[i] for i in (0, 1)):
-        fail(
-            "NX_INVALID_ARGUMENT",
-            f"{field.strip('/')} {[float(v) for v in position]} is off the "
-            f"{size[0]:g} x {size[1]:g} sheet",
-            field=field,
-            hint="Give a sheet point from [0, 0] to the sheet size (sheet units)",
-            details={"sheet_size": size},
-        )
+def on_sheet_point(sheet, position, field="/position", what=None):
+    """Refuse a sheet point off the sheet before NX (the sheet-bounds gate,
+    ``kit.drawing.check_on_sheet``); None passes."""
+    drawing.check_on_sheet(sheet, position, field, what)
 
 
 def open_or_only_sheet(tx, field="/sheet"):
@@ -165,9 +154,13 @@ def edge_facts(tx, edge, field, want=None):
     """Curve facts of a dimensioned edge; ``want`` = "line"/"arc" refuses others."""
     found = facts.edge(tx, edge)
     if want == "arc" and found["kind"] != "arc":
-        fail("NX_WRONG_GEOMETRY", "Select a circular edge or arc", field=field)
+        fail("NX_WRONG_GEOMETRY", f"Select a circular edge or arc; this edge is a "
+             f"{found['kind']}", field=field, details={"edge_type": found["kind"]},
+             hint="nx_list_view_edges with geometry_type circle lists the view's circles")  # fmt: skip
     if want == "line" and found["kind"] != "line":
-        fail("NX_WRONG_GEOMETRY", "Select a straight edge", field=field)
+        fail("NX_WRONG_GEOMETRY", f"Select a straight edge; this edge is a {found['kind']}",
+             field=field, details={"edge_type": found["kind"]},
+             hint="nx_list_view_edges with geometry_type line lists the view's lines")  # fmt: skip
     return found
 
 
@@ -257,15 +250,25 @@ def add_leader(tx, leader_builder, obj, view):
     return drawing.to_sheet(tx, view, model)
 
 
+EDGE_ON_TOL = 1e-6  # |normal . view direction| of a plane seen edge-on
+UNSEEN = {
+    "hidden": "behind material",
+    "end-on": "seen end-on, as a point",
+    "edge-on": "seen edge-on, as a line: the leader lands on that line",
+}
+
+
 def warn_unseen(tx, obj, view):
-    """Warn when a leader's edge or face is hidden in ``view`` (behind material) or seen
-    as a point (a straight edge along the view direction): the leader then points at
-    nothing the reader sees."""
+    """Warn when a leader's edge or face is hidden in ``view`` (behind material), a planar
+    face is seen edge-on (as a line: a ray along it would graze the body and read as
+    hidden) or a straight edge is seen end-on (as a point): the leader then points at
+    nothing the reader sees as that object."""
     what = kind_of_geometry(obj)
     if type(view).__name__ == "SectionView":  # its cut removed what a ray would meet
         return
     try:
-        state = drawing.seen(tx, view, obj)
+        state = _edge_on_face(tx, obj, view) if what == "face" else None
+        state = state or drawing.seen(tx, view, obj)
         if what == "edge" and state != "hidden":
             found = facts.edge(tx, obj)
             if found["kind"] == "line":
@@ -274,10 +277,19 @@ def warn_unseen(tx, obj, view):
                     state = "end-on"
     except Exception:  # an object NX cannot evaluate: no warning
         return
-    if state in ("hidden", "end-on"):
-        why = "behind material" if state == "hidden" else "seen end-on, as a point"
-        tx.warn("NX_UPDATE_WARNING", f"The leader's {what} is {why} in view {view.Name}: "
-                "pick an edge or face nx_list_view_edges lists for that view, or another view")  # fmt: skip
+    if state in UNSEEN:
+        tx.warn("NX_UPDATE_WARNING", f"The leader's {what} is {UNSEEN[state]} in view "
+                f"{view.Name}: pick an edge or face nx_list_view_edges lists for that view, or "
+                "a view that shows the face")  # fmt: skip
+
+
+def _edge_on_face(tx, face, view):
+    """``"edge-on"`` for a planar face whose plane contains the view direction, else None."""
+    code, _point, normal = select.face_data(tx, face)
+    if code != select.FACE_PLANE:
+        return None
+    toward = drawing.axes(view, tx)[2]
+    return "edge-on" if abs(geom.dot(geom.unit(normal), toward)) <= EDGE_ON_TOL else None
 
 
 def _part_mm(tx):
@@ -432,12 +444,10 @@ def report_bounds(tx, out, obj, sh, what="annotation", on_views=False):
     if bounds is None:
         return out
     out["bounds"] = bounds
-    views, off = drawing.crowding(tx, sh.sheet, text or bounds)
+    views, _off = drawing.crowding(tx, sh.sheet, text or bounds)
     if views and not on_views:
         names = ", ".join(str(r.get("name") or r.get("id")) for r in views[:5])
         tx.warn("NX_VIEW_OVERLAP", f"The {what} lies over view {names}: move it with "
                 "nx_edit_annotation position (see bounds and the views' bounds)")  # fmt: skip
-    if off:
-        tx.warn("NX_VIEW_OVERLAP", f"The {what} runs off the sheet (bounds {bounds}): move "
-                "it with nx_edit_annotation position")  # fmt: skip
+    drawing.warn_off_sheet(tx, what, text or bounds, sh.sheet)
     return out

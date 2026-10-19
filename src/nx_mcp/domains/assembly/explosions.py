@@ -15,7 +15,7 @@ from __future__ import annotations
 import contextlib
 from typing import Annotated, Any, TypedDict
 
-from nx_mcp.core.catalogue import tool
+from nx_mcp.core.catalogue import restorer, tool
 from nx_mcp.core.errors import fail, native
 from nx_mcp.core.target import file_name
 from nx_mcp.core.tx import Tx
@@ -71,6 +71,8 @@ forbid_extra(Placement)
 Display = Annotated[bool, Doc("Show it in the work view; false keeps the view as it is")]
 # Components listed in a create result (nx_get_explosion pages them all).
 LISTED = 50
+# Largest exploded offset or translation, part units (a typo like 1e12 is refused).
+REACH = 1e6
 
 
 class _ExplosionRequired(TypedDict):
@@ -95,10 +97,19 @@ def _targets(placements) -> list:
                  "Give exactly one of offset (move from the unexploded pose) or pose (absolute)",
                  field=field, hint='e.g. {"component": "o:4", "offset": [0, 0, 40]}')  # fmt: skip
         if "offset" in p:
+            _within(p["offset"], field + "/offset")
             out.append(exploded.shifted(p["offset"]))
         else:
-            out.append(kpose.as_pose(p["pose"], field + "/pose"))
+            pose = kpose.as_pose(p["pose"], field + "/pose")
+            _within(pose[0], field + "/pose/translation")
+            out.append(pose)
     return out
+
+
+def _within(values, field) -> None:
+    if any(abs(float(v)) > REACH for v in values):
+        fail("NX_INVALID_ARGUMENT", f"An exploded position is at most {REACH:g} part units "
+             "from the origin", field=field, hint="Give the offset in part units, e.g. [0, 0, 40]")  # fmt: skip
 
 
 def _pick(tx, entries, seen, ref, field) -> int:
@@ -287,8 +298,8 @@ def nx_edit_explosion(
     display: Display = True,
 ) -> EditExplosionData:
     """Move components in an explosion by an offset or to an absolute pose, or reset them,
-    and show it in the work view. Assembled poses never change; traces and drawing views
-    follow."""
+    and show it in the work view. An offset is from the unexploded pose (not cumulative).
+    Assembled poses never change; traces and drawing views follow."""
     placements = placements or []
     resets = reset_components or []
     if not placements and not resets:
@@ -304,7 +315,21 @@ def nx_edit_explosion(
                       for i, r in enumerate(resets)]  # fmt: skip
         tags = [_pick(tx, entries, seen, p["component"], f"/placements/{i}/component")
                 for i, p in enumerate(placements)]  # fmt: skip
+    poses = {t: (e[0], e[1]) for t, e in entries.items() if t in set(tags) | set(reset_tags)}
+    before = {t: list(exploded.exploded_pose(child)) for t, (child, _c) in poses.items()}
     after, moved, views = _explode(tx, ex, tags, targets, reset_tags)
+    if not moved:
+        tx.warn("NX_NO_EFFECT", "Every listed component already sat at that exploded pose: "
+                "nothing moved (an offset is from the unexploded pose, not cumulative)")  # fmt: skip
+    else:
+        tx.note_restore({
+            "explosion": explosion,
+            "components": [
+                {"component": tx.ref(c, "component")["id"], "before": before[t],
+                 "after": [after[t]["translation"], after[t]["rotation"]]}
+                for t, (_child, c) in poses.items()
+            ],
+        })  # fmt: skip
     if display:
         show_in_work_view(tx, part, ex)
     return {
@@ -353,6 +378,7 @@ def _default(tx):
 
 class GetExplosionData(TypedDict):
     explosion: result.Row
+    shown: bool  # in the part's model work view
     components: list[ExplodedRow]
     views: list[result.Row]
     model_views: list[result.Row]  # every modeling view of the part (model_view refs)
@@ -392,8 +418,10 @@ def nx_get_explosion(
         ex = common.explosion(tx, explosion) if explosion is not None else _default(tx)
     selected, page = result.page(list(exploded.tree(ex).values()), offset, limit)
     part = tx.part
+    shown = _work_view_explosion(tx, [ex])
     return {
         "explosion": tx.ref(ex, "explosion"),
+        "shown": shown is not None,
         "components": [exploded.entry_row(tx, e) for e in selected],
         "views": exploded.views(tx, part, ex),
         "model_views": [tx.ref(v, "modeling_view") for v in exploded.modeling_views(part)],
@@ -423,7 +451,7 @@ def _display_summary(a, say):
 @tool(
     switch="display",
     effect="model",
-    label="Show explosion",
+    label="Show or hide explosion",
     summary=_display_summary,
     keywords=("show exploded", "unexplode view", "assembled view", "explosion display"),
     requires=("work_part", "no_active_sketch", "assembly"),
@@ -484,3 +512,30 @@ def nx_set_explosion_display(
     if ex is not None:
         out["explosion"] = tx.ref(ex, "explosion")
     return out
+
+
+@restorer("nx_edit_explosion")
+def _restore_explosion(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Put the components nx_edit_explosion placed or reset back at their previous
+    exploded poses (the compensating undo): refused when one moved in the explosion since."""
+    ex = common.explosion(tx, data["explosion"])
+    entries = exploded.tree(ex)
+    placements = []
+    for row in data["components"]:
+        c = select.resolve(tx, row["component"], "component", field="/components")
+        entry = entries.get(int(c.Tag))
+        wanted = (row["after"][0], row["after"][1])
+        tol = 1e-6 * max(1.0, *map(abs, wanted[0]))
+        if entry is None or not kpose.close(exploded.exploded_pose(entry[0]), wanted, tol):
+            fail("NX_DEPENDENCY_ORDER", f"{row['component']} moved in the explosion since the "
+                 "operation", details={"component": row["component"]})  # fmt: skip
+        placements.append((int(c.Tag), (row["before"][0], row["before"][1])))
+    if apply:
+        exploded.apply(tx, ex, placements)
+        now = exploded.tree(ex)
+        for i, (tag, pose) in enumerate(placements):
+            structure.expect_pose(exploded.exploded_pose(now[tag][0]), pose, f"previous[{i}]")
+        exploded.refresh_traces(tx, ex)
+        exploded.regenerate(tx)
+        drawing.refresh(tx, exploded.drawing_views(tx, tx.part, ex))
+    return f"{len(placements)} component(s) of {data['explosion']} back to their previous poses"

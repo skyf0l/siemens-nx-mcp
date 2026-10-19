@@ -401,9 +401,9 @@ def nx_check_model(
     limit: PageLimit = 20,
 ) -> HealthData:
     """Check feature errors/warnings, suppression, unloaded components, unsolved constraints
-    and bodies. Bodies: consistency, self-overlap, sealed voids (info: fine if intended).
-    healthy: no errors/warnings in what was examined; complete false: some solids were
-    skipped, not a clean bill. features_checked: navigator features. No update."""
+    and bodies. Bodies: consistency, self-overlap (pairs: nx_check_interference), sealed
+    voids (info: fine if intended). healthy: no errors/warnings in what was checked;
+    complete false: solids skipped. features_checked: navigator features. No update."""
     left: dict = {}
     issues, counts = diagnose(tx, scope, clash="all" if clash else "auto", skipped=left)
     selected, page = result.page(issues, offset, limit)

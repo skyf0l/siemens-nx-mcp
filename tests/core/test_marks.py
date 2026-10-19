@@ -64,13 +64,17 @@ def test_dropped_marks_get_the_reason_the_call_shows():
         ("load", "part_loaded"),
         ("display", "display_reset"),
         ("save", "saved_or_closed"),
+        ("drop", "marks_dropped"),  # neither a save nor a close: NX's own doing
     ):
         s = Marks()
         s.entry(1)
         s.undo_checkpoints()["cp"] = {"mark": 2, "index": 1}
         s.live.add(2)
+        s.loaded[0].IsModified = True
         seen = marks.watch(s)
         s.live.clear()
+        if change == "save":
+            s.loaded[0].IsModified = False  # a save clears the modified flag
         if change == "close":
             s.loaded.clear()
         elif change == "load":
@@ -80,7 +84,22 @@ def test_dropped_marks_get_the_reason_the_call_shows():
         marks.settle(s, seen, spec("session"), "op", tx(s))
         assert s.undo_history()[0]["expired"] == reason, change
         assert s.undo_checkpoints()["cp"]["expired"] == reason, change
+        assert s.undo_history()[0]["expired_tool"] == "nx_tool", change
         assert bool(s.warned) == (reason != "saved_or_closed"), change
+    assert "nx_tool, which saved and closed nothing" in s.warned[0][1]
+
+
+def test_a_mark_drop_that_saved_nothing_is_never_the_parts_own_cut():
+    entry = {"expired": "marks_dropped", "expired_by": "part_1", "part_id": "part_1"}
+    assert not marks.own_cut(entry, "part_1") and marks.foreign_cut(entry, "part_1")
+    saved = {"expired": "saved_or_closed", "expired_by": "part_1"}
+    assert marks.own_cut(saved, "part_1") and not marks.foreign_cut(saved, "part_1")
+    s = Marks()
+    s.entry(1)
+    seen = marks.watch(s)
+    s.live.clear()
+    marks.settle(s, seen, spec("file", "nx_save_part"), "op", tx(s))  # a save tool
+    assert s.undo_history()[0]["expired"] == "saved_or_closed"
 
 
 def test_an_undo_removing_the_newest_entries_is_no_drop_and_eviction_is_noted():

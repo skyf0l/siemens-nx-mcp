@@ -220,6 +220,62 @@
    }
   },
   {
+   "call": "nx_create_spline",
+   "setup": true,
+   "save": "far",
+   "args": {
+    "points": [
+     [
+      10,
+      200,
+      50
+     ],
+     [
+      90,
+      200,
+      50
+     ]
+    ],
+    "degree": 1
+   }
+  },
+  {
+   "call": "nx_create_projected_curve",
+   "intent": "A line beside the block projected along -z misses it: refused before NX",
+   "args": {
+    "curves": [
+     "$far.data.curve.id"
+    ],
+    "faces": [
+     "$top.data.items.0.id"
+    ],
+    "along": "vector",
+    "direction": "-z"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/direction",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
+   "call": "nx_create_projected_curve",
+   "intent": "A direction parallel to the target plane projects nothing: refused before NX",
+   "args": {
+    "curves": [
+     "$ln.data.curve.id"
+    ],
+    "plane": "xy",
+    "along": "vector",
+    "direction": "x"
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/direction",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
    "call": "nx_check_model",
    "args": {},
    "expect": {

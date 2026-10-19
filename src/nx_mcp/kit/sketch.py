@@ -197,18 +197,27 @@ def park(tx, sk) -> None:
         parking.park(services, getattr(sk, "OwningPart", None) or tx.part, sk)
 
 
+def blocks_reading(tx, sk) -> bool:
+    """Whether another sketch NX has active keeps ``sk`` from being activated for a read.
+    A parked sketch is deactivated in NX: a read activates ``sk`` beside it under a
+    scratch mark, and the parked sketch stays open (``editing(..., read=True)``)."""
+    active = tx.session.ActiveSketch
+    return active is not None and not same(active, sk)
+
+
 @contextlib.contextmanager
-def editing(tx, ref, field="/sketch"):
+def editing(tx, ref, field="/sketch", *, read=False):
     """Activate a sketch for editing and restore the previous state afterwards.
 
-    A different open sketch of the part (active, or parked) is ``NX_SKETCH_ACTIVE``. A
-    sketch that was already active stays active; one activated here (a parked one too)
+    A different open sketch of the part (active, or parked) is ``NX_SKETCH_ACTIVE``;
+    ``read`` (a read under ``tx.scratch``) refuses only a different sketch NX has active.
+    A sketch that was already active stays active; one activated here (a parked one too)
     is deactivated with a model update level, even when the block fails.
     """
     sk = resolve(tx, ref, field)
     session, nx = tx.session, tx.nx
     active = session.ActiveSketch
-    other = active if active is not None else _parked(tx)
+    other = active if active is not None or read else _parked(tx)
     if other is not None and not same(other, sk):
         fail(
             "NX_SKETCH_ACTIVE",
@@ -506,12 +515,15 @@ def read(tx, f, curve):
     return row
 
 
-def loops(rows):
+def loops(rows, keep=None):
     """Chains of connected curves from read rows (``start``/``end``, ``closed``), in row
     order: ``[{"closed": bool, "curves": n}]`` plus ``open_ends`` for an open chain and
-    ``branched`` where more than two curve ends meet. Pure; points in any one frame."""
+    ``branched`` where more than two curve ends meet. ``keep``: row indices; only the
+    chains holding one of them. Pure; points in any one frame."""
     out = []
     for chain in chains([(r["start"], r["end"]) for r in rows]):
+        if keep is not None and not keep.intersection(chain["curves"]):
+            continue
         loop = {"closed": chain["closed"], "curves": len(chain["curves"])}
         if chain["free_ends"]:
             loop["open_ends"] = len(chain["free_ends"])

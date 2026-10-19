@@ -279,6 +279,7 @@
    },
    "expect": {
     "mutation_outcome": "not_applicable",
+    "data.total.default_density_rows": 0,
     "data.total.mass": {
      "close": 1005.2,
      "tol": 1e-06

@@ -1,0 +1,56 @@
+{
+ "covers": {},
+ "part": null,
+ "fixture": null,
+ "steps": [
+  {"call": "nx_create_part", "setup": true, "save": "p", "args": {"path": "$run/errp/errp_a.prt", "units": "mm"}},
+  {"call": "nx_create_primitive", "save": "blk", "args": {"part": "errp_a", "shape": "block", "length": 40, "width": 20, "height": 10},
+   "intent": "Acceptance: a 40 x 20 x 10 mm block to point errors at",
+   "expect": {"mutation_outcome": "committed"}},
+  {"call": "nx_measure_mass", "args": {"bodies": ["$blk.data.bodies.0.id"]},
+   "intent": "Acceptance: the block is 40 x 20 x 10 mm",
+   "expect": {"data.volume": {"close": 8000, "tol": 1e-06}}},
+  {"call": "nx_find_geometry", "setup": true, "save": "top", "args": {"owner": "$blk.data.bodies.0.id", "kind": "face", "geometry_type": "plane", "order": "highest", "axis": "z", "limit": 1}},
+  {"call": "nx_find_geometry", "setup": true, "save": "bottom", "args": {"owner": "$blk.data.bodies.0.id", "kind": "face", "geometry_type": "plane", "order": "lowest", "axis": "z", "limit": 1}},
+
+  {"call": "nx_measure_distance", "args": {"part": "errp_a", "first": "$top.data.items.0.id", "second": "$bottom.data.items.0.id"},
+   "intent": "Acceptance: a tool with refs takes part too (its schema lists it); faces 10 mm apart",
+   "expect": {"ok": true, "data.distance": {"close": 10, "tol": 1e-06}}},
+
+  {"call": "nx_create_primitive", "args": {"part": "errp_aa", "shape": "block", "length": 4, "width": 2, "height": 1},
+   "intent": "Acceptance: an unknown part lists the closest loaded names, not every loaded part",
+   "expect": {"ok": false, "error.code": "NX_NOT_FOUND", "error.field": "/part",
+              "error.hint": {"matches": "^Use a loaded file name: errp_a\\.prt"},
+              "error.details.loaded_parts.0.file": "errp_a.prt",
+              "mutation_outcome": "not_started"}},
+
+  {"call": "nx_measure_angle", "args": {"first": "$blk.data.bodies.0.id", "second": "$top.data.items.0.id"},
+   "intent": "Acceptance: a single ref of the wrong kind names its argument",
+   "expect": {"ok": false, "error.code": "NX_WRONG_KIND", "error.field": "/first"}},
+
+  {"call": "nx_set_expression", "args": {"part": "errp_a", "name": "1bad", "formula": "5"},
+   "intent": "Acceptance: a refused format says what to send, in one envelope with operation_id",
+   "expect": {"ok": false, "error.code": "NX_INVALID_ARGUMENT", "error.field": "/name",
+              "error.message": {"matches": "letters, digits and '_', starting with a letter or '_' \\(at most 100 characters\\)"},
+              "operation_id": {"matches": "^op_"},
+              "mutation_outcome": "not_started"}},
+
+  {"call": "nx_create_part_family", "args": {"part": "errp_a", "expressions": ["errp_nope"], "members": [{"name": "errp_m1", "values": [1]}]},
+   "intent": "Acceptance: a refusal names the target file, not 'the work part'",
+   "expect": {"ok": false, "error.message": {"matches": "errp_a\\.prt has no expression"}}},
+
+  {"call": "nx_upload_file", "args": {"path": "$run/errp/../errp_evil.txt", "content": "x"},
+   "intent": "Acceptance: a '..' segment is refused even inside the workspace",
+   "expect": {"ok": false, "error.code": "NX_PATH_OUTSIDE_WORKSPACE", "error.field": "/path",
+              "error.message": {"contains": "'..' segments are not accepted"}}},
+
+  {"call": "nx_export_expressions", "args": {"part": "errp_a", "path": "$run/errp/exprs.txt"},
+   "intent": "Acceptance: a wrong suffix hint gives this tool's suffix, not an unrelated tool",
+   "expect": {"ok": false, "error.code": "NX_UNSUPPORTED_FILE_TYPE",
+              "error.hint": {"matches": "exprs\\.exp"}}},
+
+  {"call": "nx_measure_mass", "args": {"bodies": ["$blk.data.bodies.0.id"]},
+   "intent": "Acceptance: the refused calls left the block as it was",
+   "expect": {"data.volume": {"close": 8000, "tol": 1e-06}}}
+ ]
+}

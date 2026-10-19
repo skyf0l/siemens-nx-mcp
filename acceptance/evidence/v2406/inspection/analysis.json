@@ -1,7 +1,7 @@
 {
   "format": 2,
   "scenario": "acceptance/inspection/analysis.json",
-  "scenario_sha256": "728c6ce99fc82f5f9c6e583bf4e7a3b97b5072d688113fea556bfba2197fd769",
+  "scenario_sha256": "dc1b98bc164e5fdee89f89b67f75ec1ef249b698aed1ab0d47c15dff5c970b4b",
   "domain": "inspection",
   "covers": {
     "nx_analyze_faces": [],
@@ -11,13 +11,13 @@
   "nx_version": "v2406",
   "nx_build": "2406.9160",
   "sources": {
-    "nx_analyze_faces": "835eaef784cdb86e843ccad3def20681d868bf45485a5895003c5f878863cd86",
-    "nx_analyze_curve": "835eaef784cdb86e843ccad3def20681d868bf45485a5895003c5f878863cd86",
-    "nx_check_continuity": "835eaef784cdb86e843ccad3def20681d868bf45485a5895003c5f878863cd86"
+    "nx_analyze_faces": "e625f5aeb6c5ee6a73879d7e01013bfae95614be625b5853b49354331d6bdd4c",
+    "nx_analyze_curve": "e625f5aeb6c5ee6a73879d7e01013bfae95614be625b5853b49354331d6bdd4c",
+    "nx_check_continuity": "e625f5aeb6c5ee6a73879d7e01013bfae95614be625b5853b49354331d6bdd4c"
   },
-  "recorded": "2026-10-15T10:45:25Z",
+  "recorded": "2026-10-19T10:53:22Z",
   "passed": true,
-  "checks": 127,
+  "checks": 140,
   "failed_checks": 0,
   "steps": [
     {
@@ -326,7 +326,7 @@
       "call": "nx_check_continuity",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 6
     },
     {
       "index": 45,
@@ -431,35 +431,84 @@
       "call": "nx_analyze_curve",
       "setup": false,
       "passed": true,
-      "checks": 5
+      "checks": 6
     },
     {
       "index": 60,
       "call": "nx_analyze_curve",
       "setup": false,
       "passed": true,
-      "checks": 3
+      "checks": 1
     },
     {
       "index": 61,
-      "call": "nx_analyze_curve",
-      "setup": false,
-      "passed": true,
-      "checks": 5
-    },
-    {
-      "index": 62,
-      "call": "nx_find_geometry",
+      "call": "nx_create_spline",
       "setup": true,
       "passed": true,
       "checks": 0
+    },
+    {
+      "index": 62,
+      "call": "nx_analyze_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 2
     },
     {
       "index": 63,
       "call": "nx_analyze_curve",
       "setup": false,
       "passed": true,
-      "checks": 6
+      "checks": 2
+    },
+    {
+      "index": 64,
+      "call": "nx_analyze_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 65,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 66,
+      "call": "nx_analyze_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 67,
+      "call": "nx_analyze_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 68,
+      "call": "nx_analyze_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 69,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 70,
+      "call": "nx_analyze_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 7
     }
   ]
 }

@@ -160,3 +160,13 @@ def test_bad_arguments_are_refused_before_nx(args, field):
     bad = run(nx, "nx_measure_section_inertia", **args)
     assert bad.error["field"] == field and bad.mutation_outcome == "not_applicable"
     assert nx.planes == []
+
+
+def test_both_cuts_and_no_cut_get_their_own_messages():
+    nx = inspection_nx()
+    nx.block(10, 10, 10)
+    both = run(nx, "nx_measure_section_inertia", plane="xy", normal=[0, 0, 1])
+    assert both.error["field"] == "/normal" and "mutually exclusive" in both.error["message"]
+    none = run(nx, "nx_measure_section_inertia")
+    assert none.error["field"] == "/plane" and none.error["message"].startswith("Give the cut")
+    assert "exclusive" not in none.error["message"]

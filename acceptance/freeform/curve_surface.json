@@ -470,6 +470,70 @@
    }
   },
   {
+   "call": "nx_find_geometry",
+   "setup": true,
+   "save": "top",
+   "args": {
+    "owner": "$cyl.data.bodies.0.id",
+    "kind": "face",
+    "normal": "+z"
+   }
+  },
+  {
+   "call": "nx_create_isoparametric_curves",
+   "intent": "uv 3 on the planar top disc d 40: three lines per family across the disc, the middle ones 40 long, the end ones short chords near the rim",
+   "args": {
+    "face": "$top.data.items.0.id",
+    "direction": "uv",
+    "method": "uniform",
+    "count": 3
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.count": 6,
+    "data.distinct": 6,
+    "data.features": {
+     "count": 2
+    },
+    "data.curves.1.length": {
+     "close": 40,
+     "tol": 0.001
+    },
+    "data.curves.4.length": {
+     "close": 40,
+     "tol": 0.001
+    },
+    "data.curves.0.length": {
+     "close": 6.85,
+     "tol": 1.2
+    },
+    "data.curves.5.length": {
+     "close": 6.85,
+     "tol": 1.2
+    },
+    "data.gap": {
+     "close": 0,
+     "tol": 0.001
+    }
+   }
+  },
+  {
+   "call": "nx_create_isocline_curves",
+   "intent": "A planar face has one draft angle everywhere: refused before NX",
+   "args": {
+    "faces": [
+     "$top.data.items.0.id"
+    ],
+    "direction": "z",
+    "angle": 10
+   },
+   "expect": {
+    "error.code": "NX_INVALID_ARGUMENT",
+    "error.field": "/faces",
+    "mutation_outcome": "not_started"
+   }
+  },
+  {
    "call": "nx_check_model",
    "args": {},
    "expect": {

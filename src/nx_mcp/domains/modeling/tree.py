@@ -339,8 +339,9 @@ def _description_words(f) -> list[str]:
 def aliases(f) -> dict:
     """``{alias: expression tag}``: the names ``nx_edit_feature`` resolves on this feature
     (semantic names such as ``distance`` and the words of the expression descriptions,
-    such as a block's ``length``), each kept only when the resolver finds exactly that
-    editable expression, so p-numbered expressions read clearly."""
+    such as a block's ``length``), each kept when the resolver finds exactly one expression,
+    so p-numbered expressions read clearly. A locked parameter keeps its aliases (editable
+    says whether nx_edit_feature can set it)."""
     out = {}
     for name in (*expr.alias_names(), *_description_words(f)):
         if name in out:
@@ -349,12 +350,17 @@ def aliases(f) -> dict:
             found = expr.alias(f, name)
         except NXError:
             continue
-        if expr.editable(found):
-            out[name] = int(found.Tag)
+        out[name] = int(found.Tag)
     return out
 
 
-def _parameter(tx, e, named=None) -> Parameter:
+def editable(f, e) -> bool:
+    """Whether nx_edit_feature can set ``e`` of ``f`` (a threaded hole's tap drill: yes,
+    through a custom radial engagement)."""
+    return kfeatures.parameter_lock(f, e) in (None, "engagement")
+
+
+def _parameter(tx, f, e, named=None) -> Parameter:
     try:
         value = expr.value(tx, e)
     except Exception:
@@ -365,7 +371,7 @@ def _parameter(tx, e, named=None) -> Parameter:
         "formula": str(e.RightHandSide),
         "value": value,
         "units": expr.units(e),
-        "editable": expr.editable(e),
+        "editable": editable(f, e),
         "aliases": [a for a, tag in (named or {}).items() if tag == int(e.Tag)],
     }
 
@@ -390,7 +396,7 @@ def info(tx, f) -> FeatureInfo:
             for t in sorted(children)
             if t in by_tag and not _internal(by_tag[t])
         ],
-        "parameters": [_parameter(tx, e, named) for e in expressions],
+        "parameters": [_parameter(tx, f, e, named) for e in expressions],
         "errors": feature_messages(f),
     }
     edges = acted_edges(tx, f)
@@ -487,10 +493,217 @@ def _parameter_targets(tx, f, parameters):
         if int(exp.Tag) in seen:
             fail("NX_INVALID_ARGUMENT", f"{name} names an expression twice", field=field)
         seen.add(int(exp.Tag))
-        if not expr.editable(exp):
-            fail("NX_READ_ONLY", f"Expression {exp.Name} is locked or interpart", field=field)
-        out.append((exp, as_number(item["value"], exp, field + "/value"), field))
+        lock = kfeatures.parameter_lock(f, exp)
+        if lock not in (None, "engagement"):
+            _locked(f, exp, lock, field)
+        value = _string_value(tx, exp, as_number(item["value"], exp, field + "/value"))
+        number = literal(value)
+        if number is not None and not math.isfinite(number):
+            fail("NX_INVALID_FORMULA", f"{str(value).strip()!r} is not a finite number",
+                 field=field + "/value", hint=FORMULA_HINT)  # fmt: skip
+        out.append((exp, value, field))
     return out
+
+
+LOCK_HINTS = {
+    "thread_table": "The thread table sets it: change the thread size instead (name 'size', "
+    "value 'M8 x 1.25'; nx_list_thread_sizes lists them)",
+    "interpart": "It links from another part: edit it there",
+    "locked": "NX derives it from the feature's other parameters; edit those",
+}
+
+
+def _locked(f, exp, lock: str, field: str) -> None:
+    """Refuse a parameter nx_edit_feature cannot set, saying why (details.reason)."""
+    what = kfeatures.hole_parameter(exp) or str(getattr(exp, "Description", "") or "")
+    fail(
+        "NX_READ_ONLY",
+        f"Expression {exp.Name} ({what}) is "
+        + ("set by the thread table" if lock == "thread_table" else f"{lock}")
+        + f" in {display_name(f)}",
+        field=field,
+        hint=LOCK_HINTS[lock],
+        details={"name": str(exp.Name), "reason": lock, "description": what},
+    )
+
+
+def _string_value(tx, exp, value):
+    """A String parameter (a hole's thread size) takes plain text: quoted for NX unless it
+    is already quoted or names an expression."""
+    if getattr(exp, "Type", "Number") != "String" or not isinstance(value, str):
+        return value
+    text = value.strip()
+    if text.startswith('"') or expr.find(tx, text) is not None:
+        return value
+    return '"' + text.replace('"', '\\"') + '"'
+
+
+def _free_tap_drill(tx, f, targets) -> list:
+    """Set a threaded hole's radial engagement to "Custom" when the call edits its tap drill
+    or tip angle (the thread table drives them otherwise, and NX locks them after the
+    first update); ``[(engagement, old formula)]`` when it did."""
+    if not any(kfeatures.parameter_lock(f, exp) == "engagement" for exp, _, _ in targets):
+        return []
+    engage = kfeatures.engagement(f)
+    if engage is None or any(int(exp.Tag) == int(engage.Tag) for exp, _, _ in targets):
+        return []
+    old = str(engage.RightHandSide)
+    expr.bind(tx, engage, kfeatures.CUSTOM_ENGAGEMENT)
+    update(tx)
+    tx.warn("NX_NOTE", f"{display_name(f)}: radial engagement {old} -> Custom, so the thread "
+            "table no longer sets the tap drill and the tip angle")  # fmt: skip
+    return [(engage, old)]
+
+
+def _table_tap_drill(tx, f, targets) -> list:
+    """A new thread size of a threaded hole at a "Custom" radial engagement: set the
+    engagement back to the table's (0.75) so the tap drill follows the new size (NX 2406
+    fails the update when the old custom tap drill is below the new size's minor diameter),
+    unless the call sets the tap drill, tip angle or engagement itself; ``[(expression, old
+    formula)]`` of the engagement and the tap drill when it did."""
+    if not any(kfeatures.hole_parameter(exp) == "thread size" for exp, _, _ in targets):
+        return []
+    engage = kfeatures.engagement(f)
+    if engage is None or str(engage.RightHandSide).strip() != kfeatures.CUSTOM_ENGAGEMENT:
+        return []
+    sent = {kfeatures.hole_parameter(exp) for exp, _, _ in targets}
+    if sent & {*kfeatures.ENGAGEMENT_DRIVEN, "radial engage"}:
+        return []
+    taps = [e for e in f.GetExpressions() if kfeatures.hole_parameter(e) in
+            kfeatures.ENGAGEMENT_DRIVEN]  # fmt: skip
+    old = [(engage, str(engage.RightHandSide)), *((e, str(e.RightHandSide)) for e in taps)]
+    expr.bind(tx, engage, TABLE_ENGAGEMENT)
+    tx.warn("NX_NOTE", f"{display_name(f)}: radial engagement Custom -> {TABLE_ENGAGEMENT}, so "
+            "the thread table sets the tap drill and the tip angle of the new size (send tap "
+            "with size to keep a custom tap drill)")  # fmt: skip
+    return old
+
+
+TABLE_ENGAGEMENT = '"0.75"'
+
+
+# A plain number written as text ('25', '-2.5', '1e3'): NX reads it as that number.
+_LITERAL = re.compile(r"^\s*[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?\s*$")
+
+
+def literal(value) -> float | None:
+    """The number ``value`` gives: a number, or text that is only a number (``'1e400'`` is
+    infinite); None for a formula."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str) and _LITERAL.match(value):
+        return float(value)
+    return None
+
+
+def _non_positive(error: NXError, targets) -> None:
+    """Point an update failure at the length set at or below zero, when there is one (NX
+    names no parameter: "Update undo happened")."""
+    for exp, value, field in targets:
+        number = literal(value)
+        if number is not None and number <= 0 and unit_key(exp) in ("mm", "in"):
+            error.field = error.field or field + "/value"
+            error.hint = (
+                f"{exp.Name} is a length: NX refused {number:g}; give a length above zero "
+                "unless the feature takes a signed offset (a start limit)"
+            )
+            return
+
+
+def _read_back_values(tx, targets) -> None:
+    """Each edited expression evaluates to a finite value, and a number reads back as sent;
+    NX keeps an invalid formula's text with the old value ('1e400'): rolled back as
+    ``NX_INVALID_FORMULA``."""
+    for exp, value, field in targets:
+        try:
+            got = expr.value(tx, exp)
+        except Exception:
+            got = None
+        number = literal(value)
+        if isinstance(got, float) and not math.isfinite(got):
+            fail("NX_INVALID_FORMULA", f"{exp.Name} = {exp.RightHandSide} does not evaluate to "
+                 "a finite number", field=field + "/value", hint=FORMULA_HINT)  # fmt: skip
+        if number is not None and got is not None:
+            readback.expect_close(got, number, field.strip("/"))
+        elif isinstance(value, str):
+            _fresh(tx, exp, field + "/value")
+
+
+def _fresh(tx, exp, field: str) -> None:
+    """Refuse a formula NX stored without evaluating it (the old value stays)."""
+    fresh = expr.stale(tx, exp)
+    if fresh is not None:
+        fail("NX_INVALID_FORMULA", f"NX kept the old value of {exp.Name}: its formula "
+             f"{str(exp.RightHandSide)!r} does not evaluate (a number beyond a double?)",
+             field=field, hint=FORMULA_HINT, details={"evaluates_to": fresh})  # fmt: skip
+
+
+def _same_formula(now: str, wanted: str) -> bool:
+    """The same formula text, or the same plain number ('5' and '5.0')."""
+    a, b = literal(now.split("//", 1)[0]), literal(wanted.split("//", 1)[0])
+    return now.strip() == wanted.strip() or (a is not None and a == b)
+
+
+def _restore_steps(owner, found) -> tuple[list, list, list]:
+    """``(values, engagement, driven)``: the formulas to set back in the updates NX takes
+    for a threaded hole: its size and other values first (the table tap drill then fits
+    the size), then its radial engagement, then the tap drill and tip angle the restored
+    engagement frees (one the table still locks is left to the table)."""
+
+    def what(e):
+        return kfeatures.hole_parameter(e) if owner is not None else None
+
+    engage = [(e, b) for e, b in found if what(e) == "radial engage"]
+    driven = [(e, b) for e, b in found if engage and what(e) in kfeatures.ENGAGEMENT_DRIVEN]
+    held = {int(e.Tag) for e, _ in (*engage, *driven)}
+    return [(e, b) for e, b in found if int(e.Tag) not in held], engage, driven
+
+
+@restorer("nx_edit_feature")
+def _restore_feature(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Set back the formulas an ``nx_edit_feature`` replaced (the compensating undo);
+    refused when one of them changed since."""
+    rows = list(data.get("parameters") or [])
+    found = []
+    for row in rows:
+        exp = expr.find(tx, str(row["name"]))
+        if exp is None:
+            fail("NX_NOT_FOUND", f"Expression {row['name']} no longer exists",
+                 details={"name": row["name"]})  # fmt: skip
+        now = str(exp.RightHandSide)
+        if now.strip() != str(row["after"]).strip():
+            fail("NX_DEPENDENCY_ORDER", f"{row['name']} changed since: it reads {now!r}, the "
+                 f"operation set {row['after']!r}", details={"name": row["name"], "formula": now})  # fmt: skip
+        found.append((exp, str(row["before"])))
+    if apply:
+        owner = None
+        with contextlib.suppress(NXError):
+            owner = tx.resolve(data["feature"], "feature") if data.get("feature") else None
+        values, engage, driven = _restore_steps(owner, found)
+        for phase in (values, engage):
+            for exp, before in phase:
+                expr.bind(tx, exp, before)
+            if phase:
+                update(tx)
+        free = [(e, b) for e, b in driven if kfeatures.parameter_lock(owner, e) is None]
+        for exp, before in free:
+            expr.bind(tx, exp, before)
+        if free or not found:
+            update(tx)
+        solve_driven_sketch(tx, [exp for exp, _ in found])
+        wrong = [
+            str(e.Name)
+            for e, b in found
+            if not _same_formula(str(e.RightHandSide), b)
+            # NX derives a hole's tap drill again from its restored engagement
+            and not (owner is not None and kfeatures.parameter_lock(owner, e) == "engagement")
+        ]
+        readback.expect(not wrong, "formula", "Formulas not set back: " + ", ".join(wrong))
+    return f"{data.get('feature')}: " + ", ".join(
+        f"{r['name']} back to {r['before']}" for r in rows
+    )
 
 
 @tool(
@@ -505,7 +718,7 @@ def _parameter_targets(tx, f, parameters):
         "change dimension",
         "modify feature",
         "bind expression",
-        "edit with rollback",
+        "resize feature",
     ),
     requires=("work_part",),
     cost="heavy",
@@ -541,6 +754,8 @@ def nx_edit_feature(
     else:
         with tx.checks():
             targets = _parameter_targets(tx, f, parameters)
+        olds = [str(exp.RightHandSide) for exp, _, _ in targets]
+        freed = _free_tap_drill(tx, f, targets) or _table_tap_drill(tx, f, targets)
         for exp, value, field in targets:
             try:
                 expr.bind(tx, exp, value)
@@ -548,18 +763,27 @@ def nx_edit_feature(
                 if getattr(error, "field", "") is None:
                     error.field = field + "/value"  # type: ignore[attr-defined]  # any exception without a field
                 if isinstance(error, NXError) and error.code == "NX_INVALID_FORMULA":
-                    error.hint = error.hint or FORMULA_HINT
+                    error.hint = FORMULA_HINT  # a generic code hint does not fit a formula
                 raise
         try:
             update(tx)
         except NXError as error:
-            if error.code == "NX_UPDATE_FAILED" and not error.hint:
-                error.hint = UPDATE_HINT
+            if error.code == "NX_UPDATE_FAILED":
+                _non_positive(error, targets)
+                error.hint = error.hint or UPDATE_HINT
             raise
-        for exp, value, field in targets:
-            if isinstance(value, (int, float)):
-                readback.expect_close(expr.value(tx, exp), float(value), field.strip("/"))
+        _read_back_values(tx, targets)
         solve_driven_sketch(tx, [exp for exp, _, _ in targets])
+        for exp, _, _ in targets:
+            tx.modified(exp, "expression")
+        tx.note_restore({
+            "feature": tx.ref(f, kind="feature")["id"],
+            "parameters": [
+                {"name": str(exp.Name), "before": old, "after": str(exp.RightHandSide)}
+                for exp, old in [*((e, o) for (e, _, _), o in zip(targets, olds, strict=True)),
+                                 *freed]
+            ],
+        })  # fmt: skip
     errors = feature_messages(f)
     if errors:
         fail("NX_UPDATE_FAILED", "The feature failed to update: " + "; ".join(errors))
@@ -617,8 +841,9 @@ def nx_set_feature_suppression(
     suppressed: bool,
 ) -> SuppressionData:
     """Suppress (suppressed: true) or unsuppress (false) features given as refs like f:12
-    from nx_list_objects. Dependents follow a suppress; unsuppress restores only the listed
-    ones (see still_suppressed). Reacquire faces and edges after."""
+    from nx_list_objects. Dependents follow a suppress; unsuppress restores the listed ones and
+    the suppressed parents they need, not their dependents (still_suppressed). Reacquire faces
+    and edges after."""
     args.distinct("/features", features, "features")
     part = tx.part
     with tx.checks():  # lookups and refusals: nothing changed yet (not_started)
@@ -669,6 +894,19 @@ def nx_set_feature_suppression(
         for tag in descendants(children, sorted(asked)):
             if tag in after and after[tag][1]:
                 still.append(_row(tx, after[tag][0], suppressed=True))
+        parents = [r["name"] for r in changed if not r.get("requested")]
+        if parents:  # NX unsuppresses the suppressed parents a feature needs
+            tx.warn("NX_NOTE", "NX also unsuppressed the parents the features need: "
+                    + ", ".join(parents[:10]) + " (changed, requested false)")  # fmt: skip
+    base = base_csys(before)
+    if suppressed and base in asked:
+        tx.warn("NX_NOTE", "The base datum CSYS is suppressed: features placed on it are "
+                "suppressed with it (changed)")  # fmt: skip
+    if changed:
+        tx.note_restore({
+            "suppressed": [r["id"] for r in changed if r.get("suppressed")],
+            "unsuppressed": [r["id"] for r in changed if not r.get("suppressed")],
+        })  # fmt: skip
     return {
         "changed": changed,
         "unchanged": [
@@ -678,6 +916,39 @@ def nx_set_feature_suppression(
         ],
         "still_suppressed": still,
     }
+
+
+@restorer("nx_set_feature_suppression")
+def _restore_suppression(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Set back the suppression state an ``nx_set_feature_suppression`` changed (the
+    compensating undo): unsuppress what it suppressed, suppress what it unsuppressed;
+    refused when one of them changed state since."""
+    part = tx.part
+    sup, unsup = _tags(tx, data.get("suppressed") or []), _tags(tx, data.get("unsuppressed") or [])
+    state = states(tx, part)
+    moved = [t for t in sup if t in state and not state[t][1]]
+    moved += [t for t in unsup if t in state and state[t][1]]
+    if moved:
+        fail("NX_DEPENDENCY_ORDER", "The suppression of "
+             + ", ".join(display_name(state[t][0]) for t in moved[:5]) + " changed since",
+             details={"features": [_row(tx, state[t][0]) for t in moved[:20]]})  # fmt: skip
+    if apply:
+        with native(default="NX_BUILD_FAILED"):
+            if sup:
+                failed = list(part.Features.UnsuppressFeatures([state[t][0] for t in sup]) or [])
+                readback.expect(not failed, "unsuppressed", "NX could not unsuppress some "
+                                "features", features=[f.JournalIdentifier for f in failed])  # fmt: skip
+            if unsup:
+                part.Features.SuppressFeatures([state[t][0] for t in unsup])
+        update(tx)
+        now = states(tx, part)
+        wrong = [t for t in sup if now.get(t, (None, True))[1]]
+        wrong += [t for t in unsup if not now.get(t, (None, False))[1]]
+        readback.expect(not wrong, "suppressed", "NX left features in the wrong suppression "
+                        "state", features=[display_name(now[t][0]) for t in wrong if t in now])  # fmt: skip
+    parts = [f"{len(sup)} unsuppressed"] if sup else []
+    parts += [f"{len(unsup)} suppressed"] if unsup else []
+    return "feature suppression set back (" + ", ".join(parts) + ")"
 
 
 class CurrentData(TypedDict):
@@ -702,7 +973,8 @@ def nx_set_current_feature(
 ) -> CurrentData:
     """Roll the timeline to a feature (a ref like f:12 from nx_list_objects), or to the end
     when feature is omitted. Later features become inactive (not suppressed) and new features
-    are inserted after the current one."""
+    are inserted after the current one. Their bodies go until rolled forward, then come back
+    under new refs."""
     with tx.checks():
         part = tx.part
         order = timeline(part)
@@ -710,6 +982,8 @@ def nx_set_current_feature(
             fail("NX_NOT_FOUND", "The work part has no features")
         chosen = _feature(tx, feature) if feature is not None else order[-1]
         bodies = {int(b.Tag) for b in part.Bodies}
+        was = getattr(part, "CurrentFeature", None)
+        was_end = was is None or int(was.Tag) == int(order[-1].Tag)
     with native(default="NX_BUILD_FAILED"):
         chosen.MakeCurrentFeature()
     update(tx)
@@ -731,6 +1005,10 @@ def nx_set_current_feature(
         "NX made a different feature current",
         current=getattr(current, "JournalIdentifier", None),
     )
+    tx.note_restore({
+        "before": None if was_end else tx.ref(was, kind="feature")["id"],
+        "after": tx.ref(chosen, kind="feature")["id"],
+    })  # fmt: skip
     keys = list(after)
     return {
         "current": _row(
@@ -742,6 +1020,35 @@ def nx_set_current_feature(
             if not a
         ],
     }
+
+
+def _current_tag(part) -> int | None:
+    current = getattr(part, "CurrentFeature", None)
+    return None if current is None else int(current.Tag)
+
+
+@restorer("nx_set_current_feature")
+def _restore_current(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Make the feature that was current before an ``nx_set_current_feature`` current again
+    (the timeline's end when it was there): the compensating undo. Refused when another
+    feature was made current since."""
+    part = tx.part
+    after = _tags(tx, [data["after"]])[0]
+    if _current_tag(part) not in (after, None):
+        fail("NX_DEPENDENCY_ORDER", f"Another feature was made current since {data['after']}",
+             details={"feature": data["after"]})  # fmt: skip
+    if apply:
+        order = timeline(part)
+        tag = _tags(tx, [data["before"]])[0] if data.get("before") else int(order[-1].Tag)
+        target = next(f for f in order if int(f.Tag) == tag)
+        with native(default="NX_BUILD_FAILED"):
+            target.MakeCurrentFeature()
+        update(tx)
+        readback.expect(_current_tag(part) in (tag, None), "current",
+                        "NX made a different feature current")  # fmt: skip
+    return "timeline rolled " + (
+        f"back to {data['before']}" if data.get("before") else "to its end"
+    )
 
 
 class Renamed(result.Row):
@@ -823,7 +1130,8 @@ def nx_set_feature_order(
 ) -> OrderData:
     """Move a feature directly before or after another: before or after alone, or anchor with
     position. Refs like f:12. A feature cannot move before a parent or after a child
-    (NX_DEPENDENCY_ORDER lists them). NX renumbers names (see renamed). In a rolled-back
+    (NX_DEPENDENCY_ORDER lists them); the base datum CSYS stays first. NX renumbers names
+    (see renamed). In a rolled-back
     timeline, a move across the current feature changes which features are active
     (activated, deactivated)."""
     ref, where = _placement(anchor, position, before, after)
@@ -838,6 +1146,7 @@ def nx_set_feature_order(
             fail("NX_INVALID_ARGUMENT", "feature and anchor must differ", field=field)
         old = states(tx, part)
         order = list(old)
+        _keep_base_first(tx, old, key, at, where, field)
         was = getattr(part, "CurrentFeature", None)
         # The timeline's end stays its end; a rolled-back one keeps its current feature.
         keep = None if was is None or int(was.Tag) == order[-1] else int(was.Tag)
@@ -873,6 +1182,14 @@ def nx_set_feature_order(
         readback.expect(list(new) == wanted, "order", "NX timeline order differs from the request")
     # Rows from the refreshed timeline: NX renumbers names after a move.
     fresh = {tag: f for tag, (f, _, _) in new.items()}
+    if wanted != order:
+        ids = {tag: tx.ref(f, kind="feature")["id"] for tag, f in fresh.items()}
+        tx.note_restore({
+            "feature": ids[key],
+            "before": [ids[t] for t in order if t in ids],
+            "after": [ids[t] for t in wanted if t in ids],
+            "current": ids.get(int(was.Tag)) if was is not None else None,
+        })  # fmt: skip
     renamed: list[Renamed] = []
     for tag, f in fresh.items():
         if tag in names and display_name(f) != names[tag] and len(renamed) < MAX_FEATURES:
@@ -884,6 +1201,32 @@ def nx_set_feature_order(
         "renamed": renamed,
         **_activity(tx, part, old, new),
     }
+
+
+def base_csys(old) -> int | None:
+    """Tag of the part's base datum CSYS (the timeline's first feature when it is a
+    DATUM_CSYS), else None."""
+    first = next(iter(old.values()), None)
+    if first is None:
+        return None
+    kind = str(getattr(first[0], "FeatureType", "") or "").upper().replace(" ", "_")
+    return int(first[0].Tag) if kind == "DATUM_CSYS" else None
+
+
+def _keep_base_first(tx, old, key: int, at: int, where: str, field: str) -> None:
+    """Refuse a move that would take the base datum CSYS off the timeline's start: NX
+    would number the moved feature 0 (BLOCK(0)) and the CSYS after it."""
+    base = base_csys(old)
+    if base is None or not (key == base or (at == base and where == "before")):
+        return
+    row = _row(tx, old[base][0])
+    fail(
+        "NX_DEPENDENCY_ORDER",
+        f"{row['name']} is the part's base datum CSYS and stays the first feature",
+        field="/feature" if key == base else field,
+        hint=f"Place the feature after {row['id']} or after a later feature",
+        details={"base": row},
+    )
 
 
 def _keep_current(tx, part, tag: int) -> None:
@@ -914,6 +1257,50 @@ def _activity(tx, part, old, new) -> dict:
         names = ", ".join(display_name(f) + (" active" if a else " inactive") for _, f, a in flips)
         tx.warn("NX_NOTE", f"The move crossed the current feature: now {names[:300]}")
     return out
+
+
+def _tags(tx, refs) -> list[int]:
+    """Tags of feature ``refs``; a feature deleted since refuses the compensating undo."""
+    out = []
+    for ref in refs:
+        try:
+            out.append(int(tx.resolve(ref, "feature").Tag))
+        except NXError:
+            fail("NX_DEPENDENCY_ORDER", f"Feature {ref} no longer exists: the timeline "
+                 "changed since", details={"feature": ref})  # fmt: skip
+    return out
+
+
+@restorer("nx_set_feature_order")
+def _restore_order(tx: Tx, data: dict, *, apply: bool) -> str:
+    """Move the feature an ``nx_set_feature_order`` moved back next to its old neighbour
+    (the compensating undo); refused when the timeline order changed since."""
+    part = tx.part
+    before, after = _tags(tx, data["before"]), _tags(tx, data["after"])
+    key = _tags(tx, [data["feature"]])[0]
+
+    def relative() -> list[int]:
+        recorded = set(before)
+        return [int(f.Tag) for f in timeline(part) if int(f.Tag) in recorded]
+
+    if relative() != after:
+        fail("NX_DEPENDENCY_ORDER", f"The timeline order changed since the move of "
+             f"{data['feature']}", details={"feature": data["feature"]})  # fmt: skip
+    if apply:
+        i = before.index(key)
+        by_tag = {int(f.Tag): f for f in timeline(part)}
+        anchor, how = (before[i + 1], "Before") if i + 1 < len(before) else (before[i - 1], "After")
+        kinds = tx.nx.Features.FeatureCollection.ReorderType
+        with native(default="NX_DEPENDENCY_ORDER"):
+            part.Features.ReorderFeature([by_tag[key]], by_tag[anchor], getattr(kinds, how))
+        update(tx)
+        current = _tags(tx, [data["current"]])[0] if data.get("current") else None
+        if current is None or current == before[-1]:
+            current = int(timeline(part)[-1].Tag)  # the timeline's end stays its end
+        _keep_current(tx, part, current)
+        readback.expect(relative() == before, "order", "NX timeline order differs from the one "
+                        "before the move")  # fmt: skip
+    return f"feature {data['feature']} moved back to its old place in the timeline"
 
 
 # ---------------------------------------------------------------------------
@@ -966,6 +1353,10 @@ def nx_set_expression(
         if existing is not None and not expr.editable(existing):
             _read_only(tx, existing)
         number, unit = _formula_value(existing, formula, units)
+        plain = literal(formula)
+        if plain is not None and not math.isfinite(plain):
+            fail("NX_INVALID_FORMULA", f"{str(formula).strip()!r} is not a finite number",
+                 field="/formula", hint=FORMULA_HINT)  # fmt: skip
     text = formula if number is None else number_text(number)
     before = str(existing.RightHandSide) if existing is not None else None
     try:
@@ -973,7 +1364,7 @@ def nx_set_expression(
     except NXError as error:
         if error.code == "NX_INVALID_FORMULA":
             error.field = error.field or "/formula"
-            error.hint = error.hint or FORMULA_HINT
+            error.hint = FORMULA_HINT  # _name_missing may name the unknown words
             _name_missing(tx, error, name, text)
         raise
     if existing is None and unit in (None, "unitless") and units is None:
@@ -988,6 +1379,17 @@ def nx_set_expression(
     value = expr.value(tx, exp)
     if number is not None:
         readback.expect_close(value, number, "value")
+    if number is None and plain is None:
+        _fresh(tx, exp, "/formula")
+    if isinstance(value, float) and not math.isfinite(value):
+        fail("NX_INVALID_FORMULA", f"{name} = {exp.RightHandSide} does not evaluate to a "
+             "finite number", field="/formula", hint=FORMULA_HINT)  # fmt: skip
+    detached = sorted(_names_in(tx, before) - _names_in(tx, str(exp.RightHandSide)) - {name})
+    if detached:
+        tx.warn("NX_NOTE", f"{name} no longer follows {', '.join(detached[:5])} (its formula was "
+                f"{before!r})")  # fmt: skip
+    if existing is not None:
+        tx.modified(exp, "expression")
     tx.note_restore({"name": str(exp.Name), "before": before, "after": str(exp.RightHandSide)})
     return {
         "expression": tx.ref(exp, kind="expression"),
@@ -1069,6 +1471,15 @@ def _name_missing(tx, error, name, formula) -> None:
             f"Create {missing[0]} first with nx_set_expression, or fix the name "
             "(names are case-sensitive)"
         )
+
+
+def _names_in(tx, formula) -> set[str]:
+    """The part's expression names a formula refers to (none for None)."""
+    if not isinstance(formula, str):
+        return set()
+    words = set(_IDENTIFIER.findall(re.sub(r'"[^"]*"', "", formula.split("//", 1)[0])))
+    words = {w for w in words if w.lower() not in FORMULA_WORDS}
+    return words & {str(e.Name) for e in tx.part.Expressions} if words else set()
 
 
 def _read_only(tx, exp) -> None:

@@ -36,7 +36,11 @@ class EdgeRow(result.Row, total=False):
     edge_on: bool
 
 
-class ViewEdgesData(TypedDict):
+class _Stale(TypedDict, total=False):
+    stale: Annotated[bool, Doc("The view may show an older model: nx_update_annotations")]
+
+
+class ViewEdgesData(_Stale):
     view: result.Row
     scale: float
     units: Annotated[str, Doc("Sheet units of start, end, center and length")]
@@ -146,7 +150,9 @@ def nx_list_view_edges(
     view: ViewArg,
     geometry_type: Literal["any", "line", "circle"] = "any",
     orientation: Literal["any", "horizontal", "vertical"] = "any",
-    hidden: Annotated[bool, Doc("Also list edges behind material, flagged hidden")] = False,
+    hidden: Annotated[
+        bool, Doc("Also list edges behind material, flagged hidden: true (same order)")
+    ] = False,
     offset: Offset = 0,
     limit: PageLimit = 50,
 ) -> ViewEdgesData:
@@ -157,6 +163,7 @@ def nx_list_view_edges(
     nx_find_geometry does not search drawing views."""
     shown, sheet = view_of(tx, view)
     sh = drawing.Sheet(tx, sheet)
+    lagging = drawing.stale_note(tx, [shown])
     settings = view_style.read_style(tx, shown)
     found = drawing.visible_edges(
         tx,
@@ -190,10 +197,13 @@ def nx_list_view_edges(
     rows.sort(key=lambda item: (_rank(item[1]), int(item[0].Tag)))
     selected, page = result.page(rows, offset, limit)
     items = [{**tx.ref(edge, "edge"), **facts} for edge, facts in selected]
-    return {
+    out: ViewEdgesData = {
         "view": tx.ref(shown, "drawing_view"),
         "scale": view_scale,
         "units": sh.units,
         "items": items,  # type: ignore[typeddict-item]  # a row plus the edge facts
         "page": page,
     }
+    if lagging:
+        out["stale"] = True
+    return out

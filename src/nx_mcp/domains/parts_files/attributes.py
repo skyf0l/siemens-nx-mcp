@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Annotated, Any, Literal, TypedDict
 
 from nx_mcp.core.catalogue import restorer, tool
-from nx_mcp.core.errors import NXError, fail, native
+from nx_mcp.core.errors import NXError, fail, native, with_article
 from nx_mcp.core.target import file_name
 from nx_mcp.core.tx import Tx
 from nx_mcp.core.types import Doc, Items, Json, Ref, Text, forbid_extra
@@ -441,8 +441,9 @@ def _plan(tx, wants: list[_Want], existing: dict, dropping: set, label: str) -> 
             want = _adopt(want, have)
             if have != want.kind:
                 fail(
-                    "NX_ALREADY_EXISTS",
-                    f"{label} has {want.name!r} as a {have} attribute, not {want.kind}",
+                    "NX_INVALID_ARGUMENT",
+                    f"{label} has {want.name!r} as {with_article(have)} attribute, not "
+                    f"{with_article(want.kind)}",
                     field=want.type_field,
                     hint=f"Send a {have} value, or list {want.name!r} in delete in the same call",
                     details={"object": label, "name": want.name, "type": have},

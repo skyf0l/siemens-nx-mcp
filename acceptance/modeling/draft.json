@@ -118,6 +118,10 @@
     "data.volume": {
      "close": 7912.511336474076,
      "tol": 0.0001
+    },
+    "data.angles.0": {
+     "close": 5,
+     "tol": 0.05
     }
    }
   },
