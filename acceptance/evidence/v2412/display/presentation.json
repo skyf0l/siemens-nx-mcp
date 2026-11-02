@@ -1,0 +1,169 @@
+{
+  "format": 2,
+  "scenario": "acceptance/display/presentation.json",
+  "scenario_sha256": "6d5030ae4f556a2d5e1247e70b2b653edac65b01ffeb070e5621851c63c7a062",
+  "domain": "display",
+  "covers": {
+    "nx_save_presentation": [],
+    "nx_restore_display": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_save_presentation": "5eb3985c429844a1e82543eb876db589a9c273f83bb9ae4ce4f3435f6633d02e",
+    "nx_restore_display": "5eb3985c429844a1e82543eb876db589a9c273f83bb9ae4ce4f3435f6633d02e"
+  },
+  "recorded": "2026-11-01T22:00:21Z",
+  "passed": true,
+  "checks": 37,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "engineer",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 3,
+      "call": "nx_list_objects",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_list_objects",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_set_camera",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_set_appearance",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_create_section_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_save_presentation",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 9,
+      "call": "nx_save_presentation",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 10,
+      "call": "nx_set_camera",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 11,
+      "call": "nx_set_appearance",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 12,
+      "call": "nx_list_objects",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 13,
+      "call": "nx_edit_section_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 14,
+      "call": "nx_restore_display",
+      "setup": false,
+      "passed": true,
+      "checks": 9
+    },
+    {
+      "index": 15,
+      "call": "nx_get_appearance",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 16,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 17,
+      "call": "nx_capture_view",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 18,
+      "call": "nx_delete_objects",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 19,
+      "call": "nx_restore_display",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 20,
+      "call": "nx_restore_display",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 21,
+      "call": "nx_restore_display",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    }
+  ]
+}

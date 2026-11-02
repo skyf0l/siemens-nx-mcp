@@ -1519,7 +1519,9 @@ def fold(
         for name in sorted(written):
             fresh, target = Path(temp) / name, out_dir / name
             if not target.is_file() or target.read_bytes() != fresh.read_bytes():
-                os.replace(fresh, target)  # unchanged files are left untouched
+                # unchanged files are left untouched; move, not replace: temp may be on
+                # another drive than the evidence folder (Windows)
+                shutil.move(fresh, target)
     if out_dir == core_evidence.EVIDENCE_DIR:
         core_evidence.reload()
     return core_evidence.load(out_dir), problems

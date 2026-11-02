@@ -84,7 +84,7 @@ import contextlib
 import types
 import typing
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Annotated, Literal, TypedDict
 
@@ -207,7 +207,8 @@ class Op:
     factory: str
     required: tuple[str, ...]
     optional: tuple[str, ...] = ()
-    docs: Mapping[str, str] = MappingProxyType({})  # this operation's field descriptions
+    # this operation's field descriptions (default_factory: Python < 3.12 rejects the proxy)
+    docs: Mapping[str, str] = field(default_factory=lambda: MappingProxyType({}))
 
 
 FLANGE_DOCS = {
@@ -1014,7 +1015,7 @@ def _flat_solid(tx, b, i):
 def _lightening_cutout(tx, b, i):
     p = i.p
     b.Type = _enum(tx, "LighteningCutoutBuilderCutoutType", "UserDefined")
-    b.UserDefinedSection = builders.section(tx, i.sketch)
+    builders.section(tx, i.sketch, into=b.UserDefinedSection)  # read-only property on 2412
     _expression(b.Length, p["length"])
     _expression(b.Angle, p.get("angle", 90.0))
     if p.get("radius") is not None:

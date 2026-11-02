@@ -1,0 +1,92 @@
+{
+  "format": 2,
+  "scenario": "acceptance/display/camera_fit_bodies.json",
+  "scenario_sha256": "c45390b31b35965bbe092da3014d65261309ffd597443088c9a4dcaf29447a0c",
+  "domain": "display",
+  "covers": {
+    "nx_set_camera": [],
+    "nx_capture_view": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_set_camera": "166a7f5c4d01c1f8035884a806b46f77a821b6db5874ddea92d124c5857dcdef",
+    "nx_capture_view": "1f01ed97b1b6986212fae46042d024d00d3b48dcd1c50eddecab7ebc45afb537"
+  },
+  "recorded": "2026-11-01T21:59:15Z",
+  "passed": true,
+  "checks": 19,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "engineer",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 3,
+      "call": "nx_create_datum_csys",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_set_visibility",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_set_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 8,
+      "call": "nx_set_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 9,
+      "call": "nx_set_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 10,
+      "call": "nx_capture_view",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    }
+  ]
+}

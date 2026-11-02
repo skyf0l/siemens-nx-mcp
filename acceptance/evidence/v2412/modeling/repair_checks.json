@@ -1,0 +1,57 @@
+{
+  "format": 2,
+  "scenario": "acceptance/modeling/repair_checks.json",
+  "scenario_sha256": "ce161a53994815a8dd9df5c1e3ebdf82efdad0f591ce6a1b9a5e7992f1a3d0fa",
+  "domain": "modeling",
+  "covers": {
+    "nx_create_unsew": [
+      "faces"
+    ]
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_create_unsew": "3301349a80df8d4a2564dc099aa968fce5667272ac18f36d16d60a9b31a4c10c"
+  },
+  "recorded": "2026-11-01T22:11:17Z",
+  "passed": true,
+  "checks": 5,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_unsew",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 5,
+      "call": "nx_create_unsew",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    }
+  ]
+}

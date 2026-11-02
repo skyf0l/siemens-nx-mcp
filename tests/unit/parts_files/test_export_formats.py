@@ -2,6 +2,7 @@
 
 import pytest
 
+from nx_mcp.core import evidence
 from nx_mcp.domains.parts_files import exchange, neutral
 from tests.kit import NXException
 from tests.kit import parts as fake_parts
@@ -136,6 +137,7 @@ def test_step_ap242_needs_its_license(nx, root, ugii):
     assert nx.step_creators[-1].ExportAs == nx.nx.StepCreator.ExportAsOption.Ap242
     assert not (root / "a.step").exists() and part.IsModified
     nx.ap242_licensed = True
+    evidence.forget_licenses()  # the refusal is remembered for 15 minutes once AP242 has evidence
     ok = export(nx, part="m", path="b.step", format="step_ap242")
     assert ok.ok and ok.data["schema"] == "AP242" and ok.data["solids"] == 2, ok
     # AP214 sets its own schema even when the session's last export was AP242.

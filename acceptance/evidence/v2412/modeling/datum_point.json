@@ -1,0 +1,55 @@
+{
+  "format": 2,
+  "scenario": "acceptance/modeling/datum_point.json",
+  "scenario_sha256": "a124b90d39d1f6f5cfac516fd1c237cb730009787423cc1cb41836be630fda54",
+  "domain": "modeling",
+  "covers": {
+    "nx_create_datum_point": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_create_datum_point": "122ed5ed6f4e5e5bb31e7e144afea720d7974eb4caa41acf77816b9a4a131c79"
+  },
+  "recorded": "2026-11-01T22:08:41Z",
+  "passed": true,
+  "checks": 8,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_datum_point",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 3,
+      "call": "nx_create_datum_point",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 4,
+      "call": "nx_create_datum_point",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 5,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

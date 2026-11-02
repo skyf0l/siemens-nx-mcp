@@ -1,0 +1,321 @@
+{
+  "format": 2,
+  "scenario": "acceptance/drawing/dimension_fits.json",
+  "scenario_sha256": "d5ff1d2bf66e10cfcd94540e55c9addb8ea770b44630b1de2d83d09d8d7165c2",
+  "domain": "drawing",
+  "covers": {
+    "nx_edit_dimension": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_edit_dimension": "69dd2bacd2a370d6d460be8b2d9399fc3913c3f49216b04bc6e419c44d5bff7e"
+  },
+  "recorded": "2026-11-01T22:01:42Z",
+  "passed": true,
+  "checks": 119,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_create_drawing_dimension",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_create_drawing_dimension",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 11,
+      "call": "nx_create_drawing_dimension",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 12,
+      "call": "nx_create_drawing_dimension",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 13,
+      "call": "nx_create_drawing_dimension",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 14,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 8
+    },
+    {
+      "index": 15,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 16,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 17,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 18,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 19,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 20,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 21,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 22,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 23,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 24,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 25,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 26,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 27,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 28,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 29,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 30,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 31,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 32,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 33,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 34,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 35,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 36,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 37,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 38,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 39,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 40,
+      "call": "nx_create_hole",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 41,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 42,
+      "call": "nx_create_drawing_dimension",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 43,
+      "call": "nx_edit_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    }
+  ]
+}

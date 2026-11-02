@@ -1,0 +1,304 @@
+{
+  "format": 2,
+  "scenario": "acceptance/display/lights.json",
+  "scenario_sha256": "1602a6ecddd115b8e424a84676c58d4c907cc348c1acd3096110aaf1abbf75d0",
+  "domain": "display",
+  "covers": {
+    "nx_list_lights": [],
+    "nx_set_light": [],
+    "nx_set_lighting_preset": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_list_lights": "e4d1fd71524675dd7b3e7b8681da3696d6da6861bedcd71e989c29bdfa30beee",
+    "nx_set_light": "e4d1fd71524675dd7b3e7b8681da3696d6da6861bedcd71e989c29bdfa30beee",
+    "nx_set_lighting_preset": "e4d1fd71524675dd7b3e7b8681da3696d6da6861bedcd71e989c29bdfa30beee"
+  },
+  "recorded": "2026-11-01T21:59:58Z",
+  "passed": true,
+  "checks": 88,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_set_camera",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_list_lights",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 5,
+      "call": "nx_list_lights",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 6,
+      "call": "nx_capture_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_capture_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_set_light",
+      "setup": false,
+      "passed": true,
+      "checks": 9
+    },
+    {
+      "index": 9,
+      "call": "nx_list_lights",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 10,
+      "call": "nx_capture_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 11,
+      "call": "nx_capture_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 12,
+      "call": "nx_set_light",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 13,
+      "call": "nx_set_light",
+      "setup": false,
+      "passed": true,
+      "checks": 9
+    },
+    {
+      "index": 14,
+      "call": "nx_set_light",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 15,
+      "call": "nx_set_light",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 16,
+      "call": "nx_set_light",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 17,
+      "call": "nx_set_light",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 18,
+      "call": "nx_set_light",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 19,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 20,
+      "call": "nx_list_lights",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 21,
+      "call": "nx_set_light",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 22,
+      "call": "nx_set_light",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 23,
+      "call": "nx_set_light",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 24,
+      "call": "nx_set_light",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 25,
+      "call": "nx_list_lights",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 26,
+      "call": "nx_set_lighting_preset",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 27,
+      "call": "nx_list_lights",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 28,
+      "call": "nx_set_lighting_preset",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 29,
+      "call": "nx_set_lighting_preset",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 30,
+      "call": "nx_set_lighting_preset",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 31,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 32,
+      "call": "nx_list_lights",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 33,
+      "call": "nx_set_light",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 34,
+      "call": "nx_set_light",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 35,
+      "call": "nx_set_light",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 36,
+      "call": "nx_set_light",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 37,
+      "call": "nx_set_lighting_preset",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 38,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 39,
+      "call": "nx_list_lights",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 40,
+      "call": "engineer",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    }
+  ]
+}

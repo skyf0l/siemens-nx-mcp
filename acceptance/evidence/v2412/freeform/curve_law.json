@@ -1,0 +1,123 @@
+{
+  "format": 2,
+  "scenario": "acceptance/freeform/curve_law.json",
+  "scenario_sha256": "a309a831a6ea81200d06659dbda72e9cce41d8c11b3e2f20fa4dae1e176c88b7",
+  "domain": "freeform",
+  "covers": {
+    "nx_create_law_curve": [],
+    "nx_create_general_conic": [
+      "five_points",
+      "rho"
+    ]
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_create_law_curve": "cd431628bc778fb846084872c057faeb874523f6a5a77cb3f2654087a756082b",
+    "nx_create_general_conic": "cd431628bc778fb846084872c057faeb874523f6a5a77cb3f2654087a756082b"
+  },
+  "recorded": "2026-11-01T22:04:53Z",
+  "passed": true,
+  "checks": 42,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_law_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 8
+    },
+    {
+      "index": 3,
+      "call": "nx_create_law_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 4,
+      "call": "nx_create_law_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 5,
+      "call": "nx_create_general_conic",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 6,
+      "call": "nx_create_general_conic",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 7,
+      "call": "nx_create_general_conic",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 8,
+      "call": "nx_create_general_conic",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 9,
+      "call": "nx_create_general_conic",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 10,
+      "call": "nx_create_general_conic",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 11,
+      "call": "nx_create_law_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 12,
+      "call": "nx_create_law_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 13,
+      "call": "nx_create_law_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 14,
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

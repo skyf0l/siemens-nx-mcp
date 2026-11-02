@@ -1,0 +1,104 @@
+{
+  "format": 2,
+  "scenario": "acceptance/drawing/borders.json",
+  "scenario_sha256": "cbc0d3e19461da76e4a1fc02161fdfd96acc764a2b65b693523d1ed4675a5d9d",
+  "domain": "drawing",
+  "covers": {
+    "nx_set_sheet_borders": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_set_sheet_borders": "46370cb6a9f0d5e413c9e9e74fa37a159192e4cf4eea4de9ab61319682a58c44"
+  },
+  "recorded": "2026-11-01T22:01:03Z",
+  "passed": true,
+  "checks": 36,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_set_sheet_borders",
+      "setup": false,
+      "passed": true,
+      "checks": 9
+    },
+    {
+      "index": 4,
+      "call": "nx_set_sheet_borders",
+      "setup": false,
+      "passed": true,
+      "checks": 8
+    },
+    {
+      "index": 5,
+      "call": "nx_set_sheet_borders",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 6,
+      "call": "nx_set_sheet_borders",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 7,
+      "call": "nx_set_sheet_borders",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 8,
+      "call": "nx_set_sheet_borders",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 9,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_set_sheet_borders",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 11,
+      "call": "nx_set_sheet_borders",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 12,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    }
+  ]
+}

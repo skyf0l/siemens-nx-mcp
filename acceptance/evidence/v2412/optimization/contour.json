@@ -1,0 +1,288 @@
+{
+  "format": 2,
+  "scenario": "acceptance/optimization/contour.json",
+  "scenario_sha256": "8e42c420b7f3f72d20ed63f6bc30bd723a8dc74d14c7ee9241e083f54f1d1b99",
+  "domain": "optimization",
+  "covers": {
+    "nx_set_topology_contour": [],
+    "nx_create_topology_condition": [
+      "fixed",
+      "force"
+    ],
+    "nx_run_topology_study": [],
+    "nx_delete_topology_results": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_set_topology_contour": "2d750aeced9c47b763bea830cea826f08f22a566a9d962feabcf50b93241a866",
+    "nx_create_topology_condition": "9ca1742694101701c036a3a5485c3d44c5a81329e5c7537ffc322492b45dce73",
+    "nx_run_topology_study": "4bd35366163f2e410482db0ed07e899a46fba6ebaeea2202815c616a0ef57f4f",
+    "nx_delete_topology_results": "4bd35366163f2e410482db0ed07e899a46fba6ebaeea2202815c616a0ef57f4f"
+  },
+  "recorded": "2026-11-01T22:53:09Z",
+  "passed": true,
+  "checks": 108,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_set_material",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_find_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 5,
+      "call": "nx_find_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 6,
+      "call": "nx_create_topology_study",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 7,
+      "call": "nx_create_topology_condition",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 8,
+      "call": "nx_create_topology_condition",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 9,
+      "call": "nx_create_topology_condition",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 10,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 11,
+      "call": "nx_run_topology_study",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 12,
+      "call": "nx_run_topology_study",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 13,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 14,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 15,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 16,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 17,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 18,
+      "call": "nx_set_camera",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 19,
+      "call": "nx_get_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 20,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 12
+    },
+    {
+      "index": 21,
+      "call": "nx_get_camera",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 22,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 23,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 24,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 25,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 26,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 27,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 28,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 29,
+      "call": "nx_set_topology_contour",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 30,
+      "call": "nx_get_topology_study",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 31,
+      "call": "nx_delete_topology_results",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 32,
+      "call": "nx_get_topology_study",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 33,
+      "call": "nx_delete_topology_results",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 34,
+      "call": "nx_run_topology_study",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 35,
+      "call": "nx_create_topology_condition",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 36,
+      "call": "nx_get_topology_study",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 37,
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

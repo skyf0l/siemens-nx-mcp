@@ -1,0 +1,247 @@
+{
+  "format": 2,
+  "scenario": "acceptance/display/visual_materials.json",
+  "scenario_sha256": "4b4e32cd784e662bf12aa08b9d5e1212aadf22ec7aa344cc29ed25322fef4eaa",
+  "domain": "display",
+  "covers": {
+    "nx_list_visual_materials": [],
+    "nx_set_visual_material": [],
+    "nx_get_visual_material": [],
+    "nx_set_true_shading": [],
+    "nx_create_decal": [],
+    "nx_delete_decal": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_list_visual_materials": "dc23a62533461c0e87408edff8334ba8800371641c694dfd639e6c2d5811751c",
+    "nx_set_visual_material": "dc23a62533461c0e87408edff8334ba8800371641c694dfd639e6c2d5811751c",
+    "nx_get_visual_material": "dc23a62533461c0e87408edff8334ba8800371641c694dfd639e6c2d5811751c",
+    "nx_set_true_shading": "dc23a62533461c0e87408edff8334ba8800371641c694dfd639e6c2d5811751c",
+    "nx_create_decal": "a4f5c9ae7954dac2c9c45ecc643464e0f1dfa54e9555403ee2ec0720218131ed",
+    "nx_delete_decal": "a4f5c9ae7954dac2c9c45ecc643464e0f1dfa54e9555403ee2ec0720218131ed"
+  },
+  "recorded": "2026-11-01T22:00:51Z",
+  "passed": true,
+  "checks": 74,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_upload_file",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_set_camera",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_list_visual_materials",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 8,
+      "call": "nx_capture_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_set_visual_material",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 10,
+      "call": "nx_set_visual_material",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 11,
+      "call": "nx_set_visual_material",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 12,
+      "call": "nx_get_visual_material",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 13,
+      "call": "nx_create_decal",
+      "setup": false,
+      "passed": true,
+      "checks": 9
+    },
+    {
+      "index": 14,
+      "call": "nx_create_decal",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 15,
+      "call": "nx_create_decal",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 16,
+      "call": "nx_delete_decal",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 17,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 18,
+      "call": "nx_list_visual_materials",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 19,
+      "call": "nx_delete_decal",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 20,
+      "call": "nx_set_visual_material",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 21,
+      "call": "nx_create_decal",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 22,
+      "call": "nx_capture_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 23,
+      "call": "nx_set_true_shading",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 24,
+      "call": "nx_capture_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 25,
+      "call": "nx_list_visual_materials",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 26,
+      "call": "nx_delete_decal",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 27,
+      "call": "nx_delete_decal",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 28,
+      "call": "nx_set_visual_material",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 29,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 30,
+      "call": "nx_get_visual_material",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 31,
+      "call": "nx_set_true_shading",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}

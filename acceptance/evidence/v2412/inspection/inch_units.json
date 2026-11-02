@@ -1,0 +1,147 @@
+{
+  "format": 2,
+  "scenario": "acceptance/inspection/inch_units.json",
+  "scenario_sha256": "fa48a1268825663eb9140d5ea778061d1d837ed2a95103e6f965e14aadfe744e",
+  "domain": "inspection",
+  "covers": {
+    "nx_measure_mass": [],
+    "nx_measure_distance": [],
+    "nx_measure_bounds": [],
+    "nx_check_interference": [],
+    "nx_measure_wall_thickness": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_measure_mass": "e147ee82af4162849ac6d8f3f6daee0a21ff5784e6248894004dca3e2f66bcd8",
+    "nx_measure_distance": "e147ee82af4162849ac6d8f3f6daee0a21ff5784e6248894004dca3e2f66bcd8",
+    "nx_measure_bounds": "e147ee82af4162849ac6d8f3f6daee0a21ff5784e6248894004dca3e2f66bcd8",
+    "nx_check_interference": "0659c8346d80cc2a0909ae1f4ebbff74183b47db1150a549bf5f43008a560f53",
+    "nx_measure_wall_thickness": "e147ee82af4162849ac6d8f3f6daee0a21ff5784e6248894004dca3e2f66bcd8"
+  },
+  "recorded": "2026-11-01T22:06:48Z",
+  "passed": true,
+  "checks": 19,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_set_material",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 11,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 12,
+      "call": "nx_measure_distance",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 13,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 14,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 15,
+      "call": "nx_measure_wall_thickness",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 16,
+      "call": "nx_check_interference",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 17,
+      "call": "nx_check_interference",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    }
+  ]
+}

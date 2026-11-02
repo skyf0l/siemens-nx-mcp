@@ -1,0 +1,48 @@
+{
+  "format": 2,
+  "scenario": "acceptance/session/status_heartbeat.json",
+  "scenario_sha256": "1f393715fc7a873bbdcee136294d5af4f49e9b7158102ff8a8e7cb7fdfdc24e1",
+  "domain": "session",
+  "covers": {
+    "nx_get_status": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_get_status": "f1220e5c704dd390c0d77488fb8ee22f4a91abde2106f17ae41de586df04f930"
+  },
+  "recorded": "2026-11-01T22:18:50Z",
+  "passed": true,
+  "checks": 10,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "engineer",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 3,
+      "call": "nx_get_status",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 4,
+      "call": "engineer",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    }
+  ]
+}

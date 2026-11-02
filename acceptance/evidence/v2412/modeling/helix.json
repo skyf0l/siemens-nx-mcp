@@ -1,0 +1,69 @@
+{
+  "format": 2,
+  "scenario": "acceptance/modeling/helix.json",
+  "scenario_sha256": "6632dd6feba84c4c39c0b4aaf01c748cc93c8eb646e04e5371c439d33c7438d9",
+  "domain": "modeling",
+  "covers": {
+    "nx_create_helix": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_create_helix": "cf51ce050550526b998752905e4026e414a58562d3a1ca67a438a80decb55ab6"
+  },
+  "recorded": "2026-11-01T22:09:44Z",
+  "passed": true,
+  "checks": 24,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_helix",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 3,
+      "call": "nx_create_helix",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 4,
+      "call": "nx_create_helix",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 5,
+      "call": "nx_create_helix",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 6,
+      "call": "nx_create_helix",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 7,
+      "call": "nx_create_helix",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}
