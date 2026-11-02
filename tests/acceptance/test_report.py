@@ -134,11 +134,12 @@ def test_without_nx_the_report_says_so_and_the_page_is_refused(tmp_path, capsys)
     assert code == 1 and not (tmp_path / report.CAPABILITIES).exists()
 
 
-@pytest.mark.parametrize("build", ["2406.9160", "2412.8700"])
+@pytest.mark.parametrize("build", ["2406.9160", "2506.8000"])  # 2506: a build with no evidence
 def test_the_capabilities_page_sorts_tools_per_domain(tmp_path, build):
     plain, varied = _tested_tool()
     tested_variants = evidence.variants_for(varied, "v2406")
     bridge = _status(
+        nx_version="v" + build[:4],
         nx_build=build,
         build_tested=build.startswith("2406"),
         version_unsupported=[{"tool": varied.name, "variant": tested_variants[0]}],

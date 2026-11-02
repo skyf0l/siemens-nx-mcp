@@ -1,0 +1,71 @@
+{
+  "format": 2,
+  "scenario": "acceptance/parts_files/export_ap242.json",
+  "scenario_sha256": "73293a71fb224fa2c4d05d201c67777b992d82d3b65099a4f98610220d5275eb",
+  "domain": "parts_files",
+  "covers": {
+    "nx_export_model": [
+      "step_ap242"
+    ]
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_export_model": "6a28ceb4dd202b7923fd8d39411b2b4e784fff6141cd251877845a52037f5a5b"
+  },
+  "recorded": "2026-11-01T22:14:28Z",
+  "passed": true,
+  "checks": 13,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_list_objects",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_export_model",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 4,
+      "call": "nx_create_transform",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_export_model",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 6,
+      "call": "nx_list_parts",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 7,
+      "call": "nx_list_files",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

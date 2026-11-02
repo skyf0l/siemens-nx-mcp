@@ -1,0 +1,183 @@
+{
+  "format": 2,
+  "scenario": "acceptance/sheet_metal/bend_list.json",
+  "scenario_sha256": "6fd574913198fb03e30b0a92fc4a717ad559dc0712bc92fd3b6980c54119d0ae",
+  "domain": "sheet_metal",
+  "covers": {
+    "nx_get_bend_list": [],
+    "nx_export_bend_list": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_get_bend_list": "1e4908a6b8519d5893a8fede38a67c96a81bbea1f3ed46273f0a1cf98a0e7f3a",
+    "nx_export_bend_list": "1e4908a6b8519d5893a8fede38a67c96a81bbea1f3ed46273f0a1cf98a0e7f3a"
+  },
+  "recorded": "2026-11-01T22:19:16Z",
+  "passed": true,
+  "checks": 47,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_activate_application",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_set_sheet_metal_defaults",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_get_bend_list",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 9,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 11,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 12,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 13,
+      "call": "nx_get_bend_list",
+      "setup": false,
+      "passed": true,
+      "checks": 18
+    },
+    {
+      "index": 14,
+      "call": "nx_get_bend_list",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 15,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 16,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 17,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 18,
+      "call": "nx_get_bend_list",
+      "setup": false,
+      "passed": true,
+      "checks": 8
+    },
+    {
+      "index": 19,
+      "call": "nx_export_bend_list",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 20,
+      "call": "nx_export_bend_list",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 21,
+      "call": "nx_export_bend_list",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 22,
+      "call": "nx_get_bend_list",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 23,
+      "call": "nx_export_bend_list",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    }
+  ]
+}

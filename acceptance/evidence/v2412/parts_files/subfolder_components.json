@@ -1,0 +1,164 @@
+{
+  "format": 2,
+  "scenario": "acceptance/parts_files/subfolder_components.json",
+  "scenario_sha256": "60d99ff22f2725fc3ea27c24d9ce2e6d2bee826c56f3aa502ec72f141536681e",
+  "domain": "parts_files",
+  "covers": {
+    "nx_open_part": [],
+    "nx_export_assembly": [
+      "clone"
+    ]
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_open_part": "0bad66e0f56638cda23bdf97f632409572c772b87b5628486cc568f1a268d382",
+    "nx_export_assembly": "b142fcc0fc735e8ee7ae99ce4e796c7147548a76c702457e09ad99e604e909b0"
+  },
+  "recorded": "2026-11-01T22:17:32Z",
+  "passed": true,
+  "checks": 15,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_save_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_save_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_save_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 11,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 12,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 13,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 14,
+      "call": "nx_open_part",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 15,
+      "call": "nx_list_components",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 16,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 17,
+      "call": "nx_export_assembly",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 18,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 19,
+      "call": "nx_open_part",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 20,
+      "call": "nx_list_components",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    }
+  ]
+}

@@ -1,0 +1,146 @@
+{
+  "format": 2,
+  "scenario": "acceptance/parts_files/kf_merge.json",
+  "scenario_sha256": "7f488d4827ed5c402f1fffac2775bbbfd6215dba7195d0e897d46a3c029e84d6",
+  "domain": "parts_files",
+  "covers": {
+    "nx_set_kf_rule": [
+      "child",
+      "dynamic"
+    ],
+    "nx_get_kf_rules": [],
+    "nx_delete_kf_rule": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_set_kf_rule": "44469efb4ea4bfc645cdf4f72fbc6f149a22e3409a5a6cc1b5b2c7acd4d36dbf",
+    "nx_get_kf_rules": "44469efb4ea4bfc645cdf4f72fbc6f149a22e3409a5a6cc1b5b2c7acd4d36dbf",
+    "nx_delete_kf_rule": "44469efb4ea4bfc645cdf4f72fbc6f149a22e3409a5a6cc1b5b2c7acd4d36dbf"
+  },
+  "recorded": "2026-11-01T22:16:56Z",
+  "passed": true,
+  "checks": 54,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_get_kf_rules",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 3,
+      "call": "nx_get_kf_rules",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 4,
+      "call": "nx_set_kf_rule",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 5,
+      "call": "nx_set_kf_rule",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 6,
+      "call": "nx_get_kf_rules",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 7,
+      "call": "nx_set_kf_rule",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 8,
+      "call": "nx_get_kf_rules",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 9,
+      "call": "nx_set_kf_rule",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 10,
+      "call": "nx_set_kf_rule",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 11,
+      "call": "nx_set_kf_rule",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 12,
+      "call": "nx_set_kf_rule",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 13,
+      "call": "nx_set_kf_rule",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 14,
+      "call": "nx_delete_kf_rule",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 15,
+      "call": "nx_delete_kf_rule",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 16,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 17,
+      "call": "nx_delete_kf_rule",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}

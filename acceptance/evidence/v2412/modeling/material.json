@@ -1,0 +1,141 @@
+{
+  "format": 2,
+  "scenario": "acceptance/modeling/material.json",
+  "scenario_sha256": "c8512075f386fa7b1c09ff943ed0f63c091dce8f1cd5ba896268894c4d0bff39",
+  "domain": "modeling",
+  "covers": {
+    "nx_get_material": [],
+    "nx_set_material": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_get_material": "93caeb2803bc67200de070b8d55fe0b0540b19fbefc571559e43ed812495e0d0",
+    "nx_set_material": "93caeb2803bc67200de070b8d55fe0b0540b19fbefc571559e43ed812495e0d0"
+  },
+  "recorded": "2026-11-01T22:10:08Z",
+  "passed": true,
+  "checks": 16,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_get_material",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 11,
+      "call": "nx_set_material",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 12,
+      "call": "nx_get_material",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 13,
+      "call": "nx_set_material",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 14,
+      "call": "nx_set_material",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 15,
+      "call": "nx_get_material",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 16,
+      "call": "nx_get_material",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 17,
+      "call": "nx_set_material",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "format": 2,
+  "scenario": "acceptance/display/display_notes.json",
+  "scenario_sha256": "67715dd5e84b76c90a925d39bf861f9785467d9962e1c35b6e549561671aadfb",
+  "domain": "display",
+  "covers": {
+    "nx_set_visibility": [],
+    "nx_set_appearance": [],
+    "nx_get_appearance": [],
+    "nx_set_highlight": [],
+    "nx_capture_view": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_set_visibility": "6c321a6e7b935507626dedb2bcfcde24637be0b1ef3dc62b58b219c7b5ff699e",
+    "nx_set_appearance": "6c321a6e7b935507626dedb2bcfcde24637be0b1ef3dc62b58b219c7b5ff699e",
+    "nx_get_appearance": "6c321a6e7b935507626dedb2bcfcde24637be0b1ef3dc62b58b219c7b5ff699e",
+    "nx_set_highlight": "6c321a6e7b935507626dedb2bcfcde24637be0b1ef3dc62b58b219c7b5ff699e",
+    "nx_capture_view": "1f01ed97b1b6986212fae46042d024d00d3b48dcd1c50eddecab7ebc45afb537"
+  },
+  "recorded": "2026-11-01T22:38:33Z",
+  "passed": true,
+  "checks": 18,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_set_visibility",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 4,
+      "call": "nx_set_appearance",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 5,
+      "call": "nx_get_appearance",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 6,
+      "call": "nx_set_visibility",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_set_highlight",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 8,
+      "call": "nx_set_highlight",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 9,
+      "call": "nx_restore_display",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_capture_view",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    }
+  ]
+}

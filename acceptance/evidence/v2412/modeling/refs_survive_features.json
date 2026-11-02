@@ -1,0 +1,218 @@
+{
+  "format": 2,
+  "scenario": "acceptance/modeling/refs_survive_features.json",
+  "scenario_sha256": "ab0fc0d8ea297e3c19f0d0b2aa08a7a1b8599315671c21e2be6d3c61733e6323",
+  "domain": "modeling",
+  "covers": {
+    "nx_create_thread": [],
+    "nx_create_blend": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_create_thread": "f6de85699f0758402f8cdc8f9a347061fb32e64d001c772261e2b346370f76a0",
+    "nx_create_blend": "1fd9acf198092f572c3d4fe7ed0633643175189b54c893930f8a9eb2bfad759e"
+  },
+  "recorded": "2026-11-01T22:11:09Z",
+  "passed": true,
+  "checks": 22,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 11,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 12,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 13,
+      "call": "nx_create_hole",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 14,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 15,
+      "call": "nx_create_thread",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 16,
+      "call": "nx_create_thread",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 17,
+      "call": "nx_create_thread",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 18,
+      "call": "nx_create_thread",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 19,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 20,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 21,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 22,
+      "call": "nx_create_extrude",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 23,
+      "call": "nx_measure_distance",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 24,
+      "call": "nx_create_blend",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 25,
+      "call": "nx_measure_distance",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 26,
+      "call": "nx_create_blend",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 27,
+      "call": "nx_create_blend",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 28,
+      "call": "nx_create_chamfer",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}

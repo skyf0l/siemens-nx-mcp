@@ -1,0 +1,232 @@
+{
+  "format": 2,
+  "scenario": "acceptance/modeling/mirror_features.json",
+  "scenario_sha256": "f46e5c04e8699cbd8fc932c55b932155dd9e3f0602301480e268cfcb3e0f2137",
+  "domain": "modeling",
+  "covers": {
+    "nx_create_mirror": [
+      "features"
+    ]
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_create_mirror": "f933aca70660ff116705087097bfe00f58661c5670c5f5f8db910ad29b22e3fc"
+  },
+  "recorded": "2026-11-01T22:10:30Z",
+  "passed": true,
+  "checks": 21,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 11,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 12,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 13,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 14,
+      "call": "nx_create_datum_plane",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 15,
+      "call": "nx_create_mirror",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 16,
+      "call": "nx_find_holes",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 17,
+      "call": "nx_find_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 18,
+      "call": "nx_find_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 19,
+      "call": "nx_create_mirror",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 20,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 21,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 22,
+      "call": "nx_create_mirror",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 23,
+      "call": "nx_create_mirror",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 24,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 25,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 26,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 27,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 28,
+      "call": "nx_create_mirror",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 29,
+      "call": "nx_find_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 30,
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

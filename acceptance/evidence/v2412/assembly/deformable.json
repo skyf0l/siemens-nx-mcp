@@ -1,0 +1,285 @@
+{
+  "format": 2,
+  "scenario": "acceptance/assembly/deformable.json",
+  "scenario_sha256": "6a40ae8df598ff60f97c083eabaafc55cdee8ac61a530f62d8b25d033307cc55",
+  "domain": "assembly",
+  "covers": {
+    "nx_create_deformable_definition": [],
+    "nx_set_component_deformation": [],
+    "nx_update_assembly": [],
+    "nx_create_component_mirror": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_create_deformable_definition": "2b12a187fd3b53e6d6d0232e85768842976dec5ae277dd552e2b5d9e70a901c0",
+    "nx_set_component_deformation": "2b12a187fd3b53e6d6d0232e85768842976dec5ae277dd552e2b5d9e70a901c0",
+    "nx_update_assembly": "38720c700e262936ca315f1fb199f69ff813a47e696b720a54a15c22f590a9b4",
+    "nx_create_component_mirror": "93ac3f3e1212f4a3a4348930e968fcd974f201e78dfd1ae9abffa5fba578f760"
+  },
+  "recorded": "2026-11-01T21:57:58Z",
+  "passed": true,
+  "checks": 83,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_create_deformable_definition",
+      "setup": false,
+      "passed": true,
+      "checks": 11
+    },
+    {
+      "index": 7,
+      "call": "nx_create_deformable_definition",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 8,
+      "call": "nx_save_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 11,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 12,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 13,
+      "call": "nx_set_component_deformation",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 14,
+      "call": "nx_set_component_deformation",
+      "setup": false,
+      "passed": true,
+      "checks": 10
+    },
+    {
+      "index": 15,
+      "call": "nx_set_component_deformation",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 16,
+      "call": "nx_set_component_deformation",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 17,
+      "call": "nx_set_component_deformation",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 18,
+      "call": "nx_set_component_deformation",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 19,
+      "call": "nx_set_component_deformation",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 20,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 21,
+      "call": "nx_update_model",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 22,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 23,
+      "call": "nx_set_component_deformation",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 24,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 25,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 26,
+      "call": "nx_update_assembly",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 27,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 28,
+      "call": "nx_create_component_mirror",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 29,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 30,
+      "call": "nx_set_component_deformation",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 31,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 32,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 33,
+      "call": "nx_create_deformable_definition",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 34,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 35,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 36,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 37,
+      "call": "nx_create_deformable_definition",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    }
+  ]
+}

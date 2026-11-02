@@ -1,0 +1,260 @@
+{
+  "format": 2,
+  "scenario": "acceptance/modeling/expression_values.json",
+  "scenario_sha256": "e497d1e73fc920f0144be572f772b5c9fd448735e7dacae7371820aac34b039b",
+  "domain": "modeling",
+  "covers": {
+    "nx_create_extrude": [],
+    "nx_create_chamfer": [
+      "symmetric"
+    ],
+    "nx_create_blend": [],
+    "nx_create_hole": [
+      "simple"
+    ],
+    "nx_create_pattern": [
+      "linear"
+    ],
+    "nx_create_revolve": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_create_extrude": "3eab78e4037041b4fc1fbb93da58f9b0ecd745a4224b8af92d50b01c2c5186f8",
+    "nx_create_chamfer": "1fd9acf198092f572c3d4fe7ed0633643175189b54c893930f8a9eb2bfad759e",
+    "nx_create_blend": "1fd9acf198092f572c3d4fe7ed0633643175189b54c893930f8a9eb2bfad759e",
+    "nx_create_hole": "b6c51199010492708c737b23bbacf7e2e21b075e962fc491995d3db4acba74e5",
+    "nx_create_pattern": "f933aca70660ff116705087097bfe00f58661c5670c5f5f8db910ad29b22e3fc",
+    "nx_create_revolve": "3eab78e4037041b4fc1fbb93da58f9b0ecd745a4224b8af92d50b01c2c5186f8"
+  },
+  "recorded": "2026-11-01T22:46:35Z",
+  "passed": true,
+  "checks": 22,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 11,
+      "call": "nx_create_extrude",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 12,
+      "call": "nx_create_extrude",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 13,
+      "call": "nx_create_extrude",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 14,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 15,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 16,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 17,
+      "call": "nx_create_chamfer",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 18,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 19,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 20,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 21,
+      "call": "nx_create_blend",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 22,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 23,
+      "call": "nx_create_hole",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 24,
+      "call": "nx_create_pattern",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 25,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 26,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 27,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 28,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 29,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 30,
+      "call": "nx_create_revolve",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 31,
+      "call": "nx_set_expression",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 32,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

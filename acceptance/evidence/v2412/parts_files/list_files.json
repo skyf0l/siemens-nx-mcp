@@ -1,0 +1,104 @@
+{
+  "format": 2,
+  "scenario": "acceptance/parts_files/list_files.json",
+  "scenario_sha256": "a8429a8b5aeafe9a875bf2fcbbef6f54fb505060b8792b30219ba80ece905807",
+  "domain": "parts_files",
+  "covers": {
+    "nx_list_files": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_list_files": "90bea504968454cefe240c2404f783197b5cb9e2f17968f06409195f3dfcb75b"
+  },
+  "recorded": "2026-11-01T22:16:58Z",
+  "passed": true,
+  "checks": 23,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_directory",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_upload_file",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_upload_file",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_list_files",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 5,
+      "call": "nx_list_files",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 6,
+      "call": "nx_list_files",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 7,
+      "call": "nx_list_files",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 8,
+      "call": "nx_list_files",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 9,
+      "call": "nx_list_files",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 10,
+      "call": "nx_list_files",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 11,
+      "call": "nx_list_files",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 12,
+      "call": "nx_list_files",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

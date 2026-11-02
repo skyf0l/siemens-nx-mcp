@@ -1,0 +1,90 @@
+{
+  "format": 2,
+  "scenario": "acceptance/modeling/revolve_profile.json",
+  "scenario_sha256": "41582bfc1bfc997cc4324649a7e4054120694a5c382f408e673f6e126f4765c9",
+  "domain": "modeling",
+  "covers": {
+    "nx_create_revolve": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_create_revolve": "3eab78e4037041b4fc1fbb93da58f9b0ecd745a4224b8af92d50b01c2c5186f8"
+  },
+  "recorded": "2026-11-01T22:11:33Z",
+  "passed": true,
+  "checks": 21,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_revolve",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 4,
+      "call": "nx_create_revolve",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 5,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_create_revolve",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_create_revolve",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 9,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_create_revolve",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    }
+  ]
+}

@@ -1,0 +1,192 @@
+{
+  "format": 2,
+  "scenario": "acceptance/freeform/curve_offset.json",
+  "scenario_sha256": "81eaa6ec2644b341f40a833a7b0d84ed4383a75daa9c9b10fa63bcbcf8d98965",
+  "domain": "freeform",
+  "covers": {
+    "nx_create_offset_curve": [
+      "distance",
+      "draft",
+      "axial_3d"
+    ]
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_create_offset_curve": "d8d2e6c62f6cb983d869ab857236f0acb3fe589f71027176e72689aba9f61734"
+  },
+  "recorded": "2026-11-01T22:04:56Z",
+  "passed": true,
+  "checks": 40,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_create_offset_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 7,
+      "call": "nx_create_offset_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 8,
+      "call": "nx_create_offset_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 9,
+      "call": "nx_create_offset_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 10,
+      "call": "nx_create_offset_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 11,
+      "call": "nx_create_offset_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 12,
+      "call": "nx_create_offset_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 13,
+      "call": "nx_create_offset_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 14,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 15,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 16,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 17,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 18,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 19,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 20,
+      "call": "nx_create_offset_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 21,
+      "call": "nx_create_offset_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 22,
+      "call": "nx_create_spline",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 23,
+      "call": "nx_create_offset_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 24,
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

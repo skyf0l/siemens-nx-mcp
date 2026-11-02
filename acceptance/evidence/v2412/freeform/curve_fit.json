@@ -1,0 +1,103 @@
+{
+  "format": 2,
+  "scenario": "acceptance/freeform/curve_fit.json",
+  "scenario_sha256": "f3837aed0c337e1b65931ba57e2fdbc1cee3b1cd9136252fea1a2960a47818bc",
+  "domain": "freeform",
+  "covers": {
+    "nx_import_points": [],
+    "nx_create_fit_curve": [
+      "spline",
+      "line",
+      "circle"
+    ]
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_import_points": "86a1136ccc43594f2be5742c23258062b9a948369efb9cde791c8174801e13c9",
+    "nx_create_fit_curve": "86a1136ccc43594f2be5742c23258062b9a948369efb9cde791c8174801e13c9"
+  },
+  "recorded": "2026-11-01T22:04:49Z",
+  "passed": true,
+  "checks": 46,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_import_points",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 3,
+      "call": "nx_create_fit_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 4,
+      "call": "nx_create_fit_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 5,
+      "call": "nx_create_fit_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 6,
+      "call": "nx_create_fit_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 7,
+      "call": "nx_create_fit_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 8,
+      "call": "nx_create_fit_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 9,
+      "call": "nx_create_fit_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 10,
+      "call": "nx_create_fit_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 11,
+      "call": "nx_create_fit_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}

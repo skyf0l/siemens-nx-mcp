@@ -1,0 +1,100 @@
+{
+  "format": 2,
+  "scenario": "acceptance/drawing/table_usability.json",
+  "scenario_sha256": "ebceecbf168a02d290e1913a80cd0dcee2235825485e36c79d7ce5724908bbb8",
+  "domain": "drawing",
+  "covers": {
+    "nx_create_drawing_table": [
+      "revision",
+      "title_block"
+    ],
+    "nx_edit_drawing_table": [
+      "revision",
+      "title_block"
+    ],
+    "nx_get_drawing_table": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_create_drawing_table": "d5c8d5e3e9e9aedb6de350fc11c4cbb5982ab57a7a891222afd97a01191ced22",
+    "nx_edit_drawing_table": "d5c8d5e3e9e9aedb6de350fc11c4cbb5982ab57a7a891222afd97a01191ced22",
+    "nx_get_drawing_table": "d5c8d5e3e9e9aedb6de350fc11c4cbb5982ab57a7a891222afd97a01191ced22"
+  },
+  "recorded": "2026-11-01T22:04:03Z",
+  "passed": true,
+  "checks": 24,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 5,
+      "call": "nx_edit_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 6,
+      "call": "nx_create_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 7,
+      "call": "nx_edit_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 8,
+      "call": "nx_get_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 9,
+      "call": "nx_create_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 10,
+      "call": "nx_create_balloons",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}

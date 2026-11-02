@@ -1,0 +1,137 @@
+{
+  "format": 2,
+  "scenario": "acceptance/modeling/combine_targets.json",
+  "scenario_sha256": "e0b96bd05327b2c61e8b26c6dbd9c0d05b867174b9a0bfded7c6e7d59750982b",
+  "domain": "modeling",
+  "covers": {
+    "nx_create_boolean": [
+      "subtract"
+    ],
+    "nx_create_extrude": [],
+    "nx_create_primitive": [
+      "cylinder"
+    ],
+    "nx_create_pattern": [
+      "circular"
+    ]
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_create_boolean": "276411e296257a095980b6588cb3fd9904675cbab3abdc7b5bbc5a0716de4454",
+    "nx_create_extrude": "3eab78e4037041b4fc1fbb93da58f9b0ecd745a4224b8af92d50b01c2c5186f8",
+    "nx_create_primitive": "c53fad0d2919bf8533f74ff686588b94f375028e258ac718b99204c45ff6a598",
+    "nx_create_pattern": "f933aca70660ff116705087097bfe00f58661c5670c5f5f8db910ad29b22e3fc"
+  },
+  "recorded": "2026-11-01T22:08:27Z",
+  "passed": true,
+  "checks": 17,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_boolean",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 6,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_create_primitive",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 9,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 11,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 12,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 13,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 14,
+      "call": "nx_create_extrude",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 15,
+      "call": "nx_create_pattern",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}

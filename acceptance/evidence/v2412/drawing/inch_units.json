@@ -1,0 +1,135 @@
+{
+  "format": 2,
+  "scenario": "acceptance/drawing/inch_units.json",
+  "scenario_sha256": "05b953794eea5db0185b3ee01fd970b6c0bd40d25b43fd1199565aba6c18a0e2",
+  "domain": "drawing",
+  "covers": {
+    "nx_create_drawing_view": [
+      "base",
+      "projected",
+      "detail"
+    ],
+    "nx_create_drawing_dimension": [
+      "radius",
+      "diameter"
+    ],
+    "nx_create_note": [],
+    "nx_create_drawing_table": [
+      "revision"
+    ],
+    "nx_create_drawing_sheet": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_create_drawing_view": "427bcf89de9f2baeef97b5fd5f82f504a5ddcba003bf744f988038d12517107a",
+    "nx_create_drawing_dimension": "69dd2bacd2a370d6d460be8b2d9399fc3913c3f49216b04bc6e419c44d5bff7e",
+    "nx_create_note": "b8ff43f5189bf801d079e32c70f7cf77837c03819b487e413cbc4fb659a59d2b",
+    "nx_create_drawing_table": "d5c8d5e3e9e9aedb6de350fc11c4cbb5982ab57a7a891222afd97a01191ced22",
+    "nx_create_drawing_sheet": "d9ffd44940980bf2ef6d5cd7df2ec0c78570cff1f8746a4676ff058b4091df94"
+  },
+  "recorded": "2026-11-01T22:41:40Z",
+  "passed": true,
+  "checks": 23,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_drawing_sheet",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 4,
+      "call": "nx_create_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 5,
+      "call": "nx_create_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 6,
+      "call": "nx_create_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 7,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 8,
+      "call": "nx_create_drawing_dimension",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 9,
+      "call": "nx_create_note",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 10,
+      "call": "nx_create_drawing_table",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 11,
+      "call": "nx_create_drawing_sheet",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 12,
+      "call": "nx_create_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 13,
+      "call": "nx_create_drawing_sheet",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 14,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    }
+  ]
+}

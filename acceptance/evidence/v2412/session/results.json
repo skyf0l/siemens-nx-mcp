@@ -1,0 +1,204 @@
+{
+  "format": 2,
+  "scenario": "acceptance/session/results.json",
+  "scenario_sha256": "518d39c06e788fd3a0961af270e7d12706cc519bdd3e7ba3cd337b7893d3c3ad",
+  "domain": "session",
+  "covers": {
+    "nx_get_result": [],
+    "nx_delete_results": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_get_result": "cad6ce6fd4883204cbbe4d680dca8a3336e5eed401d1b90d2e5f341079023297",
+    "nx_delete_results": "cad6ce6fd4883204cbbe4d680dca8a3336e5eed401d1b90d2e5f341079023297"
+  },
+  "recorded": "2026-11-01T22:18:42Z",
+  "passed": true,
+  "checks": 86,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_get_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 6,
+      "call": "nx_get_result",
+      "setup": false,
+      "passed": true,
+      "checks": 10
+    },
+    {
+      "index": 7,
+      "call": "nx_get_result",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 8,
+      "call": "nx_get_result",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 9,
+      "call": "nx_get_result",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 10,
+      "call": "nx_get_result",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 11,
+      "call": "nx_get_result",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 12,
+      "call": "nx_get_result",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 13,
+      "call": "nx_get_result",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 14,
+      "call": "nx_get_result",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 15,
+      "call": "nx_get_result",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 16,
+      "call": "nx_get_result",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 17,
+      "call": "nx_delete_results",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 18,
+      "call": "nx_get_result",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 19,
+      "call": "nx_delete_results",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 20,
+      "call": "nx_delete_results",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 21,
+      "call": "nx_delete_results",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 22,
+      "call": "nx_get_result",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 23,
+      "call": "nx_delete_results",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 24,
+      "call": "nx_delete_results",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 25,
+      "call": "nx_delete_results",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 26,
+      "call": "nx_delete_results",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}

@@ -1,0 +1,118 @@
+{
+  "format": 2,
+  "scenario": "acceptance/modeling/emboss_offset.json",
+  "scenario_sha256": "8320f58d3540005b82f0b8ee5e5c1b4c78eebd9cc26a59773abfcfe93c0f5bee",
+  "domain": "modeling",
+  "covers": {
+    "nx_create_offset_emboss": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_create_offset_emboss": "844ddbc31d666ba08476aa15ff259fc39022076cead27cb915acac6942e31e43"
+  },
+  "recorded": "2026-11-01T22:09:02Z",
+  "passed": true,
+  "checks": 10,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 11,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 12,
+      "call": "nx_create_offset_emboss",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 13,
+      "call": "nx_create_offset_emboss",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 14,
+      "call": "nx_create_offset_emboss",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}

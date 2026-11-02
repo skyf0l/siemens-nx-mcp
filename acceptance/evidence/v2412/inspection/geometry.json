@@ -1,0 +1,201 @@
+{
+  "format": 2,
+  "scenario": "acceptance/inspection/geometry.json",
+  "scenario_sha256": "f4cdd860770ee83867fd9a6f3bc46929bfb195d5a924181f376539b65c11210f",
+  "domain": "inspection",
+  "covers": {
+    "nx_find_geometry": [],
+    "nx_find_holes": [],
+    "nx_create_anchor": [],
+    "nx_resolve_reference": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_find_geometry": "958adac1e84c626f8716e8926eac14407e13bb5f0c968de3e9f739bc921b09f6",
+    "nx_find_holes": "958adac1e84c626f8716e8926eac14407e13bb5f0c968de3e9f739bc921b09f6",
+    "nx_create_anchor": "958adac1e84c626f8716e8926eac14407e13bb5f0c968de3e9f739bc921b09f6",
+    "nx_resolve_reference": "958adac1e84c626f8716e8926eac14407e13bb5f0c968de3e9f739bc921b09f6"
+  },
+  "recorded": "2026-11-01T22:44:28Z",
+  "passed": true,
+  "checks": 63,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_find_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 8
+    },
+    {
+      "index": 7,
+      "call": "nx_find_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 8,
+      "call": "nx_find_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 9,
+      "call": "nx_find_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 10,
+      "call": "nx_find_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 11,
+      "call": "nx_find_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 12,
+      "call": "nx_find_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 13,
+      "call": "nx_find_holes",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 14,
+      "call": "nx_find_holes",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 15,
+      "call": "nx_create_anchor",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 16,
+      "call": "nx_create_anchor",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 17,
+      "call": "nx_resolve_reference",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 18,
+      "call": "nx_edit_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 19,
+      "call": "nx_resolve_reference",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 20,
+      "call": "nx_resolve_reference",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 21,
+      "call": "nx_resolve_reference",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 22,
+      "call": "nx_find_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 23,
+      "call": "nx_resolve_reference",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 24,
+      "call": "nx_resolve_reference",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 25,
+      "call": "nx_resolve_reference",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}

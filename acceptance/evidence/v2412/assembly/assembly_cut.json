@@ -1,0 +1,203 @@
+{
+  "format": 2,
+  "scenario": "acceptance/assembly/assembly_cut.json",
+  "scenario_sha256": "c77fafdbcc6e8bddc2870832eed951967ed636ae66e5d94a65a84c72b478c557",
+  "domain": "assembly",
+  "covers": {
+    "nx_create_assembly_cut": [],
+    "nx_create_arrangement": [],
+    "nx_set_arrangement_component": [],
+    "nx_edit_arrangement": [
+      "set_default"
+    ]
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_create_assembly_cut": "563c3d52fec95eb197db31cd866fc11bb7d97993075bde06890e180c1435554f",
+    "nx_create_arrangement": "995ff0db913d270487248f6bfca632a16c87d116b20fdce53d022600cfd8a772",
+    "nx_set_arrangement_component": "995ff0db913d270487248f6bfca632a16c87d116b20fdce53d022600cfd8a772",
+    "nx_edit_arrangement": "995ff0db913d270487248f6bfca632a16c87d116b20fdce53d022600cfd8a772"
+  },
+  "recorded": "2026-11-01T21:57:15Z",
+  "passed": true,
+  "checks": 40,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_save_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_save_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_create_assembly_cut",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 11,
+      "call": "nx_create_arrangement",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 12,
+      "call": "nx_set_arrangement_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 13,
+      "call": "nx_create_assembly_cut",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 14,
+      "call": "nx_edit_arrangement",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 15,
+      "call": "nx_create_assembly_cut",
+      "setup": false,
+      "passed": true,
+      "checks": 9
+    },
+    {
+      "index": 16,
+      "call": "nx_create_assembly_cut",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 17,
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 18,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 19,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 20,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 21,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 22,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 23,
+      "call": "nx_create_assembly_cut",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 24,
+      "call": "nx_create_assembly_cut",
+      "setup": false,
+      "passed": true,
+      "checks": 8
+    },
+    {
+      "index": 25,
+      "call": "nx_create_assembly_cut",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    }
+  ]
+}

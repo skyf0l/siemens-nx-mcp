@@ -1,0 +1,64 @@
+{
+  "format": 2,
+  "scenario": "acceptance/parts_files/import_dwg.json",
+  "scenario_sha256": "da0383c97063808d9fb1f699f79598ebf7a92abe0f869a327f40bba03d4c7f2a",
+  "domain": "parts_files",
+  "covers": {
+    "nx_import_model": [
+      "dxf_dwg"
+    ]
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_import_model": "7a538cffabc38cd6194b658ddcd266a93b49a5c952b2ce8943b63bdc422eab03"
+  },
+  "recorded": "2026-11-01T22:16:16Z",
+  "passed": true,
+  "checks": 14,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_import_model",
+      "setup": false,
+      "passed": true,
+      "checks": 8
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_import_model",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 6,
+      "call": "nx_get_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

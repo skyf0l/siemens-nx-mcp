@@ -1,0 +1,157 @@
+{
+  "format": 2,
+  "scenario": "acceptance/sheet_metal/flat_pattern_axes.json",
+  "scenario_sha256": "eb69e2e8b0ed051ac2e879cd39be3e869928a3aae7e66aecde22a2e8bbd94b66",
+  "domain": "sheet_metal",
+  "covers": {
+    "nx_create_sheet_metal_feature": [
+      "tab",
+      "flat_pattern"
+    ],
+    "nx_get_sheet_metal": [],
+    "nx_get_sheet_metal_defaults": [],
+    "nx_set_sheet_metal_defaults": [],
+    "nx_export_flat_pattern": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_create_sheet_metal_feature": "43ba943978ac1a53e7b5fe7764ce9a8e657da0df27ed9c7ca089fc5660d46781",
+    "nx_get_sheet_metal": "5264c1fc98bed0eee71c44115494ef2bb2997bfced8713ee352c1bb7094d0e9f",
+    "nx_get_sheet_metal_defaults": "c51770958a272fb8e6af24a00d630b921e8709f53e9f369fb36bdda5961c1c99",
+    "nx_set_sheet_metal_defaults": "c51770958a272fb8e6af24a00d630b921e8709f53e9f369fb36bdda5961c1c99",
+    "nx_export_flat_pattern": "40ecad55fd6619c0fc0802f835521b76e22b7f7636f9723f96d6d637ce864aa9"
+  },
+  "recorded": "2026-11-02T07:34:01Z",
+  "passed": true,
+  "checks": 25,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_activate_application",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_set_sheet_metal_defaults",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_set_sheet_metal_defaults",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 5,
+      "call": "nx_get_sheet_metal_defaults",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 6,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 10,
+      "call": "nx_measure_bounds",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 11,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 12,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 13,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 14,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 15,
+      "call": "nx_create_sheet_metal_feature",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 16,
+      "call": "nx_get_sheet_metal",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 17,
+      "call": "nx_export_flat_pattern",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 18,
+      "call": "nx_export_flat_pattern",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    }
+  ]
+}

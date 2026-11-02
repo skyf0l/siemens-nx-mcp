@@ -1,0 +1,185 @@
+{
+  "format": 2,
+  "scenario": "acceptance/freeform/curve_surface.json",
+  "scenario_sha256": "2179c75f735d337af661237f9caa8b094c92a7e478849e4e0933480c96463667",
+  "domain": "freeform",
+  "covers": {
+    "nx_create_isoparametric_curves": [
+      "uniform",
+      "through_points",
+      "between_points"
+    ],
+    "nx_create_isocline_curves": [
+      "single",
+      "range"
+    ],
+    "nx_create_curve_on_surface": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_create_isoparametric_curves": "89958f0fdd4e4c008700c4c4505c02f4d9b8d0459272d6826a9e0d81a5ec3980",
+    "nx_create_isocline_curves": "89958f0fdd4e4c008700c4c4505c02f4d9b8d0459272d6826a9e0d81a5ec3980",
+    "nx_create_curve_on_surface": "89958f0fdd4e4c008700c4c4505c02f4d9b8d0459272d6826a9e0d81a5ec3980"
+  },
+  "recorded": "2026-11-01T22:05:02Z",
+  "passed": true,
+  "checks": 64,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_create_isoparametric_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 7,
+      "call": "nx_create_isoparametric_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 8,
+      "call": "nx_create_isoparametric_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 9,
+      "call": "nx_create_isoparametric_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 10,
+      "call": "nx_create_isoparametric_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 11,
+      "call": "nx_create_isoparametric_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 12,
+      "call": "nx_create_isocline_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 13,
+      "call": "nx_create_isocline_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 14,
+      "call": "nx_create_isocline_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 15,
+      "call": "nx_create_isocline_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 16,
+      "call": "nx_create_curve_on_surface",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 17,
+      "call": "nx_create_isoparametric_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 18,
+      "call": "nx_create_isocline_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 19,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 20,
+      "call": "nx_create_isoparametric_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 9
+    },
+    {
+      "index": 21,
+      "call": "nx_create_isocline_curves",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 22,
+      "call": "nx_check_model",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

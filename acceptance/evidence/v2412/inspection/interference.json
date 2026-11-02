@@ -1,0 +1,218 @@
+{
+  "format": 2,
+  "scenario": "acceptance/inspection/interference.json",
+  "scenario_sha256": "c9645c13aeacf028c051b0a9f9048c0910ac1ff3c28d83b4f711e804fd9b49f4",
+  "domain": "inspection",
+  "covers": {
+    "nx_check_interference": [],
+    "nx_export_inspection_report": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_check_interference": "0659c8346d80cc2a0909ae1f4ebbff74183b47db1150a549bf5f43008a560f53",
+    "nx_export_inspection_report": "0659c8346d80cc2a0909ae1f4ebbff74183b47db1150a549bf5f43008a560f53"
+  },
+  "recorded": "2026-11-01T22:06:57Z",
+  "passed": true,
+  "checks": 66,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_save_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 11,
+      "call": "nx_create_component",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 12,
+      "call": "nx_check_interference",
+      "setup": false,
+      "passed": true,
+      "checks": 12
+    },
+    {
+      "index": 13,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 14,
+      "call": "nx_check_interference",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 15,
+      "call": "nx_check_interference",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 16,
+      "call": "nx_check_interference",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 17,
+      "call": "nx_check_interference",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 18,
+      "call": "nx_check_interference",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 19,
+      "call": "nx_check_interference",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 20,
+      "call": "nx_check_interference",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 21,
+      "call": "nx_export_inspection_report",
+      "setup": false,
+      "passed": true,
+      "checks": 11
+    },
+    {
+      "index": 22,
+      "call": "nx_export_inspection_report",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 23,
+      "call": "nx_export_inspection_report",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 24,
+      "call": "nx_export_inspection_report",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 25,
+      "call": "nx_export_inspection_report",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 26,
+      "call": "nx_export_inspection_report",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 27,
+      "call": "nx_export_inspection_report",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 28,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

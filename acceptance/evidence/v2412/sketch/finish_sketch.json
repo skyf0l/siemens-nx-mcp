@@ -1,0 +1,118 @@
+{
+  "format": 2,
+  "scenario": "acceptance/sketch/finish_sketch.json",
+  "scenario_sha256": "63d0032a418a4602a4d146e4f46d5103161044ece35e2308c61651503cbfd8a8",
+  "domain": "sketch",
+  "covers": {
+    "nx_finish_sketch": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_finish_sketch": "a80a4318a9dca7e3071c5e9084a93f69931cbc0f806adbc732204c4fb96a2efe"
+  },
+  "recorded": "2026-11-01T22:21:18Z",
+  "passed": true,
+  "checks": 28,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 5,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 6,
+      "call": "nx_finish_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 7,
+      "call": "nx_create_extrude",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 8,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_finish_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 10,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 11,
+      "call": "nx_finish_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 12,
+      "call": "nx_get_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 13,
+      "call": "nx_finish_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 14,
+      "call": "nx_finish_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}

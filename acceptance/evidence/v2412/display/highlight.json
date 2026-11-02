@@ -1,0 +1,78 @@
+{
+  "format": 2,
+  "scenario": "acceptance/display/highlight.json",
+  "scenario_sha256": "b3b448cb1689e66f244376dd49562e80eb2187dfa95ec7b3ffcb9ff7c9bedbe5",
+  "domain": "display",
+  "covers": {
+    "nx_set_highlight": [],
+    "nx_get_appearance": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_set_highlight": "6c321a6e7b935507626dedb2bcfcde24637be0b1ef3dc62b58b219c7b5ff699e",
+    "nx_get_appearance": "6c321a6e7b935507626dedb2bcfcde24637be0b1ef3dc62b58b219c7b5ff699e"
+  },
+  "recorded": "2026-11-01T21:59:48Z",
+  "passed": true,
+  "checks": 13,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_list_objects",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_list_objects",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_set_highlight",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 5,
+      "call": "nx_set_highlight",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 6,
+      "call": "nx_get_appearance",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 7,
+      "call": "nx_set_highlight",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 8,
+      "call": "nx_set_highlight",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    }
+  ]
+}

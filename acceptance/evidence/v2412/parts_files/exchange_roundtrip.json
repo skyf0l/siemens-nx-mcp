@@ -1,0 +1,129 @@
+{
+  "format": 2,
+  "scenario": "acceptance/parts_files/exchange_roundtrip.json",
+  "scenario_sha256": "dadc5d113dc0d2af895264520a1b2da6df17758bae7cf2406d9cd7c65a092f61",
+  "domain": "parts_files",
+  "covers": {
+    "nx_export_model": [
+      "iges",
+      "step"
+    ],
+    "nx_import_model": [
+      "dxf_dwg",
+      "iges",
+      "step"
+    ],
+    "nx_export_profile": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_export_model": "6a28ceb4dd202b7923fd8d39411b2b4e784fff6141cd251877845a52037f5a5b",
+    "nx_import_model": "7a538cffabc38cd6194b658ddcd266a93b49a5c952b2ce8943b63bdc422eab03",
+    "nx_export_profile": "7cba53949d358ea062a8f3728fe535486389bfec28dce396b9d66ce5f9badccc"
+  },
+  "recorded": "2026-11-01T22:14:19Z",
+  "passed": true,
+  "checks": 39,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 6,
+      "call": "nx_export_profile",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 7,
+      "call": "nx_export_model",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 8,
+      "call": "nx_export_model",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 9,
+      "call": "nx_export_model",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 10,
+      "call": "nx_import_model",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 11,
+      "call": "nx_import_model",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 12,
+      "call": "nx_import_model",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 13,
+      "call": "nx_import_model",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 14,
+      "call": "nx_list_parts",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

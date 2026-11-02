@@ -1,0 +1,213 @@
+{
+  "format": 2,
+  "scenario": "acceptance/modeling/material_forms.json",
+  "scenario_sha256": "2376712f41984d3be9cf5ff758862a25dc47535558305395d95e162b82e19515",
+  "domain": "modeling",
+  "covers": {
+    "nx_list_materials": [],
+    "nx_get_material": [],
+    "nx_set_material": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_list_materials": "93caeb2803bc67200de070b8d55fe0b0540b19fbefc571559e43ed812495e0d0",
+    "nx_get_material": "93caeb2803bc67200de070b8d55fe0b0540b19fbefc571559e43ed812495e0d0",
+    "nx_set_material": "93caeb2803bc67200de070b8d55fe0b0540b19fbefc571559e43ed812495e0d0"
+  },
+  "recorded": "2026-11-01T22:10:14Z",
+  "passed": true,
+  "checks": 50,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 9,
+      "call": "nx_create_extrude",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_get_material",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 11,
+      "call": "nx_get_material",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 12,
+      "call": "nx_list_materials",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 13,
+      "call": "nx_list_materials",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 14,
+      "call": "nx_list_materials",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 15,
+      "call": "nx_set_material",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 16,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 17,
+      "call": "nx_set_material",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 18,
+      "call": "nx_set_material",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 19,
+      "call": "nx_set_material",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 20,
+      "call": "nx_set_material",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 21,
+      "call": "nx_set_material",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 22,
+      "call": "nx_set_material",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 23,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 24,
+      "call": "nx_set_material",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 25,
+      "call": "nx_get_material",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 26,
+      "call": "nx_set_material",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 27,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

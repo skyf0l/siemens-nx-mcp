@@ -1,0 +1,55 @@
+{
+  "format": 2,
+  "scenario": "acceptance/modeling/material_density_units.json",
+  "scenario_sha256": "bcd14f8fca7ba281e78f1b38e70369ccd42148f41ec179960a5ec6b097f97052",
+  "domain": "modeling",
+  "covers": {
+    "nx_set_material": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_set_material": "93caeb2803bc67200de070b8d55fe0b0540b19fbefc571559e43ed812495e0d0"
+  },
+  "recorded": "2026-11-01T22:10:09Z",
+  "passed": true,
+  "checks": 3,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_set_material",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 4,
+      "call": "nx_get_material",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 5,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    }
+  ]
+}

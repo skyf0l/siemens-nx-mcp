@@ -1,0 +1,170 @@
+{
+  "format": 2,
+  "scenario": "acceptance/drawing/sheet_sketch_hatch.json",
+  "scenario_sha256": "cbe571271bd125857b0c342099dfbd952e515429329d937c0ece3832ee0488eb",
+  "domain": "drawing",
+  "covers": {
+    "nx_create_sheet_sketch": [
+      "line",
+      "polyline",
+      "arc",
+      "circle",
+      "rectangle"
+    ],
+    "nx_create_hatch": [],
+    "nx_edit_annotation": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_create_sheet_sketch": "71732029d60463e97bc30ad4e9c6e49a7e5bac64dec315294d7903f5100d34ab",
+    "nx_create_hatch": "d68e953809ad8452c760b47bb0d93fbc9660575a02f9fc7493ea75c9f0280498",
+    "nx_edit_annotation": "b8ff43f5189bf801d079e32c70f7cf77837c03819b487e413cbc4fb659a59d2b"
+  },
+  "recorded": "2026-11-01T22:03:53Z",
+  "passed": true,
+  "checks": 61,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_sheet_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 13
+    },
+    {
+      "index": 5,
+      "call": "nx_create_sheet_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 6,
+      "call": "nx_create_hatch",
+      "setup": false,
+      "passed": true,
+      "checks": 7
+    },
+    {
+      "index": 7,
+      "call": "nx_create_hatch",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 8,
+      "call": "nx_create_hatch",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 9,
+      "call": "nx_create_hatch",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 10,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 11,
+      "call": "nx_edit_annotation",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 12,
+      "call": "nx_edit_annotation",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 13,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 14,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 15,
+      "call": "nx_create_hatch",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 16,
+      "call": "nx_create_hatch",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 17,
+      "call": "nx_create_sheet_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 18,
+      "call": "nx_create_note",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 19,
+      "call": "nx_capture_view",
+      "setup": false,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 20,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    }
+  ]
+}

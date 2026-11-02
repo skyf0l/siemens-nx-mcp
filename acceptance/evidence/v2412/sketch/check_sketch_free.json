@@ -1,0 +1,99 @@
+{
+  "format": 2,
+  "scenario": "acceptance/sketch/check_sketch_free.json",
+  "scenario_sha256": "c9eee3e3e21a62874992a36ea9b4970c5b1a0417ea26f4380cb0cd0d9dcb8067",
+  "domain": "sketch",
+  "covers": {
+    "nx_check_sketch": [],
+    "nx_get_sketch": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_check_sketch": "a80a4318a9dca7e3071c5e9084a93f69931cbc0f806adbc732204c4fb96a2efe",
+    "nx_get_sketch": "a80a4318a9dca7e3071c5e9084a93f69931cbc0f806adbc732204c4fb96a2efe"
+  },
+  "recorded": "2026-11-01T22:21:04Z",
+  "passed": true,
+  "checks": 12,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_sketch_corner",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_sketch_copy",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_check_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 6,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 8,
+      "call": "nx_check_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 9,
+      "call": "nx_get_sketch",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 10,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 11,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    }
+  ]
+}

@@ -1,0 +1,113 @@
+{
+  "format": 2,
+  "scenario": "acceptance/parts_files/create_no_display.json",
+  "scenario_sha256": "86873d79392e562fb0311a7f6a30128a7f70f0ab34e6ef9089e14fed400ea007",
+  "domain": "parts_files",
+  "covers": {
+    "nx_create_part": [],
+    "nx_activate_part": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_create_part": "0bad66e0f56638cda23bdf97f632409572c772b87b5628486cc568f1a268d382",
+    "nx_activate_part": "0bad66e0f56638cda23bdf97f632409572c772b87b5628486cc568f1a268d382"
+  },
+  "recorded": "2026-11-01T22:13:56Z",
+  "passed": true,
+  "checks": 36,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "engineer",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 3,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_checkpoint",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_part",
+      "setup": false,
+      "passed": true,
+      "checks": 8
+    },
+    {
+      "index": 6,
+      "call": "nx_list_parts",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 7,
+      "call": "nx_list_parts",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 8,
+      "call": "nx_create_primitive",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 9,
+      "call": "nx_activate_part",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 10,
+      "call": "nx_activate_part",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 11,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 12,
+      "call": "nx_list_checkpoints",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 13,
+      "call": "nx_create_part",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    }
+  ]
+}

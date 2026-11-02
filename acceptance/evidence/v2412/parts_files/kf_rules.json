@@ -1,0 +1,181 @@
+{
+  "format": 2,
+  "scenario": "acceptance/parts_files/kf_rules.json",
+  "scenario_sha256": "0be2658d5390171681117d82dc2dc0acf4f66c9559939a4cfc55e5b546214dcf",
+  "domain": "parts_files",
+  "covers": {
+    "nx_get_kf_rules": [],
+    "nx_set_kf_rule": [
+      "child",
+      "dynamic"
+    ],
+    "nx_update_kf_rules": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_get_kf_rules": "44469efb4ea4bfc645cdf4f72fbc6f149a22e3409a5a6cc1b5b2c7acd4d36dbf",
+    "nx_set_kf_rule": "44469efb4ea4bfc645cdf4f72fbc6f149a22e3409a5a6cc1b5b2c7acd4d36dbf",
+    "nx_update_kf_rules": "44469efb4ea4bfc645cdf4f72fbc6f149a22e3409a5a6cc1b5b2c7acd4d36dbf"
+  },
+  "recorded": "2026-11-01T22:16:58Z",
+  "passed": true,
+  "checks": 56,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_get_kf_rules",
+      "setup": false,
+      "passed": true,
+      "checks": 8
+    },
+    {
+      "index": 4,
+      "call": "nx_set_kf_rule",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 5,
+      "call": "nx_set_kf_rule",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 6,
+      "call": "nx_set_kf_rule",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 7,
+      "call": "nx_get_kf_rules",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 8,
+      "call": "nx_set_kf_rule",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 9,
+      "call": "nx_set_expression",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 10,
+      "call": "nx_update_kf_rules",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 11,
+      "call": "nx_get_kf_rules",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 12,
+      "call": "nx_get_kf_rules",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 13,
+      "call": "nx_get_kf_rules",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 14,
+      "call": "nx_set_kf_rule",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 15,
+      "call": "nx_set_kf_rule",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 16,
+      "call": "nx_delete_kf_rule",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 17,
+      "call": "nx_undo_operation",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 18,
+      "call": "nx_get_kf_rules",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 19,
+      "call": "nx_set_kf_rule",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 20,
+      "call": "nx_set_kf_rule",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 21,
+      "call": "nx_set_kf_rule",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 22,
+      "call": "nx_get_kf_rules",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    }
+  ]
+}

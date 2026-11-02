@@ -1,0 +1,69 @@
+{
+  "format": 2,
+  "scenario": "acceptance/parts_files/save_out_of_date.json",
+  "scenario_sha256": "f32fca3e1e4de6fca47d92e0dda355218db480e567e358755246c91b9c58fda4",
+  "domain": "parts_files",
+  "covers": {
+    "nx_save_part": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_save_part": "0bad66e0f56638cda23bdf97f632409572c772b87b5628486cc568f1a268d382"
+  },
+  "recorded": "2026-11-01T22:17:25Z",
+  "passed": true,
+  "checks": 13,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_save_part",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 3,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_activate_drawing_sheet",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 6,
+      "call": "nx_save_part",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 7,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    }
+  ]
+}

@@ -1,0 +1,180 @@
+{
+  "format": 2,
+  "scenario": "acceptance/drawing/view_visibility.json",
+  "scenario_sha256": "d8f491d8aa0520ff4ae9bae7674a3e2c597697cb085ffa9367d83c73662b2219",
+  "domain": "drawing",
+  "covers": {
+    "nx_list_view_edges": [],
+    "nx_create_drawing_view": [
+      "base",
+      "projected",
+      "detail",
+      "section"
+    ],
+    "nx_edit_drawing_view": [],
+    "nx_get_drawing_view": [],
+    "nx_set_view_settings": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_list_view_edges": "ce634bb7086ee3a1b4770f69f0009f9fc125eb2229d3f5990fb8b756ebf3d8b1",
+    "nx_create_drawing_view": "427bcf89de9f2baeef97b5fd5f82f504a5ddcba003bf744f988038d12517107a",
+    "nx_edit_drawing_view": "427bcf89de9f2baeef97b5fd5f82f504a5ddcba003bf744f988038d12517107a",
+    "nx_get_drawing_view": "427bcf89de9f2baeef97b5fd5f82f504a5ddcba003bf744f988038d12517107a",
+    "nx_set_view_settings": "57242da9c8f15b3dcc08c8d28866ddd78bc27671e5ba81b064e12dff94ce52dd"
+  },
+  "recorded": "2026-11-01T22:04:34Z",
+  "passed": true,
+  "checks": 38,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_open_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_drawing_sheet",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_create_drawing_view",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 6,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 7,
+      "call": "nx_list_view_edges",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 8,
+      "call": "nx_list_view_edges",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 9,
+      "call": "nx_create_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 10,
+      "call": "nx_list_view_edges",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 11,
+      "call": "nx_create_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 12,
+      "call": "nx_create_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 13,
+      "call": "nx_list_view_edges",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 14,
+      "call": "nx_create_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 15,
+      "call": "nx_edit_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 16,
+      "call": "nx_edit_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 17,
+      "call": "nx_edit_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 5
+    },
+    {
+      "index": 18,
+      "call": "nx_edit_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 19,
+      "call": "nx_get_drawing_view",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 20,
+      "call": "nx_set_view_settings",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 21,
+      "call": "nx_close_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    }
+  ]
+}

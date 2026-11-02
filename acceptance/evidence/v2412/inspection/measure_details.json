@@ -1,0 +1,257 @@
+{
+  "format": 2,
+  "scenario": "acceptance/inspection/measure_details.json",
+  "scenario_sha256": "19df826579d250819aeb88e7fd6617e5cbb488f6b4d67d6fc30946a111f930df",
+  "domain": "inspection",
+  "covers": {
+    "nx_measure_mass": [],
+    "nx_export_mass_report": [],
+    "nx_find_geometry": [],
+    "nx_find_holes": [],
+    "nx_measure_wall_thickness": [],
+    "nx_analyze_faces": [],
+    "nx_measure_section": [],
+    "nx_analyze_curve": [],
+    "nx_export_inspection_report": [],
+    "nx_check_interference": [],
+    "nx_list_objects": []
+  },
+  "nx_version": "v2412",
+  "nx_build": "2412.8502",
+  "sources": {
+    "nx_measure_mass": "e147ee82af4162849ac6d8f3f6daee0a21ff5784e6248894004dca3e2f66bcd8",
+    "nx_export_mass_report": "f8a5b8bf2e47bc158680bfdf01a5efb8cba33449de37d259fc282c19fd8126d4",
+    "nx_find_geometry": "958adac1e84c626f8716e8926eac14407e13bb5f0c968de3e9f739bc921b09f6",
+    "nx_find_holes": "958adac1e84c626f8716e8926eac14407e13bb5f0c968de3e9f739bc921b09f6",
+    "nx_measure_wall_thickness": "e147ee82af4162849ac6d8f3f6daee0a21ff5784e6248894004dca3e2f66bcd8",
+    "nx_analyze_faces": "e625f5aeb6c5ee6a73879d7e01013bfae95614be625b5853b49354331d6bdd4c",
+    "nx_measure_section": "078edc2d90a13dfc88977c7ee193e41c8ddd0e9e1b9688bb5febb6be97c704b3",
+    "nx_analyze_curve": "e625f5aeb6c5ee6a73879d7e01013bfae95614be625b5853b49354331d6bdd4c",
+    "nx_export_inspection_report": "0659c8346d80cc2a0909ae1f4ebbff74183b47db1150a549bf5f43008a560f53",
+    "nx_check_interference": "0659c8346d80cc2a0909ae1f4ebbff74183b47db1150a549bf5f43008a560f53",
+    "nx_list_objects": "f121ee5583aa21377188381ebcc4aef07432d9255fde2ecfb9a729989309c3f5"
+  },
+  "recorded": "2026-11-01T22:45:02Z",
+  "passed": true,
+  "checks": 52,
+  "failed_checks": 0,
+  "steps": [
+    {
+      "index": 1,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 2,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 3,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 4,
+      "call": "nx_set_material",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 5,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 12
+    },
+    {
+      "index": 6,
+      "call": "nx_export_mass_report",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 7,
+      "call": "nx_export_mass_report",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 8,
+      "call": "nx_measure_section",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 9,
+      "call": "nx_measure_section",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 10,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 11,
+      "call": "nx_measure_mass",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 12,
+      "call": "nx_find_geometry",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 13,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 14,
+      "call": "nx_create_hole",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 15,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 16,
+      "call": "nx_create_hole",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 17,
+      "call": "nx_find_holes",
+      "setup": false,
+      "passed": true,
+      "checks": 6
+    },
+    {
+      "index": 18,
+      "call": "nx_find_holes",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 19,
+      "call": "nx_find_holes",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    },
+    {
+      "index": 20,
+      "call": "nx_find_geometry",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 21,
+      "call": "nx_measure_wall_thickness",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 22,
+      "call": "nx_analyze_faces",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 23,
+      "call": "nx_create_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 24,
+      "call": "nx_create_sketch_curves",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 25,
+      "call": "nx_finish_sketch",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 26,
+      "call": "nx_analyze_curve",
+      "setup": false,
+      "passed": true,
+      "checks": 3
+    },
+    {
+      "index": 27,
+      "call": "nx_list_objects",
+      "setup": false,
+      "passed": true,
+      "checks": 1
+    },
+    {
+      "index": 28,
+      "call": "nx_export_inspection_report",
+      "setup": false,
+      "passed": true,
+      "checks": 4
+    },
+    {
+      "index": 29,
+      "call": "nx_create_part",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 30,
+      "call": "nx_create_primitive",
+      "setup": true,
+      "passed": true,
+      "checks": 0
+    },
+    {
+      "index": 31,
+      "call": "nx_check_interference",
+      "setup": false,
+      "passed": true,
+      "checks": 2
+    }
+  ]
+}
