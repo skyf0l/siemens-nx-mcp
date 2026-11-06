@@ -845,3 +845,12 @@ def test_create_part_says_the_file_is_not_written_yet(nx, root):
     ok = call(nx, tools.nx_create_part, path="np/later.prt", display=False)
     assert ok.ok and ok.data["saved"] is False and not (root / "np" / "later.prt").exists(), ok
     assert "missing .prt is added" in tools.nx_create_part.spec.description
+
+
+def test_a_drafting_sketch_nx_left_active_does_not_block_the_save(nx, drawing_part):
+    """NX keeps a sheet's last sheet sketch active; only a model sketch refuses."""
+    active = Mock(IsDraftingSketch=True)
+    nx.session.ActiveSketch = active
+    ok = call(nx, tools.nx_save_part, part=nx.ref_of(drawing_part, "part"))
+    assert ok.ok, ok
+    active.Deactivate.assert_called_once()
