@@ -2284,7 +2284,7 @@ Create a helix curve of constant radius and pitch climbing along an axis (defaul
 
 **Create hole** · effect `model` · NX 2406: tested (all variants); 48 checks in `acceptance/modeling/thread_natural_args.json`
 
-Create one NX Hole feature with 1-100 holes on a planar face, drilled into the material. Threaded: thread {size: 'M6'}, diameter default its tap drill. nominal is the analytic removed volume of blind holes fully inside the body (null with a warning when one breaks through); diameter and depth echo the drill used.
+Create one NX Hole feature with 1-100 holes on a planar face, drilled into the material. The centres are points of a new sketch on the face (sketch), so the holes follow the face. Threaded: thread {size: 'M6'}, diameter default its tap drill. nominal is the analytic removed volume of blind holes fully inside the body (null with a warning when one breaks through); diameter and depth echo the drill used.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |

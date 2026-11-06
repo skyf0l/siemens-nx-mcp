@@ -133,6 +133,7 @@ class Feature(Object):
 
 class Sketch(Object):
     Null = None
+    PlaneOption = NS(Inferred="Inferred", NewPlane="NewPlane")
     ViewReorient = NS(FalseValue=False, TrueValue=True)
     UpdateLevel = NS(Model="model")
     InferConstraintsOption = NS(InferNoConstraints=False)

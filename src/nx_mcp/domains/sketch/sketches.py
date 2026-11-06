@@ -217,15 +217,7 @@ def _on_principal(tx, want):
         return b.Commit()
 
 
-def face_frame(origin, normal, x=None):
-    """``(origin, x)`` of a sketch on the plane through ``origin`` with unit ``normal``:
-    the part's absolute origin dropped onto the plane, and ``x`` (default the absolute X
-    projected onto the plane, the absolute Y on a plane normal to X)."""
-    at = geom.scale(normal, geom.dot(origin, normal))
-    if x is None:
-        base = [1.0, 0.0, 0.0] if abs(normal[0]) < 0.9 else [0.0, 1.0, 0.0]
-        x = geom.unit(geom.sub(base, geom.scale(normal, geom.dot(base, normal))))
-    return at, x
+face_frame = ksketch.face_frame
 
 
 def _on_check(tx, p):
@@ -245,29 +237,9 @@ def _on_check(tx, p):
 
 
 def _on_target(tx, checked):
-    """A sketch on a planar face or datum plane (``_on_check``), at a predictable frame
-    (``face_frame``): NX's own inferred origin is the face centre on some faces and a
-    vertex on others."""
+    """A sketch on a planar face or datum plane (``_on_check``, ``ksketch.on_plane``)."""
     obj, origin, normal, x = checked
-    at, x = face_frame(origin, normal, x)
-    part, nx = tx.part, tx.nx
-    with builders.build(tx, part.Sketches.CreateSketchInPlaceBuilder2, nx.Sketch.Null) as b:
-        # A coincident smart plane keeps the sketch associative to the target; NX 2406
-        # ignores AxisReference and SketchOrigin on an Inferred plane.
-        plane = part.Planes.CreatePlane(
-            nx.Point3d(*origin),
-            nx.Vector3d(*normal),
-            nx.SmartObject.UpdateOption.WithinModeling,
-        )
-        plane.SetMethod(nx.PlaneTypes.MethodType.Coincident)
-        plane.SetGeometry([obj])
-        plane.Evaluate()
-        b.PlaneOption = nx.Sketch.PlaneOption.NewPlane
-        b.PlaneReference = plane
-        b.AxisReference = builders.direction(tx, x, at, "/placement/x_direction")
-        b.OriginOption = nx.OriginMethod.SpecifyPoint
-        b.SketchOrigin = builders.point(tx, at)
-        sketch = b.Commit()
+    sketch, at, x = ksketch.on_plane(tx, obj, origin, normal, x)
     return sketch, at, normal, x
 
 

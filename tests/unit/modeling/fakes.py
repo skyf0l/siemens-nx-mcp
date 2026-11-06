@@ -115,6 +115,21 @@ def modeling_nx(units="mm"):
         return b
 
     nx.builder = builder
+    # A sketch on a face (kit.sketch.on_plane), e.g. a hole's centres: the committed
+    # sketch takes the frame the builder was given.
+    part.Sketches.CreateSketchInPlaceBuilder2 = lambda *a: nx.builder("SketchInPlaceBuilder2", *a)
+
+    def xyz(v):
+        return (v.X, v.Y, v.Z)
+
+    def commit_sketch(b):
+        x, n = xyz(b.AxisReference.Vector), xyz(b.PlaneReference.normal)
+        y = (n[1] * x[2] - n[2] * x[1], n[2] * x[0] - n[0] * x[2], n[0] * x[1] - n[1] * x[0])
+        s = nx.sketch(origin=xyz(b.SketchOrigin.Coordinates), x_axis=x, y_axis=y)
+        s.plane = b.PlaneReference
+        return s
+
+    nx.on_commit("SketchInPlaceBuilder2", commit_sketch)
 
     def mass(_units, _accuracy, bodies):
         bodies = list(bodies)
@@ -167,7 +182,15 @@ def modeling_nx(units="mm"):
         return NS(kind="point_on_curve", args=args, Coordinates=point())
 
     part.Points = NS(CreatePoint=create_point)
-    part.Planes = NS(CreatePlane=lambda *a: Node("plane"))
+
+    def create_plane(*a):
+        plane = Node("plane")
+        if len(a) == 3:  # (origin, normal, update option): a smart plane
+            object.__setattr__(plane, "origin", a[0])
+            object.__setattr__(plane, "normal", a[1])
+        return plane
+
+    part.Planes = NS(CreatePlane=create_plane)
     part.Xforms = NS(CreateXform=lambda *a: NS(kind="xform", args=a))
     part.CoordinateSystems = NS(CreateCoordinateSystem=lambda *a: NS(kind="csys", args=a))
     part.Datums.CreateFixedDatumPlane = lambda origin, matrix: nx.datum_plane(
