@@ -38,12 +38,14 @@ LIBRARY_PATH = "C:/NX/ugii/materials/physicalmateriallibrary.xml"
 def library_nx(names=LIBRARY):
     nx = modeling_nx()
     nx.nx.UF = NS(Modl=NS(DensityUnits=NS(KILOGRAMS_METERS=1)))
-    assigned, loads = {}, []
+    assigned, loads, tags = {}, [], []
 
     class Material:
         def __init__(self, name, density, library=None):
             self.Name, self.density, self.library = name, density, library
             self.OwningPart = nx.part
+            self.Tag = 900 + len(tags)
+            tags.append(self)
 
         def IsLoadedLibraryMaterial(self):
             return self.library is not None
@@ -367,3 +369,20 @@ def test_many_bodies_take_one_assign_call_and_a_scaled_budget(monkeypatch):
                         assign(bodies))[1], raising=False)  # fmt: skip
     again = run(nx, "nx_set_material", bodies=[b.ref for b in blocks], material="Steel")
     assert again.ok and calls == [120], again
+
+
+def test_the_material_memo_is_keyed_by_nx_tag_not_by_python_id():
+    # NX hands out a new wrapper per call: once one is freed its id() is reused, and a
+    # memo keyed by id() gave a second body the first body's material (NX 2606, 2 of 7).
+    from nx_mcp.domains.modeling import material
+
+    steel = NS(Name="Steel", Tag=1, IsLoadedLibraryMaterial=lambda: False,
+               GetMaterialCategory=lambda: "METAL")  # fmt: skip
+    aluminum = NS(Name="Aluminum_6061", Tag=2, IsLoadedLibraryMaterial=lambda: False,
+                  GetMaterialCategory=lambda: "METAL")  # fmt: skip
+    memo = {id(aluminum): {"material": "Steel"}}  # a freed wrapper's id, reused
+    assert material.describe(steel, memo)["material"] == "Steel"
+    assert material.describe(aluminum, memo)["material"] == "Aluminum_6061"
+    again = NS(Name="Aluminum_6061", Tag=2, IsLoadedLibraryMaterial=lambda: False,
+               GetMaterialCategory=lambda: "METAL")  # fmt: skip
+    assert material.describe(again, memo) is material.describe(aluminum, memo)

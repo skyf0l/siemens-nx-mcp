@@ -400,11 +400,13 @@ def _library_of(material) -> str | None:
 
 
 def describe(material, memo: dict) -> dict:
-    """Name, library, category and library properties of an assigned material (memoised)."""
+    """Name, library, category and library properties of an assigned material (memoised by
+    NX tag: ``id()`` of a wrapper the memo does not hold is reused once it is freed, and a
+    second body then read the first one's material)."""
     if material is None:
         return {"material": None, "library": None, "category": None,
                 **dict.fromkeys(PROPERTIES)}  # fmt: skip
-    key = id(material)
+    key = int(material.Tag)
     if key not in memo:
         name, library = str(material.Name), _library_of(material)
         category, values = None, dict.fromkeys(PROPERTIES)

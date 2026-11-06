@@ -293,11 +293,13 @@ def test_edit_faces_arguments_and_consistency():
 def test_materials_assign_verify_and_read():
     nx = modeling_nx()
     block = nx.block(10, 10, 10)
-    assigned = {}
+    assigned, tags = {}, []
 
     class Material:
         def __init__(self, name, density):
             self.Name, self.density = name, density
+            self.Tag = 800 + len(tags)
+            tags.append(self)
 
         def AssignObjects(self, bodies):
             for b in bodies:
