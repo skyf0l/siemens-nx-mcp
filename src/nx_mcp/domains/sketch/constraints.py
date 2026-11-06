@@ -721,11 +721,20 @@ def nx_create_sketch_constraints(
                 _not_created(tx, sk, kind, objs, field)
             residual, tol = _residual(tx, sk, kind, objs)
             if not residual <= tol:
-                fail(
-                    "NX_CONSTRAINT_UNSATISFIED",
-                    f"The {kind} constraint is not satisfied after the solve; rolled back",
-                    field=field,
-                    details={"residual": residual, "drag_status": row.get("drag_status")},
+                # NX 2606 creates a horizontal constraint on a line held vertical and leaves
+                # it unsolved (2406 refused it): name what relieves the conflict as well.
+                raise common.explain_conflict(
+                    tx,
+                    sk,
+                    NXError(
+                        "NX_CONSTRAINT_UNSATISFIED",
+                        f"The {kind} constraint is not satisfied after the solve; rolled back",
+                        field=field,
+                        details={"residual": residual, "drag_status": row.get("drag_status")},
+                    ),
+                    curves,
+                    before,
+                    field,
                 )
             row["constraints"] = [tx.ref(c, "sketch_constraint") for c in created]
             row["residual"] = residual
