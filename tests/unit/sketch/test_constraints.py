@@ -37,6 +37,24 @@ def test_unsolved_constraint_rolls_back_as_solver_failed():
     assert bad.mutation_outcome == "rolled_back" and sk.constraints == []
 
 
+def test_an_unsolved_conflict_names_the_constraint_that_relieves_it():
+    # NX 2606 creates horizontal on a line held vertical and leaves it unsolved (2406
+    # refused it): the error still names the vertical constraint in the way.
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    line = nx.line(sk, (0, 0, 0), (0, 10, 0))
+    held = Constraint(CT.Vertical, [(line, "NotSet")], sk)
+    sk.constraints.append(held)
+    solve = sk.solve
+    sk.solve = lambda: None  # NX 2606 leaves the line as it is
+    bad = _constrain(nx, sk, {"type": "horizontal", "curves": [nx.cref(line)]})
+    assert bad.error["code"] == "NX_CONSTRAINT_UNSATISFIED", bad
+    assert bad.error["field"] == "/constraints/0" and bad.mutation_outcome == "rolled_back"
+    assert {"type": "vertical"}.items() <= bad.error["details"]["relieving_constraints"][0].items()
+    assert "Delete one of the existing constraints" in bad.error["hint"]
+    sk.solve = solve
+
+
 def test_relations_move_the_second_curve():
     nx = sketch_nx()
     sk = nx.sketch(active=True)
