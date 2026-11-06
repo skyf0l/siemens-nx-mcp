@@ -25,6 +25,7 @@ NX 2406 findings encoded here:
 from __future__ import annotations
 
 import json
+from decimal import Decimal
 from typing import Annotated, Literal, TypedDict
 
 from nx_mcp.core.catalogue import tool
@@ -252,7 +253,13 @@ def _configure_frame(tx, b, frame, letters):
     b.Characteristic = getattr(fcf.FcfCharacteristic, CHARACTERISTICS[frame["characteristic"]])
     b.FrameStyle = fcf.FcfFrameStyle.SingleFrame
     row = b.FeatureControlFrameDataList.FindItem(0)
-    row.ToleranceValue = repr(float(frame["tolerance"]))
+    text = format(Decimal(repr(float(frame["tolerance"]))), "f")  # 0.00005, never 5e-05
+    row.ToleranceValue = text
+    # NX rounds the shown value to the style's precision (ASME metric: 1 place, so 0.05 shows
+    # 0.1) while the builder keeps the value: show every place the tolerance has.
+    places = len(text.partition(".")[2].rstrip("0"))
+    if places:
+        b.Style.SymbolStyle.AnnotationSymbolValuePrecision = places
     row.MaterialModifier = getattr(
         data.ToleranceMaterialModifier, MATERIAL[frame.get("material", "none")]
     )

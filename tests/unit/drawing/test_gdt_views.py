@@ -124,6 +124,29 @@ def test_frame_with_datum_letters_is_read_back_with_leader_and_origin():
     assert ok.data["origin"] == pytest.approx([150, 120]) and ok.data["text"] == "<&70>TEXT"
     assert ok.data["sheet"]["kind"] == "drawing_sheet"
     assert nx.made and attached.destroyed and nx.live_builders == 0
+    assert attached.Style.SymbolStyle.AnnotationSymbolValuePrecision == 1
+
+
+def test_a_frame_shows_every_place_of_its_tolerance():
+    """ASME metric shows one place by default: 0.05 would be drawn as 0.1."""
+    nx = gdt_nx()
+    frame = {"characteristic": "flatness", "tolerance": 0.05}
+    ok = run(nx, "nx_create_gdt", kind="view_fcf", frame=frame,
+             **view_args(nx, nx.hole, [150, 120]))  # fmt: skip
+    assert ok.ok, ok
+    made = next(b for b in nx.builders if b.kind == "DraftingFeatureControlFrameBuilder")
+    assert made.Style.SymbolStyle.AnnotationSymbolValuePrecision == 2
+
+
+def test_a_very_small_tolerance_is_shown_in_full():
+    """repr(0.00005) is 5e-05, which has no decimal point to count places after."""
+    nx = gdt_nx()
+    frame = {"characteristic": "flatness", "tolerance": 0.00005}
+    ok = run(nx, "nx_create_gdt", kind="view_fcf", frame=frame,
+             **view_args(nx, nx.hole, [150, 120]))  # fmt: skip
+    assert ok.ok, ok
+    made = next(b for b in nx.builders if b.kind == "DraftingFeatureControlFrameBuilder")
+    assert made.Style.SymbolStyle.AnnotationSymbolValuePrecision == 5
 
 
 def test_datum_target_sizes_on_an_inch_sheet():
