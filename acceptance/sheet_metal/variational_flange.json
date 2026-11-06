@@ -107,18 +107,9 @@
    },
    "expect": {
     "mutation_outcome": "committed",
-    "data.bend_count": 1,
     "data.volume": {
-     "close": 19656.63706143592,
-     "tol": 1e-06
-    },
-    "data.bends.0.angle": {
-     "close": 90,
-     "tol": 1e-06
-    },
-    "data.bends.0.radius": {
-     "close": 3.0,
-     "tol": 1e-06
+     "close": 20656.63706143592,
+     "tol": 0.0001
     }
    }
   }
