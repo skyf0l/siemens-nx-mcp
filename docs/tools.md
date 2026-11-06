@@ -3704,14 +3704,14 @@ Bring model geometry into a sketch as associative curves that follow model chang
 
 ### `nx_edit_sketch_curves`
 
-**Edit sketch curves** · effect `model` · NX 2406: tested (all variants); 52 checks in `acceptance/sketch/sketch_natural_ops.json`
+**Edit sketch curves** · effect `model` · NX 2406: tested: arc, construction, delete, extend, line, trim (untested: point); 52 checks in `acceptance/sketch/sketch_natural_ops.json`
 
-Apply 1-100 edits to sketch curves in order. Reshape a line or arc, trim or extend to boundary curves, toggle construction, or delete a curve or constraint; a curve its constraints hold fails as solver_failed.
+Apply 1-100 edits to sketch curves in order. Reshape a line or arc, move a point, trim or extend to boundary curves, toggle construction, or delete a curve or constraint; a curve its constraints hold fails as solver_failed.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `sketch` | Ref | required | Ref: sketch |
-| `edits` | array[1-100] of object {type, curve, start, end, center, radius, start_angle, end_angle, boundaries, pick, curves, on, object} | required | Fields per type: nx_get_tool_schemas(tool#type) |
+| `edits` | array[1-100] of object {type, curve, start, end, center, radius, start_angle, end_angle, at, boundaries, pick, curves, on, object} | required | Fields per type: nx_get_tool_schemas(tool#type) |
 
 ### `nx_finish_sketch`
 

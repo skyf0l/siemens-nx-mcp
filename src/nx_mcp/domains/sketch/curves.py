@@ -766,6 +766,12 @@ class TrimEdit(TypedDict):
     pick: Annotated[Point2, Doc("A point on the piece to remove")]
 
 
+class PointEdit(TypedDict):
+    type: Literal["point"]
+    curve: Annotated[CurveRef, Doc("A sketch point (nx_get_sketch lists it as type point)")]
+    at: Annotated[Point2, Doc("New position")]
+
+
 class _ExtendEdit(TypedDict):
     type: Literal["extend"]
     curve: CurveRef
@@ -790,6 +796,7 @@ class DeleteEdit(TypedDict):
 EDIT_TYPES = {
     "line": LineEdit,
     "arc": ArcEdit,
+    "point": PointEdit,
     "trim": TrimEdit,
     "extend": ExtendEdit,
     "construction": ConstructionEdit,
@@ -798,7 +805,7 @@ EDIT_TYPES = {
 
 
 class _EditType(TypedDict):
-    type: Literal["line", "arc", "trim", "extend", "construction", "delete"] | common.Loose
+    type: Literal["line", "arc", "point", "trim", "extend", "construction", "delete"] | common.Loose
 
 
 class EditSpec(_EditType, total=False):
@@ -809,6 +816,7 @@ class EditSpec(_EditType, total=False):
     radius: float  # bounds: the item's own variant (check_items)
     start_angle: float
     end_angle: float
+    at: XY
     boundaries: Annotated[list[CurveRef], Items(1, 20)]
     pick: Annotated[XY, Doc("Required for trim")]
     curves: Annotated[list[CurveRef], Items(1, 100)]
@@ -826,6 +834,7 @@ EDIT_ALIASES = {
     "circle": "arc",
     "reshape_arc": "arc",
     "edit_arc": "arc",
+    "move_point": "point",
     "trim_curve": "trim",
     "extend_curve": "extend",
     "reference": "construction",
@@ -946,6 +955,29 @@ def _edit_shape(tx, sk, item, field):
             details={"check": error.details.get("check"), "actual": row, "drag_status": status},
         )
     return {"type": item["type"], "curves": [row]}
+
+
+def _move_point(tx, sk, item, field):
+    """Move a sketch point (a hole's centre, nx_create_hole); a point its constraints hold
+    fails as constraint_unsatisfied."""
+    obj = common.owned_curve(tx, sk, item["curve"], field + "/curve")
+    if not ksketch.is_point(tx, obj):
+        kind = ksketch.curve_kind(tx, obj)
+        hint = f"Use type {'line' if kind == 'line' else 'arc'}" if kind != "other" else None
+        fail("NX_WRONG_GEOMETRY", "Select a sketch point", field=field + "/curve", hint=hint)
+    with native(default="NX_BUILD_FAILED"):
+        obj.SetCoordinates(sk.point(item["at"]))
+        sk.sketch.Update()
+    row = common.curve_row(tx, sk.frame, obj)
+    if geom.dist(row["at"], item["at"]) > geom.tol(row["at"], item["at"]):
+        fail(
+            "NX_CONSTRAINT_UNSATISFIED",
+            "The point did not move to the requested position: its constraints hold it",
+            hint="Delete or change the constraints on this point first",
+            field=field,
+            details={"actual": row},
+        )
+    return {"type": "point", "curves": [row]}
 
 
 def _gap(row, p):
@@ -1071,7 +1103,7 @@ def _delete(tx, sk, item, field):
 
 
 # Edits that move curves: one may leave the sketch in conflict.
-SHAPE_EDITS = ("line", "arc", "trim", "extend")
+SHAPE_EDITS = ("line", "arc", "point", "trim", "extend")
 
 
 def _solved(tx, sk, field):
@@ -1087,6 +1119,7 @@ def _solved(tx, sk, field):
 EDITORS = {
     "line": _edit_shape,
     "arc": _edit_shape,
+    "point": _move_point,
     "trim": _trim_extend,
     "extend": _trim_extend,
     "construction": _construction,
@@ -1119,9 +1152,9 @@ def nx_edit_sketch_curves(
         list[EditSpec], Items(1, 100), Doc("Fields per type: nx_get_tool_schemas(tool#type)")
     ],
 ) -> EditData:
-    """Apply 1-100 edits to sketch curves in order. Reshape a line or arc, trim or extend to
-    boundary curves, toggle construction, or delete a curve or constraint; a curve its
-    constraints hold fails as solver_failed."""
+    """Apply 1-100 edits to sketch curves in order. Reshape a line or arc, move a point,
+    trim or extend to boundary curves, toggle construction, or delete a curve or
+    constraint; a curve its constraints hold fails as solver_failed."""
     named = common.natural_items(edits, "type", list(EDIT_TYPES), "/edits", EDIT_ALIASES)
     items = common.check_items(named, EDIT_TYPES, "type", "/edits", "nx_edit_sketch_curves")
     tx.frame = "sketch_local"

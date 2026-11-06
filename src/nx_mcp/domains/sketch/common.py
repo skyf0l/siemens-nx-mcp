@@ -50,6 +50,7 @@ class CurveRow(TypedDict, total=False):
     radius: float
     start_angle: float
     end_angle: float
+    at: Annotated[Point2, Doc("A point's position")]
     major_radius: float
     minor_radius: float
     rotation: float

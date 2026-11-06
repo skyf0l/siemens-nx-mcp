@@ -479,7 +479,7 @@ def _verify(spec, got, centres, origins, directions, drill, removed):
 
 class HoleData(TypedDict):
     feature: result.Row
-    sketch: Annotated[result.Row, Doc("The sketch on the face that holds the centres")]
+    sketch: Annotated[result.Row, Doc("The centres' sketch on the face: edit it to move holes")]
     bodies: list[result.Row]
     volume: float
     removed: float

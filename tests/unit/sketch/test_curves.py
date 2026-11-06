@@ -345,6 +345,27 @@ def test_shape_edits_keep_omitted_fields_and_take_natural_types():
     assert wrong.error["code"] == "NX_WRONG_GEOMETRY" and "type line" in wrong.error["hint"]
 
 
+def test_a_point_edit_moves_a_sketch_point_and_refuses_curves():
+    # A hole's centres are sketch points (nx_create_hole): moving one moves the hole.
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    pt = nx.sketch_point(sk, (10, 10, 0))
+    other = nx.sketch_point(sk, (30, 10, 0))
+    line = nx.line(sk, (0, 0, 0), (10, 0, 0))
+    ok = _edit(nx, sk, {"type": "move_point", "curve": nx.cref(pt), "at": [20, 10]})
+    assert ok.ok, ok
+    (row,) = ok.data["edits"][0]["curves"]
+    assert row["type"] == "point" and row["at"] == pytest.approx([20, 10])
+    assert [pt.Coordinates.X, other.Coordinates.X] == [20, 30]
+    wrong = _edit(nx, sk, {"type": "point", "curve": nx.cref(line), "at": [1, 1]})
+    assert wrong.error["code"] == "NX_WRONG_GEOMETRY" and "type line" in wrong.error["hint"]
+    assert wrong.mutation_outcome == "not_started" or pt.Coordinates.X == 20
+    held = nx.sketch_point(sk, (50, 10, 0))
+    held.SetCoordinates = lambda p: None  # NX keeps a point its constraints hold
+    bad = _edit(nx, sk, {"type": "point", "curve": nx.cref(held), "at": [60, 10]})
+    assert bad.error["code"] == "NX_CONSTRAINT_UNSATISFIED", bad
+
+
 def test_extend_picks_the_end_facing_the_boundary_and_says_when_nothing_grew():
     nx = sketch_nx()
     sk = nx.sketch(active=True)

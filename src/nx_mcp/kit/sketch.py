@@ -421,6 +421,12 @@ def curve_kind(tx, curve):
     return "other"
 
 
+def is_point(tx, obj):
+    """A sketch point (``curve_kind`` calls it ``other``)."""
+    point_type = getattr(tx.nx, "Point", None)
+    return isinstance(point_type, type) and isinstance(obj, point_type)
+
+
 def add(tx, sk, curve):
     """Add a curve to the sketch without inferred constraints; returns the curve."""
     _sketch_of(sk).AddGeometry(curve, tx.nx.Sketch.InferConstraintsOption.InferNoConstraints)
@@ -502,12 +508,14 @@ def check_point(tx, curve, which, field, allowed=POINTS):
 def read(tx, f, curve):
     """Read a sketch curve back in the sketch frame ``f`` (sketch-local coordinates).
 
-    Lines and arcs come from their native data, ellipses and splines from UF Eval.
+    Lines, arcs and points come from their native data, ellipses and splines from UF Eval.
     Arc and ellipse angles are counterclockwise degrees in the sketch frame (NX
     stores them relative to the curve's own matrix, which a mirror flips).
     """
     from nx_mcp.kit import curve as kcurve
 
+    if is_point(tx, curve):
+        return {"type": "point", "at": to_local(f, geom.xyz(curve.Coordinates))}
     kind = curve_kind(tx, curve)
     if kind == "line":
         s, e = geom.xyz(curve.StartPoint), geom.xyz(curve.EndPoint)
@@ -735,7 +743,9 @@ def _fmt(p) -> str:
 
 def shape(tx, curve) -> list:
     """Coordinates that change when a curve moves or changes size: a line's ends; an arc's
-    or circle's center, radius and ends; the ends of any other curve."""
+    or circle's center, radius and ends; a point's position; the ends of any other curve."""
+    if is_point(tx, curve):
+        return geom.xyz(curve.Coordinates)
     kind = curve_kind(tx, curve)
     if kind == "line":
         return geom.xyz(curve.StartPoint) + geom.xyz(curve.EndPoint)
@@ -755,7 +765,11 @@ def shape(tx, curve) -> list:
 
 def shapes(tx, sk) -> dict:
     """``{tag: (curve, shape)}`` of every sketch curve, read before a change."""
-    return {int(c.Tag): (c, shape(tx, c)) for c in geometry(sk) if curve_kind(tx, c) != "other"}
+    return {
+        int(c.Tag): (c, shape(tx, c))
+        for c in geometry(sk)
+        if curve_kind(tx, c) != "other" or is_point(tx, c)
+    }
 
 
 def moved(tx, sk, before, skip=()) -> list:

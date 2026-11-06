@@ -526,7 +526,7 @@ def _reopen_on_undo(tx, sk) -> None:
 
 
 class GeometryRow(CurveRow, total=False):
-    part: Annotated[dict, Doc("start/end/center in work-part coordinates")]
+    part: Annotated[dict, Doc("start/end/center/at in work-part coordinates")]
     constraints: Annotated[int, Doc("Constraints and dimensions on this curve")]
     projected: Annotated[bool, Doc("Projected or intersection curve (follows the model)")]
     source: Annotated[str, Doc("projected: the model edge, curve or face it comes from")]
@@ -560,12 +560,12 @@ def _geometry(tx, sk, f, found):
     rows = []
     for c in ksketch.geometry(sk):
         count = len(ksketch.attached(tx, sk, c))
-        if ksketch.curve_kind(tx, c) == "other":
+        if ksketch.curve_kind(tx, c) == "other" and not ksketch.is_point(tx, c):
             row = {"curve": tx.ref(c, "curve"), "type": "other", "constraints": count}
         else:
             row = common.curve_row(tx, f, c)
             row["part"] = {
-                k: ksketch.to_part(f, row[k]) for k in ("start", "end", "center") if k in row
+                k: ksketch.to_part(f, row[k]) for k in ("start", "end", "center", "at") if k in row
             }
             row["constraints"] = count
         if int(c.Tag) in per_curve:
@@ -787,7 +787,11 @@ def nx_get_sketch(
     if "geometry" in wanted:
         data["curves"] = _geometry(tx, sk, f, found)
         data["loops"] = ksketch.loops(
-            [r for r in data["curves"] if r["type"] != "other" and not r.get("construction")]
+            [
+                r
+                for r in data["curves"]
+                if r["type"] not in ("other", "point") and not r.get("construction")
+            ]
         )
     if "constraints" in wanted:
         data["constraints"] = _constraints(tx, sk)

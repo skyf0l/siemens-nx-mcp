@@ -3,7 +3,7 @@
 Generated from the catalogue (`nx_mcp.core.catalogue`) with the acceptance evidence in `src/nx_mcp/evidence/`; do not edit this table by hand.
 Run `python scripts/generate_capability_matrix.py` to regenerate, or add `--check` to detect drift.
 
-Canonical SHA-256 (catalogue evidence): `18254bc2033b4e46ed30803a65de635eaf0951465bf1d49bde1a1c205e595074`.
+Canonical SHA-256 (catalogue evidence): `5fdac32e9a12e6245846da4341fbd159a24fce829dcafa48498c339c3cffcb3b`.
 
 These labels report recorded evidence, not certification or independent verification of its claims. A catalogue tool is Native-tested when the acceptance runner recorded machine-checked scenario evidence for an NX build (listed per variant); only that scope and build are covered. Without it the tool is Experimental, hidden from discovery and refused in production.
 
@@ -182,7 +182,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_edit_faces | Native-tested | modeling | model | v2406: all variants; 33 checks in acceptance/modeling/sync_edits.json |
 | nx_edit_feature | Native-tested | modeling | model | v2406: tested; 20 checks in acceptance/modeling/hole_parameters.json |
 | nx_edit_section_view | Native-tested | display | view | v2406: tested; 24 checks in acceptance/display/sections_switch.json |
-| nx_edit_sketch_curves | Native-tested | sketch | model | v2406: all variants; 52 checks in acceptance/sketch/sketch_natural_ops.json |
+| nx_edit_sketch_curves | Native-tested | sketch | model | v2406: arc, construction, delete, extend, line, trim (untested: point); 52 checks in acceptance/sketch/sketch_natural_ops.json |
 | nx_export_assembly | Native-tested | parts_files | file | v2406: all variants; 15 checks in acceptance/parts_files/subfolder_components.json |
 | nx_export_bend_list | Native-tested | sheet_metal | file | v2406: tested; 43 checks in acceptance/sheet_metal/default_followers.json |
 | nx_export_drawing | Native-tested | drawing | file | v2406: tested; 19 checks in acceptance/drawing/out_of_date_views.json |

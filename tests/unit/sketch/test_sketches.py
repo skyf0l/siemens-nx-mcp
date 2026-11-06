@@ -148,6 +148,18 @@ def test_get_sketch_reads_geometry_constraints_and_status_without_leaving_it_act
     assert "status" not in only.data and "constraints" not in only.data
 
 
+def test_get_sketch_reads_points_with_their_position_and_keeps_them_out_of_loops():
+    nx = sketch_nx()
+    sk = nx.sketch(origin=(0, 0, 10))
+    nx.sketch_point(sk, (10, 20, 10))
+    ok = run(nx, "nx_get_sketch", sketch=sk.ref, include=["geometry"])
+    assert ok.ok, ok
+    (row,) = ok.data["curves"]
+    assert row["type"] == "point" and row["at"] == pytest.approx([10, 20])
+    assert row["part"]["at"] == pytest.approx([10, 20, 10])
+    assert ok.data.get("loops", []) == []
+
+
 def test_check_sketch_reports_relieving_constraints():
     nx = sketch_nx()
     sk = nx.sketch()
