@@ -262,9 +262,9 @@ def nx_set_sheet_borders(
         inner = [outer[0] + w, outer[1] + w, outer[2] - w, outer[3] - w]
         tol = 1e-3 * max(1.0, length, height)
         if got["borders"]:
-            readback.expect(_has_frame(lines, outer, tol) and _has_frame(lines, inner, tol),
-                            "frame", "NX drew no frame at the margins", outer=outer,
-                            inner=inner)  # fmt: skip
+            # ISO draws both rectangles; ASME only the inner one, with centring marks.
+            readback.expect(_has_frame(lines, inner, tol), "frame",
+                            "NX drew no frame at the margins", inner=inner)  # fmt: skip
         columns, rows = (
             _labels(labels_before, labels_after, outer, inner, tol) if got["zones"] else ([], [])
         )

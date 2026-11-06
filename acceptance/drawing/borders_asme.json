@@ -1,0 +1,58 @@
+{
+ "covers": {
+  "nx_set_sheet_borders": []
+ },
+ "fixture": "fixtures/drawing_block_mm.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "args": {
+    "name": "S1",
+    "size": "a3"
+   }
+  },
+  {
+   "call": "nx_set_drafting_standard",
+   "setup": true,
+   "args": {
+    "standard": "ASME"
+   }
+  },
+  {
+   "call": "nx_set_sheet_borders",
+   "intent": "Under ASME NX draws only the inner frame, with centring marks",
+   "args": {
+    "borders": true,
+    "zones": false,
+    "margins": [
+     10,
+     10,
+     10,
+     10
+    ],
+    "border_width": 5
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.borders": true
+   }
+  },
+  {
+   "call": "nx_set_drafting_standard",
+   "setup": true,
+   "args": {
+    "standard": "ISO"
+   }
+  }
+ ]
+}
