@@ -127,6 +127,41 @@ def test_simple_holes_configure_the_hole_package_and_read_back():
     assert nx.live_builders == 0
 
 
+def test_hole_centres_are_points_of_a_sketch_on_the_face():
+    # Free points stay put when the face moves (a thicker plate) and the hole then fails
+    # to update; sketch points on a coincident plane follow the face.
+    nx, block, top, _B = hole_nx()
+    ok = run(nx, "nx_create_hole", face=top.ref, positions=[[10, 10, 20], [30, 10, 20]],
+             diameter=6, depth=10)  # fmt: skip
+    assert ok.ok, ok
+    sk = nx.part.Sketches[-1]
+    assert ok.data["sketch"]["id"] == nx.ref_of(sk, "sketch")
+    assert nx.session.ActiveSketch is None  # deactivated before the hole is committed
+    placed = nx.last("SketchInPlaceBuilder2")
+    assert placed.PlaneOption == "NewPlane" and placed.PlaneReference.SetGeometry.calls[0][0] == (
+        [top],
+    )
+    used = next(b for b in nx.builders if b.kind == "HolePackageBuilder" and b.commits)
+    rule = used.HolePosition.AddToSection.calls[0][0][0][0]
+    assert rule[0] == "Points" and rule[1] == sk.geometry
+    assert [(p.Coordinates.X, p.Coordinates.Y, p.Coordinates.Z) for p in sk.geometry] == [
+        (10, 10, 20),
+        (30, 10, 20),
+    ]
+
+
+def test_a_through_all_hole_neither_sets_nor_checks_a_tip_angle():
+    # NX 2606 reads a through hole's tip angle back as 0: it has no tip.
+    nx, block, top, B = hole_nx()
+    ok = run(nx, "nx_create_hole", face=top.ref, positions=[[10, 10, 20]], diameter=6,
+             depth="through_all")  # fmt: skip
+    assert ok.ok, ok
+    used = next(b for b in nx.builders if b.kind == "HolePackageBuilder" and b.commits)
+    assert used.HoleDepthLimitOption is B.HoleDepthLimitOptions.ThroughBody
+    assert "RightHandSide" not in used.GeneralTipAngle.__dict__
+    assert ok.data["depth"] is None and ok.data["nominal"] is None
+
+
 def test_hole_positions_must_be_inside_the_face_and_on_its_plane():
     nx, block, top, _ = hole_nx()
     above = run(nx, "nx_create_hole", face=top.ref, positions=[[10, 10, 21]], form="simple",

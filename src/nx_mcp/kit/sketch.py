@@ -40,13 +40,51 @@ import re
 
 from nx_mcp.core import parking
 from nx_mcp.core.errors import NXError, fail
-from nx_mcp.kit import geom
+from nx_mcp.kit import builders, geom
 from nx_mcp.kit.result import enum_name
 
 FAILED_STATUSES = frozenset({"OverConstrained", "InconsistentlyConstrained"})
 SOLVED_DOF_STATUSES = frozenset({"UnderConstrained", "WellConstrained"})
 # A status NX answers before it solved the sketch: solved once, then read again.
 UNEVALUATED = frozenset({"NotEvaluated"})
+
+
+def face_frame(origin, normal, x=None):
+    """``(origin, x)`` of a sketch on the plane through ``origin`` with unit ``normal``:
+    the part's absolute origin dropped onto the plane, and ``x`` (default the absolute X
+    projected onto the plane, the absolute Y on a plane normal to X)."""
+    at = geom.scale(normal, geom.dot(origin, normal))
+    if x is None:
+        base = [1.0, 0.0, 0.0] if abs(normal[0]) < 0.9 else [0.0, 1.0, 0.0]
+        x = geom.unit(geom.sub(base, geom.scale(normal, geom.dot(base, normal))))
+    return at, x
+
+
+def on_plane(tx, target, origin, normal, x=None):
+    """``(sketch, origin, x)``: a new sketch on the planar face or datum plane ``target``
+    (through ``origin``, unit ``normal``) at a predictable frame (``face_frame``). NX's own
+    inferred origin is the face centre on some faces and a vertex on others, and NX 2406
+    ignores AxisReference and SketchOrigin on an Inferred plane, so the sketch sits on a
+    coincident smart plane: still associative to the target, it follows the target when
+    the model updates."""
+    at, x = face_frame(origin, normal, x)
+    part, nx = tx.part, tx.nx
+    with builders.build(tx, part.Sketches.CreateSketchInPlaceBuilder2, nx.Sketch.Null) as b:
+        plane = part.Planes.CreatePlane(
+            nx.Point3d(*origin),
+            nx.Vector3d(*normal),
+            nx.SmartObject.UpdateOption.WithinModeling,
+        )
+        plane.SetMethod(nx.PlaneTypes.MethodType.Coincident)
+        plane.SetGeometry([target])
+        plane.Evaluate()
+        b.PlaneOption = nx.Sketch.PlaneOption.NewPlane
+        b.PlaneReference = plane
+        b.AxisReference = builders.direction(tx, x, at, "/placement/x_direction")
+        b.OriginOption = nx.OriginMethod.SpecifyPoint
+        b.SketchOrigin = builders.point(tx, at)
+        sketch = b.Commit()
+    return sketch, at, x
 
 
 def frame(sketch):
