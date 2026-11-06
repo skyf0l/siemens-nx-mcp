@@ -860,6 +860,15 @@ def _set_tolerance(tx, d, tol):
             value_mm = float(tol[key]) * to_mm
             setattr(d, native, value_mm / 25.4)
             setattr(d, metric, value_mm)
+    # NX draws the basic box only after the style builder commits the type, and a deviation of 0
+    # shows as "-0" (Y14.5 and ISO 129 want "0") unless the style says otherwise.
+    style = {}
+    if tol.get("type") == "basic":
+        style["ToleranceType"] = A.ToleranceType.Basic
+    if 0 in (tol.get("upper"), tol.get("lower")):
+        style["DimZeroToleranceDisplayStyle"] = A.ZeroToleranceDisplayStyle.AsZero
+    if style:
+        _edit_style(tx, d, **style)
 
 
 def fit_info(tx, d, size):
