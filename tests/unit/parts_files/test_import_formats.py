@@ -545,3 +545,16 @@ def test_imports_list_their_facet_bodies_in_changes_also_in_a_new_part(fx, root,
     bad = call(fx, importing.nx_import_model, path="a.stl", format="stl", target="new_part")
     assert bad.error["code"] == "NX_INVALID_ARGUMENT", bad
     assert bad.error["field"] == "/new_part_path" and bad.mutation_outcome == "not_started"
+
+
+def test_an_import_into_a_loaded_part_displays_it_for_the_translator():
+    # NX 2606: a STEP import into a part it did not display left the display part as the
+    # work part; a loaded target is shown for the import, as nx_export_model does.
+    from nx_mcp.core import catalogue
+
+    spec = catalogue.load()["nx_import_model"]
+    switch = lambda args: spec.switch_for(args, services=object(), part=None)  # noqa: E731
+    assert switch({"path": "in/a.step"}) == "display"
+    assert switch({"path": "in/a.x_t", "target": "work_part"}) == "display"
+    new = {"path": "in/a.step", "target": "new_part", "new_part_path": "b.prt"}
+    assert switch(new) == "work"  # the new part is shown by the tool itself
