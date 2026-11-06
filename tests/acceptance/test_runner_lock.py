@@ -3,6 +3,7 @@
 import asyncio
 import contextlib
 import functools
+import importlib.util
 import itertools
 import json
 import time
@@ -18,11 +19,28 @@ from nx_mcp.workspace import Workspace
 from tests.acceptance.test_runner import SCENARIO, FakeNX
 
 
+def _dev_lock():
+    spec = importlib.util.spec_from_file_location("dev_lock_watched", runner.DEV_LOCK_SCRIPT)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+DEV_LOCK = _dev_lock()
+
+
 def lock_state(workspace):
-    try:
-        return json.loads((workspace / ".nx-mcp" / "dev.lock").read_text(encoding="utf-8"))
-    except OSError:
+    """The lock as the runner holds it, read under its guard as every lock change is: on
+    Windows a bare read can meet the runner's heartbeat replacing the file."""
+    path = workspace / ".nx-mcp" / "dev.lock"
+    if not path.exists():
         return None
+    with DEV_LOCK.guard(path):
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except OSError:
+            return None
 
 
 class WatchedNX(FakeNX):
