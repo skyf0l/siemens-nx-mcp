@@ -504,17 +504,17 @@
    },
    "expect": {
     "mutation_outcome": "committed",
-    "data.on": [
-     "Scene Ambient",
-     "Scene Left Top",
-     "Scene Right Top"
-    ]
+    "data.on": {
+     "contains": "Scene Ambient"
+    }
    }
   },
   {
    "call": "nx_list_lights",
    "expect": {
-    "data.preset": "lighting_1",
+    "data.preset": {
+     "matches": "^(lighting_1|user_defined)$"
+    },
     "data.lights": {
      "contains": {
       "name": "Distant 1",

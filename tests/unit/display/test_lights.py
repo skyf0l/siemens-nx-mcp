@@ -264,6 +264,35 @@ def test_presets_replace_the_lights_on():
     assert run(nx, "nx_list_lights").data["preset"] == "lighting_2"
 
 
+def test_a_preset_nx_reads_back_as_user_defined_still_counts(monkeypatch):
+    """NX 2606 applies lighting_1 to _3 and then reads the view as user-defined."""
+    nx = lights_nx()
+    commit = Lighting.Commit
+
+    def commit_reads_user_defined(self):
+        commit(self)
+        self.fake.preset = 5
+
+    monkeypatch.setattr(Lighting, "Commit", commit_reads_user_defined)
+    two = run(nx, "nx_set_lighting_preset", preset="lighting_2")
+    assert two.ok, two.error
+    assert two.data["on"] == PRESET_LIGHTS[1]
+    assert run(nx, "nx_list_lights").data["preset"] == "user_defined"
+
+
+def test_a_preset_nx_reads_back_as_another_preset_is_refused(monkeypatch):
+    nx = lights_nx()
+    commit = Lighting.Commit
+
+    def commit_reads_another(self):
+        commit(self)
+        self.fake.preset = 3
+
+    monkeypatch.setattr(Lighting, "Commit", commit_reads_another)
+    bad = run(nx, "nx_set_lighting_preset", preset="lighting_2")
+    assert bad.error["details"]["check"] == "preset" and bad.mutation_outcome == "rolled_back"
+
+
 def test_list_shows_a_part_that_is_not_displayed():
     """A part in the background reads no light of its own: the listing shows it for the
     read (gate 4s, display), as nx_get_camera does."""
