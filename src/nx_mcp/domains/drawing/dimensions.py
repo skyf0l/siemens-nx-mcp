@@ -36,6 +36,7 @@ from nx_mcp.core.types import (
     EdgeRef,
     FeatureRef,
     Items,
+    RefTo,
     SheetLength,
     SheetPoint,
     Text,
@@ -56,6 +57,7 @@ from nx_mcp.domains.drawing.common import (
 )
 from nx_mcp.kit import args, builders, drawing, facts, geom, readback, result, select, units
 
+EdgeOrCurve = Annotated[str, RefTo("edge", "curve")]  # a flat pattern view draws curves
 MAX_ORDINATES = 50
 ANGLE_TOL_DEG = 1e-3
 TEXT_GAP_MM = 10.0  # Default text: clear space outside the view border (and past others).
@@ -246,7 +248,10 @@ def _check_value(actual, expected, check="value"):
 
 
 def _ends(edge, field):
-    points = [geom.xyz(v) for v in edge.GetVertices()]
+    if hasattr(edge, "GetVertices"):
+        points = [geom.xyz(v) for v in edge.GetVertices()]
+    else:  # a line of a flat pattern view
+        points = [geom.xyz(edge.StartPoint), geom.xyz(edge.EndPoint)]
     if len(points) < 2:
         fail("NX_WRONG_GEOMETRY", "This edge has no two end points (a full circle?)", field=field,
              hint="Give a second edge (a circle measures to its centre), or use kind diameter")  # fmt: skip
@@ -333,13 +338,13 @@ def nx_create_drawing_dimension(
         "chain",
         "hole_callout",
     ],
-    first: EdgeRef | None = None,
-    second: EdgeRef | None = None,
+    first: EdgeOrCurve | None = None,
+    second: EdgeOrCurve | None = None,
     orientation: Literal["aligned", "horizontal", "vertical"] = "aligned",
     origin: SheetPoint | None = None,
-    datum: EdgeRef | None = None,
+    datum: EdgeOrCurve | None = None,
     datum_point: Literal["auto", "start", "end", "center"] = "auto",
-    objects: Annotated[list[EdgeRef], Items(1, MAX_ORDINATES)] | None = None,
+    objects: Annotated[list[EdgeOrCurve], Items(1, MAX_ORDINATES)] | None = None,
     object_point: Literal["auto", "start", "end", "center"] = "auto",
     direction: Literal["horizontal", "vertical"] = "horizontal",
     margin: Annotated[SheetLength, Doc("Sets/ordinate: gap from the view border")] | None = None,
@@ -442,8 +447,8 @@ def linear(tx, view_ref, first, second, orientation, origin, existing=None,
     """Create (or, with ``existing``, rebind) a linear dimension and verify its value."""
     with tx.checks():
         view, sheet = view_ref if isinstance(view_ref, tuple) else drawing.view(tx, view_ref)
-        a = geometry(tx, first, ("edge",), fields[0])
-        b = geometry(tx, second, ("edge",), fields[1]) if second else a
+        a = geometry(tx, first, ("edge", "curve"), fields[0])
+        b = geometry(tx, second, ("edge", "curve"), fields[1]) if second else a
         if second:
             (pa, snap_a), (pb, snap_b) = (_measured_point(tx, e, f) for e, f in
                                           zip((a, b), fields, strict=True))  # fmt: skip
@@ -495,7 +500,7 @@ def linear(tx, view_ref, first, second, orientation, origin, existing=None,
 def _radial(tx, view_ref, first, kind, origin):
     with tx.checks():
         view, sheet = drawing.view(tx, view_ref)
-        edge = geometry(tx, first, ("edge",), "/first")
+        edge = geometry(tx, first, ("edge", "curve"), "/first")
         found = edge_facts(tx, edge, "/first", want="arc")
         true_shape(view, found, "/first")
     center, radius = found["center"], found["radius"]
@@ -532,8 +537,8 @@ def _angle(tx, view_ref, first, second, origin):
     with tx.checks():
         view, sheet = drawing.view(tx, view_ref)
         edges = [
-            geometry(tx, first, ("edge",), "/first"),
-            geometry(tx, second, ("edge",), "/second"),
+            geometry(tx, first, ("edge", "curve"), "/first"),
+            geometry(tx, second, ("edge", "curve"), "/second"),
         ]
         found = [
             edge_facts(tx, e, f, want="line")
@@ -582,7 +587,7 @@ def _angle(tx, view_ref, first, second, origin):
 
 
 def _target(tx, ref, snap, field):
-    edge = geometry(tx, ref, ("edge",), field)
+    edge = geometry(tx, ref, ("edge", "curve"), field)
     found = facts.edge(tx, edge)
     snap = ordinate_snap(found, snap, field)
     if snap == "center":

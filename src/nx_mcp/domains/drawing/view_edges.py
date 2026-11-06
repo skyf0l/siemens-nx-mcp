@@ -174,6 +174,10 @@ def nx_list_view_edges(
         hidden_removal=bool(settings.get("hidden_lines", True)) and not cut_away(shown),
         keep_hidden=hidden,
     )
+    kind = "edge"
+    if not found:  # a flat pattern view draws the flat pattern's curves
+        found = [(curve, drawn, "visible") for curve, drawn in drawing.drafted_curves(tx, shown)]
+        kind = "curve"
     tx.scale_budget(len(found))
     circle = boundary(tx, shown)
     view_scale = drawing.scale(tx, shown)
@@ -196,7 +200,7 @@ def nx_list_view_edges(
         rows.append((edge, facts))
     rows.sort(key=lambda item: (_rank(item[1]), int(item[0].Tag)))
     selected, page = result.page(rows, offset, limit)
-    items = [{**tx.ref(edge, "edge"), **facts} for edge, facts in selected]
+    items = [{**tx.ref(edge, kind), **facts} for edge, facts in selected]
     out: ViewEdgesData = {
         "view": tx.ref(shown, "drawing_view"),
         "scale": view_scale,

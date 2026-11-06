@@ -830,11 +830,11 @@ Create an associative dimension on edges in a drawing view, checked against the 
 | --- | --- | --- | --- |
 | `view` | Ref or string | required | View ref v:N, or name 'TOP@1' |
 | `kind` | `linear` \| `horizontal` \| `vertical` \| `radius` \| `diameter` \| `angle` \| `ordinate` \| `chamfer` \| `thickness` \| `arc_length` \| `baseline` \| `chain` \| `hole_callout` | required |  |
-| `first` | Ref | optional | Ref: edge |
-| `second` | Ref | optional | Ref: edge |
+| `first` | Ref | optional | Ref: edge/curve |
+| `second` | Ref | optional | Ref: edge/curve |
 | `orientation` | `aligned` \| `horizontal` \| `vertical` | `"aligned"` |  |
 | `origin` | array[2] of number | optional | [x, y] on the sheet, sheet units |
-| `datum` | Ref | optional | Ref: edge |
+| `datum` | Ref | optional | Ref: edge/curve |
 | `datum_point` | `auto` \| `start` \| `end` \| `center` | `"auto"` |  |
 | `objects` | array[1-50] of Ref | optional |  |
 | `object_point` | `auto` \| `start` \| `end` \| `center` | `"auto"` |  |

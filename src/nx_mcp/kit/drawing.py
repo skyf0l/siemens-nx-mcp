@@ -656,6 +656,22 @@ def drafted_edges(tx, view):
     return [(edge, length) for edge, length in found.values()]
 
 
+def drafted_curves(tx, view):
+    """``[(curve, drafted length)]`` for a view that draws curves instead of model edges: a flat
+    pattern view's drafting curves have the flat pattern's Line and Arc objects as parents."""
+    lookup = tx.nx.TaggedObjectManager.GetTaggedObject
+    found: dict[int, list] = {}
+    for body in getattr(view, "DraftingBodies", None) or []:
+        for drawn in body.DraftingCurves:
+            _count, parents = tx.uf.Draw.AskDraftingCurveParents(drawn.Tag)
+            for tag in parents or []:
+                curve = lookup(tag)
+                if type(curve).__name__ in ("Line", "Arc"):
+                    entry = found.setdefault(int(tag), [curve, 0.0])
+                    entry[1] += float(drawn.GetLength())
+    return [(curve, length) for curve, length in found.values()]
+
+
 IDENTITY_4X4 = [1.0 if i % 5 == 0 else 0.0 for i in range(16)]
 RAY_SAMPLES = (0.1, 0.3, 0.5, 0.7, 0.9)  # points along an edge tested for occlusion
 SMOOTH_TOL = 1e-6  # 1 - cos of the angle between face normals at a smooth (tangent) edge
