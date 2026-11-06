@@ -102,6 +102,19 @@ class Target:
 # Call keys
 
 
+def cae_shown(services):
+    """The FEM or SIM part NX shows, else None. ``Parts.Work`` and ``Parts.Display`` raise (NX
+    3520028, "not a .prt part") while one is current; only the ``Base`` readers answer."""
+    parts = getattr(getattr(services, "session", None), "Parts", None)
+    if parts is None:
+        return None
+    try:
+        parts.Work, parts.Display  # noqa: B018
+    except Exception:
+        return getattr(parts, "BaseDisplay", None)
+    return None
+
+
 def split_call_keys(spec, args) -> tuple[Any, dict]:
     """``(args, keys)``: the call keys of ``args`` that are not the tool's own parameters
     (``nx_close_part``'s ``part`` stays an argument)."""

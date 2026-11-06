@@ -21,6 +21,7 @@ from types import SimpleNamespace as NS
 from nx_mcp.core import catalogue, kernel
 from nx_mcp.core.errors import fail
 from nx_mcp.core.references import ANCHORED, HANDLE_ANCHOR, article
+from nx_mcp.core.target import cae_shown
 from nx_mcp.core.tx import Services
 from nx_mcp.core.types import expand_kinds
 from nx_mcp.kit import drawing, expr, units
@@ -153,6 +154,8 @@ class KitServices(Services):
     def work_part(self):
         if self.bound is not None:  # gate 4s: a read bound to a part that is not work
             return self.bound
+        if cae_shown(self) is not None:
+            return None
         return self.fake.session.Parts.Work
 
     def switch(self, part, mode, *, application=None):

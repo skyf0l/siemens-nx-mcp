@@ -10,7 +10,7 @@ is switched to it for its step (gates 3t and 4s); NX's undo is session-wide, so 
 mark covers every part. A failure after a child ran always rolls back (never
 ``not_started``, even when the failing child refused inside ``tx.checks()``).
 
-Gate order: 1 schema, 3t target part, 3r references (every ref argument, list items
+Gate order: 0 no FEM or SIM part in front, 1 schema, 3t target part, 3r references (every ref argument, list items
 included, is live and of a kind its field takes, else refused ``not_started`` with its
 JSON pointer as ``field``), 2 workspace paths, 3 variant inference (in the target part)
 and evidence/version, 4 ``requires``,
@@ -114,6 +114,20 @@ class Context:
 
 # ---------------------------------------------------------------------------
 # Gates shared by top-level calls and children
+
+
+def _gate_cae(spec, services: Services) -> None:  # gate 0
+    """A FEM or SIM part in front: every NX reader of the work part would raise, so a call stops
+    here with what to do. The status still answers: it names the part."""
+    if spec.name == "nx_get_status":
+        return
+    shown = targets.cae_shown(services)
+    if shown is not None:
+        fail(
+            "NX_WRONG_PART_CONTEXT",
+            f"NX shows the simulation file {Path(str(shown.FullPath)).name}, not a .prt part",
+            hint="Ask the engineer to show a .prt part or close the simulation file in NX",
+        )
 
 
 def _gate_schema(  # gate 1
@@ -1295,6 +1309,7 @@ def run(spec, args, ctx: Context) -> dict:
     try:
         expires = targets.check_call_keys(part_text, keys.get("expires_at", ctx.expires_at))
         targets.check_expiry(spec, expires)  # the ghost guard: no receipt, not_started
+        _gate_cae(spec, services)  # 0
         try:
             checked = _gate_schema(
                 spec, args, where=getattr(services, "runs", "nx"), services=services

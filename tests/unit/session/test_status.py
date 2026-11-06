@@ -98,6 +98,48 @@ def test_status_counts_agree_while_calls_wait(monkeypatch):
     assert control["activity"] == "idle"
 
 
+def _shows_a_sim(nx):
+    """NX with a SIM part in front: the Part readers raise, only the Base readers answer."""
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    class Refusing:
+        BaseDisplay = SimpleNamespace(FullPath=str(Path(services(nx).root) / "a_sim.sim"))
+
+        def __init__(self, parts):
+            self.__dict__["_parts"] = parts
+
+        @property
+        def Work(self):
+            raise RuntimeError("The part file is not a .prt part")
+
+        Display = Work
+
+        def __iter__(self):
+            return iter(self._parts)
+
+        def __getattr__(self, name):
+            return getattr(self._parts, name)
+
+    nx.session.Parts = Refusing(nx.session.Parts)
+
+
+def test_status_names_the_simulation_file_nx_shows():
+    nx = fake_nx()
+    _shows_a_sim(nx)
+    ok = run(nx, "nx_get_status", include=["parts"])
+    assert ok.ok and ok.data["parts"]["work"] is None and ok.data["parts"]["display"] is None
+    assert ok.data["parts"]["cae_part"].endswith("a_sim.sim")
+
+
+def test_other_tools_stop_clearly_while_nx_shows_a_simulation_file():
+    nx = fake_nx()
+    _shows_a_sim(nx)
+    bad = run(nx, "nx_list_parts")
+    assert not bad.ok and bad.error["code"] == "NX_WRONG_PART_CONTEXT"
+    assert "a_sim.sim" in bad.error["message"]
+
+
 def test_status_without_a_work_part():
     nx = fake_nx()
     nx.session.Parts.Work = nx.session.Parts.Display = None

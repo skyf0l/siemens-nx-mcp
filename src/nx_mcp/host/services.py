@@ -24,6 +24,7 @@ from nx_mcp.core import marks as undo_marks
 from nx_mcp.core.errors import fail
 from nx_mcp.core.receipts import OperationStore
 from nx_mcp.core.references import PREFIX, Counter, References, Row
+from nx_mcp.core.target import cae_shown
 from nx_mcp.core.tx import Services
 from nx_mcp.kit import bodies as kit_bodies
 from nx_mcp.kit import builders, display, drawing, expr, units
@@ -205,6 +206,8 @@ class NXServices(Services):
         """The part a read is bound to (gate 4s), else NX's work part."""
         if self.bound is not None:
             return self.bound
+        if cae_shown(self) is not None:  # Parts.Work raises: there is no .prt work part
+            return None
         return getattr(self.session.Parts, "Work", None)
 
     def switch(self, part, mode: str, *, application: str | None = None):

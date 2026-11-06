@@ -67,6 +67,7 @@ import uuid
 from pathlib import Path
 
 from nx_mcp.core.errors import NXError
+from nx_mcp.core.target import cae_shown
 
 _host = None
 _retired = []
@@ -1537,7 +1538,7 @@ class InteractiveHost:
             self._report_dialogs(result, watch.stop())
             watch = None
             self.completed += 1
-            part = self.session.Parts.Display
+            part = None if cae_shown(self.services) else self.session.Parts.Display
             sheet = getattr(getattr(part, "DrawingSheets", None), "CurrentDrawingSheet", None)
             from nx_mcp.kit.drawing import work_view_is_drawing as drawing_work_view
 
@@ -2199,7 +2200,7 @@ class InteractiveHost:
         namespace = {
             "NXOpen": self.nx,
             "session": self.session,
-            "part": self.session.Parts.Work,
+            "part": None if cae_shown(self.services) else self.session.Parts.Work,
             "services": self.services,
             "resolve": lambda ref: self.services.resolve(ref),
         }
