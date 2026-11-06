@@ -1,5 +1,7 @@
 """nx_create_drawing_sheet and nx_activate_drawing_sheet through the real kernel."""
 
+from types import SimpleNamespace as NS
+
 import pytest
 
 from tests.kit import run
@@ -176,3 +178,35 @@ def test_activate_says_so_when_nx_flags_the_part_modified_on_a_read_only_visit()
     assert flagged.ok, flagged
     note = next(w["message"] for w in flagged.warnings if "marked the part" in w["message"])
     assert "unchanged" in note and "nx_capture_view with sheet" in note
+
+
+class StandardBuilder:
+    """``LoadDraftingStandardBuilder``: a commit makes ``Name`` the part's standard."""
+
+    LoadLevel = NS(Shipped="shipped")
+    current = "ISO"
+
+    def __init__(self):
+        self.Name = StandardBuilder.current
+        self.Level = None
+
+    def Commit(self):
+        if self.Level == "shipped" and StandardBuilder.apply:
+            StandardBuilder.current = self.Name
+
+    def Destroy(self):
+        pass
+
+
+def test_drafting_standard_loads_a_shipped_one_and_reads_it_back():
+    nx = sheet_nx()
+    StandardBuilder.current, StandardBuilder.apply = "ISO", True
+    nx.part.Preferences = NS(
+        DraftingPreference=NS(CreateLoadDraftingStandardBuilder=StandardBuilder)
+    )
+    ok = run(nx, "nx_set_drafting_standard", standard="ASME")
+    assert ok.ok, ok
+    assert ok.data == {"standard": "ASME"}
+    StandardBuilder.apply = False  # NX keeps its standard: the read-back refuses
+    bad = run(nx, "nx_set_drafting_standard", standard="JIS")
+    assert bad.error["details"]["check"] == "standard"

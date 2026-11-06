@@ -20,7 +20,7 @@ from nx_mcp.domains.drawing.common import (
     scale_value,
     sheet_of,
 )
-from nx_mcp.kit import drawing, readback, result
+from nx_mcp.kit import builders, drawing, readback, result
 from nx_mcp.kit import parts as kit_parts
 from nx_mcp.kit import units as kit_units
 
@@ -104,6 +104,46 @@ def _size(value):
         hint="Use 'a0'-'a4' (any case) or [width, height] in the sheet units, e.g. [11, 8.5] "
         "with units 'in' for letter",
     )
+
+
+class StandardData(TypedDict):
+    standard: str
+
+
+def _standard_name(tx) -> str:
+    """The standard NX last loaded in this session (the builder keeps no per-part name)."""
+    manager = tx.part.Preferences.DraftingPreference
+    with builders.build(tx, manager.CreateLoadDraftingStandardBuilder) as b:
+        return str(b.Name)
+
+
+@tool(
+    effect="model",
+    label="Set drafting standard",
+    summary="Set drafting standard {standard}",
+    keywords=("drafting standard", "ASME", "ISO", "annotation style", "Y14.5", "drawing defaults"),
+    requires=("work_part", "no_active_sketch"),
+    cost="light",
+    invalidates="deleted",
+    example={"standard": "ASME"},
+)
+def nx_set_drafting_standard(
+    tx: Tx,
+    *,
+    standard: Literal["ASME", "ISO", "DIN", "JIS", "GB", "ESKD", "Shipbuilding"],
+) -> StandardData:
+    """Load an NX shipped drafting standard into the part. It sets the defaults of what is drawn
+    after it (dimension text direction, tolerance style, arrows, hatching), so call it after the
+    sheet's borders and before its views; existing annotations keep their look. nx_undo_operation does not revert it: set another
+    standard."""
+    manager = tx.part.Preferences.DraftingPreference
+    with builders.build(tx, manager.CreateLoadDraftingStandardBuilder) as b:
+        b.Level = b.LoadLevel.Shipped
+        b.Name = standard
+        b.commit()
+    got = _standard_name(tx)
+    readback.expect(got == standard, "standard", actual=got)
+    return {"standard": standard}
 
 
 def _summary(args, say):

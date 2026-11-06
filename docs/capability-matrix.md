@@ -3,14 +3,14 @@
 Generated from the catalogue (`nx_mcp.core.catalogue`) with the acceptance evidence in `src/nx_mcp/evidence/`; do not edit this table by hand.
 Run `python scripts/generate_capability_matrix.py` to regenerate, or add `--check` to detect drift.
 
-Canonical SHA-256 (catalogue evidence): `18254bc2033b4e46ed30803a65de635eaf0951465bf1d49bde1a1c205e595074`.
+Canonical SHA-256 (catalogue evidence): `8541e02e840ed199e6f9c748235e7afcccae31f865d78d1af9ffbbdcfec2ea01`.
 
 These labels report recorded evidence, not certification or independent verification of its claims. A catalogue tool is Native-tested when the acceptance runner recorded machine-checked scenario evidence for an NX build (listed per variant); only that scope and build are covered. Without it the tool is Experimental, hidden from discovery and refused in production.
 
 | Tool classification | Count |
 | --- | ---: |
 | Native-tested | 271 |
-| Experimental | 1 |
+| Experimental | 2 |
 
 ## Catalogue tools
 
@@ -263,6 +263,7 @@ These labels report recorded evidence, not certification or independent verifica
 | nx_set_component_mass | Native-tested | assembly | model | v2406: tested; 99 checks in acceptance/assembly/weight_management.json |
 | nx_set_component_pose | Native-tested | assembly | model | v2406: all variants; 69 checks in acceptance/assembly/constraint_values.json |
 | nx_set_current_feature | Native-tested | modeling | model | v2406: tested; 40 checks in acceptance/modeling/feature_tree_undo.json |
+| nx_set_drafting_standard | Experimental | drawing | model | no acceptance evidence: hidden and refused in production |
 | nx_set_explosion_display | Native-tested | assembly | model | v2406: tested; 184 checks in acceptance/assembly/explosions.json |
 | nx_set_expression | Native-tested | modeling | model | v2406: tested; 40 checks in acceptance/modeling/feature_tree_undo.json |
 | nx_set_feature_order | Native-tested | modeling | model | v2406: tested; 40 checks in acceptance/modeling/feature_tree_undo.json |
