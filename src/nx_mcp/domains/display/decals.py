@@ -46,7 +46,7 @@ from nx_mcp.core.types import (
     Point3,
     Text,
 )
-from nx_mcp.domains.display.visual import is_decal, part_materials
+from nx_mcp.domains.display.visual import is_decal, part_materials, require_render_kit
 from nx_mcp.kit import builders, curve, display, expr, facts, files, geom, readback, select
 from nx_mcp.kit.result import Row
 
@@ -245,6 +245,7 @@ def nx_create_decal(
             hint="Upload the image again or convert it to PNG",
             retry="after_fix",
         )
+    require_render_kit("/image")
     with tx.checks():
         display.shown_part(tx, work=True)
         target = select.resolve(tx, face, "face", field="/face")

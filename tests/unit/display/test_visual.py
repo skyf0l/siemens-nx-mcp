@@ -83,6 +83,17 @@ def test_a_misspelt_query_ranks_the_name_made_of_that_word_first(tmp_path):
     assert out.warnings[0]["code"] == "NX_NOTE"
 
 
+def test_the_library_is_found_where_nx_2606_keeps_it(monkeypatch, tmp_path):
+    base = tmp_path / "dc2606"
+    metals = base / "UGII" / "visualization" / "SVM" / "Materials" / "Metals"
+    metals.mkdir(parents=True)
+    (metals / "Steel.svm").write_text("svm", encoding="utf-8")
+    nx = visual_nx()
+    monkeypatch.setenv("UGII_BASE_DIR", str(base))
+    out = run(nx, "nx_list_visual_materials", query="steel")
+    assert [i["name"] for i in out.data["items"]] == ["Steel"]
+
+
 def test_set_without_a_library_is_unavailable(monkeypatch, tmp_path):
     monkeypatch.setenv("UGII_BASE_DIR", str(tmp_path / "empty"))
     nx = visual_nx()

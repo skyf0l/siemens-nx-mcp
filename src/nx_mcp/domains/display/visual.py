@@ -65,7 +65,9 @@ from nx_mcp.domains.display.common import kind_of, targets
 from nx_mcp.kit import display, readback, result, select, switching
 from nx_mcp.kit.result import Row
 
-LIBRARY_DIRS = ("UGPHOTO", "SVM", "Materials")
+# Under UGII_BASE_DIR: the rendering kit's library, else the names every NX 2606 install ships.
+LIBRARY_DIRS = (("UGPHOTO", "SVM", "Materials"), ("UGII", "visualization", "SVM", "Materials"))
+RENDER_KIT = "UGPHOTO"
 MaterialName = Annotated[
     str, Text(96), Doc("Library or part visual material name, any case: 'Clear Glass'")
 ]
@@ -122,12 +124,29 @@ def library() -> list[tuple[str, str]]:
     base = os.environ.get("UGII_BASE_DIR")
     if not base:
         return []
-    root = Path(base).joinpath(*LIBRARY_DIRS)
+    roots = [Path(base).joinpath(*dirs) for dirs in LIBRARY_DIRS]
+    root = next((r for r in roots if r.is_dir()), roots[0])
     key = str(root)
     if key not in _LIBRARIES:
         found = root.glob("*/*.svm") if root.is_dir() else []
         _LIBRARIES[key] = sorted((p.parent.name, p.stem) for p in found)
     return _LIBRARIES[key]
+
+
+def require_render_kit(field: str) -> None:
+    """Refuse when NX's installation lacks the rendering kit. NX 2606 measured without it:
+    ``CreateMaterial`` fails with 'Invalid attempt to load library' and a decal sticker's
+    ``Commit`` succeeds and makes nothing (syslog: 'failed ugphoto kit installation')."""
+    base = os.environ.get("UGII_BASE_DIR")
+    if base and not Path(base, RENDER_KIT).is_dir():
+        fail(
+            "NX_CATALOG_UNAVAILABLE",
+            f"NX's rendering kit ({RENDER_KIT}) is not installed: NX cannot apply visual "
+            "materials or decals",
+            field=field,
+            hint="Add the rendering component to the NX installation, or use a plain "
+            "colour (nx_set_appearance)",
+        )
 
 
 def _material_words(text) -> list[str]:
@@ -187,7 +206,7 @@ def resolve_material(tx, text, field="/material") -> tuple[str, str | None]:
     if not entries:
         fail(
             "NX_CATALOG_UNAVAILABLE",
-            "NX's visual material library was not found (UGII_BASE_DIR/UGPHOTO/SVM/Materials)",
+            "NX's visual material library was not found (SVM/Materials under UGII_BASE_DIR)",
             field=field,
         )
     close = close_materials(text, [n for _, n in entries])
@@ -383,6 +402,8 @@ def nx_set_visual_material(
     with tx.checks():
         values = _visual_targets(tx, objects)
         name, category = resolve_material(tx, material) if material is not None else (None, None)
+        if name is not None:
+            require_render_kit("/material")
         before = [
             {"object": tx.ref(obj, kind_of(tx, obj))["id"], "material": own_material(tx, obj)}
             for obj in values
