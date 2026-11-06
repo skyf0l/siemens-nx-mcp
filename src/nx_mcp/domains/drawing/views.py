@@ -63,6 +63,7 @@ from nx_mcp.domains.drawing.common import (
 from nx_mcp.domains.drawing.view_kinds import EdgePoint
 from nx_mcp.domains.drawing.view_settings import HIDDEN_LINES_DOC
 from nx_mcp.kit import (
+    bodies,
     builders,
     drawing,
     geom,
@@ -558,6 +559,12 @@ def _sheet(tx, sheet_ref):
     return sheet_of(tx, sheet_ref, "/sheet")
 
 
+def _formed_bodies(part) -> list:
+    """The part's bodies without those a Flat Pattern made: a sheet-metal part keeps them beside
+    its formed body, and a model view does not draw them."""
+    return [b for b in part.Bodies if not bodies.is_flat_pattern(b)]
+
+
 def _create_base(tx, sheet_ref, orientation, body_ref, explosion_ref, position, scale):
     with tx.checks():
         target_sheet = _sheet(tx, sheet_ref)
@@ -572,7 +579,7 @@ def _create_base(tx, sheet_ref, orientation, body_ref, explosion_ref, position, 
                 fail("NX_INVALID_ARGUMENT", "explosion needs an assembly", field="/explosion")
             if body_ref is not None:
                 select.resolve(tx, body_ref, "body", field="/body", work_part=True)
-            count = len(list(part.Bodies))
+            count = len(_formed_bodies(part))
             if count != 1:
                 fail(
                     "NX_UNSUPPORTED_OPTION",

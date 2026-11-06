@@ -417,3 +417,13 @@ def test_a_rescaled_free_view_keeps_its_border_centre_both_ways():
     down = run(nx, "nx_edit_drawing_view", view=view.ref, scale=1)
     assert down.ok and down.data["center"] == pytest.approx(before)
     assert down.data["position"] == pytest.approx([120, 200])
+
+
+def test_a_base_view_ignores_the_bodies_a_flat_pattern_made():
+    from types import SimpleNamespace as NS
+
+    from nx_mcp.domains.drawing.views import _formed_bodies
+
+    formed = NS(GetFeatures=lambda: [NS(FeatureType="SB_FLANGE", Name="SB_FLANGE(1)")])
+    flat = NS(GetFeatures=lambda: [NS(FeatureType="FLAT_PATTERN", Name="FLAT_PATTERN(6:1B)")])
+    assert _formed_bodies(NS(Bodies=[formed, flat])) == [formed]

@@ -17,6 +17,7 @@ from typing import Any, TypedDict
 
 from nx_mcp.core.errors import NXError, fail
 from nx_mcp.kit import result, select
+from nx_mcp.kit.bodies import is_flat_pattern
 from nx_mcp.kit.sketch import snake
 
 
@@ -48,23 +49,6 @@ def sheet_body(tx, ref, field="/body"):
     if not is_sheet_metal(tx, body):
         fail("NX_WRONG_GEOMETRY", "Select a sheet-metal body", field=field)
     return body
-
-
-def _of_flat_pattern(feature) -> bool:
-    """A Flat Pattern feature or one of its own sub-features: NX 2406 builds the flat
-    bodies with EXTRACT_BODY and SB_FLAT_SOLID features named ``FLAT_PATTERN(n:...)``."""
-    if str(getattr(feature, "FeatureType", "")) == "FLAT_PATTERN":
-        return True
-    return str(getattr(feature, "JournalIdentifier", "")).startswith("FLAT_PATTERN(")
-
-
-def is_flat_pattern(body) -> bool:
-    """A body only Flat Pattern features made (NX lists it as sheet metal too)."""
-    try:
-        features = list(body.GetFeatures())
-    except Exception:  # no feature query for this body: treat it as a part body
-        return False
-    return bool(features) and all(_of_flat_pattern(f) for f in features)
 
 
 def flat_pattern_of(tx, body):

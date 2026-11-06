@@ -1,0 +1,52 @@
+{
+ "covers": {
+  "nx_create_drawing_view": [
+   "base"
+  ]
+ },
+ "fixture": "fixtures/drawing_sheet_metal.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_get_sheet_metal",
+   "setup": true,
+   "save": "sm",
+   "args": {}
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "FORMED",
+    "size": "a3"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "intent": "Acceptance: a sheet-metal part keeps flat pattern bodies beside its formed body; a base view still works",
+   "args": {
+    "type": "base",
+    "sheet": "$sh.data.sheet.id",
+    "orientation": "front",
+    "position": [
+     120,
+     150
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.type": "base",
+    "data.inside_sheet": true
+   }
+  }
+ ]
+}
