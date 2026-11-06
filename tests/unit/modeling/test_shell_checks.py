@@ -14,7 +14,7 @@ def test_zone_expression_takes_the_part_length_unit():
              alternate=[{"faces": [side.ref], "thickness": 4}])  # fmt: skip
     assert ok.ok, ok
     (call,) = nx.last("ShellBuilder").FaceThicknesses.Append.calls
-    assert call[0][0].args[2] == "MilliMeter"
+    assert call[0][0].args[2] == "Length"  # NX's dimensionality: NX 2606 refuses a unit name
 
 
 def test_a_wall_thicker_than_half_the_body_is_explained():
