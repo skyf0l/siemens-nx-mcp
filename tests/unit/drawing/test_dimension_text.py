@@ -68,3 +68,17 @@ def test_new_text_on_a_dimension_points_to_appended_text():
     nx, d, ref = fit_nx()
     bad = run(nx, "nx_edit_annotation", annotation=ref, text=["100 REF"])
     assert bad.error["field"] == "/text" and "nx_edit_dimension appended" in bad.error["hint"], bad
+
+
+def test_zero_deviation_and_basic_go_through_the_style_builder():
+    """NX shows "-0" and no basic box unless the style builder commits them."""
+    nx, d, ref = fit_nx()
+    ok = run(nx, "nx_edit_dimension", dimension=ref,
+             tolerance={"type": "bilateral", "upper": 0.1, "lower": 0})  # fmt: skip
+    assert ok.ok, ok
+    assert nx.commits[-1]["DimZeroToleranceDisplayStyle"] == (
+        nx.nx.Annotations.ZeroToleranceDisplayStyle.AsZero
+    )
+    ok = run(nx, "nx_edit_dimension", dimension=ref, tolerance={"type": "basic"})
+    assert ok.ok, ok
+    assert nx.commits[-1]["ToleranceType"] == nx.nx.Annotations.ToleranceType.Basic
