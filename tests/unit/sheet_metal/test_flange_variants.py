@@ -93,7 +93,23 @@ def test_flange_variants_set_edges_inside_length_and_angle(operation, kind):
     # A flange that adds no bend is not what was asked.
     nx.on_commit(kind, lambda b: nx.made("SB_FLANGE", body))
     bad = create(nx, operation, edges=[nx.ref_of(edge, "edge")], length=20)
-    assert bad.error["details"]["check"] == "bend_count" and bad.mutation_outcome == "rolled_back"
+    # A variational flange's bend may go unlisted (NX 2606), so there the volume decides.
+    check = "bend_count" if operation == "advanced_flange" else "volume"
+    assert bad.error["details"]["check"] == check and bad.mutation_outcome == "rolled_back"
+
+
+def test_a_variational_flange_nx_lists_no_bend_of_is_checked_by_its_volume():
+    nx = sm_nx()
+    body = nx.tab()
+
+    def grow(b):
+        body.volume += 3656.637
+        return nx.made("SB_FLANGE", body)
+
+    nx.on_commit("VariationalFlangeBuilder", grow)
+    ok = create(nx, "variational_flange", edges=[body.edges[0].ref], length=20, radius=4)
+    assert ok.ok, ok
+    assert ok.data["bend_count"] == 0 and "not read back" in ok.warnings[0]["message"]
 
 
 def test_gusset_spans_the_middle_of_one_bend(monkeypatch):

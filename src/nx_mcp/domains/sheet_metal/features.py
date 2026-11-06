@@ -1171,7 +1171,13 @@ def _verify(tx, operation, i, before, body, after):
         else:
             _volume_change(before["volume"], after["volume"], "more")
     gained = len(after["bends"]) - len(before["bends"]) if before else len(after["bends"])
-    if operation in NEW_BENDS:
+    # NX 2606 builds a Variational Flange's bend as a free-form face that GetInnerBendFaces does
+    # not list, so only the volume below can check it.
+    unlisted = operation == "variational_flange" and gained == 0
+    if unlisted:
+        tx.warn("NX_NOTE", "NX does not list this flange's bend as a bend face, so its angle and "
+                "radius were not read back; check them with nx_measure tools")  # fmt: skip
+    if operation in NEW_BENDS and not unlisted:
         want = NEW_BENDS[operation] * (len(i.edges) if operation in FLANGES else 1)
         readback.expect(gained == want, "bend_count", f"NX added {gained} bends, not {want}",
                         gained=gained, wanted=want)  # fmt: skip
@@ -1183,7 +1189,11 @@ def _verify(tx, operation, i, before, body, after):
         matches = [d for _f, d in after["bends"] if abs(d["angle"] - angle) <= ANGLE_TOL]
         readback.expect(len(matches) >= gained, "angle", f"No new bend at {angle:g} degrees",
                         bends=[d for _f, d in after["bends"]])  # fmt: skip
-    if p.get("radius") is not None and operation in (*FLANGES, *CREATES_BODY[1:], "bend", "jog"):
+    if (
+        p.get("radius") is not None
+        and operation in (*FLANGES, *CREATES_BODY[1:], "bend", "jog")
+        and not unlisted
+    ):
         radius = float(p["radius"])
         tol = 1e-6 * max(1.0, radius)
         readback.expect(any(abs(d["radius"] - radius) <= tol for _f, d in after["bends"]),
