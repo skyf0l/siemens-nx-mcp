@@ -526,7 +526,9 @@ def nx_set_lighting_preset(tx: Tx, *, preset: Preset) -> PresetData:
         with builders.build(tx, part.Views.CreateLighting, None) as b:
             b.LightsShadedViewsLightingCollection = wanted
             b.commit()
-        readback.expect(_preset(tx, part, view) == preset, "preset")
+        # NX 2606 applies lighting_1 to _3 but reads them back as user-defined; only another
+        # preset's name means the commit did not take.
+        readback.expect(_preset(tx, part, view) in (preset, "user_defined"), "preset")
     else:
         with native(default="NX_BUILD_FAILED"):
             (view.UseSceneLights if preset == "scene" else view.UseDefaultLights)()
