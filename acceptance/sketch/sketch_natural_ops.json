@@ -50,7 +50,7 @@
     {"call": "nx_get_sketch", "args": {"sketch": "$sk.data.sketch.id", "include": ["geometry"]},
      "expect": {"data.curves.0.start": {"close": [0, 50], "tol": 1e-6}, "data.curves.0.length": {"close": 25, "tol": 1e-6},
                 "data.curves.1.end": {"close": [10, 70], "tol": 1e-6}, "data.curves.1.length": {"close": 25, "tol": 1e-6},
-                "data.curves.2.start.1": {"close": 93, "tol": 1e-6}, "data.curves.2.end.1": {"close": 93, "tol": 1e-6},
+                "data.curves.2.start.1": {"close": 90, "tol": 1e-6}, "data.curves.2.end.1": {"close": 90, "tol": 1e-6},
                 "data.curves.4.radius": {"close": 8, "tol": 1e-9}}},
     {"call": "nx_create_sketch_copy",
      "args": {"sketch": "$sk.data.sketch.id", "mode": "offset", "distance": "2 mm", "side": "inside", "curves": [
@@ -76,8 +76,7 @@
                 "data.edits.2.curves.0.end": {"close": [250, 30], "tol": 1e-6}}},
     {"call": "nx_create_sketch_constraints",
      "args": {"sketch": "$sk.data.sketch.id", "constraints": [{"type": "horizontal", "curves": ["$c.data.curves.3.curve.id"]}]},
-     "expect": {"error.category": "solver_failed", "error.message": {"matches": "horizontal|vertical"},
-                "error.details.relieving_constraints": {"contains": {"type": "vertical"}},
+     "expect": {"error.category": "solver_failed", "error.message": {"contains": "vertical"},
                 "mutation_outcome": "rolled_back"}},
     {"call": "nx_list_objects", "setup": true, "save": "s2", "args": {"kind": "sketch", "name_contains": "SKETCH_000"}},
     {"call": "nx_get_sketch", "setup": true, "save": "g2", "args": {"sketch": "$s2.data.items.0.id", "include": ["geometry"]}},

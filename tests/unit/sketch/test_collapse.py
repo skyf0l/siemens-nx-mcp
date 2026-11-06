@@ -122,21 +122,31 @@ def test_coincident_ends_of_one_curve_are_refused():
     assert corners.ok, corners
 
 
-def test_a_solve_that_still_deleted_a_curve_rolls_back():
+@pytest.mark.parametrize(
+    ("kind", "builder"),
+    [("horizontal", "SketchMakeHorizontalBuilder"), ("point_on_curve", "DragGeometryBuilder")],
+)
+def test_a_solve_that_still_deleted_a_curve_rolls_back(kind, builder):
+    # Both ways a constraint is solved: a Make relation and a native drag.
     nx = sketch_nx()
     sk = nx.sketch(active=True)
     line = nx.line(sk, (0, 0, 0), (10, 2, 0))
+    target = nx.line(sk, (0, -5, 0), (40, -5, 0))
     victim = nx.line(sk, (20, 0, 0), (30, 0, 0))
     victim.JournalIdentifier = "Line2"
-    commit = nx.hooks["DragGeometryBuilder"]
+    commit = nx.hooks[builder]
 
-    def deleting(builder):  # batch NX: the solve deletes a collapsed curve silently
-        result = commit(builder)
+    def deleting(*args):  # batch NX: the solve deletes a collapsed curve silently
+        result = commit(*args)
         sk.geometry.remove(victim)
         return result
 
-    nx.on_commit("DragGeometryBuilder", deleting)
-    bad = _constrain(nx, sk, {"type": "horizontal", "curves": [nx.cref(line)]})
+    nx.on_commit(builder, deleting)
+    item = {"type": kind, "curves": [nx.cref(line)]}
+    if kind == "point_on_curve":
+        item = {"type": kind, "points": [{"curve": nx.cref(line), "point": "start"}],
+                "curves": [nx.cref(target)]}  # fmt: skip
+    bad = _constrain(nx, sk, item)
     assert bad.error["code"] == "NX_SKETCH_OVERCONSTRAINED", bad
     assert bad.error["details"]["deleted_curves"] == ["Line2"]
     assert "deleting 1 sketch curve" in bad.error["message"]

@@ -14,16 +14,31 @@ def _dimension(nx, sk, *items):
     return run(nx, "nx_create_sketch_dimensions", sketch=sk.ref, dimensions=list(items))
 
 
-def test_horizontal_is_solved_by_a_drag_and_checked():
+def test_horizontal_is_a_make_horizontal_relation_and_checked():
+    # A drag cannot relax the relations NX finds: on NX 2606 it also turned an
+    # unconstrained line parallel to this one horizontal. Make Horizontal relaxes them.
     nx = sketch_nx()
     sk = nx.sketch(active=True)
     line = nx.line(sk, (0, 30, 0), (10, 32, 0))
+    make = nx.builder
+
+    def finding(kind, *args):  # NX finds the unrelated parallel line's relation
+        b = make(kind, *args)
+        object.__setattr__(b, "FindRelations", lambda: ["parallel to Line2"])
+        return b
+
+    nx.builder = finding
     ok = _constrain(nx, sk, {"type": "horizontal", "curves": [nx.cref(line)]})
     assert ok.ok, ok
     row = ok.data["constraints"][0]
-    assert row["type"] == "horizontal" and row["residual"] == 0 and row["drag_status"] == "Updated"
+    assert row["type"] == "horizontal" and row["residual"] == 0 and "drag_status" not in row
     assert line.StartPoint.Y == 32 and len(row["constraints"]) == 1
-    assert nx.last("DragGeometryBuilder").destroyed and ok.data["status"]["state"]
+    made = nx.last("SketchMakeHorizontalBuilder")
+    assert made.destroyed and made.MotionObjects.Add.calls[-1][0] == (line,)
+    assert made.SetCreateConstraints.calls[-1][0] == (True,)
+    assert made.SetRelationRelaxState.calls[-1][0] == ("parallel to Line2", True)
+    assert not any(b.kind == "DragGeometryBuilder" for b in nx.builders)
+    assert ok.data["status"]["state"]
 
 
 def test_unsolved_constraint_rolls_back_as_solver_failed():
@@ -38,8 +53,8 @@ def test_unsolved_constraint_rolls_back_as_solver_failed():
 
 
 def test_an_unsolved_conflict_names_the_constraint_that_relieves_it():
-    # NX 2606 creates horizontal on a line held vertical and leaves it unsolved (2406
-    # refused it): the error still names the vertical constraint in the way.
+    # A conflicting constraint NX creates but leaves unsolved (a drag did on NX 2606):
+    # the error still names the constraint that relieves it.
     nx = sketch_nx()
     sk = nx.sketch(active=True)
     line = nx.line(sk, (0, 0, 0), (0, 10, 0))
@@ -318,7 +333,7 @@ def test_a_constraint_nx_does_not_create_names_the_one_in_the_way():
     line = nx.line(sk, (0, 0, 0), (0, 10, 0))
     held = Constraint(CT.Vertical, [(line, "NotSet")], sk)
     sk.constraints.append(held)
-    sk.CreateHorizontalConstraint = lambda g: None  # NX makes nothing
+    nx.on_commit("SketchMakeHorizontalBuilder", lambda b: None)  # NX makes nothing
     bad = _constrain(nx, sk, {"type": "horizontal", "curves": [nx.cref(line)]})
     assert bad.error["category"] == "solver_failed" and bad.mutation_outcome == "rolled_back"
     held_ref = nx.ref_of(held, "sketch_constraint")

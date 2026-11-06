@@ -59,7 +59,7 @@
                 "data.constraints.6.residual": {"close": 0, "tol": 1e-6}, "data.constraints.7.residual": {"close": 0, "tol": 1e-6},
                 "data.constraints.8.residual": {"close": 0, "tol": 1e-6}, "data.constraints.9.residual": {"close": 0, "tol": 1e-6},
                 "data.constraints.10.residual": {"close": 0, "tol": 1e-6}, "data.constraints.11.residual": {"close": 0, "tol": 1e-6},
-                "data.constraints.5.drag_status": "Updated", "data.constraints.9.drag_status": "Updated",
+                "data.constraints.9.drag_status": "Updated",
                 "data.constraints.12.constraints": {"count": 2}, "data.constraints.13.constraints": {"count": 1},
                 "data.constraints.0.constraints.0.kind": "sketch_constraint", "data.status.state": "under_constrained"}},
     {"call": "nx_get_sketch", "args": {"sketch": "$sk.data.sketch.id", "include": ["geometry"]},

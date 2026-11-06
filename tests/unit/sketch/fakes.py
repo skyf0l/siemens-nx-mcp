@@ -516,6 +516,8 @@ class FakeSketchNX(FakeNX):
             "SketchMakeCoincidentBuilder",
             "SketchMakeTangentBuilder",
             "SketchMakeCollinearBuilder",
+            "SketchMakeHorizontalBuilder",
+            "SketchMakeVerticalBuilder",
         ):
             f.on_commit(kind, lambda b, kind=kind: self.commit_relation(kind, b))
         self.next_sketch = None  # frame of the next committed sketch (origin, x, y)
@@ -643,6 +645,15 @@ class FakeSketchNX(FakeNX):
         for curve in b.InputObjects.Add.calls[-1][0][0]:
             curve.IsReference = on
 
+    def _make_axis(self, sketch, b, horizontal):
+        """Make Horizontal / Make Vertical: the constraint (refused as NX would) and the
+        line turned onto it by the tiny solver."""
+        (line,) = b.MotionObjects.Add.calls[-1][0]
+        ctype = CT.Horizontal if horizontal else CT.Vertical
+        sketch._add(ctype, NS(Geometry=line, PointType="NotSet"))
+        sketch.solve()
+        return None
+
     def commit_relation(self, kind, b):
         sketch = self.session.ActiveSketch
         if kind == "SketchMakeCoincidentBuilder":
@@ -656,6 +667,8 @@ class FakeSketchNX(FakeNX):
                 )
             )
             return None
+        if kind in ("SketchMakeHorizontalBuilder", "SketchMakeVerticalBuilder"):
+            return self._make_axis(sketch, b, kind == "SketchMakeHorizontalBuilder")
         a = b.StationaryObject.Value
         (c,) = b.MotionObjects.Add.calls[-1][0]
         if kind == "SketchMakeCollinearBuilder":  # c moves onto a's line, keeping its length
