@@ -61,11 +61,13 @@ POINTS = ("curve", "start", "end", "center")
 
 
 def _native(tx, curve) -> dict | None:
-    """What sets a line or arc back (``SetEndpoints``/``SetParameters`` values), with its
-    construction state; None for other curves."""
+    """What sets a line, arc or point back (``SetEndpoints``/``SetParameters``/
+    ``SetCoordinates`` values), with its construction state; None for other curves."""
     kind = ksketch.curve_kind(tx, curve)
     out: dict
-    if kind == "line":
+    if ksketch.is_point(tx, curve):
+        out = {"kind": "point", "at": geom.xyz(curve.Coordinates)}
+    elif kind == "line":
         out = {"kind": "line", "start": geom.xyz(curve.StartPoint), "end": geom.xyz(curve.EndPoint)}
     elif kind in ("arc", "circle"):
         out = {
@@ -304,7 +306,9 @@ def _delete(tx, e, objects, what) -> None:
 def _set_back(tx, e, curve, old: dict) -> None:
     nx = tx.nx
     with native(default="NX_BUILD_FAILED"):
-        if old["kind"] == "line":
+        if old["kind"] == "point":
+            curve.SetCoordinates(nx.Point3d(*old["at"]))
+        elif old["kind"] == "line":
             curve.SetEndpoints(nx.Point3d(*old["start"]), nx.Point3d(*old["end"]))
         else:
             start, end = old["angles"]

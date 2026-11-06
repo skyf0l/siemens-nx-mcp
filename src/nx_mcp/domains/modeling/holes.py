@@ -8,6 +8,15 @@ the depth is measured to the cylinder bottom (the drill tip comes on top); the
 committed parameters are read back through an edit builder that is destroyed
 without committing.
 
+The hole centres are points of a sketch on the placement face, as NX's own Hole
+command makes them: the sketch sits on a coincident smart plane, so the holes follow
+the face when the model updates. Free points (``Points.CreatePoint`` at coordinates)
+stay where they were made: once the face moves (a thicker plate), they are off it and
+the hole fails to update.
+
+A through-all hole has no drill tip: NX 2606 reads its tip angle back as 0, so the tip
+angle is neither set nor checked on one.
+
 Short forms: depth 10, '10 mm' or 'through_all'; a position [x, y] on a face normal to
 z (y and z on a face normal to x); a threaded hole's thread {'size': 'M6'} (standard
 Metric Coarse, see ``threads``) drills the 0.75-engagement tap drill when diameter is
@@ -36,6 +45,7 @@ from nx_mcp.core.types import (
 )
 from nx_mcp.domains.modeling import common, threads
 from nx_mcp.kit import builders, expr, geom, measure, readback, result, select, units
+from nx_mcp.kit import sketch as ksketch
 
 FORMS = ("simple", "counterbore", "countersink", "threaded")
 # [x, y, z], or [a, b]: the two coordinates in the face plane, in x, y, z order.
@@ -125,7 +135,7 @@ def check_spec(form, diameter, depth, tip_angle, counterbore, countersink, threa
     spec = {
         "form": form,
         "diameter": None if diameter is None else expr.number(diameter),
-        "tip_angle": expr.number(tip_angle),
+        "tip_angle": None if through else expr.number(tip_angle),  # no tip on a through hole
         "through_all": through,
         "depth": None if through else expr.number(depth["value"]),
     }
@@ -325,6 +335,19 @@ def _on_face(tx, placement, points, origin, normal):
     return out
 
 
+def _sketch_points(tx, placement, origin, normal, centres):
+    """``(sketch, points)``: the centres as points of a new sketch on the placement face
+    (module docstring), deactivated again with a model update."""
+    nx = tx.nx
+    sk, _at, _x = ksketch.on_plane(tx, placement, origin, normal)
+    sk.Activate(nx.Sketch.ViewReorient.FalseValue)
+    try:
+        points = [ksketch.add(tx, sk, builders.point(tx, c)) for c in centres]
+    finally:
+        sk.Deactivate(nx.Sketch.ViewReorient.FalseValue, nx.Sketch.UpdateLevel.Model)
+    return sk, points
+
+
 def _configure(tx, b, spec, row):
     B = tx.nx.Features.HolePackageBuilder
     values = []
@@ -339,7 +362,8 @@ def _configure(tx, b, spec, row):
         b.ThreadedReliefEnabled = False
         b.RelateHoleDepthToThreadDepth = False
         b.ThreadRotation = B.ThreadRotationOptions.Right
-        values.append((b.ThreadedTipAngle, spec["tip_angle"]))
+        if not spec["through_all"]:
+            values.append((b.ThreadedTipAngle, spec["tip_angle"]))
         depth_t = spec["thread"]["depth"]
         if spec["through_all"] and depth_t is None:
             b.ThreadLengthOption = B.ThreadLengthOptions.Full
@@ -350,7 +374,8 @@ def _configure(tx, b, spec, row):
             values.append((b.ThreadedHoleDepth, spec["depth"]))
     else:
         b.Type = B.Types.GeneralHole
-        values.append((b.GeneralTipAngle, spec["tip_angle"]))
+        if not spec["through_all"]:
+            values.append((b.GeneralTipAngle, spec["tip_angle"]))
         if spec["form"] == "simple":
             b.GeneralHoleForm = B.HoleForms.Simple
             values.append((b.GeneralSimpleHoleDiameter, spec["diameter"]))
@@ -454,6 +479,7 @@ def _verify(spec, got, centres, origins, directions, drill, removed):
 
 class HoleData(TypedDict):
     feature: result.Row
+    sketch: Annotated[result.Row, Doc("The centres' sketch on the face: edit it to move holes")]
     bodies: list[result.Row]
     volume: float
     removed: float
@@ -531,6 +557,7 @@ def nx_create_hole(
     target: BodyRef | None = None,
 ) -> HoleData:
     """Create one NX Hole feature with 1-100 holes on a planar face, drilled into the material.
+    The centres are points of a new sketch on the face (sketch), so the holes follow the face.
     Threaded: thread {size: 'M6'}, diameter default its tap drill. nominal is the analytic
     removed volume of blind holes fully inside the body (null with a warning when one
     breaks through); diameter and depth echo the drill used."""
@@ -547,12 +574,12 @@ def nx_create_hole(
     part = tx.part
     nx = tx.nx
     before = measure.volume(tx, body)
+    sketch, smart = _sketch_points(tx, placement, origin, outward, centres)
     with builders.build(tx, part.Features.CreateHolePackageBuilder, None) as b:
         b.Tolerance = units.part_tolerance(tx, mm=0.01)
         _configure(tx, b, spec, row)
         b.BooleanOperation.Type = nx.GeometricUtilities.BooleanOperation.BooleanType.Subtract
         b.BooleanOperation.SetTargetBodies([body])
-        smart = [builders.point(tx, p) for p in centres]
         section = b.HolePosition
         section.SetAllowedEntityTypes(nx.Section.AllowTypes.OnlyPoints)
         rule = part.ScRuleFactory.CreateRuleCurveDumbFromPoints(smart)
@@ -572,6 +599,7 @@ def nx_create_hole(
         nominal = None
     return {
         "feature": tx.ref(feature, kind="feature"),
+        "sketch": tx.ref(sketch, kind="sketch"),
         "bodies": common.body_rows(tx, [body]),
         "volume": after,
         "removed": before - after,

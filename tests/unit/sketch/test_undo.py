@@ -29,6 +29,18 @@ def test_a_constraint_is_deleted_and_the_moved_line_set_back():
     )
 
 
+def test_a_moved_point_is_set_back():
+    nx = sketch_nx()
+    sk = nx.sketch(active=True)
+    pt = nx.sketch_point(sk, (10, 10, 0))
+    ok = run(nx, "nx_edit_sketch_curves", sketch=sk.ref,
+             edits=[{"type": "point", "curve": nx.cref(pt), "at": [25, 5]}])  # fmt: skip
+    assert ok.ok and (pt.Coordinates.X, pt.Coordinates.Y) == (25, 5), ok
+    undo = _undo(nx)
+    assert undo.ok and undo.data["compensated"], undo
+    assert (pt.Coordinates.X, pt.Coordinates.Y) == (10, 10)
+
+
 def test_a_curve_moved_since_is_never_overwritten():
     nx = sketch_nx()
     sk = nx.sketch(active=True)

@@ -74,6 +74,19 @@ class Line(Curve):
         return [s[i] + t * (e[i] - s[i]) for i in range(3)], [e[i] - s[i] for i in range(3)]
 
 
+class SketchPoint(Object):
+    """A sketch point (NXOpen.Point): a hole's centre."""
+
+    IsReference = False
+
+    def __init__(self, p):
+        super().__init__("POINT")
+        self.Coordinates = P(xyz(p))
+
+    def SetCoordinates(self, p):  # noqa: N802 - mirrors NXOpen
+        self.Coordinates = P(xyz(p))
+
+
 class Arc(Curve):
     def __init__(self, center, x, y, radius, start, end):
         super().__init__("ARC")
@@ -449,6 +462,7 @@ class FakeSketchNX(FakeNX):
         Edge.EdgeType = ns.Edge.EdgeType  # NXOpen.Edge is the class and holds the enum
         ns.Line, ns.Arc, ns.Ellipse, ns.Curve, ns.Edge = Line, Arc, Ellipse, Curve, Edge
         ns.Spline = Spline
+        ns.Point = SketchPoint
         ns.Features.StudioSplineBuilderEx = NS(
             Types=NS(ThroughPoints="ThroughPoints", ByPoles="ByPoles")
         )
@@ -574,6 +588,11 @@ class FakeSketchNX(FakeNX):
 
     def line(self, sk, a, b):
         c = self._own_curve(Line(P(a), P(b)))
+        sk.geometry.append(c)
+        return c
+
+    def sketch_point(self, sk, p):
+        c = self._own_curve(SketchPoint(P(p)))
         sk.geometry.append(c)
         return c
 

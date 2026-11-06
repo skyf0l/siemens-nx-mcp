@@ -40,13 +40,51 @@ import re
 
 from nx_mcp.core import parking
 from nx_mcp.core.errors import NXError, fail
-from nx_mcp.kit import geom
+from nx_mcp.kit import builders, geom
 from nx_mcp.kit.result import enum_name
 
 FAILED_STATUSES = frozenset({"OverConstrained", "InconsistentlyConstrained"})
 SOLVED_DOF_STATUSES = frozenset({"UnderConstrained", "WellConstrained"})
 # A status NX answers before it solved the sketch: solved once, then read again.
 UNEVALUATED = frozenset({"NotEvaluated"})
+
+
+def face_frame(origin, normal, x=None):
+    """``(origin, x)`` of a sketch on the plane through ``origin`` with unit ``normal``:
+    the part's absolute origin dropped onto the plane, and ``x`` (default the absolute X
+    projected onto the plane, the absolute Y on a plane normal to X)."""
+    at = geom.scale(normal, geom.dot(origin, normal))
+    if x is None:
+        base = [1.0, 0.0, 0.0] if abs(normal[0]) < 0.9 else [0.0, 1.0, 0.0]
+        x = geom.unit(geom.sub(base, geom.scale(normal, geom.dot(base, normal))))
+    return at, x
+
+
+def on_plane(tx, target, origin, normal, x=None):
+    """``(sketch, origin, x)``: a new sketch on the planar face or datum plane ``target``
+    (through ``origin``, unit ``normal``) at a predictable frame (``face_frame``). NX's own
+    inferred origin is the face centre on some faces and a vertex on others, and NX 2406
+    ignores AxisReference and SketchOrigin on an Inferred plane, so the sketch sits on a
+    coincident smart plane: still associative to the target, it follows the target when
+    the model updates."""
+    at, x = face_frame(origin, normal, x)
+    part, nx = tx.part, tx.nx
+    with builders.build(tx, part.Sketches.CreateSketchInPlaceBuilder2, nx.Sketch.Null) as b:
+        plane = part.Planes.CreatePlane(
+            nx.Point3d(*origin),
+            nx.Vector3d(*normal),
+            nx.SmartObject.UpdateOption.WithinModeling,
+        )
+        plane.SetMethod(nx.PlaneTypes.MethodType.Coincident)
+        plane.SetGeometry([target])
+        plane.Evaluate()
+        b.PlaneOption = nx.Sketch.PlaneOption.NewPlane
+        b.PlaneReference = plane
+        b.AxisReference = builders.direction(tx, x, at, "/placement/x_direction")
+        b.OriginOption = nx.OriginMethod.SpecifyPoint
+        b.SketchOrigin = builders.point(tx, at)
+        sketch = b.Commit()
+    return sketch, at, x
 
 
 def frame(sketch):
@@ -383,6 +421,12 @@ def curve_kind(tx, curve):
     return "other"
 
 
+def is_point(tx, obj):
+    """A sketch point (``curve_kind`` calls it ``other``)."""
+    point_type = getattr(tx.nx, "Point", None)
+    return isinstance(point_type, type) and isinstance(obj, point_type)
+
+
 def add(tx, sk, curve):
     """Add a curve to the sketch without inferred constraints; returns the curve."""
     _sketch_of(sk).AddGeometry(curve, tx.nx.Sketch.InferConstraintsOption.InferNoConstraints)
@@ -464,12 +508,14 @@ def check_point(tx, curve, which, field, allowed=POINTS):
 def read(tx, f, curve):
     """Read a sketch curve back in the sketch frame ``f`` (sketch-local coordinates).
 
-    Lines and arcs come from their native data, ellipses and splines from UF Eval.
+    Lines, arcs and points come from their native data, ellipses and splines from UF Eval.
     Arc and ellipse angles are counterclockwise degrees in the sketch frame (NX
     stores them relative to the curve's own matrix, which a mirror flips).
     """
     from nx_mcp.kit import curve as kcurve
 
+    if is_point(tx, curve):
+        return {"type": "point", "at": to_local(f, geom.xyz(curve.Coordinates))}
     kind = curve_kind(tx, curve)
     if kind == "line":
         s, e = geom.xyz(curve.StartPoint), geom.xyz(curve.EndPoint)
@@ -697,7 +743,9 @@ def _fmt(p) -> str:
 
 def shape(tx, curve) -> list:
     """Coordinates that change when a curve moves or changes size: a line's ends; an arc's
-    or circle's center, radius and ends; the ends of any other curve."""
+    or circle's center, radius and ends; a point's position; the ends of any other curve."""
+    if is_point(tx, curve):
+        return geom.xyz(curve.Coordinates)
     kind = curve_kind(tx, curve)
     if kind == "line":
         return geom.xyz(curve.StartPoint) + geom.xyz(curve.EndPoint)
@@ -717,7 +765,11 @@ def shape(tx, curve) -> list:
 
 def shapes(tx, sk) -> dict:
     """``{tag: (curve, shape)}`` of every sketch curve, read before a change."""
-    return {int(c.Tag): (c, shape(tx, c)) for c in geometry(sk) if curve_kind(tx, c) != "other"}
+    return {
+        int(c.Tag): (c, shape(tx, c))
+        for c in geometry(sk)
+        if curve_kind(tx, c) != "other" or is_point(tx, c)
+    }
 
 
 def moved(tx, sk, before, skip=()) -> list:
