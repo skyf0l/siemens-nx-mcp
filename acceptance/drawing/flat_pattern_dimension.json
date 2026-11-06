@@ -1,0 +1,87 @@
+{
+ "covers": {
+  "nx_list_view_edges": [],
+  "nx_create_drawing_dimension": [
+   "linear"
+  ]
+ },
+ "fixture": "fixtures/drawing_sheet_metal.prt",
+ "part": null,
+ "steps": [
+  {
+   "call": "nx_open_part",
+   "setup": true,
+   "save": "part",
+   "args": {
+    "path": "$fixture"
+   }
+  },
+  {
+   "call": "nx_list_objects",
+   "setup": true,
+   "save": "fp",
+   "args": {
+    "kind": "feature",
+    "type": "flat_pattern"
+   }
+  },
+  {
+   "call": "nx_create_drawing_sheet",
+   "setup": true,
+   "save": "sh",
+   "args": {
+    "name": "FLATTENED",
+    "size": "a3"
+   }
+  },
+  {
+   "call": "nx_create_drawing_view",
+   "setup": true,
+   "save": "flat",
+   "args": {
+    "type": "flat_pattern",
+    "sheet": "$sh.data.sheet.id",
+    "flat_pattern": "$fp.data.items.0.id",
+    "position": [
+     200,
+     150
+    ],
+    "scale": 1
+   }
+  },
+  {
+   "call": "nx_list_view_edges",
+   "save": "lines",
+   "intent": "A flat pattern view lists its curves: NX draws no model edges there",
+   "args": {
+    "view": "$flat.data.view.id",
+    "orientation": "horizontal",
+    "limit": 1
+   },
+   "expect": {
+    "data.items.0.kind": "curve",
+    "data.items.0.type": "line"
+   }
+  },
+  {
+   "call": "nx_create_drawing_dimension",
+   "intent": "An associative dimension on a flat pattern curve",
+   "args": {
+    "view": "$flat.data.view.id",
+    "kind": "linear",
+    "orientation": "horizontal",
+    "first": "$lines.data.items.0.id",
+    "origin": [
+     200,
+     40
+    ]
+   },
+   "expect": {
+    "mutation_outcome": "committed",
+    "data.dimension.expected": {
+     "matches": "^[0-9.]+$"
+    }
+   }
+  }
+ ]
+}
