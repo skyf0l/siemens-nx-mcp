@@ -1014,7 +1014,7 @@ def _flat_solid(tx, b, i):
 def _lightening_cutout(tx, b, i):
     p = i.p
     b.Type = _enum(tx, "LighteningCutoutBuilderCutoutType", "UserDefined")
-    b.UserDefinedSection = builders.section(tx, i.sketch)
+    builders.section(tx, i.sketch, into=b.UserDefinedSection)  # read-only: the builder's own
     _expression(b.Length, p["length"])
     _expression(b.Angle, p.get("angle", 90.0))
     if p.get("radius") is not None:
