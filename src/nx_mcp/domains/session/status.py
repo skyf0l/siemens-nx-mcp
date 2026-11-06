@@ -182,6 +182,7 @@ class PartsInfo(TypedDict, total=False):
     # gate 3t: the agent's loaded parts (created, opened or granted; components
     # included, never the engineer's own); from two on, a call without refs takes part
     agent_loaded: int
+    cae_part: str  # a FEM or SIM file NX shows: then work and display are None
 
 
 class WorkspaceInfo(TypedDict):
@@ -262,6 +263,10 @@ def _part(session_part, root, row=None, units=None) -> PartInfo | None:
         "units": units,
         "modified": bool(getattr(session_part, "IsModified", False)),
     }
+
+
+def _cae_path(part, root) -> str:
+    return files.relative(parts.file_of(part), root) or parts.file_of(part)
 
 
 def snapshot_parts(session, root) -> PartsInfo | None:
@@ -465,12 +470,23 @@ def nx_get_status(
     status = services.control_status()
     session_parts = services.session.Parts
     root = services.workspace.root
+    cae = target.cae_shown(services)
 
     def row(part):
         if part is None:
             return None
         return _part(part, root, tx.ref(part, "part"), services.part_units(part))
 
+    parts_info: PartsInfo = {
+        "work": None if cae else row(session_parts.Work),
+        "display": None if cae else row(session_parts.Display),
+        "loaded": len(services.parts()),
+        "work_component": None if cae else _work_component(tx, session_parts),
+        "top_level": len(target.roots(services)),
+        "agent_loaded": len(target.agent_parts(services)),
+    }
+    if cae:
+        parts_info["cae_part"] = _cae_path(cae, root)
     data = {
         "bridge": _bridge(
             services.build,
@@ -479,14 +495,7 @@ def nx_get_status(
             session_id=services.session_id,
             answered_from="nx",
         ),  # fmt: skip
-        "parts": {
-            "work": row(session_parts.Work),
-            "display": row(session_parts.Display),
-            "loaded": len(services.parts()),
-            "work_component": _work_component(tx, session_parts),
-            "top_level": len(target.roots(services)),
-            "agent_loaded": len(target.agent_parts(services)),
-        },
+        "parts": parts_info,
         "control": control_data(status) if status is not None else None,
         "workspace": workspace_info(root),
         "operation": running_info(
