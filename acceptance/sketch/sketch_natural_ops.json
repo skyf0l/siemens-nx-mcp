@@ -50,7 +50,7 @@
     {"call": "nx_get_sketch", "args": {"sketch": "$sk.data.sketch.id", "include": ["geometry"]},
      "expect": {"data.curves.0.start": {"close": [0, 50], "tol": 1e-6}, "data.curves.0.length": {"close": 25, "tol": 1e-6},
                 "data.curves.1.end": {"close": [10, 70], "tol": 1e-6}, "data.curves.1.length": {"close": 25, "tol": 1e-6},
-                "data.curves.2.start.1": {"close": 93, "tol": 1e-6}, "data.curves.2.end.1": {"close": 93, "tol": 1e-6},
+                "data.curves.2.start.1": {"close": 90, "tol": 1e-6}, "data.curves.2.end.1": {"close": 90, "tol": 1e-6},
                 "data.curves.4.radius": {"close": 8, "tol": 1e-9}}},
     {"call": "nx_create_sketch_copy",
      "args": {"sketch": "$sk.data.sketch.id", "mode": "offset", "distance": "2 mm", "side": "inside", "curves": [

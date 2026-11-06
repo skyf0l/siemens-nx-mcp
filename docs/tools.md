@@ -3628,7 +3628,7 @@ Create a sketch on a principal plane, a planar face or datum plane, or normal to
 
 **Add sketch constraints** · effect `model` · NX 2406: tested (all variants); 88 checks in `acceptance/sketch/sketch_safety.json`
 
-Add 1-50 geometric constraints to a sketch; each is solved and checked on the geometry. The second curve moves (moved: others the solve moved); fixed geometry never moves. An equal existing constraint is reused. Conflicts roll back as solver_failed.
+Add 1-50 geometric constraints to a sketch; each is solved and checked on the geometry. The second curve moves, a horizontal or vertical line turns about its start (moved: others the solve moved); fixed geometry never moves. An equal existing constraint is reused. Conflicts roll back as solver_failed.
 
 | Argument | Type | Default | Notes |
 | --- | --- | --- | --- |

@@ -4,9 +4,12 @@ NX 2406 findings kept here (modern solver, ``Sketch.UsesLegacySolver`` False):
 
 - ``Create<Kind>Constraint`` makes a persistent constraint but does not move
   geometry; the ``SketchMake<Kind>Builder`` relations (parallel, perpendicular,
-  equal, coincident, concentric, tangent, symmetric) move the second curve.
-  Horizontal, vertical, midpoint and point-on-curve are solved by a native drag
-  (``kit.sketch.drag``); every constraint is then checked by its geometric residual.
+  equal, coincident, concentric, tangent, symmetric, horizontal, vertical) move the
+  second (or only) curve; NX 2606 turns a horizontal or vertical line about its start,
+  keeping its length. NX 2606 creates no Make Horizontal on a line held vertical (and
+  the reverse): the error names the constraint in the way. Midpoint and
+  point-on-curve are solved by a native drag (``kit.sketch.drag``); every constraint
+  is then checked by its geometric residual.
 - NX's midpoint constraint only makes a point equidistant from the target's ends
   (perpendicular bisector); with a point-on-curve constraint it is the midpoint.
   ``MidVertex`` is refused as a target: the target is the curve itself.
@@ -24,7 +27,10 @@ NX 2406 findings kept here (modern solver, ``Sketch.UsesLegacySolver`` False):
   that rolls back too.
 - Relation builders and drags also maintain relations NX *finds* (a Make Equal
   resized an unrelated circle of the same radius); every found relation is
-  relaxed (``kit.sketch.relax_found_relations``).
+  relaxed (``kit.sketch.relax_found_relations``). A drag has no way to relax them
+  (``SketchDragGeometryBuilder`` has no ``FindRelations``): on NX 2606 a horizontal
+  constraint solved by a drag turned an unconstrained line parallel to it horizontal
+  too, so horizontal and vertical are Make Horizontal / Make Vertical relations.
 - A request whose solve collapses curves (a point held on two parallel sides of one
   rectangle, or on two sides meeting at a corner; a corner onto the far side; both
   ends of one curve made coincident) makes NX delete them behind the modal "Edit
@@ -344,7 +350,7 @@ def _refusal(what, field=None):
 
 
 def _make_relation(tx, sk, kind, objs, field=None):
-    """The modern-solver ``SketchMake*Builder`` relations; the second curve moves."""
+    """The modern-solver ``SketchMake*Builder`` relations; the second (or only) curve moves."""
     nx, part = tx.nx, tx.part
     kept = ksketch.curve_labels(sk)
     names = {
@@ -356,6 +362,8 @@ def _make_relation(tx, sk, kind, objs, field=None):
         "coincident": "CreateSketchMakeCoincidentBuilder",
         "concentric": "CreateSketchMakeCoincidentBuilder",
         "tangent": "CreateSketchMakeTangentBuilder",
+        "horizontal": "CreateSketchMakeHorizontalBuilder",
+        "vertical": "CreateSketchMakeVerticalBuilder",
     }
     with builders.build(tx, getattr(part.Sketches, names[kind])) as b:
         if kind in ("coincident", "concentric"):
@@ -374,6 +382,8 @@ def _make_relation(tx, sk, kind, objs, field=None):
                 getattr(snaps, pc.title()), c, view, nx.Point3d(*ksketch.point(tx, c, pc)),
                 None, None, empty,
             )  # fmt: skip
+        elif kind in ("horizontal", "vertical"):
+            b.MotionObjects.Add(objs["curves"][0])
         else:
             a, c = objs["curves"]
             b.StationaryObject.Value = a
@@ -437,16 +447,9 @@ def _refuse_collapse(tx, sk, kind, objs, field):
 
 
 def _create_and_drag(tx, sk, kind, objs, field=None):
-    """Constraints the builders do not cover: create natively, then solve by a drag."""
+    """Midpoint and point-on-curve (no builder covers them): create natively, then solve
+    by a drag."""
     s = sk.sketch
-    if kind in ("horizontal", "vertical"):
-        line = objs["curves"][0]
-        create = (
-            s.CreateHorizontalConstraint if kind == "horizontal" else s.CreateVerticalConstraint
-        )
-        with _refusal(kind + " constraint", field):
-            create(ksketch.constraint_geometry(tx, line))
-        return ksketch.drag(tx, sk, line, "end")
     (src, which), target = objs["points"][0], objs["curves"][0]
     p = _local(tx, sk, src, which)
     goal = _local(tx, sk, target, "mid") if kind == "midpoint" else _foot(tx, sk, target, p)[0]
@@ -673,7 +676,8 @@ def nx_create_sketch_constraints(
     ],
 ) -> ConstraintsData:
     """Add 1-50 geometric constraints to a sketch; each is solved and checked on the geometry.
-    The second curve moves (moved: others the solve moved); fixed geometry never moves. An
+    The second curve moves, a horizontal or vertical line turns about its start (moved:
+    others the solve moved); fixed geometry never moves. An
     equal existing constraint is reused. Conflicts roll back as solver_failed."""
     named = common.natural_items(
         constraints, "type", list(CONSTRAINT_TYPES), "/constraints", CONSTRAINT_ALIASES
@@ -721,11 +725,20 @@ def nx_create_sketch_constraints(
                 _not_created(tx, sk, kind, objs, field)
             residual, tol = _residual(tx, sk, kind, objs)
             if not residual <= tol:
-                fail(
-                    "NX_CONSTRAINT_UNSATISFIED",
-                    f"The {kind} constraint is not satisfied after the solve; rolled back",
-                    field=field,
-                    details={"residual": residual, "drag_status": row.get("drag_status")},
+                # A constraint NX created but left unsolved: name what relieves the
+                # conflict too (a drag left a conflicting one unsolved on NX 2606).
+                raise common.explain_conflict(
+                    tx,
+                    sk,
+                    NXError(
+                        "NX_CONSTRAINT_UNSATISFIED",
+                        f"The {kind} constraint is not satisfied after the solve; rolled back",
+                        field=field,
+                        details={"residual": residual, "drag_status": row.get("drag_status")},
+                    ),
+                    curves,
+                    before,
+                    field,
                 )
             row["constraints"] = [tx.ref(c, "sketch_constraint") for c in created]
             row["residual"] = residual
@@ -782,7 +795,7 @@ def _apply(tx, sk, kind, objs, row, field):
         _fix(tx, sk, objs, field)
     elif kind == "symmetric":
         _symmetric(tx, sk, objs, field)
-    elif kind in ("horizontal", "vertical", "midpoint", "point_on_curve"):
+    elif kind in ("midpoint", "point_on_curve"):
         row["drag_status"] = _create_and_drag(tx, sk, kind, objs, field)
     else:
         _make_relation(tx, sk, kind, objs, field)

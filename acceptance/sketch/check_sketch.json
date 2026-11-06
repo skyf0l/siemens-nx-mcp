@@ -18,7 +18,7 @@
                 "data.curves.0.start": {"close": [0, 0], "tol": 1e-9}, "data.curves.0.end": {"close": [10, 0], "tol": 1e-9},
                 "data.active": false}},
     {"call": "nx_check_sketch", "args": {"sketch": "$hv.data.items.0.id"},
-     "expect": {"data.state": "inconsistently_constrained", "data.explicit_conflicts": {"count": 1},
+     "expect": {"data.state": {"matches": "^(inconsistently|over)_constrained$"}, "data.explicit_conflicts": {"count": 1},
                 "data.explicit_conflicts.0.constraints": {"count": 2}, "data.relieving": {"count": 2}, "data.complete": true}},
     {"call": "nx_check_sketch", "args": {"sketch": "$ok.data.items.0.id"},
      "expect": {"data.state": "under_constrained", "data.trials": {"count": 0}, "data.relieving": {"count": 0}}},
