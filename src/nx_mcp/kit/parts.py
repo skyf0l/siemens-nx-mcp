@@ -84,6 +84,7 @@ from pathlib import Path
 from nx_mcp.core.errors import fail
 from nx_mcp.core.references import deleted
 from nx_mcp.kit import drawing
+from nx_mcp.kit.sketch import release_drafting_sketch
 
 
 def file_of(part) -> str:
@@ -823,7 +824,8 @@ def saving(tx, part, *, force_display: bool = False, update_views: bool = True):
         yield []
         return
     session = tx.session
-    if session.ActiveSketch is not None:
+    # NX keeps a sheet's last sheet sketch active: only a model sketch blocks, as in gate 4.
+    if session.ActiveSketch is not None and not release_drafting_sketch(session, tx.nx):
         fail(
             "NX_SKETCH_ACTIVE",
             "Finish the active sketch before saving a part with drawing sheets",
