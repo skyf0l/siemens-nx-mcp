@@ -29,6 +29,10 @@ NX 2406 findings:
   dxf/dwg file"; a DXF R13 or later without entity handles and an OBJECTS section is
   rejected that way, an R12 DXF needs neither. ``target`` sketch moves the curves into
   an existing sketch (file X/Y = sketch X/Y).
+- NX 2606: a STEP import into a loaded part NX did not display left the display part
+  as the work part (the call was refused and undone). An import into a loaded part
+  displays it for the import (``_into_loaded_part``), as ``nx_export_model`` does; the
+  tab shown before comes back.
 - CATIA V5 (``Catiav5Importer``) needs its own translator license: without it Commit
   raises 3755014 "There are no licenses available for the NX_CATIAV5 translator".
 - No JT, SolidWorks or Creo-by-design importer is offered: NX 2406 has no NXOpen JT or
@@ -469,6 +473,12 @@ def _format_of(a: dict) -> str:
     return str(a.get("format") or INFERRED.get(Path(str(a.get("path", ""))).suffix.lower(), ""))
 
 
+def _into_loaded_part(_services, _part, args) -> bool:
+    """An import into a loaded part (not ``new_part``) runs with the part displayed (module
+    docstring); ``new_part`` shows its own new part."""
+    return args.get("new_part_path") is None
+
+
 @tool(
     target="refs",
     effect="model",
@@ -486,7 +496,9 @@ def _format_of(a: dict) -> str:
     ),  # fmt: skip
     variants="format",
     requires=("no_active_sketch",),
-    display_bound=("/sketch",),  # activates the sketch (kit.sketch): its part is shown
+    # The sketch target activates the sketch (kit.sketch); a loaded part is shown for the
+    # translator (module docstring).
+    display_bound=("/sketch", _into_loaded_part),
     cost="long",
     invalidates="deleted",
     new_part="new_part_path",
