@@ -387,15 +387,18 @@ def _own_faces(faces, target, field):
 
 
 def _zone_set(tx, faces, thickness, outward: bool):
-    """One alternate-thickness zone: its faces and a length expression in part units (an
-    empty unit name made a unitless expression)."""
+    """One alternate-thickness zone: its faces and a length expression in part units. NX takes
+    the dimensionality here (NXOpen: "Length"; NX 2606 refuses a unit name, NX 2406 took
+    one); an empty name makes a unitless expression."""
     collector = builders.collector(tx, faces, "Face")
     rhs = _zone_rhs(thickness, outward)
     unit = expr.UNIT_NAMES.get(units.part_units(tx)) or ""
-    try:
-        return tx.part.CreateExpressionCollectorSet(collector, rhs, unit, 0)
-    except Exception:  # noqa: BLE001 - a unit name NX does not take: unitless as before
-        return tx.part.CreateExpressionCollectorSet(collector, rhs, "", 0)
+    for name in ("Length", unit):
+        try:
+            return tx.part.CreateExpressionCollectorSet(collector, rhs, name, 0)
+        except Exception:  # noqa: BLE001, S112 - a name this NX does not take: the next one
+            continue
+    return tx.part.CreateExpressionCollectorSet(collector, rhs, "", 0)
 
 
 def _too_thick(tx, error, target, thickness, outward, shelled) -> None:
